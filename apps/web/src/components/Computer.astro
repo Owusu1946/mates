@@ -1,7 +1,8 @@
 ---
 // "Ship code while you sleep": the mates' computer. A run plays out step by step, the same lines
-// the app streams: the current step shimmers while it works, finished ones settle, and the pull
-// request lands at the end. Without script (or with reduced motion) it shows the finished run.
+// the app streams, top to bottom: the current step shimmers while it works and finished ones settle
+// above it, beside the pull request it is building. Without script (or with reduced motion) it
+// shows the finished run.
 import { mate } from "../palette";
 import Mascot from "./Mascot";
 
@@ -23,6 +24,8 @@ const lines = [
   "Opening the pull request",
   "Opened PR #42",
 ];
+/** Steps in view at once; older ones drop off the top. */
+const VISIBLE = 6;
 const points = [
   { title: "Its own computer", body: "A fresh, private sandbox for every run. Your laptop stays yours." },
   { title: "Runs your checks", body: "Typecheck, lint and tests, with fix-ups until they pass." },
@@ -51,7 +54,7 @@ const points = [
     </div>
   </div>
 
-  <div class="visual" aria-hidden="true" data-run>
+  <div class="visual" aria-hidden="true" data-run data-visible={VISIBLE}>
     <div class="window">
       <div class="bar">
         <Mascot client:visible size={30} gradient={nova} state="working" />
@@ -60,16 +63,18 @@ const points = [
           <span>mates/dark-mode-3f9a1c</span>
         </div>
       </div>
-      <div class="feed">
+      <div class="feed full">
         {
-          lines.map((line) => (
-            <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]}>{line}</div>
+          lines.map((line, index) => (
+            <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]} hidden={index < lines.length - VISIBLE}>
+              {line}
+            </div>
           ))
         }
       </div>
     </div>
 
-    <div class="pr shown">
+    <div class="pr">
       <div class="pr-top">
         <span class="badge">
           <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 2.12a2.25 2.25 0 1 0-1.5 0v5.26a2.25 2.25 0 1 0 1.5 0zm6.5-2.12a.75.75 0 0 1 .75.75v6.38a2.25 2.25 0 1 1-1.5 0V4.5a.75.75 0 0 1 .75-.75zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm7.25 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" /></svg>
@@ -88,24 +93,25 @@ const points = [
 </section>
 
 <script>
-  // Plays the run one step at a time, holds on the finished PR, then starts over. Runs only while
-  // the section is on screen; reduced motion keeps the finished state the HTML already shows.
+  // Plays the run one step at a time, holds on the last step, then starts over. Runs only while the
+  // section is on screen; reduced motion keeps the finished state the HTML already shows.
   const STEP_MS = 900;
   const HOLD_STEPS = 5;
   for (const root of document.querySelectorAll<HTMLElement>("[data-run]")) {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
     const lines = [...root.querySelectorAll<HTMLElement>(".line")];
-    const pr = root.querySelector<HTMLElement>(".pr")!;
     const last = lines.length - 1;
+    const visible = Number(root.dataset.visible);
+    const feed = root.querySelector<HTMLElement>(".feed")!;
     let step = 0;
     let timer: number | undefined;
     const render = () => {
       const at = Math.min(step, last);
+      feed.classList.toggle("full", at >= visible);
       lines.forEach((line, index) => {
-        line.hidden = index > at;
+        line.hidden = index > at || index <= at - visible;
         line.classList.toggle("now", index === at && at < last);
       });
-      pr.classList.toggle("shown", step >= last);
     };
     const tick = () => {
       step = step >= last + HOLD_STEPS ? 0 : step + 1;
@@ -180,7 +186,6 @@ const points = [
 
   .visual {
     position: relative;
-    padding-bottom: 96px;
   }
   .window {
     border-radius: 22px;
@@ -207,18 +212,19 @@ const points = [
     font-size: 12px;
   }
 
-  /* Newest step at the bottom; older ones fade out over the top edge. */
+  /* Steps stack top to bottom; once full, the oldest slips away under a soft top edge. */
   .feed {
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
-    height: 238px;
-    padding: 14px 20px;
+    height: 232px;
+    padding: 14px 20px 38px;
     overflow: hidden;
     font-family: var(--mono);
     font-size: 13.5px;
-    -webkit-mask-image: linear-gradient(transparent, #000 45%);
-    mask-image: linear-gradient(transparent, #000 45%);
+  }
+  .feed.full {
+    -webkit-mask-image: linear-gradient(transparent, #000 18%);
+    mask-image: linear-gradient(transparent, #000 18%);
   }
   .line {
     flex: none;
@@ -234,7 +240,7 @@ const points = [
   @keyframes enter {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(-6px);
     }
   }
   .line.pass {
@@ -264,25 +270,14 @@ const points = [
     }
   }
 
-  /* The payoff: the pull request lands once the run is done. */
+  /* The pull request the run is building, tucked under the window. */
   .pr {
-    position: absolute;
-    left: 8%;
-    right: -6%;
-    bottom: 0;
+    position: relative;
+    margin: -24px -6% 0 8%;
     padding: 18px 20px;
     border-radius: 20px;
     background: var(--bg);
     box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(0, 0, 0, 0.3);
-    opacity: 0;
-    transform: translateY(20px) scale(0.97);
-    transition:
-      opacity 0.5s ease,
-      transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  .pr.shown {
-    opacity: 1;
-    transform: none;
   }
   .pr-top {
     display: flex;
@@ -352,8 +347,7 @@ const points = [
       padding: 48px 24px;
     }
     .pr {
-      right: 0;
-      left: 4%;
+      margin: -24px 0 0 4%;
     }
   }
   @media (max-width: 860px) {
