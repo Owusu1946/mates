@@ -21,6 +21,18 @@ export async function createRunKey(runId: string, limitUsd = Number(process.env.
   return { key: body.key, hash: body.data?.hash ?? null };
 }
 
+/** What a run key has spent, in dollars. Null when OpenRouter can't say. */
+export async function runKeyUsage(runKey: RunKey | null) {
+  if (!runKey?.hash || !process.env.OPENROUTER_PROVISIONING_KEY) return null;
+  try {
+    const response = await fetch(`${API}/${runKey.hash}`, { headers: { authorization: `Bearer ${process.env.OPENROUTER_PROVISIONING_KEY}` }, signal: AbortSignal.timeout(10_000) });
+    const body = (await response.json()) as { data?: { usage?: number } };
+    return typeof body.data?.usage === "number" ? body.data.usage : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Best effort: a key that can't be deleted still expires in value at its cap. */
 export async function deleteRunKey(runKey: RunKey | null) {
   if (!runKey?.hash || !process.env.OPENROUTER_PROVISIONING_KEY) return;

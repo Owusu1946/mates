@@ -1,0 +1,1 @@
+ALTER TABLE "code_runs" ADD COLUMN "cost_usd" real;
