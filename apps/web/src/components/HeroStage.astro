@@ -1,0 +1,90 @@
+---
+// The hero's three phones: the mission up front, two more mates at work behind it. The back pair
+// fan out and sit back in depth so the eye lands on the middle one first. They drop out on
+// narrow screens, where there is no room beside the main phone.
+import Device from "./Device.astro";
+import Phone from "./Phone.astro";
+
+const sky: [string, string, string] = ["#fbcfe8", "#ec4899", "#831843"];
+const sun: [string, string, string] = ["#fde68a", "#f59e0b", "#92400e"];
+---
+
+<div class="trio">
+  <div class="back left">
+    <Device title="Daily Brief" header="pill" faces={[{ gradient: sky, state: "happy" }]}>
+      <div class="stamp">7:00 AM</div>
+      <div class="them">3 meetings today, the first at 10. 18° with rain after 4, take a jacket.</div>
+      <div class="them">one urgent: the contract needs your signature today.</div>
+      <div class="event">Created routine <b>Morning brief · 7:00</b></div>
+      <div class="me">move my 10am to after lunch</div>
+      <div class="them">done. Sam accepted 1:30.</div>
+    </Device>
+  </div>
+
+  <div class="back right">
+    <Device title="Trip Planner" header="pill" faces={[{ gradient: sun, state: "excited" }]}>
+      <div class="stamp">Sunday 4:20 PM</div>
+      <div class="me">4 days in Lisbon in May, under $1,500. food and walking.</div>
+      <div class="them">flights from $412, a flat in Príncipe Real, and a walking plan with 6 places to eat.</div>
+      <div class="event">Wrote a note <b>Lisbon, May</b></div>
+      <div class="them">nothing booked until you say go.</div>
+    </Device>
+  </div>
+
+  <div class="front">
+    <Phone />
+  </div>
+</div>
+
+<style>
+  .trio {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+  }
+  .front {
+    position: relative;
+    z-index: 2;
+  }
+  .back {
+    position: absolute;
+    top: 70px;
+    z-index: 1;
+    opacity: 0.92;
+    filter: saturate(0.9);
+  }
+  .left {
+    right: 50%;
+    transform: translateX(-120px) rotate(-7deg) scale(0.84);
+    transform-origin: top right;
+  }
+  .right {
+    left: 50%;
+    transform: translateX(120px) rotate(7deg) scale(0.84);
+    transform-origin: top left;
+  }
+  /* A soft veil pushes the back pair into the distance. */
+  .back::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 64px;
+    background: linear-gradient(rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.35));
+    pointer-events: none;
+  }
+
+  @media (max-width: 1100px) {
+    .left {
+      transform: translateX(-60px) rotate(-7deg) scale(0.78);
+    }
+    .right {
+      transform: translateX(60px) rotate(7deg) scale(0.78);
+    }
+  }
+  @media (max-width: 860px) {
+    .back {
+      display: none;
+    }
+  }
+</style>
