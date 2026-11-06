@@ -1,34 +1,34 @@
 ---
 // The hero still: the app mid-mission. Pure HTML and CSS.
 import Device from "./Device.astro";
-import StaticMascot from "./StaticMascot.astro";
+import Mascot from "./Mascot";
 
 const cooper: [string, string, string] = ["#e5c59e", "#d27e41", "#9A3412"];
 const nova: [string, string, string] = ["#c7dcff", "#5b8def", "#1e3a8a"];
 const ivy: [string, string, string] = ["#d9f99d", "#4ade80", "#166534"];
 ---
 
-<Device title="Launch week" faces={[{ gradient: cooper, expression: 2 }, { gradient: nova }, { gradient: ivy, expression: 8 }]}>
+<Device title="Launch week" faces={[{ gradient: cooper, state: "happy" }, { gradient: nova, state: "working" }, { gradient: ivy, state: "writing" }]}>
       <div class="stamp">Today 9:38</div>
 
       <div class="me in" style="--d: 0.1s">Ship dark mode in the app and get the release notes ready for Friday.</div>
 
       <div class="mate in" style="--d: 0.5s">
-        <div class="who"><StaticMascot size={20} gradient={cooper} expression={2} /> Cooper</div>
+        <div class="who"><Mascot client:visible size={20} gradient={cooper} state="happy" /> Cooper</div>
         <p>On it. Nova takes the code, Ivy writes the notes. I’ll keep you posted.</p>
       </div>
 
       <div class="card in" style="--d: 0.9s">
         <div class="label">Handing off</div>
         <div class="row">
-          <StaticMascot size={28} gradient={nova} />
+          <Mascot client:visible size={28} gradient={nova} state="working" />
           <div class="grow">
             <div class="row-top"><b>Nova</b><span class="chip working">Working<span class="pulse"><i></i><i></i><i></i></span></span></div>
             <div class="task">Build dark mode across settings and chat</div>
           </div>
         </div>
         <div class="row">
-          <StaticMascot size={28} gradient={ivy} expression={8} />
+          <Mascot client:visible size={28} gradient={ivy} state="proud" />
           <div class="grow">
             <div class="row-top"><b>Ivy</b><span class="chip done">✓ Done</span></div>
             <div class="task">Draft the v2.4 release notes</div>

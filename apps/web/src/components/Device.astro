@@ -2,9 +2,10 @@
 // The phone itself: titanium frame, status bar, glass header and composer. Conversations go in
 // the default slot and use the classes below (.me, .mate, .card, .stamp, .event, .note, .in).
 // Styles are global but scoped under .device so pages can reuse the app look without clashing.
-import StaticMascot from "./StaticMascot.astro";
+import type { PolygonState } from "../../../mobile/src/components/polygon-avatar/polygon-avatar-core";
+import Mascot from "./Mascot";
 
-export type Face = { gradient: [string, string, string]; expression?: number };
+export type Face = { gradient: [string, string, string]; state?: PolygonState };
 
 interface Props {
   title: string;
@@ -41,12 +42,12 @@ const { title, faces, header = "stack" } = Astro.props;
         {
           header === "stack" ? (
             <div class="title">
-              <div class="stack">{faces.map((face) => <StaticMascot size={26} gradient={face.gradient} expression={face.expression} />)}</div>
+              <div class="stack">{faces.map((face) => <Mascot client:visible size={26} gradient={face.gradient} state={face.state} />)}</div>
               <div class="name">{title} <span class="chev">›</span></div>
             </div>
           ) : (
             <div class="glass pill">
-              <StaticMascot size={24} gradient={faces[0]!.gradient} expression={faces[0]!.expression} />
+              <Mascot client:visible size={24} gradient={faces[0]!.gradient} state={faces[0]!.state} />
               <span>{title}</span>
             </div>
           )
@@ -214,7 +215,7 @@ const { title, faces, header = "stack" } = Astro.props;
   .device .stack {
     display: flex;
   }
-  .device .stack svg + svg {
+  .device .stack > * + * {
     margin-left: -10px;
   }
   .device .name {
