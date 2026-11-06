@@ -1,0 +1,132 @@
+---
+// FAQs: native <details>, so it works without script and with the keyboard. Sharing a `name`
+// makes them an exclusive group: opening one closes the rest.
+const faqs = [
+  {
+    q: "How are Mates different from other AI assistants?",
+    a: "Mates are a team, not a single chatbot. They hand work to each other, sign in to your apps, have their own computer for writing code, and keep going after you close the app.",
+  },
+  {
+    q: "What can my mates do?",
+    a: "Research with sources, sort your inbox and draft replies, plan trips, brief you each morning, run routines on a schedule, and ship code to your GitHub repos as pull requests.",
+  },
+  {
+    q: "Do they keep working when I close the app?",
+    a: "Yes. The work runs on our servers, not your phone. You get a notification when something is done or needs you.",
+  },
+  {
+    q: "Where do I talk to my mates?",
+    a: "In the Mates app on iPhone and Android. Message one mate, or put a few in a group and give them a mission.",
+  },
+  {
+    q: "Do mates share one computer?",
+    a: "No. Every coding run gets a fresh, private computer that is wiped when the run ends. Code always comes back as a pull request for you to review and merge.",
+  },
+  {
+    q: "Who controls what my mates can access?",
+    a: "You do. You choose which apps to connect and can disconnect any of them, or delete your account and everything in it, from Settings.",
+  },
+];
+---
+
+<section class="faq" id="faq">
+  <h2>FAQs</h2>
+  <div class="list">
+    {
+      faqs.map((item, index) => (
+        <details name="faq" open={index === 0}>
+          <summary>
+            {item.q}
+            <span class="sign" aria-hidden="true" />
+          </summary>
+          <p>{item.a}</p>
+        </details>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .faq {
+    display: grid;
+    grid-template-columns: 1fr 1.25fr;
+    gap: 48px;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+    padding: 0 56px;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(32px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+  }
+  details {
+    border-bottom: 1px solid var(--line);
+  }
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 24px 0;
+    font-size: clamp(17px, 1.5vw, 20px);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    list-style: none;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 4px;
+    border-radius: 4px;
+  }
+  /* A plus that turns into a cross when open. */
+  .sign {
+    position: relative;
+    width: 18px;
+    height: 18px;
+    flex: none;
+    transition: transform 0.25s ease;
+  }
+  .sign::before,
+  .sign::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    border-radius: 1px;
+    background: var(--text);
+  }
+  .sign::after {
+    transform: rotate(90deg);
+  }
+  details[open] .sign {
+    transform: rotate(45deg);
+  }
+  p {
+    max-width: 54ch;
+    margin: 0;
+    padding: 0 40px 28px 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.65;
+  }
+
+  @media (max-width: 860px) {
+    .faq {
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-top: 96px;
+      padding: 0 8px;
+    }
+    p {
+      padding-right: 0;
+    }
+  }
+</style>
