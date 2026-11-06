@@ -1,0 +1,386 @@
+---
+// "Ship code while you sleep": the mates' computer. A run plays out as the same activity lines the
+// app streams, scrolling one at a time, then the pull request lands. One CSS cycle drives both.
+import Mascot from "./Mascot";
+
+const nova: [string, string, string] = ["#c7dcff", "#5b8def", "#1e3a8a"];
+const lines = [
+  "Starting the computer",
+  "Cloning acme/app",
+  "Installing dependencies with pnpm",
+  "Thinking",
+  "Searching for useTheme",
+  "Reading src/theme/tokens.ts",
+  "Editing src/theme/tokens.ts",
+  "Editing src/screens/settings.tsx",
+  "Running pnpm typecheck",
+  "pnpm typecheck passed",
+  "Running pnpm test",
+  "pnpm test passed",
+  "Pushing mates/dark-mode-3f9a1c",
+  "Opening the pull request",
+  "Opened PR #42",
+];
+const points = [
+  { title: "Its own computer", body: "A fresh, private sandbox for every run. Your laptop stays yours." },
+  { title: "Runs your checks", body: "Typecheck, lint and tests, with fix-ups until they pass." },
+  { title: "Opens a PR, never merges", body: "It works on its own branch. You review and you merge." },
+  { title: "Watch it live", body: "Every file it reads and every command it runs, on your phone." },
+];
+---
+
+<section class="computer" id="computer">
+  <div class="copy">
+    <div class="eyebrow">Mates’ computer</div>
+    <h2>Ship code while you sleep.</h2>
+    <p class="lede">
+      Connect GitHub and ask. A mate clones the repo on its own computer, writes the change, runs your checks, and opens a
+      pull request for you to review.
+    </p>
+    <ul>
+      {
+        points.map((point) => (
+          <li>
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <circle cx="9" cy="9" r="9" fill="rgba(48,164,108,0.18)" />
+              <path d="m5.5 9.2 2.3 2.3 4.7-4.9" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <div>
+              <b>{point.title}</b>
+              <span>{point.body}</span>
+            </div>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+
+  <div class="visual" aria-hidden="true">
+    <div class="window">
+      <div class="bar">
+        <Mascot client:visible size={30} gradient={nova} state="working" />
+        <div class="where">
+          <b>acme/app</b>
+          <span>mates/dark-mode-3f9a1c</span>
+        </div>
+        <span class="live"><i></i>Live</span>
+      </div>
+      <div class="feed">
+        <div class="scroller">
+          {
+            lines.map((line) => (
+              <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]}>
+                <span class="caret">›</span>
+                {line}
+              </div>
+            ))
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="pr">
+      <div class="pr-top">
+        <span class="badge">
+          <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 2.12a2.25 2.25 0 1 0-1.5 0v5.26a2.25 2.25 0 1 0 1.5 0zm6.5-2.12a.75.75 0 0 1 .75.75v6.38a2.25 2.25 0 1 1-1.5 0V4.5a.75.75 0 0 1 .75-.75zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm7.25 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" /></svg>
+          Open
+        </span>
+        <span class="num">#42</span>
+      </div>
+      <div class="pr-title">Add a dark mode toggle to Settings</div>
+      <div class="pr-meta"><b>mates[bot]</b> wants to merge 1 commit into <code>main</code></div>
+      <div class="pr-foot">
+        <span class="diff"><span class="add">+120</span> <span class="del">−8</span> · 6 files</span>
+        <span class="checks">✓ typecheck ✓ test</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .computer {
+    --line-h: 30px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+    padding: 72px 56px;
+    border-radius: 32px;
+    background: radial-gradient(120% 90% at 85% 10%, #1b2a4a 0%, transparent 55%), #0b0b0d;
+    color: #f5f5f7;
+    overflow: hidden;
+  }
+  .eyebrow {
+    color: #8ab4ff;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: #a1a1aa;
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  ul {
+    display: grid;
+    gap: 18px;
+    margin: 36px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  li svg {
+    flex: none;
+    margin-top: 2px;
+  }
+  li b {
+    display: block;
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  li span {
+    color: #a1a1aa;
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  .visual {
+    position: relative;
+    padding-bottom: 90px;
+  }
+  .window {
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.04);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 40px 80px -40px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .where {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    font-size: 14px;
+  }
+  .where span {
+    color: #71717a;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 12px;
+  }
+  .live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(74, 222, 128, 0.12);
+    color: #4ade80;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .live i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: beat 1.4s ease-in-out infinite;
+  }
+  @keyframes beat {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  /* A window onto the log: it steps up one line at a time, like the app's feed. */
+  .feed {
+    position: relative;
+    height: calc(var(--line-h) * 7 + 28px);
+    padding: 14px 18px;
+    overflow: hidden;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 13.5px;
+  }
+  .feed::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 60px;
+    background: linear-gradient(#0f1115, transparent);
+    z-index: 1;
+  }
+  .scroller {
+    animation: scroll 16s infinite;
+  }
+  @keyframes scroll {
+    0% {
+      transform: translateY(0);
+      /* 15 lines, 7 in view: 8 steps of one line each. */
+      animation-timing-function: steps(8, end);
+    }
+    66% {
+      transform: translateY(-240px);
+    }
+    100% {
+      transform: translateY(-240px);
+    }
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: var(--line-h);
+    color: #a1a1aa;
+    white-space: nowrap;
+  }
+  .caret {
+    color: #52525b;
+  }
+  .line.pass {
+    color: #4ade80;
+  }
+  .line.final {
+    color: #fff;
+    font-weight: 600;
+  }
+
+  /* The payoff: the pull request lands once the log reaches the end. */
+  .pr {
+    position: absolute;
+    left: 8%;
+    right: -6%;
+    bottom: 0;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: #fff;
+    color: #0f172a;
+    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+    animation: land 16s infinite;
+  }
+  @keyframes land {
+    0%,
+    68% {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+    }
+    72%,
+    96% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+  .pr-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: #1f883d;
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .num {
+    color: #64748b;
+    font-size: 14px;
+  }
+  .pr-title {
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .pr-meta {
+    margin-top: 4px;
+    color: #64748b;
+    font-size: 13.5px;
+  }
+  .pr-meta b {
+    color: #0f172a;
+  }
+  code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12.5px;
+  }
+  .pr-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e8f0;
+    font-size: 13px;
+  }
+  .add {
+    color: #1f883d;
+    font-weight: 600;
+  }
+  .del {
+    color: #cf222e;
+    font-weight: 600;
+  }
+  .diff {
+    color: #64748b;
+  }
+  .checks {
+    color: #1f883d;
+    font-weight: 600;
+  }
+
+  @media (max-width: 960px) {
+    .computer {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding: 48px 24px;
+    }
+    .pr {
+      right: 0;
+      left: 4%;
+    }
+  }
+  @media (max-width: 860px) {
+    .computer {
+      margin-top: 96px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scroller {
+      transform: translateY(-240px);
+    }
+    .pr {
+      opacity: 1;
+    }
+  }
+</style>
