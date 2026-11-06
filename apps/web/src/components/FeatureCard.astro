@@ -79,10 +79,24 @@ const { title, body, id, flip = false } = Astro.props;
       padding: 40px 24px 8px;
     }
     .actions {
-    margin-top: 32px;
-  }
-  .visual {
+      margin-top: 24px;
+    }
+    .visual {
       min-height: 280px;
+    }
+  }
+  @media (max-width: 520px) {
+    .feature {
+      min-height: 0;
+      border-radius: 26px;
+      clip-path: inset(-160px 0 0 0 round 26px);
+    }
+    .copy,
+    .flip .copy {
+      padding: 32px 20px 4px;
+    }
+    .visual {
+      min-height: 240px;
     }
   }
 </style>

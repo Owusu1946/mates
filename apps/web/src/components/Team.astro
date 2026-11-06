@@ -397,6 +397,30 @@ const points = [
       padding: 0 8px;
     }
   }
+  /* Phones: each mate's status drops under its name instead of squeezing the task. */
+  @media (max-width: 480px) {
+    .scene {
+      padding: 22px 14px;
+    }
+    .lead {
+      padding: 18px;
+    }
+    .mate {
+      flex-wrap: wrap;
+      padding: 12px 14px;
+    }
+    .task {
+      white-space: normal;
+    }
+    .status {
+      flex-basis: 100%;
+      justify-items: start;
+      padding-left: 52px;
+    }
+    .bubble {
+      font-size: 15px;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .done {
       opacity: 1;
