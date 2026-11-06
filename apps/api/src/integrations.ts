@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -34,6 +34,16 @@ export type WorkflowCard = {
     round?: number;
     from: { id: string; name: string; color: string; gradient: [string, string, string] };
     items: { mate: { id: string; name: string; color: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "done" | "waiting" | "failed" }[];
+  };
+  /** A job on the mates' computer: live steps, check results, and the pull request it opened. */
+  code?: {
+    runId: string;
+    repo: string;
+    branch: string;
+    status: "queued" | "cloning" | "coding" | "checking" | "pushing" | "done" | "failed" | "cancelled";
+    checks: { name: string; command: string; passed: boolean; output: string }[];
+    pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number };
+    error?: string;
   };
   /** A mission note a mate just wrote. */
   note?: { title: string; version: number; author: string; chatId: string };
