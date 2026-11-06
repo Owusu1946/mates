@@ -2,7 +2,8 @@
 // "Give each mate a job": pick a role, the copy and the phone switch to it. Every role is in the
 // HTML already; the script below only flips which one is visible.
 import Device from "./Device.astro";
-import StaticMascot from "./StaticMascot.astro";
+import type { PolygonState } from "../../../mobile/src/components/polygon-avatar/polygon-avatar-core";
+import Mascot from "./Mascot";
 
 type Line =
   | { me: string }
@@ -14,7 +15,7 @@ type Role = {
   id: string;
   name: string;
   gradient: [string, string, string];
-  expression?: number;
+  state: PolygonState;
   lead: string;
   body: string;
   thread: Line[];
@@ -25,6 +26,7 @@ const roles: Role[] = [
     id: "shipper",
     name: "Code Shipper",
     gradient: ["#c7dcff", "#5b8def", "#1e3a8a"],
+    state: "working",
     lead: "Ship features while you sleep.",
     body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
     thread: [
@@ -40,7 +42,7 @@ const roles: Role[] = [
     id: "inbox",
     name: "Inbox Keeper",
     gradient: ["#d9f99d", "#4ade80", "#166534"],
-    expression: 8,
+    state: "curious",
     lead: "Inbox zero, every morning.",
     body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
     thread: [
@@ -56,7 +58,7 @@ const roles: Role[] = [
     id: "trips",
     name: "Trip Planner",
     gradient: ["#fde68a", "#f59e0b", "#92400e"],
-    expression: 2,
+    state: "excited",
     lead: "Plan the whole trip.",
     body: "Flights, stays, a day-by-day plan and places to eat, built around your budget and how you like to travel.",
     thread: [
@@ -72,6 +74,7 @@ const roles: Role[] = [
     id: "research",
     name: "Researcher",
     gradient: ["#e9d5ff", "#a855f7", "#581c87"],
+    state: "searching",
     lead: "Answers you can check.",
     body: "Reads the web so you don’t have to, compares the options side by side, and shows every source it used.",
     thread: [
@@ -86,7 +89,7 @@ const roles: Role[] = [
     id: "chief",
     name: "Chief of Staff",
     gradient: ["#e5c59e", "#d27e41", "#9A3412"],
-    expression: 2,
+    state: "proud",
     lead: "Runs the team for you.",
     body: "Turns a big goal into a plan, assembles the right mates, hands the work out, and checks in until it’s done.",
     thread: [
@@ -101,7 +104,7 @@ const roles: Role[] = [
     id: "brief",
     name: "Daily Brief",
     gradient: ["#fbcfe8", "#ec4899", "#831843"],
-    expression: 8,
+    state: "happy",
     lead: "Your morning in one message.",
     body: "Your calendar, the weather and anything urgent, waiting for you before you’ve had coffee.",
     thread: [
@@ -140,7 +143,7 @@ const icons = {
             data-copy={`copy-${role.id}`}
             style={`--c: ${role.gradient[1]}; --c-deep: ${role.gradient[2]}`}
           >
-            <StaticMascot class="face" size={26} gradient={role.gradient} expression={role.expression} />
+            <Mascot client:visible className="face" size={26} gradient={role.gradient} state={role.state} />
             {role.name}
           </button>
         ))
@@ -162,7 +165,7 @@ const icons = {
     {
       roles.map((role, index) => (
         <div class="panel" id={`phone-${role.id}`} role="tabpanel" aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
-          <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, expression: role.expression }]}>
+          <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, state: role.state }]}>
             {role.thread.map((line, i) => {
               const delay = `--d: ${0.1 + i * 0.35}s`;
               if ("stamp" in line) return <div class="stamp in" style={delay}>{line.stamp}</div>;
