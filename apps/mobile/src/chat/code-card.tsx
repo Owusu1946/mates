@@ -132,6 +132,9 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
 
       {code.status === "failed" && <Text style={{ color: colors.error, fontSize: 14, lineHeight: 20 }}>{code.error ?? "The run didn’t finish. Nothing was pushed."}</Text>}
       {code.status === "cancelled" && <Text style={{ color: colors.textMuted, fontSize: 14 }}>Stopped.</Text>}
+      {!running && code.costUsd !== undefined && (
+        <Text style={{ color: colors.textMuted, fontSize: 12 }}>Model cost {code.costUsd < 0.01 ? "under $0.01" : `$${code.costUsd.toFixed(2)}`}</Text>
+      )}
 
       {running && (
         <Pressable accessibilityRole="button" disabled={stopping} onPress={stop} hitSlop={8} style={{ alignSelf: "flex-start", opacity: stopping ? 0.5 : 1 }}>
