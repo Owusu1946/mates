@@ -24,6 +24,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       <div class="tile"><span>Page views</span><b id="t-views">–</b></div>
       <div class="tile"><span>Views per visitor</span><b id="t-ratio">–</b></div>
       <div class="tile live"><span><i></i>Live now</span><b id="t-live">–</b></div>
+      <div class="tile"><span>Waitlist</span><b id="t-waitlist">–</b></div>
     </section>
 
     <section class="card chart-card">
@@ -68,6 +69,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     referrers: Item[];
     devices: Item[];
     paths: Item[];
+    waitlist?: number;
   };
 
   const root = document.querySelector<HTMLElement>(".dash")!;
@@ -185,6 +187,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     $("t-views").textContent = fmt(stats.totals.views);
     $("t-ratio").textContent = stats.totals.visitors ? (stats.totals.views / stats.totals.visitors).toFixed(1) : "–";
     $("t-live").textContent = fmt(stats.liveVisitors);
+    $("t-waitlist").textContent = fmt(stats.waitlist ?? 0);
     $("chart-range").textContent = `Last ${stats.days} days`;
     renderChart(stats.daily);
     renderList("l-referrers", stats.referrers);
