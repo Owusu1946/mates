@@ -22,6 +22,7 @@ import {
   undoActions,
 } from "./db/schema.js";
 import { getEnv } from "./env.js";
+import { githubConfigured, uninstallAll } from "./github.js";
 import { getComposio } from "./integrations.js";
 
 /**
@@ -75,6 +76,8 @@ export async function deleteAccount(userId: string) {
     .set({ cancelRequested: true })
     .where(and(eq(delegations.clerkUserId, userId), inArray(delegations.status, ["queued", "running"])));
   await disconnectAllApps(userId);
+  // The mates' bot leaves every GitHub account it was installed on.
+  if (githubConfigured()) await uninstallAll(userId);
   const [first, ...rest] = ACCOUNT_TABLES.map((table) => db.delete(table).where(eq(table.clerkUserId, userId)));
   await db.batch([first!, ...rest]);
   await createClerkClient({ secretKey: getEnv().CLERK_SECRET_KEY }).users.deleteUser(userId);
