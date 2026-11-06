@@ -15,6 +15,10 @@ export type CodeRun = typeof codeRuns.$inferSelect;
 const ACTIVE: CodeRunStatus[] = ["queued", "cloning", "coding", "checking", "pushing"];
 const FIX_ROUNDS = 3;
 const ACTIVITY_LINES = 40;
+/** Failed model calls in a row before the run gives up and says why. */
+const MODEL_RETRIES = 3;
+/** Silence after which the coder is presumed stuck. Long thinking still prints a step event. */
+const QUIET_MS = 15 * 60_000;
 
 class Cancelled extends Error {}
 /** A failure whose message is safe and useful to show the user as-is. */
@@ -259,7 +263,7 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     let notes = "";
     for (let round = 0; round <= FIX_ROUNDS; round++) {
       await update(id, { status: "coding" });
-      log.add(round ? `Fixing ${failures.map((check) => check.name).join(", ")} (try ${round} of ${FIX_ROUNDS})` : "Reading the code");
+      log.add(round ? `Fixing ${failures.map((check) => check.name).join(", ")} (try ${round} of ${FIX_ROUNDS})` : "Starting the coder");
       const brief = { task: run.task, rules, checks: checks?.checks ?? [], failures };
       notes = await writeCode(computer, { prompt: coderPrompt(brief), resume: round ? coderPrompt({ ...brief, continued: true }) : undefined, key: runKey.key, secrets, log });
       cancel.check();
@@ -317,25 +321,48 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
  * the activity log; what the coder says comes back as notes for the PR summary. A flag this
  * opencode build lacks fails before any event prints, so each failure falls back one step:
  * fresh session with the full brief, then plain output.
+ *
+ * opencode retries a failing model call (no credit, unknown model, rate limit) on its own, with
+ * nothing to show for it. After MODEL_RETRIES, or an error event, or QUIET_MS of silence, the
+ * coder is stopped and the run fails with the provider's reason instead of waiting out the hour.
  */
 async function writeCode(computer: Computer, { prompt, resume, key, secrets, log }: { prompt: string; resume?: string; key: string; secrets: string[]; log: ActivityLog }) {
-  const command = (flags: string) => `opencode run ${flags}-m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)"`;
+  // stdin is closed: some opencode builds wait to read piped input from an open one.
+  const command = (flags: string) => `opencode run ${flags}-m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)" < /dev/null`;
   const options = { env: { OPENROUTER_API_KEY: key }, secrets, timeoutMs: 30 * 60_000 };
   const attempts = [...(resume ? [{ flags: "--format json --continue ", prompt: resume }] : []), { flags: "--format json ", prompt }];
   for (const attempt of attempts) {
     await computer.writeFile("/work/prompt.md", attempt.prompt);
     const said: string[] = [];
     let events = 0;
-    const result = await computer.run(command(attempt.flags), {
-      ...options,
-      onLine: (line) => {
-        if (line.trimStart().startsWith("{")) events++;
-        const event = readCoderEvent(line, WORKDIR);
-        if (event.activity) log.add(event.activity);
-        if (event.text) said.push(event.text);
-      },
-    });
-    if (result.code === 0 || events) return said.join("\n") || result.output;
+    let stopped: string | null = null;
+    let heard = Date.now();
+    const stop = (reason: string) => {
+      if (stopped) return;
+      stopped = reason;
+      void computer.run("pkill -f 'opencode run' || true", { cwd: "/work" }).catch(() => undefined);
+    };
+    const watchdog = setInterval(() => {
+      if (Date.now() - heard > QUIET_MS) stop("The coder stopped responding for 15 minutes.");
+    }, 30_000);
+    try {
+      const result = await computer.run(command(attempt.flags), {
+        ...options,
+        onLine: (line) => {
+          heard = Date.now();
+          if (line.trimStart().startsWith("{")) events++;
+          const event = readCoderEvent(line, WORKDIR);
+          if (event.activity) log.add(event.activity);
+          if (event.text) said.push(event.text);
+          if (event.retry && event.retry.attempt >= MODEL_RETRIES) stop(`The coding model (${CODE_MODEL}) keeps failing${event.retry.message ? `: ${event.retry.message}` : ""}.`);
+          if (event.failure) stop(`The coder stopped: ${event.failure}`);
+        },
+      });
+      if (stopped) throw new RunFailure(`${stopped} Nothing was pushed.`);
+      if (result.code === 0 || events) return said.join("\n") || result.output;
+    } finally {
+      clearInterval(watchdog);
+    }
   }
   log.add("Writing the code");
   return (await computer.run(command(""), options)).output;
