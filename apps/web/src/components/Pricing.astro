@@ -62,7 +62,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
           <div class="billed monthly">Billed monthly</div>
           <div class="billed yearly">Billed yearly at ${yearlyPerMonth(plan) * 12}</div>
 
-          <a href="#download" class="pill-button dark get">Get {plan.name}</a>
+          <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
 
           <div class="intro">{plan.intro}</div>
           <ul>

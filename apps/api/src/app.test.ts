@@ -30,6 +30,18 @@ describe("API contract", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe("https://agents.askorin.app");
   });
 
+  it("turns away waitlist sign-ups that aren't emails, and bots quietly", async () => {
+    const app = createApp(deps);
+    const join = (body: object) =>
+      app.request("/site/waitlist", { method: "POST", headers: { "content-type": "application/json", origin: "https://agents.askorin.app" }, body: JSON.stringify(body) });
+    const bad = await join({ email: "not-an-email" });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ error: { code: "INVALID_EMAIL" } });
+    const bot = await join({ email: "bot@example.com", website: "https://spam.example" });
+    expect(bot.status).toBe(200);
+    expect(await bot.json()).toEqual({ position: null, already: false });
+  });
+
   it("treats a trailing slash as the same route", async () => {
     const response = await createApp(deps).request("/health/");
     expect(response.status).toBe(301);

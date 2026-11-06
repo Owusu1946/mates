@@ -8,6 +8,7 @@ import Logo from "../components/Logo.astro";
 import Pricing from "../components/Pricing.astro";
 import Roles from "../components/Roles.astro";
 import StoreButtons from "../components/StoreButtons.astro";
+import Waitlist from "../components/Waitlist";
 import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
 import Calls from "../components/Calls.astro";
@@ -21,6 +22,7 @@ const nav = [
   { label: "Computer", href: "#computer" },
   { label: "Pricing", href: "#pricing" },
 ];
+const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
 ---
 
 <Base>
@@ -32,7 +34,7 @@ const nav = [
     <nav aria-label="Main">
       {nav.map((item) => <a href={item.href}>{item.label}</a>)}
     </nav>
-    <a href="#download" class="pill-button dark nav-cta">Get the app</a>
+    <Waitlist client:load api={api} />
   </header>
 
   <main>
@@ -136,10 +138,6 @@ const nav = [
   }
   nav a:hover {
     opacity: 0.6;
-  }
-  .nav-cta {
-    margin-left: auto;
-    height: 44px;
   }
 
   .hero {
@@ -259,11 +257,6 @@ const nav = [
     }
     .nav {
       height: 60px;
-    }
-    .nav-cta {
-      height: 40px;
-      padding: 0 18px;
-      font-size: 15px;
     }
     .hero {
       padding-top: 24px;

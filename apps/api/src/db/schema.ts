@@ -425,3 +425,11 @@ export const siteVisits = pgTable("site_visits", {
   device: text("device").$type<"mobile" | "tablet" | "desktop">().notNull(),
   visitor: text("visitor").notNull(),
 }, (t) => [index("site_visits_at_idx").on(t.at)]);
+
+/** People waiting for the app, from the landing page's waitlist. One row per email. */
+export const waitlist = pgTable("waitlist", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  email: text("email").notNull().unique(),
+  referrer: text("referrer"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
