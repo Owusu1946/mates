@@ -1,69 +1,183 @@
 ---
-// The page's last word: the mark, the sections, and the year.
+// The page's last word: the mark and copyright on the left, link columns on the right, split by a
+// dashed rule. Columns stack into two, then one, as the screen narrows.
 import Mascot from "./Mascot";
 
-const links = [
-  { label: "Features", href: "#features" },
-  { label: "Missions", href: "#team" },
-  { label: "Computer", href: "#computer" },
-  { label: "Apps", href: "#apps" },
-  { label: "Pricing", href: "#pricing" },
-  { label: "FAQs", href: "#faq" },
+type Column = { title: string; links: { label: string; href: string }[] };
+const columns: Column[] = [
+  {
+    title: "Product",
+    links: [
+      { label: "Features", href: "#features" },
+      { label: "Missions", href: "#team" },
+      { label: "Mates’ computer", href: "#computer" },
+      { label: "Apps", href: "#apps" },
+      { label: "Pricing", href: "#pricing" },
+    ],
+  },
+  {
+    title: "Mates",
+    links: [
+      { label: "Code Shipper", href: "#roles" },
+      { label: "Inbox Keeper", href: "#roles" },
+      { label: "Trip Planner", href: "#roles" },
+      { label: "Researcher", href: "#roles" },
+      { label: "Chief of Staff", href: "#roles" },
+      { label: "Daily Brief", href: "#roles" },
+    ],
+  },
+  {
+    title: "Download",
+    links: [
+      { label: "iOS", href: "#download" },
+      { label: "Android", href: "#download" },
+    ],
+  },
+  {
+    title: "Help",
+    links: [{ label: "FAQs", href: "#faq" }],
+  },
+  {
+    title: "Legal",
+    links: [
+      { label: "Terms", href: "/terms" },
+      { label: "Privacy", href: "/privacy" },
+    ],
+  },
 ];
 ---
 
 <footer class="footer">
-  <a href="/" class="brand" aria-label="Mates home">
-    <Mascot client:visible size={26} />
-    <span>mates</span>
-  </a>
-  <nav aria-label="Footer">
-    {links.map((link) => <a href={link.href}>{link.label}</a>)}
+  <div class="side">
+    <div>
+      <a href="/" class="brand" aria-label="Mates home">
+        <Mascot client:visible size={30} />
+        <span>mates</span>
+      </a>
+      <div class="copy">© {new Date().getFullYear()} Mates</div>
+    </div>
+    <div class="built">
+      <Mascot client:visible size={18} state="playful" />
+      Built by mates
+    </div>
+  </div>
+
+  <nav class="columns" aria-label="Footer">
+    {
+      columns.map((column) => (
+        <div class="column">
+          <h2>{column.title}</h2>
+          <ul>
+            {column.links.map((link) => (
+              <li>
+                <a href={link.href}>{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))
+    }
   </nav>
-  <div class="year">© {new Date().getFullYear()} Mates</div>
 </footer>
 
 <style>
   .footer {
-    display: flex;
-    align-items: center;
-    gap: 32px;
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 2.6fr;
     width: min(1240px, calc(100% - 32px));
-    margin: 96px auto 0;
-    padding: 28px 0 40px;
-    border-top: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 14.5px;
+    margin: 120px auto 0;
+    padding: 56px 0 64px;
+  }
+  .side {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 40px;
+    padding-right: 40px;
+    border-right: 1px dashed var(--line);
   }
   .brand {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: var(--text);
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 600;
     letter-spacing: -0.03em;
   }
-  nav {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 24px;
+  .copy {
+    margin-top: 14px;
+    color: var(--muted);
+    font-size: 14px;
   }
-  nav a:hover {
-    color: var(--text);
-  }
-  .year {
-    margin-left: auto;
+  .built {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    align-self: flex-start;
+    height: 40px;
+    padding: 0 16px 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 14px;
   }
 
-  @media (max-width: 860px) {
+  .columns {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 40px 24px;
+    padding-left: 64px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  ul {
+    display: grid;
+    gap: 12px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  li a {
+    color: var(--text);
+    font-size: 15.5px;
+    opacity: 0.85;
+    transition: opacity 0.15s ease;
+  }
+  li a:hover {
+    opacity: 0.5;
+  }
+
+  @media (max-width: 1024px) {
     .footer {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 20px;
+      grid-template-columns: 1fr;
+      gap: 40px;
     }
-    .year {
-      margin-left: 0;
+    .side {
+      flex-direction: row;
+      align-items: flex-start;
+      padding: 0 0 32px;
+      border-right: 0;
+      border-bottom: 1px dashed var(--line);
+    }
+    .columns {
+      grid-template-columns: repeat(3, 1fr);
+      padding-left: 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .footer {
+      margin-top: 80px;
+      padding-top: 32px;
+    }
+    .side {
+      flex-direction: column;
+      gap: 24px;
+    }
+    .columns {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
 </style>
