@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
 
 const deps = {
@@ -76,5 +76,35 @@ describe("API contract", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(await response.text()).toContain("Hello");
+  });
+});
+
+describe("GitHub connect callback", () => {
+  const env = { GITHUB_APP_ID: "1", GITHUB_APP_SLUG: "mates", GITHUB_APP_PRIVATE_KEY: "x", GITHUB_APP_CLIENT_ID: "Iv1.test", GITHUB_APP_CLIENT_SECRET: "s", GITHUB_STATE_SECRET: "test" };
+  const saved: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const [key, value] of Object.entries(env)) {
+      saved[key] = process.env[key];
+      process.env[key] = value;
+    }
+  });
+  afterEach(() => {
+    for (const key of Object.keys(env)) process.env[key] = saved[key];
+  });
+
+  it("sends an expired or forged state back to the app with a reason", async () => {
+    const response = await createApp(deps).request("/v1/github/callback?state=nope&code=abc");
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("muse-clone://connections?github=failed&reason=expired");
+  });
+
+  it("signs the user in with GitHub when the install returned no code", async () => {
+    const { signState } = await import("./github.js");
+    const state = signState("user_123", Date.now(), "exp://10.0.0.2:8081/--/connections");
+    const response = await createApp(deps).request(`/v1/github/callback?installation_id=42&setup_action=update&state=${encodeURIComponent(state)}`);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.origin + location.pathname).toBe("https://github.com/login/oauth/authorize");
+    expect(location.searchParams.get("client_id")).toBe("Iv1.test");
+    expect(location.searchParams.get("state")).toBe(state);
   });
 });
