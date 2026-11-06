@@ -37,7 +37,7 @@ const nav = [
       <a href="#computer" class="announce">
         <strong>Mates can ship code now</strong>
         <span class="dot">·</span>
-        <span>See how it works</span>
+        <span class="more-link">See how it works</span>
         <span class="arrow" aria-hidden="true">↗</span>
       </a>
 
@@ -178,7 +178,7 @@ const nav = [
     flex-wrap: wrap;
     gap: 0.18em;
     margin: 28px 0 0;
-    font-size: clamp(44px, 6.4vw, 76px);
+    font-size: clamp(36px, 6.4vw, 76px);
     font-weight: 600;
     letter-spacing: -0.05em;
     line-height: 1;
@@ -251,11 +251,38 @@ const nav = [
     .nav {
       padding: 0 16px;
     }
+    .nav {
+      height: 60px;
+    }
+    .nav-cta {
+      height: 40px;
+      padding: 0 18px;
+      font-size: 15px;
+    }
     .hero {
       padding-top: 24px;
     }
     .announce {
       font-size: 14px;
+    }
+    h1 {
+      margin-top: 22px;
+    }
+    .stage {
+      margin-top: 48px;
+    }
+  }
+  /* Phones: the announcement keeps just its headline and arrow. */
+  @media (max-width: 520px) {
+    .announce .dot,
+    .announce .more-link {
+      display: none;
+    }
+    .lede {
+      margin-top: 16px;
+    }
+    .big-mascot {
+      transform: scale(0.5);
     }
   }
   @media (max-width: 420px) {
