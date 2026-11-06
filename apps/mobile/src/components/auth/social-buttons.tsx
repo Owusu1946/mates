@@ -64,11 +64,16 @@ export function SocialAuthButtons({
     Platform.OS === "ios" ? ["apple", "google"] : ["google", "apple"];
   return (
     <View style={{ gap: 12 }}>
-      {providers.map((provider) => (
-        <AuthGlass
+      {providers.map((provider, index) => {
+        // The platform's own provider leads as the solid button; the other sits on glass.
+        const primary = index === 0;
+        const ink = primary ? colors.buttonText : colors.text;
+        const Surface = primary ? View : AuthGlass;
+        return (
+        <Surface
           key={provider}
-          interactive
-          style={{ borderRadius: authLayout.controlRadius }}
+          {...(primary ? {} : { interactive: true })}
+          style={{ borderRadius: authLayout.controlRadius, borderCurve: "continuous", ...(primary ? { backgroundColor: colors.button } : {}) }}
         >
           <Pressable
             testID={`social-${provider}`}
@@ -97,13 +102,13 @@ export function SocialAuthButtons({
             })}
           >
             {pending === provider ? (
-              <ActivityIndicator color={colors.text} />
+              <ActivityIndicator color={ink} />
             ) : (
-              <SocialIcon provider={provider} size={21} color={colors.text} />
+              <SocialIcon provider={provider} size={21} color={ink} />
             )}
             <Text
               style={{
-                color: colors.text,
+                color: ink,
                 fontSize: authLayout.textSize,
                 fontWeight: "600",
               }}
@@ -113,8 +118,9 @@ export function SocialAuthButtons({
                 : `Continue with ${provider === "apple" ? "Apple" : "Google"}`}
             </Text>
           </Pressable>
-        </AuthGlass>
-      ))}
+        </Surface>
+        );
+      })}
       <AuthMessage message={error} />
     </View>
   );
