@@ -1,0 +1,45 @@
+{
+  "name": "@expojet/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./app": "./src/app.ts",
+    "./integrations": "./src/integrations.ts"
+  },
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "worker:dev": "pnpm dlx trigger.dev@4.7.3 dev",
+    "worker:deploy": "pnpm dlx trigger.dev@4.7.3 deploy",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@browserbasehq/sdk": "^2.21.0",
+    "@browserbasehq/stagehand": "^4.2.0",
+    "@clerk/backend": "^2.14.0",
+    "@composio/core": "^0.22.0",
+    "@composio/openai": "^0.13.0",
+    "@hono/node-server": "^1.19.1",
+    "@neondatabase/serverless": "^1.0.1",
+    "@t3-oss/env-core": "^0.13.11",
+    "@trigger.dev/sdk": "4.7.3",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.9.8",
+    "luxon": "^3.7.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@trigger.dev/build": "4.7.3",
+    "@types/luxon": "^3.7.6",
+    "@types/node": "^24.3.1",
+    "drizzle-kit": "^0.31.4",
+    "tsx": "^4.20.5",
+    "typescript": "~6.0.3",
+    "vitest": "^3.2.4"
+  }
+}

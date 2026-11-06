@@ -1,0 +1,137 @@
+import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, useRouter } from "expo-router";
+import { Linking } from "react-native";
+import * as Notifications from "expo-notifications";
+import { useAuth } from "@clerk/expo";
+import {
+  AssistantRuntimeProvider,
+  useAui,
+  useLocalRuntime,
+  useRemoteThreadListRuntime,
+} from "@assistant-ui/react-native";
+import { useEffect, useMemo, useRef } from "react";
+import {
+  ActivityIndicator,
+  AppState,
+  StyleSheet,
+  View,
+} from "react-native";
+import { createChatModel } from "../../src/chat/chat-model";
+import { createRemoteChats } from "../../src/chat/remote-chats";
+import { ChatSyncContext } from "../../src/chat/chat-sync";
+import { useSession } from "../../src/session/provider";
+import { useTheme } from "../../src/theme/provider";
+import { runRequest } from "../../src/chat/background-chat";
+import { CallProvider } from "../../src/call/call-model";
+import { CallPill } from "../../src/call/call-pill";
+
+function AuthenticatedStack({ userId }: { userId: string }) {
+  const router = useRouter();
+  useEffect(() => {
+    const open = (response: Notifications.NotificationResponse) => {
+      const data = response.notification.request.content.data;
+      // A reminder opens what it is about, such as the meeting's Meet link.
+      if (typeof data?.reminderId === "string" && typeof data.url === "string" && data.url.startsWith("https://")) {
+        void Linking.openURL(data.url);
+        return;
+      }
+      const id = data?.delegationId;
+      if (typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id)) router.push({ pathname: "/(app)/feed", params: { runId: id } });
+    };
+    const listener = Notifications.addNotificationResponseReceivedListener(open);
+    void Notifications.getLastNotificationResponseAsync().then(response => { if (response) { open(response); void Notifications.clearLastNotificationResponseAsync(); } }).catch(() => {});
+    return () => listener.remove();
+  }, [router]);
+  const { getToken } = useAuth();
+  const tokenRef = useRef(getToken);
+  tokenRef.current = getToken;
+  const chats = useMemo(() => createRemoteChats(userId, () => tokenRef.current()), [userId]);
+  const runtime = useRemoteThreadListRuntime({
+    adapter: chats.list,
+    runtimeHook: function CooperThreadRuntime() {
+      const aui = useAui();
+      const model = useMemo(() => createChatModel(() => tokenRef.current(), () => aui.threadListItem.initialize()), [aui]);
+      const history = useMemo(() => chats.history(
+        () => aui.threadListItem.getState().remoteId,
+        () => aui.threadListItem.initialize(),
+        () => aui.threadListItem.getState().id,
+      ), [chats, aui]);
+      const local = useLocalRuntime(model, { adapters: { history } });
+      useEffect(() => {
+        let disposed = false;
+        let busy = false;
+        let fingerprint = "";
+        const recover = async () => {
+          const id = aui.threadListItem.getState().remoteId;
+          if (disposed || busy || !id || local.thread.getState().isRunning || AppState.currentState !== "active") return;
+          busy = true;
+          try {
+            const capabilities = await runRequest<{ durableRuns: boolean }>(() => tokenRef.current(), "capabilities");
+            if (!capabilities.durableRuns) return;
+            const { runs } = await runRequest<{ runs: { id: string; updatedAt: string }[] }>(() => tokenRef.current(), `runs?chatId=${encodeURIComponent(id)}`);
+            const next = runs.map(run => `${run.id}:${run.updatedAt}`).join("|");
+            if (next !== fingerprint && !local.thread.getState().isRunning) {
+              const saved = await history.load();
+              if (!disposed && !local.thread.getState().isRunning) local.thread.import(saved);
+              fingerprint = next;
+            }
+          } catch { /* Keep cached history while disconnected. */ }
+          finally { busy = false; }
+        };
+        const timer = setInterval(() => void recover(), 2500);
+        const listener = AppState.addEventListener("change", state => { if (state === "active") void recover(); });
+        void recover();
+        return () => { disposed = true; clearInterval(timer); listener.remove(); };
+      }, [aui, history, local]);
+      return local;
+    },
+  });
+  const { resolvedMode } = useTheme();
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <ChatSyncContext.Provider value={chats.sync}>
+      <ThemeProvider value={resolvedMode === "dark" ? DarkTheme : DefaultTheme}>
+      <CallProvider>
+      <View style={{ flex: 1 }}>
+        <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
+          <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="feed" options={{ title: "Feed" }} />
+          <Stack.Screen name="ideas" options={{ title: "Ideas" }} />
+          <Stack.Screen name="tasks" options={{ title: "Tasks" }} />
+          <Stack.Screen name="settings" options={{ title: "Settings" }} />
+          <Stack.Screen name="connections" options={{ title: "Apps" }} />
+          <Stack.Screen name="memory" options={{ title: "Memory" }} />
+          <Stack.Screen name="new-mate" options={{ title: "New", headerShown: false, presentation: "modal" }} />
+          <Stack.Screen name="mate/[id]" options={{ title: "Mate" }} />
+          <Stack.Screen name="group/[id]" options={{ title: "Group" }} />
+          <Stack.Screen name="mission/[chatId]" options={{ title: "Mission notes" }} />
+          <Stack.Screen name="call" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+        </Stack>
+        <CallPill />
+      </View>
+      </CallProvider>
+      </ThemeProvider>
+      </ChatSyncContext.Provider>
+    </AssistantRuntimeProvider>
+  );
+}
+
+export default function ProtectedLayout() {
+  const session = useSession();
+  const { isLoaded, userId } = useAuth();
+  if (session.status === "loading" || !isLoaded) {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+  if (session.status === "unauthenticated")
+    return <Redirect href="/(public)/sign-in" />;
+
+  if (!userId) return <Redirect href="/(public)/sign-in" />;
+  return <AuthenticatedStack key={userId} userId={userId} />;
+}
+
+const styles = StyleSheet.create({
+  loading: { flex: 1, alignItems: "center", justifyContent: "center" },
+});

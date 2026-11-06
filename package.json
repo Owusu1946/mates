@@ -1,0 +1,24 @@
+{
+  "name": "expojet-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:clear": "node scripts/dev.mjs --clear",
+    "dev:api": "pnpm --filter @expojet/api dev",
+    "dev:mobile": "pnpm --filter @muse-clone/mobile dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "test": "turbo test",
+    "db:generate": "pnpm --filter @expojet/api db:generate",
+    "db:migrate": "pnpm --filter @expojet/api db:migrate"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.6",
+    "typescript": "~6.0.3"
+  }
+}

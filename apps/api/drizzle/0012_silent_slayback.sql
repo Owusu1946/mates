@@ -1,0 +1,1 @@
+ALTER TABLE "agent_runs" ADD COLUMN "group_queue" jsonb;

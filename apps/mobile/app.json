@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "muse-clone",
+    "slug": "muse-clone",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "muse-clone",
+    "userInterfaceStyle": "automatic",
+    "icon": "./assets/icon.svg",
+    "splash": {
+      "image": "./assets/splash-icon.svg",
+      "resizeMode": "contain",
+      "backgroundColor": "#111318"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon-foreground.svg",
+        "backgroundImage": "./assets/adaptive-icon-background.svg",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.svg"
+      },
+      "package": "com.expojet.museclone"
+    },
+    "web": {
+      "favicon": "./assets/favicon.svg"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen",
+      "expo-notifications",
+      "@sentry/react-native/expo",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos and scan documents."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
+          "savePhotosPermission": "Allow $(PRODUCT_NAME) to save photos."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos."
+        }
+      ],
+      "expo-image"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.expojet.museclone"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}

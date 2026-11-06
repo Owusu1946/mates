@@ -1,0 +1,33 @@
+{
+  "$schema": "https://expojet.dev/schemas/project.schema.json",
+  "generatorVersion": "0.8.1",
+  "sdk": 57,
+  "sdkPackSha256": "86e80e3a8d767a1ba47e864213c2be853c2ba29550a643da10c31c1cfe5b46be",
+  "structure": "monorepo",
+  "packageManager": "pnpm",
+  "adapters": {
+    "navigation": "router",
+    "navigationType": "tabs",
+    "backend": "hono",
+    "auth": "clerk",
+    "socialProviders": [
+      "google",
+      "apple"
+    ],
+    "style": "nativewind",
+    "database": "neon",
+    "orm": "drizzle",
+    "icons": "hugeicons",
+    "state": "zustand",
+    "analytics": "none",
+    "monitoring": "sentry"
+  },
+  "features": {
+    "onboarding": false,
+    "darkMode": true,
+    "liquidGlass": true,
+    "haptics": true,
+    "typescript": true,
+    "eas": true
+  }
+}
