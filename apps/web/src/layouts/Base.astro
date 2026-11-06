@@ -76,5 +76,19 @@ const structuredData = {
   </head>
   <body>
     <slot />
+    {
+      !noindex && (
+        // One cookie-free page view per load, sent in the background. ES5 so any browser runs it.
+        <script is:inline define:vars={{ endpoint: `${import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app"}/site/visit` }}>
+          if (location.hostname !== "localhost" && location.hostname !== "127.0.0.1") {
+            try {
+              var body = JSON.stringify({ path: location.pathname, referrer: document.referrer });
+              if (navigator.sendBeacon) navigator.sendBeacon(endpoint, new Blob([body], { type: "text/plain" }));
+              else fetch(endpoint, { method: "POST", body: body, keepalive: true, mode: "no-cors" });
+            } catch (e) {}
+          }
+        </script>
+      )
+    }
   </body>
 </html>

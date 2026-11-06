@@ -1,6 +1,7 @@
 ---
 // Pricing for individuals: three plans, monthly or yearly at a discount. The billing switch is
-// two radio buttons and CSS (:has), so it works without script.
+// two radio buttons and sibling selectors, so it works without script and on older Safari
+// (no :has, which iOS 15.0-15.3 lacks). The radios sit before the switch and the plans.
 const YEARLY_DISCOUNT = 0.2;
 
 type Plan = { name: string; monthly: number; intro: string; features: string[] };
@@ -38,10 +39,10 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   <h2>Pricing</h2>
   <p class="sub">One person, a whole team of mates. Cancel anytime.</p>
 
-  <div class="switch" role="radiogroup" aria-label="Billing period">
-    <input type="radio" name="billing" id="billing-monthly" value="monthly" checked />
+  <input class="billing" type="radio" name="billing" id="billing-monthly" value="monthly" aria-label="Monthly billing" checked />
+  <input class="billing" type="radio" name="billing" id="billing-yearly" value="yearly" aria-label="Yearly billing" />
+  <div class="switch" aria-hidden="true">
     <label for="billing-monthly">Monthly</label>
-    <input type="radio" name="billing" id="billing-yearly" value="yearly" />
     <label for="billing-yearly">Yearly <span class="save">Save {YEARLY_DISCOUNT * 100}%</span></label>
   </div>
 
@@ -107,7 +108,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     border-radius: 999px;
     background: var(--soft);
   }
-  .switch input {
+  .billing {
     position: absolute;
     opacity: 0;
     pointer-events: none;
@@ -124,12 +125,14 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     cursor: pointer;
     transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
   }
-  .switch input:checked + label {
+  #billing-monthly:checked ~ .switch label[for="billing-monthly"],
+  #billing-yearly:checked ~ .switch label[for="billing-yearly"] {
     background: var(--bg);
     color: var(--text);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   }
-  .switch input:focus-visible + label {
+  #billing-monthly:focus-visible ~ .switch label[for="billing-monthly"],
+  #billing-yearly:focus-visible ~ .switch label[for="billing-yearly"] {
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
@@ -186,13 +189,13 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   .yearly {
     display: none;
   }
-  .pricing:has(#billing-yearly:checked) .yearly {
+  #billing-yearly:checked ~ .plans .yearly {
     display: flex;
   }
-  .pricing:has(#billing-yearly:checked) .billed.yearly {
+  #billing-yearly:checked ~ .plans .billed.yearly {
     display: block;
   }
-  .pricing:has(#billing-yearly:checked) .monthly {
+  #billing-yearly:checked ~ .plans .monthly {
     display: none;
   }
   .get {

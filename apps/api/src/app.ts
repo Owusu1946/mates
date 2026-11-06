@@ -37,6 +37,7 @@ import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
+import { recordVisit, visitStats } from "./site-visits.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
@@ -80,6 +81,9 @@ const defaults: Dependencies = {
 const failure = (code: string, message: string, requestId: string) => ({
   error: { code, message, requestId },
 });
+
+/** The landing site, wherever it is served: its origins may call the /site routes. */
+const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin) => origin.trim());
 
 export function createApp(overrides: Partial<Dependencies> = {}) {
   const dependencies = { ...defaults, ...overrides };
@@ -133,6 +137,29 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       }),
     )
     .get("/health", (c) => c.json({ ok: true, service: "expojet-api" }))
+    // Landing-site analytics: public, cookie-free, and open only to the site's own origins.
+    .use("/site/*", cors({ origin: (origin) => (siteOrigins().includes(origin) ? origin : siteOrigins()[0]!), allowMethods: ["GET", "POST"] }))
+    .post("/site/visit", bodyLimit({ maxSize: 2_000 }), async (c) => {
+      // Sent as text/plain by navigator.sendBeacon, which skips the CORS preflight.
+      let body: { path?: unknown; referrer?: unknown } = {};
+      try {
+        body = JSON.parse(await c.req.text());
+      } catch {}
+      const ip = c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "unknown";
+      await recordVisit({
+        path: body.path,
+        referrer: typeof body.referrer === "string" ? body.referrer : undefined,
+        ua: c.req.header("user-agent") ?? "",
+        ip,
+        siteHost: new URL(siteOrigins()[0]!).hostname,
+      }).catch((error) => console.warn("site_visit_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 204);
+    })
+    .get("/site/stats", async (c) => {
+      const days = z.coerce.number().int().min(1).max(90).catch(30).parse(c.req.query("days"));
+      c.header("cache-control", "public, max-age=30");
+      return c.json(await visitStats(days));
+    })
     .use("/v1/*", bodyLimit({ maxSize: 1_000_000 }))
     .get("/v1/capabilities", auth, (c) => c.json({ durableRuns: workerConfigured(), production: process.env.NODE_ENV === "production" }))
     .use("/v1/runs/*", bodyLimit({ maxSize: 150_000 }))
