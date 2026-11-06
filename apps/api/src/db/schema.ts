@@ -412,3 +412,16 @@ export const codeRuns = pgTable("code_runs", {
   // Two runs pushing to one branch would race; a follow-up waits for the active run to end.
   uniqueIndex("code_runs_active_branch_idx").on(t.repo, t.branch).where(sql`status IN ('queued','cloning','coding','checking','pushing')`),
 ]);
+
+/**
+ * Landing-site page views. No cookies, no IPs: `visitor` is a salted daily hash, so it counts a
+ * person once a day and can't be traced back to them.
+ */
+export const siteVisits = pgTable("site_visits", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  path: text("path").notNull(),
+  referrer: text("referrer"),
+  device: text("device").$type<"mobile" | "tablet" | "desktop">().notNull(),
+  visitor: text("visitor").notNull(),
+}, (t) => [index("site_visits_at_idx").on(t.at)]);
