@@ -1,0 +1,122 @@
+---
+// "Call your mates": the copy beside a phone running the app's call screen, which visitors can use.
+import CallDemo from "./CallDemo";
+import Device from "./Device.astro";
+
+const facts = [
+  { title: "Group calls", body: "Bring up to three mates into one call, or add them mid-call." },
+  { title: "Live captions", body: "Every word on screen as it is said, so you can follow along anywhere." },
+  { title: "Keep it going", body: "Minimise the call and keep using the app while your mates talk it through." },
+];
+---
+
+<section class="calls" id="calls">
+  <div class="copy">
+    <div class="eyebrow">Calls</div>
+    <h2>Call your mates.</h2>
+    <p class="lede">Talk it through out loud. Start a voice call, bring other mates along, and they research, plan and answer while you talk.</p>
+    <div class="facts">
+      {
+        facts.map((fact) => (
+          <div class="fact">
+            <b>{fact.title}</b>
+            <span>{fact.body}</span>
+          </div>
+        ))
+      }
+    </div>
+    <p class="try">Try it on the phone: pick who to bring, then tap Start call.</p>
+  </div>
+
+  <div class="stage">
+    <Device screen="full" background="#f7f6f3">
+      <CallDemo client:visible />
+    </Device>
+  </div>
+</section>
+
+<style>
+  .calls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .copy {
+    padding-left: 56px;
+  }
+  .eyebrow {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .facts {
+    display: grid;
+    gap: 22px;
+    margin-top: 36px;
+    max-width: 440px;
+  }
+  .fact {
+    display: grid;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .try {
+    margin: 32px 0 0;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .stage {
+    display: flex;
+    justify-content: center;
+  }
+
+  @media (max-width: 860px) {
+    .calls {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 96px;
+    }
+    .copy {
+      padding: 0 8px;
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 680px;
+    }
+    .stage > :global(*) {
+      transform: scale(0.88);
+      transform-origin: top center;
+    }
+  }
+</style>
