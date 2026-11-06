@@ -104,52 +104,81 @@ export function pullRequestBody(input: { task: string; summary: string; checks: 
   return [`## What changed\n\n${input.summary.trim()}`, `## Request\n\n> ${input.task.trim().replace(/\n/g, "\n> ")}`, `## Checks\n\n${checks}`, `---\nOpened by Mates on behalf of ${input.requester}.`].join("\n\n");
 }
 
-export type CoderEvent = { activity?: string; text?: string };
+/**
+ * `retry` is opencode backing off after a failed model call; `failure` is an error that ended
+ * its turn. Both carry the provider's message so the run can stop and say why.
+ */
+export type CoderEvent = { activity?: string; text?: string; retry?: { attempt: number; message: string }; failure?: string };
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+
+type RawEvent = {
+  type?: string;
+  attempt?: number;
+  error?: { message?: string; data?: { message?: string } };
+  part?: { type?: string; tool?: string; text?: string; state?: { status?: string; input?: Record<string, unknown> } };
+};
 
 /**
  * One line of `opencode run --format json` as something a person can follow on their phone:
- * a tool call becomes "Editing src/app.ts" or "Running pnpm test", the coder's own words come
- * back as `text` (kept for the PR summary). Anything unrecognised is ignored, never thrown on.
+ * a tool call becomes "Editing src/app.ts" or "Running pnpm test", a new model step "Thinking",
+ * the coder's own words come back as `text` (kept for the PR summary). Tool lines arrive when
+ * the tool finishes. Anything unrecognised is ignored, never thrown on.
  */
 export function readCoderEvent(line: string, workdir: string): CoderEvent {
-  let event: { type?: string; part?: { type?: string; tool?: string; text?: string; state?: { status?: string; input?: Record<string, unknown> } } };
+  let event: RawEvent;
   try {
     event = JSON.parse(line);
   } catch {
     return line.trim() ? { text: line } : {};
   }
-  const part = event?.part;
+  if (!event || typeof event !== "object") return {};
+  const problem = clip((event.error?.data?.message || event.error?.message || "").trim(), 200);
+  if (event.type === "retry") {
+    const attempt = typeof event.attempt === "number" ? event.attempt : 1;
+    return { retry: { attempt, message: problem }, activity: `The model failed${problem ? ` (${problem})` : ""}; retrying, attempt ${attempt}` };
+  }
+  if (event.type === "error") return { failure: problem || "The coder stopped with an error.", activity: `Error: ${problem || "the coder stopped"}` };
+  if (event.type === "step_start") return { activity: "Thinking" };
+  const part = event.part;
   if (!part) return {};
   if (event.type === "text" || part.type === "text") return part.text?.trim() ? { text: part.text } : {};
   if (event.type !== "tool_use" && part.type !== "tool") return {};
   if (part.state?.status === "error") return {};
   const input = part.state?.input ?? {};
-  const str = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
-  const file = clip(str("filePath").replace(`${workdir}/`, "").replace(/^\.\//, ""), 80);
+  const str = (...keys: string[]) => {
+    for (const key of keys) if (typeof input[key] === "string" && input[key]) return input[key] as string;
+    return "";
+  };
+  const file = clip(str("filePath", "file_path", "path").replace(`${workdir}/`, "").replace(/^\.\//, ""), 80);
   switch (part.tool) {
     case "edit":
     case "patch":
     case "multiedit":
+    case "apply_patch":
       return file ? { activity: `Editing ${file}` } : { activity: "Editing files" };
     case "write":
-      return file ? { activity: `Writing ${file}` } : {};
+      return file ? { activity: `Writing ${file}` } : { activity: "Writing a file" };
     case "read":
       return file ? { activity: `Reading ${file}` } : {};
-    case "bash": {
-      const command = str("command").split("\n")[0]!.trim();
+    case "bash":
+    case "shell": {
+      const command = str("command", "cmd").split("\n")[0]!.trim();
       return command ? { activity: `Running ${clip(command, 80)}` } : {};
     }
     case "grep":
     case "glob":
-      return str("pattern") ? { activity: `Searching for ${clip(str("pattern"), 60)}` } : {};
+    case "codesearch":
+      return str("pattern", "query") ? { activity: `Searching for ${clip(str("pattern", "query"), 60)}` } : { activity: "Searching the code" };
     case "list":
-      return { activity: "Looking through the files" };
+    case "ls":
+      return { activity: file ? `Looking through ${file}` : "Looking through the files" };
     case "webfetch":
       return str("url") ? { activity: `Reading ${clip(str("url"), 80)}` } : {};
+    case "websearch":
+      return str("query") ? { activity: `Searching the web for ${clip(str("query"), 60)}` } : {};
     case "todowrite":
       return { activity: "Planning the change" };
     default:
-      return {};
+      return part.tool ? { activity: `Using ${clip(part.tool, 40)}` } : {};
   }
 }

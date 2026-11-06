@@ -82,11 +82,20 @@ describe("code runs", () => {
     expect(readCoderEvent(tool("bash", { command: "pnpm test\necho done" }), "/work/repo")).toEqual({ activity: "Running pnpm test" });
     expect(readCoderEvent(tool("grep", { pattern: "useTheme" }), "/work/repo")).toEqual({ activity: "Searching for useTheme" });
     expect(readCoderEvent(tool("read", { filePath: "/work/repo/README.md" }, "error"), "/work/repo")).toEqual({});
-    expect(readCoderEvent(tool("mystery", {}), "/work/repo")).toEqual({});
+    expect(readCoderEvent(tool("read", { path: "/work/repo/src/index.ts" }), "/work/repo")).toEqual({ activity: "Reading src/index.ts" });
+    expect(readCoderEvent(tool("mystery", {}), "/work/repo")).toEqual({ activity: "Using mystery" });
     expect(readCoderEvent(JSON.stringify({ type: "text", part: { type: "text", text: "Added the toggle." } }), "/work/repo")).toEqual({ text: "Added the toggle." });
-    expect(readCoderEvent(JSON.stringify({ type: "step_start", part: { type: "step-start" } }), "/work/repo")).toEqual({});
+    expect(readCoderEvent(JSON.stringify({ type: "step_start", part: { type: "step-start" } }), "/work/repo")).toEqual({ activity: "Thinking" });
     expect(readCoderEvent("plain output", "/work/repo")).toEqual({ text: "plain output" });
     expect(readCoderEvent("   ", "/work/repo")).toEqual({});
     expect(readCoderEvent(tool("bash", { command: "x".repeat(200) }), "/work/repo").activity).toHaveLength("Running ".length + 80);
+  });
+
+  it("surfaces model retries and errors instead of going quiet", () => {
+    const retry = readCoderEvent(JSON.stringify({ type: "retry", attempt: 2, error: { message: "Insufficient credits" } }), "/work/repo");
+    expect(retry.retry).toEqual({ attempt: 2, message: "Insufficient credits" });
+    expect(retry.activity).toContain("Insufficient credits");
+    expect(readCoderEvent(JSON.stringify({ type: "error", error: { type: "unknown", message: "Model not found" } }), "/work/repo").failure).toBe("Model not found");
+    expect(readCoderEvent(JSON.stringify({ type: "error" }), "/work/repo").failure).toBe("The coder stopped with an error.");
   });
 });
