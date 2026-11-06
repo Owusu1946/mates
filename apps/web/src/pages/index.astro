@@ -1,5 +1,6 @@
 ---
 import Mascot from "../components/Mascot";
+import FeatureCard from "../components/FeatureCard.astro";
 import Phone from "../components/Phone.astro";
 import Base from "../layouts/Base.astro";
 
@@ -68,6 +69,16 @@ const playStore = "#download";
         <Phone />
       </div>
     </section>
+
+    <FeatureCard
+      id="features"
+      title="Message your mates like teammates"
+      body="Hand them tasks the way you’d text a friend. Your mates take projects from start to finish, remember how you work, get sharper over time, and check in when they need your OK."
+    >
+      <div slot="visual" class="big-mascot">
+        <Mascot client:visible size={520} />
+      </div>
+    </FeatureCard>
   </main>
 </Base>
 
@@ -211,7 +222,21 @@ const playStore = "#download";
     background: radial-gradient(closest-side, rgba(210, 126, 65, 0.22), transparent);
     filter: blur(20px);
   }
+  /* Rises out of the panel's top edge; the panel crops its lower half. */
+  .big-mascot {
+    position: absolute;
+    top: -70px;
+    right: 6%;
+    filter: drop-shadow(0 30px 40px rgba(15, 23, 42, 0.18));
+  }
+
   @media (max-width: 860px) {
+    .big-mascot {
+      top: 0;
+      right: auto;
+      transform: scale(0.6);
+      transform-origin: top center;
+    }
     nav {
       display: none;
     }
