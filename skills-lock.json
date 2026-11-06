@@ -49,6 +49,12 @@
       "skillPath": "skills/browser-use-to-stagehand/SKILL.md",
       "computedHash": "0e2efd87342fd69dbdf6d178a1a5963fc914a9945a85a4a6a9f24b6463bbb334"
     },
+    "building-livekit-agents": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/building-livekit-agents/SKILL.md",
+      "computedHash": "53512e555df48b2da36d1fcc1be16658c045781ef47237e3ac89f0ef01eeeb5e"
+    },
     "clerk-expo": {
       "source": "clerk/skills",
       "sourceType": "github",
@@ -90,6 +96,12 @@
       "sourceType": "github",
       "skillPath": "assistant-ui/skills/copilots/SKILL.md",
       "computedHash": "235fcee4ea633d1b6c59017205f5b742907333080ae4a928934f78c53533bd80"
+    },
+    "debugging-livekit-agents": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/debugging-livekit-agents/SKILL.md",
+      "computedHash": "edfdc9ffbc6c63559295d21277cbbcdc9dad096941d5ea7be91a8d12ca67094c"
     },
     "eas-app-stores": {
       "source": "expo/skills",
@@ -331,6 +343,12 @@
       "skillPath": "assistant-ui/skills/observability/SKILL.md",
       "computedHash": "e739b3a3d4c35cfab9068076fe1e1a104400dc893419548e91317583780f5347"
     },
+    "operating-livekit-agents": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/operating-livekit-agents/SKILL.md",
+      "computedHash": "6cf402246a323e11db16c7b0b97c5d07d0ce471c348374fbfba9edb6f6ce4afa"
+    },
     "optimize-agent-prompt": {
       "source": "browserbase/skills",
       "sourceType": "github",
@@ -361,6 +379,18 @@
       "skillPath": "assistant-ui/skills/react-native/SKILL.md",
       "computedHash": "857a51fc955fe37a84df57833b786fc4ccf459632c51fa7e0b10976112b3e971"
     },
+    "reading-livekit-docs": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/reading-livekit-docs/SKILL.md",
+      "computedHash": "d2e6a41ce673f1073bfee16296161110bca9d43bd31df22bd22b75919afff562"
+    },
+    "running-livekit-simulations": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/running-livekit-simulations/SKILL.md",
+      "computedHash": "3884262f6b139b7d32ceafb63516b8645a961362703825cc3a4c34f6647fe80b"
+    },
     "runtime": {
       "source": "assistant-ui/skills",
       "sourceType": "github",
@@ -390,6 +420,12 @@
       "sourceType": "github",
       "skillPath": "assistant-ui/skills/streaming/SKILL.md",
       "computedHash": "c72bc928d7d8214057be14100985d7efdf714fa9c49b795501349ce611953eeb"
+    },
+    "testing-livekit-agents": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/testing-livekit-agents/SKILL.md",
+      "computedHash": "899128103051626aa5872efdb03d4ead8430ce2ed55c02da08c7cc1f42de0b1d"
     },
     "thread-list": {
       "source": "assistant-ui/skills",
@@ -432,6 +468,12 @@
       "sourceType": "github",
       "skillPath": "skills/webmcp-gen/SKILL.md",
       "computedHash": "96e75248b7a11b5e3a49aef3d8d6ae9348170c71cca6c627941242f32c2d233e"
+    },
+    "writing-livekit-scenarios": {
+      "source": "livekit/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/writing-livekit-scenarios/SKILL.md",
+      "computedHash": "fe8748aaae353c86946f482a2414b75cb7d5c5fa20931e2f06e174b1153def78"
     }
   }
 }
