@@ -31,9 +31,14 @@ body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* Wide visuals (phones, mascots) are cropped by their sections; never by a sideways scroll. */
-  overflow-x: clip;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Wide visuals (phones, mascots) are cropped by their sections; never by a sideways scroll.
+   Safari before 16 lacks clip; hidden on body alone keeps the sticky header working there. */
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 a {
