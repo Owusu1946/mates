@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { secureHeaders } from "hono/secure-headers";
+import { trimTrailingSlash } from "hono/trailing-slash";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { validator } from "hono/validator";
@@ -34,6 +35,9 @@ import { cancelReminder, upcomingReminders } from "./reminders.js";
 import { runUndo } from "./undo.js";
 import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
+import { deleteAccount } from "./account.js";
+import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
+import { completeInstall, GitHubError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -108,6 +112,8 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
   });
 
   return new Hono<{ Variables: Variables }>()
+    // "/v1/github/callback/" (as GitHub settings are often pasted) reaches "/v1/github/callback".
+    .use("*", trimTrailingSlash())
     .use("*", async (c, next) => {
       c.set("requestId", c.req.header("x-request-id") ?? crypto.randomUUID());
       await next();
@@ -232,6 +238,41 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       // Ids are immutable, so a device can cache the bytes forever.
       return c.body(new Uint8Array(row.data), 200, { "content-type": row.contentType, "cache-control": "private, max-age=31536000, immutable", "content-length": String(row.size) });
     })
+    .get("/v1/github", auth, async (c) => {
+      if (!githubConfigured()) return c.json({ configured: false as const, installations: [], repos: [] });
+      const userId = c.get("userId");
+      const [installations, repos] = await Promise.all([listInstallations(userId), listRepos(userId).catch(() => [])]);
+      return c.json({ configured: true as const, installations: installations.map((item) => ({ id: item.installationId, account: item.accountLogin })), repos: repos.map((repo) => ({ fullName: repo.fullName, private: repo.private })) });
+    })
+    .get("/v1/github/install", auth, (c) =>
+      githubConfigured() ? c.json({ url: installUrl(c.get("userId"), c.req.query("returnTo")) }) : c.json(failure("NOT_CONFIGURED", "GitHub isn’t set up on this server yet.", c.get("requestId")), 503),
+    )
+    // GitHub sends the browser here after an install; the signed state says whose it is.
+    .get("/v1/github/callback", async (c) => {
+      const state = verifyState(c.req.query("state") ?? "");
+      const back = (status: string) => c.redirect(`${state?.returnTo ?? safeReturn(undefined)}${state?.returnTo.includes("?") ? "&" : "?"}github=${status}`);
+      const userId = state?.userId;
+      const installationId = Number(c.req.query("installation_id"));
+      const code = c.req.query("code");
+      if (!userId || !Number.isSafeInteger(installationId) || !code) return back("failed");
+      try {
+        await completeInstall(userId, installationId, code);
+        return back("connected");
+      } catch (error) {
+        if (!(error instanceof GitHubError)) console.error("github_install_failed", error instanceof Error ? error.message : error);
+        return back("failed");
+      }
+    })
+    .get("/v1/code-runs/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
+      const run = await ownedCodeRun(c.get("userId"), c.req.param("id"));
+      return run ? c.json({ card: codeCard(run) }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+    })
+    .post("/v1/code-runs/:id/cancel", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
+      const run = await cancelCodeRun(c.get("userId"), c.req.param("id"));
+      return run ? c.json({ card: codeCard(run) }) : c.json(failure("CONFLICT", "This run has already finished.", c.get("requestId")), 409);
+    })
     .get("/v1/missions", auth, async (c) => {
       const chatId = chatIdSchema.safeParse(c.req.query("chatId"));
       if (!chatId.success) return c.json(failure("INVALID_CHAT_ID", "Invalid chat ID", c.get("requestId")), 400);
@@ -300,6 +341,14 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_SETTINGS", "Invalid memory settings", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => c.json({ settings: await updateMemorySettings(c.get("userId"), c.req.valid("json")) }))
+    .delete("/v1/account", auth, async (c) => {
+      try {
+        await deleteAccount(c.get("userId"));
+        return c.json({ deleted: true });
+      } catch {
+        return c.json(failure("ACCOUNT_DELETE_FAILED", "Your account couldn’t be fully deleted. Please try again.", c.get("requestId")), 502);
+      }
+    })
     .get("/v1/me", auth, async (c) => {
       const userId = c.get("userId");
       return c.json({

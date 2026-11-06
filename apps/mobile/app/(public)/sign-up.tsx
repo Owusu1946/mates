@@ -5,6 +5,7 @@ import { View } from "react-native";
 import { AuthLayout } from "../../src/components/auth/auth-layout";
 import { AuthAction } from "../../src/components/auth/auth-action";
 import {
+  AuthDivider,
   AuthField,
   AuthLink,
   AuthMessage,
@@ -20,7 +21,6 @@ export default function SignUpScreen() {
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
-  const [emailMode, setEmailMode] = useState(false);
   const [socialPending, setSocialPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const request = useAuthRequest();
@@ -59,22 +59,26 @@ export default function SignUpScreen() {
         "Your email is verified, but your account still needs additional details. Please contact support to finish setup.",
       );
   }
+  const toSignIn = () => (router.canGoBack() ? router.back() : router.replace("/(public)/sign-in"));
   return (
     <AuthLayout
       testID="sign-up-screen"
-      compact
-      title={verifying ? "You’re almost here" : "A little more possible"}
+      title={verifying ? "Check your inbox" : "Create your account"}
       subtitle={
         verifying
           ? `Enter the code we sent to ${emailAddress.trim()}.`
-          : "Create your Cooper account. Your space is waiting."
+          : "Free, and it only takes a moment."
       }
+      onBack={busy ? undefined : toSignIn}
       footer={
-        <AuthLink
-          title="Already have an account? Sign in"
-          disabled={busy}
-          onPress={() => router.replace("/(public)/sign-in")}
-        />
+        verifying ? undefined : (
+          <AuthLink
+            lead="Already have an account?"
+            title="Sign in"
+            disabled={busy}
+            onPress={toSignIn}
+          />
+        )
       }
     >
       {verifying ? (
@@ -82,10 +86,10 @@ export default function SignUpScreen() {
           <AuthField
             label="Verification code"
             testID="code"
+            autoFocus
             keyboardType="number-pad"
             textContentType="oneTimeCode"
             autoComplete="one-time-code"
-            placeholder="Enter your code"
             value={code}
             onChangeText={setCode}
             editable={!busy}
@@ -100,53 +104,10 @@ export default function SignUpScreen() {
             onPress={() => void request.run(verify)}
           />
           <AuthLink
-            title="Send a new code"
+            lead="Didn’t get it?"
+            title="Send again"
             disabled={busy}
             onPress={() => void request.run(resend)}
-          />
-        </>
-      ) : emailMode ? (
-        <>
-          <AuthField
-            label="Email address"
-            testID="email"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
-            placeholder="you@example.com"
-            value={emailAddress}
-            onChangeText={setEmailAddress}
-            editable={!busy}
-          />
-          <AuthField
-            label="Password"
-            testID="password"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="new-password"
-            textContentType="newPassword"
-            placeholder="Choose a strong password"
-            value={password}
-            onChangeText={setPassword}
-            editable={!busy}
-          />
-          <AuthMessage message={request.error} />
-          <AuthAction
-            testID="sign-up"
-            title="Create account"
-            disabled={busy || !emailAddress.trim() || !password}
-            loading={request.busy}
-            onPress={() => void request.run(submit)}
-          />
-          <AuthLink
-            title="Other ways to create an account"
-            disabled={busy}
-            onPress={() => {
-              request.setError(null);
-              setEmailMode(false);
-            }}
           />
         </>
       ) : (
@@ -155,10 +116,42 @@ export default function SignUpScreen() {
             disabled={request.busy || fetchStatus === "fetching"}
             onPendingChange={setSocialPending}
           />
+          <AuthDivider />
+          <AuthField
+            label="Email"
+            testID="email"
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
+            value={emailAddress}
+            onChangeText={setEmailAddress}
+            editable={!busy}
+            returnKeyType="next"
+          />
+          <AuthField
+            label="Password"
+            testID="password"
+            secureTextEntry
+            autoCapitalize="none"
+            autoComplete="new-password"
+            textContentType="newPassword"
+            value={password}
+            onChangeText={setPassword}
+            editable={!busy}
+            returnKeyType="go"
+            onSubmitEditing={() => {
+              if (!busy && emailAddress.trim() && password) void request.run(submit);
+            }}
+          />
+          <AuthMessage message={request.error} />
           <AuthAction
-            title="Continue with email"
-            disabled={busy}
-            onPress={() => setEmailMode(true)}
+            testID="sign-up"
+            title="Create account"
+            disabled={busy || !emailAddress.trim() || !password}
+            loading={request.busy}
+            onPress={() => void request.run(submit)}
           />
         </>
       )}

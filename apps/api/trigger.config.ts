@@ -10,7 +10,7 @@ export default defineConfig({
   maxDuration: 720,
   retries: { enabledInDev: false, default: { maxAttempts: 1 } },
   build: { extensions: [syncEnvVars(() => {
-    const names = ["DATABASE_URL", "DIRECT_DATABASE_URL", "CLERK_SECRET_KEY", "OPENROUTER_API_KEY", "COMPOSIO_API_KEY", "BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID", "EXPO_ACCESS_TOKEN"];
+    const names = ["DATABASE_URL", "DIRECT_DATABASE_URL", "CLERK_SECRET_KEY", "OPENROUTER_API_KEY", "COMPOSIO_API_KEY", "BROWSERBASE_API_KEY", "BROWSERBASE_PROJECT_ID", "EXPO_ACCESS_TOKEN", "MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET", "OPENROUTER_PROVISIONING_KEY", "OPENROUTER_CODE_MODEL", "CODE_RUN_LIMIT_USD", "GITHUB_APP_ID", "GITHUB_APP_SLUG", "GITHUB_APP_PRIVATE_KEY", "GITHUB_APP_CLIENT_ID", "GITHUB_APP_CLIENT_SECRET"];
     // Reserved TRIGGER_* values are provided by Trigger, not synced from the laptop.
     return [...names.flatMap(name => process.env[name] ? [{ name, value: process.env[name]!, isSecret: true }] : []), { name: "COOPER_BACKGROUND_ENABLED", value: "true", isSecret: false }];
   }, { override: true })] },
