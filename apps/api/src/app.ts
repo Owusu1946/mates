@@ -37,7 +37,8 @@ import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
-import { recordVisit, visitStats } from "./site-visits.js";
+import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
+import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
@@ -158,7 +159,20 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/site/stats", async (c) => {
       const days = z.coerce.number().int().min(1).max(90).catch(30).parse(c.req.query("days"));
       c.header("cache-control", "public, max-age=30");
-      return c.json(await visitStats(days));
+      const [stats, waiting] = await Promise.all([visitStats(days), waitlistSize()]);
+      return c.json({ ...stats, waitlist: waiting });
+    })
+    .post("/site/waitlist", bodyLimit({ maxSize: 2_000 }), async (c) => {
+      let body: { email?: unknown; website?: unknown; referrer?: unknown } = {};
+      try {
+        body = await c.req.json();
+      } catch {}
+      // A hidden field people never see: bots fill it in and get a quiet, empty success.
+      if (typeof body.website === "string" && body.website) return c.json({ position: null, already: false });
+      const email = normalizeEmail(body.email);
+      if (!email) return c.json(failure("INVALID_EMAIL", "That email doesn’t look right", c.get("requestId")), 400);
+      const referrer = referrerHost(typeof body.referrer === "string" ? body.referrer : undefined, new URL(siteOrigins()[0]!).hostname);
+      return c.json(await joinWaitlist(email, referrer));
     })
     .use("/v1/*", bodyLimit({ maxSize: 1_000_000 }))
     .get("/v1/capabilities", auth, (c) => c.json({ durableRuns: workerConfigured(), production: process.env.NODE_ENV === "production" }))
