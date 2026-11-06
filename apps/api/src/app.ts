@@ -37,7 +37,7 @@ import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
-import { completeInstall, GitHubError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
+import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -247,20 +247,26 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/v1/github/install", auth, (c) =>
       githubConfigured() ? c.json({ url: installUrl(c.get("userId"), c.req.query("returnTo")) }) : c.json(failure("NOT_CONFIGURED", "GitHub isn’t set up on this server yet.", c.get("requestId")), 503),
     )
-    // GitHub sends the browser here after an install; the signed state says whose it is.
+    // GitHub sends the browser here after an install or sign-in; the signed state says whose it is.
     .get("/v1/github/callback", async (c) => {
-      const state = verifyState(c.req.query("state") ?? "");
-      const back = (status: string) => c.redirect(`${state?.returnTo ?? safeReturn(undefined)}${state?.returnTo.includes("?") ? "&" : "?"}github=${status}`);
-      const userId = state?.userId;
-      const installationId = Number(c.req.query("installation_id"));
+      const rawState = c.req.query("state") ?? "";
+      const state = verifyState(rawState);
+      const back = (status: string, reason?: string) =>
+        c.redirect(`${state?.returnTo ?? safeReturn(undefined)}${state?.returnTo.includes("?") ? "&" : "?"}github=${status}${reason ? `&reason=${reason}` : ""}`);
+      if (!state) {
+        console.warn("github_connect_failed", { reason: "expired" });
+        return back("failed", "expired");
+      }
       const code = c.req.query("code");
-      if (!userId || !Number.isSafeInteger(installationId) || !code) return back("failed");
       try {
-        await completeInstall(userId, installationId, code);
+        // No code: the install finished without signing in. Sign in now, then come back here.
+        if (!code) return c.redirect(authorizeUrl(rawState));
+        await completeInstall(state.userId, code);
         return back("connected");
       } catch (error) {
-        if (!(error instanceof GitHubError)) console.error("github_install_failed", error instanceof Error ? error.message : error);
-        return back("failed");
+        const reason = error instanceof ConnectError ? error.reason : "error";
+        console.warn("github_connect_failed", { reason, message: error instanceof Error ? error.message : String(error) });
+        return back("failed", reason);
       }
     })
     .get("/v1/code-runs/:id", auth, async (c) => {
