@@ -1,11 +1,12 @@
 ---
 // The hero still: the app mid-mission. Pure HTML and CSS.
+import { mate } from "../palette";
 import Device from "./Device.astro";
 import Mascot from "./Mascot";
 
-const cooper: [string, string, string] = ["#e5c59e", "#d27e41", "#9A3412"];
-const nova: [string, string, string] = ["#c7dcff", "#5b8def", "#1e3a8a"];
-const ivy: [string, string, string] = ["#d9f99d", "#4ade80", "#166534"];
+const cooper = mate("amber");
+const nova = mate("blue");
+const ivy = mate("green");
 ---
 
 <Device title="Launch week" faces={[{ gradient: cooper, state: "happy" }, { gradient: nova, state: "working" }, { gradient: ivy, state: "writing" }]}>

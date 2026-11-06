@@ -2,11 +2,12 @@
 // The hero's three phones: the mission up front, two more mates at work behind it. The back pair
 // fan out and sit back in depth so the eye lands on the middle one first. They drop out on
 // narrow screens, where there is no room beside the main phone.
+import { mate } from "../palette";
 import Device from "./Device.astro";
 import Phone from "./Phone.astro";
 
-const sky: [string, string, string] = ["#fbcfe8", "#ec4899", "#831843"];
-const sun: [string, string, string] = ["#fde68a", "#f59e0b", "#92400e"];
+const sky = mate("rose");
+const sun = mate("sunset");
 ---
 
 <div class="trio">
