@@ -260,8 +260,8 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     for (let round = 0; round <= FIX_ROUNDS; round++) {
       await update(id, { status: "coding" });
       log.add(round ? `Fixing ${failures.map((check) => check.name).join(", ")} (try ${round} of ${FIX_ROUNDS})` : "Reading the code");
-      await computer.writeFile("/work/prompt.md", coderPrompt({ task: run.task, rules, checks: checks?.checks ?? [], failures }));
-      notes = await writeCode(computer, { key: runKey.key, secrets, log });
+      const brief = { task: run.task, rules, checks: checks?.checks ?? [], failures };
+      notes = await writeCode(computer, { prompt: coderPrompt(brief), resume: round ? coderPrompt({ ...brief, continued: true }) : undefined, key: runKey.key, secrets, log });
       cancel.check();
       if (!checks?.checks.length) break;
       await update(id, { status: "checking" });
@@ -310,29 +310,33 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
 }
 
 /**
- * One opencode session. Its JSON events stream into the activity log as they happen; what the
- * coder says comes back as notes for the PR summary. An opencode build without `--format json`
- * fails before printing any event, so that case reruns once in plain mode.
+ * One opencode turn. A fix round passes `resume` to continue the previous session, which still
+ * holds what the coder read, instead of paying to explore the repo again. JSON events stream into
+ * the activity log; what the coder says comes back as notes for the PR summary. A flag this
+ * opencode build lacks fails before any event prints, so each failure falls back one step:
+ * fresh session with the full brief, then plain output.
  */
-async function writeCode(computer: Computer, { key, secrets, log }: { key: string; secrets: string[]; log: ActivityLog }) {
-  const command = (format: string) => `opencode run ${format}-m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)"`;
+async function writeCode(computer: Computer, { prompt, resume, key, secrets, log }: { prompt: string; resume?: string; key: string; secrets: string[]; log: ActivityLog }) {
+  const command = (flags: string) => `opencode run ${flags}-m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)"`;
   const options = { env: { OPENROUTER_API_KEY: key }, secrets, timeoutMs: 30 * 60_000 };
-  const said: string[] = [];
-  let events = 0;
-  const result = await computer.run(command("--format json "), {
-    ...options,
-    onLine: (line) => {
-      if (line.trimStart().startsWith("{")) events++;
-      const event = readCoderEvent(line, WORKDIR);
-      if (event.activity) log.add(event.activity);
-      if (event.text) said.push(event.text);
-    },
-  });
-  if (result.code !== 0 && !events) {
-    log.add("Writing the code");
-    return (await computer.run(command(""), options)).output;
+  const attempts = [...(resume ? [{ flags: "--format json --continue ", prompt: resume }] : []), { flags: "--format json ", prompt }];
+  for (const attempt of attempts) {
+    await computer.writeFile("/work/prompt.md", attempt.prompt);
+    const said: string[] = [];
+    let events = 0;
+    const result = await computer.run(command(attempt.flags), {
+      ...options,
+      onLine: (line) => {
+        if (line.trimStart().startsWith("{")) events++;
+        const event = readCoderEvent(line, WORKDIR);
+        if (event.activity) log.add(event.activity);
+        if (event.text) said.push(event.text);
+      },
+    });
+    if (result.code === 0 || events) return said.join("\n") || result.output;
   }
-  return said.join("\n") || result.output;
+  log.add("Writing the code");
+  return (await computer.run(command(""), options)).output;
 }
 
 async function requesterName(userId: string) {
