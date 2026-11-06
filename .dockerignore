@@ -1,0 +1,13 @@
+# Never ship secrets or local state into an image.
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/.turbo
+**/.expo
+**/.trigger
+**/dist*
+.git
+# The mobile app isn't part of the API image; its package.json stays so pnpm can read the workspace.
+apps/mobile/*
+!apps/mobile/package.json
