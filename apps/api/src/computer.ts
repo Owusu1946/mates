@@ -18,8 +18,11 @@ const modal = () => (client ??= new ModalClient());
 export type CommandResult = { code: number; output: string };
 export type Computer = {
   id: string;
-  /** Runs a shell command in the repo. Output is merged, scrubbed of `secrets`, and trimmed. */
-  run(command: string, options?: { env?: Record<string, string>; timeoutMs?: number; cwd?: string; secrets?: string[] }): Promise<CommandResult>;
+  /**
+   * Runs a shell command in the repo. Output is merged, scrubbed of `secrets`, and trimmed.
+   * `onLine` sees each scrubbed line as it is printed, for live progress.
+   */
+  run(command: string, options?: { env?: Record<string, string>; timeoutMs?: number; cwd?: string; secrets?: string[]; onLine?: (line: string) => void }): Promise<CommandResult>;
   writeFile(path: string, content: string): Promise<void>;
   readFile(path: string): Promise<string | null>;
   shutdown(): Promise<void>;
@@ -59,7 +62,8 @@ function wrap(sandbox: Sandbox): Computer {
         env: options.env,
         timeoutMs: options.timeoutMs ?? 20 * 60_000,
       });
-      const [output, code] = await Promise.all([process.stdout.readText(), process.wait()]);
+      const read = options.onLine ? readLines(process.stdout, (line) => options.onLine!(scrub(line, options.secrets, 1_000))) : process.stdout.readText();
+      const [output, code] = await Promise.all([read, process.wait()]);
       return { code, output: scrub(output, options.secrets) };
     },
     async writeFile(path, content) {
@@ -77,6 +81,20 @@ function wrap(sandbox: Sandbox): Computer {
       await sandbox.terminate().catch(() => undefined);
     },
   };
+}
+
+/** Reads a stream to the end, calling `onLine` for every complete line on the way. */
+async function readLines(stream: ReadableStream<string>, onLine: (line: string) => void) {
+  let all = "";
+  let pending = "";
+  for await (const chunk of stream as unknown as AsyncIterable<string>) {
+    all += chunk;
+    const lines = (pending + chunk).split("\n");
+    pending = lines.pop()!;
+    for (const line of lines) if (line.trim()) onLine(line);
+  }
+  if (pending.trim()) onLine(pending);
+  return all;
 }
 
 /**

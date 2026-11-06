@@ -42,6 +42,8 @@ export type WorkflowCard = {
     branch: string;
     status: "queued" | "cloning" | "coding" | "checking" | "pushing" | "done" | "failed" | "cancelled";
     checks: { name: string; command: string; passed: boolean; output: string }[];
+    /** What the computer has been doing, newest last ("Editing src/app.ts"). */
+    activity?: { at: string; text: string }[];
     pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number };
     error?: string;
   };

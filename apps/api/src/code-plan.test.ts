@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertPushable, branchName, coderPrompt, detectChecks, pullRequestBody, resolveRepo, scrub } from "./code-plan.js";
+import { assertPushable, branchName, coderPrompt, detectChecks, pullRequestBody, readCoderEvent, resolveRepo, scrub } from "./code-plan.js";
 
 describe("code runs", () => {
   it("names branches after the task and the run", () => {
@@ -64,5 +64,19 @@ describe("code runs", () => {
     const body = pullRequestBody({ task: "Add a /health route", summary: "Adds GET /health.", checks: [{ name: "test", command: "pnpm test", passed: true, output: "" }], requester: "Kenneth" });
     expect(body).toContain("✅ `pnpm test`");
     expect(body).toContain("on behalf of Kenneth");
+  });
+
+  it("turns the coder's events into lines a person can follow", () => {
+    const tool = (tool: string, input: Record<string, unknown>, status = "completed") => JSON.stringify({ type: "tool_use", part: { type: "tool", tool, state: { status, input } } });
+    expect(readCoderEvent(tool("edit", { filePath: "/work/repo/src/app.ts" }), "/work/repo")).toEqual({ activity: "Editing src/app.ts" });
+    expect(readCoderEvent(tool("bash", { command: "pnpm test\necho done" }), "/work/repo")).toEqual({ activity: "Running pnpm test" });
+    expect(readCoderEvent(tool("grep", { pattern: "useTheme" }), "/work/repo")).toEqual({ activity: "Searching for useTheme" });
+    expect(readCoderEvent(tool("read", { filePath: "/work/repo/README.md" }, "error"), "/work/repo")).toEqual({});
+    expect(readCoderEvent(tool("mystery", {}), "/work/repo")).toEqual({});
+    expect(readCoderEvent(JSON.stringify({ type: "text", part: { type: "text", text: "Added the toggle." } }), "/work/repo")).toEqual({ text: "Added the toggle." });
+    expect(readCoderEvent(JSON.stringify({ type: "step_start", part: { type: "step-start" } }), "/work/repo")).toEqual({});
+    expect(readCoderEvent("plain output", "/work/repo")).toEqual({ text: "plain output" });
+    expect(readCoderEvent("   ", "/work/repo")).toEqual({});
+    expect(readCoderEvent(tool("bash", { command: "x".repeat(200) }), "/work/repo").activity).toHaveLength("Running ".length + 80);
   });
 });

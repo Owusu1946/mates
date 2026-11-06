@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { tasks } from "@trigger.dev/sdk";
 import { and, desc, eq, inArray, lt } from "drizzle-orm";
-import { assertPushable, branchName, coderPrompt, detectChecks, pullRequestBody, resolveRepo } from "./code-plan.js";
+import { assertPushable, branchName, coderPrompt, detectChecks, pullRequestBody, readCoderEvent, resolveRepo } from "./code-plan.js";
 import { bootComputer, computerConfigured, gitAuthEnv, WORKDIR, type Computer } from "./computer.js";
 import { getDb } from "./db/client.js";
-import { chatMessages, chats, codeRuns, type CodeCheck, type CodeRunStatus } from "./db/schema.js";
+import { chatMessages, chats, codeRuns, type CodeActivity, type CodeCheck, type CodeRunStatus } from "./db/schema.js";
 import { pushToUser } from "./delivery.js";
 import { botIdentity, githubConfigured, listRepos, openPullRequest, repoToken } from "./github.js";
 import type { WorkflowCard } from "./integrations.js";
@@ -14,6 +14,7 @@ import { createRunKey, deleteRunKey, type RunKey } from "./openrouter-keys.js";
 export type CodeRun = typeof codeRuns.$inferSelect;
 const ACTIVE: CodeRunStatus[] = ["queued", "cloning", "coding", "checking", "pushing"];
 const FIX_ROUNDS = 3;
+const ACTIVITY_LINES = 40;
 
 class Cancelled extends Error {}
 /** A failure whose message is safe and useful to show the user as-is. */
@@ -51,6 +52,7 @@ export function codeCard(run: CodeRun): WorkflowCard {
       branch: run.branch,
       status: run.status,
       checks: run.checks,
+      activity: run.activity,
       ...(run.prNumber && run.prUrl ? { pr: { number: run.prNumber, url: run.prUrl, title: run.summary?.split("\n")[0] ?? run.task.slice(0, 72) } } : {}),
       ...(run.error ? { error: run.error } : {}),
     },
@@ -116,6 +118,35 @@ export async function cancelCodeRun(userId: string, id: string) {
 
 const update = (id: string, values: Partial<CodeRun>) => getDb().update(codeRuns).set({ ...values, updatedAt: new Date() }).where(eq(codeRuns.id, id));
 
+/**
+ * Collects activity lines and writes them at most every 1.5s, so the card stays live without a
+ * database write per line. Writing also refreshes `updatedAt`, which the stalled-run sweep reads.
+ */
+function activityLog(id: string) {
+  let lines: CodeActivity[] = [];
+  let dirty = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const write = async () => {
+    timer = null;
+    if (!dirty) return;
+    dirty = false;
+    await update(id, { activity: lines }).catch(() => undefined);
+  };
+  return {
+    add(text: string) {
+      if (lines.at(-1)?.text === text) return;
+      lines = [...lines, { at: new Date().toISOString(), text }].slice(-ACTIVITY_LINES);
+      dirty = true;
+      timer ??= setTimeout(() => void write(), 1_500);
+    },
+    async flush() {
+      if (timer) clearTimeout(timer);
+      await write();
+    },
+  };
+}
+type ActivityLog = ReturnType<typeof activityLog>;
+
 /** Polls for a Stop: tears the sandbox down so whatever command is running ends at once. */
 function watchCancel(id: string, computer: () => Computer | null, signal: AbortSignal) {
   let cancelled = false;
@@ -169,10 +200,12 @@ async function summarise(task: string, diffStat: string, coderNotes: string) {
   }
 }
 
-async function runChecks(computer: Computer, checks: { name: string; command: string }[]): Promise<CodeCheck[]> {
+async function runChecks(computer: Computer, checks: { name: string; command: string }[], log: ActivityLog): Promise<CodeCheck[]> {
   const results: CodeCheck[] = [];
   for (const check of checks) {
+    log.add(`Running ${check.command}`);
     const { code, output } = await computer.run(check.command, { timeoutMs: 15 * 60_000 });
+    log.add(`${check.command} ${code === 0 ? "passed" : "failed"}`);
     results.push({ name: check.name, command: check.command, passed: code === 0, output: output.slice(-3_000) });
   }
   return results;
@@ -185,6 +218,7 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
   let computer: Computer | null = null;
   let runKey: RunKey | null = null;
   const cancel = watchCancel(id, () => computer, signal);
+  const log = activityLog(id);
   try {
     const token = await repoToken(run.installationId, run.repo);
     const git = { env: gitAuthEnv(token), secrets: [token] };
@@ -192,12 +226,14 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     const secrets = [token, runKey.key];
 
     await update(id, { status: "cloning" });
+    log.add("Starting the computer");
     computer = await bootComputer(id);
     await update(id, { sandboxId: computer.id });
     cancel.check();
 
     // Follow-ups continue the existing branch; new runs branch off the base.
     const remote = `https://github.com/${run.repo}.git`;
+    log.add(`Cloning ${run.repo}`);
     const existing = await computer.run(`git ls-remote --heads ${remote} ${run.branch}`, { ...git, cwd: "/work" });
     const onBranch = existing.code === 0 && existing.output.includes(`refs/heads/${run.branch}`);
     const clone = await computer.run(`git clone --depth 50 --branch ${onBranch ? run.branch : run.baseBranch} ${remote} ${WORKDIR}`, { ...git, cwd: "/work" });
@@ -210,7 +246,10 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     const files = (await computer.run("ls -A")).output.split("\n").map((line) => line.trim());
     const checks = detectChecks(await computer.readFile(`${WORKDIR}/package.json`), files);
     const rules = (await computer.readFile(`${WORKDIR}/AGENTS.md`)) ?? (await computer.readFile(`${WORKDIR}/CLAUDE.md`)) ?? (await computer.readFile(`${WORKDIR}/CONTRIBUTING.md`));
-    if (checks) await computer.run(checks.install, { timeoutMs: 15 * 60_000 });
+    if (checks) {
+      log.add(`Installing dependencies with ${checks.manager}`);
+      await computer.run(checks.install, { timeoutMs: 15 * 60_000 });
+    }
     cancel.check();
 
     // Headless: opencode may edit and run commands without asking; the sandbox is the boundary.
@@ -220,13 +259,13 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     let notes = "";
     for (let round = 0; round <= FIX_ROUNDS; round++) {
       await update(id, { status: "coding" });
+      log.add(round ? `Fixing ${failures.map((check) => check.name).join(", ")} (try ${round} of ${FIX_ROUNDS})` : "Reading the code");
       await computer.writeFile("/work/prompt.md", coderPrompt({ task: run.task, rules, checks: checks?.checks ?? [], failures }));
-      const coded = await computer.run(`opencode run -m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)"`, { env: { OPENROUTER_API_KEY: runKey.key }, secrets, timeoutMs: 30 * 60_000 });
-      notes = coded.output;
+      notes = await writeCode(computer, { key: runKey.key, secrets, log });
       cancel.check();
       if (!checks?.checks.length) break;
       await update(id, { status: "checking" });
-      results = await runChecks(computer, checks.checks);
+      results = await runChecks(computer, checks.checks, log);
       await update(id, { checks: results });
       failures = results.filter((check) => !check.passed);
       cancel.check();
@@ -238,6 +277,7 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     if (!changed.output.trim() && !ahead.output.trim()) throw new RunFailure("The coder finished without changing anything. Try describing the change in more detail.");
 
     await update(id, { status: "pushing" });
+    log.add(`Pushing ${run.branch}`);
     assertPushable(run.branch, run.baseBranch);
     const title = titleOf(run.task);
     await computer.writeFile("/work/commit.txt", `${title}\n\n${run.task}`);
@@ -246,9 +286,12 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     if (pushed.code !== 0) throw new RunFailure("GitHub rejected the push. The branch may be protected or the bot lost access.");
 
     const stat = (await computer.run(`git diff --stat origin/${run.baseBranch}...HEAD`, git)).output;
+    log.add("Opening the pull request");
     const summary = await summarise(run.task, stat, notes);
     const requester = await requesterName(run.clerkUserId);
     const pr = await openPullRequest(token, { repo: run.repo, head: run.branch, base: run.baseBranch, title, body: pullRequestBody({ task: run.task, summary, checks: results, requester }) });
+    log.add(`Opened PR #${pr.number}`);
+    await log.flush();
     await update(id, { status: "done", prNumber: pr.number, prUrl: pr.url, summary: `${title}\n${summary}` });
   } catch (error) {
     const stopped = cancel.cancelled || error instanceof Cancelled;
@@ -258,11 +301,38 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     });
     if (!stopped && !(error instanceof RunFailure)) console.error("code_run_failed", { id, error: error instanceof Error ? error.message : String(error) });
   } finally {
+    await log.flush();
     cancel.dispose();
     await computer?.shutdown();
     await deleteRunKey(runKey);
     await announce(id).catch(() => undefined);
   }
+}
+
+/**
+ * One opencode session. Its JSON events stream into the activity log as they happen; what the
+ * coder says comes back as notes for the PR summary. An opencode build without `--format json`
+ * fails before printing any event, so that case reruns once in plain mode.
+ */
+async function writeCode(computer: Computer, { key, secrets, log }: { key: string; secrets: string[]; log: ActivityLog }) {
+  const command = (format: string) => `opencode run ${format}-m openrouter/${CODE_MODEL} "$(cat /work/prompt.md)"`;
+  const options = { env: { OPENROUTER_API_KEY: key }, secrets, timeoutMs: 30 * 60_000 };
+  const said: string[] = [];
+  let events = 0;
+  const result = await computer.run(command("--format json "), {
+    ...options,
+    onLine: (line) => {
+      if (line.trimStart().startsWith("{")) events++;
+      const event = readCoderEvent(line, WORKDIR);
+      if (event.activity) log.add(event.activity);
+      if (event.text) said.push(event.text);
+    },
+  });
+  if (result.code !== 0 && !events) {
+    log.add("Writing the code");
+    return (await computer.run(command(""), options)).output;
+  }
+  return said.join("\n") || result.output;
 }
 
 async function requesterName(userId: string) {
