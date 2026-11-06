@@ -1,34 +1,196 @@
-import { Button, StyleSheet, Text, View } from "react-native";
-import { router } from "expo-router";
-import { useSession } from "../../src/session/provider";
+import { useAuth, useUser } from "@clerk/expo";
+import { Column, FieldGroup, Host as UniversalHost, Picker as UniversalPicker, Row, Spacer as UniversalSpacer, Text as UniversalText } from "@expo/ui";
+import { Button, Form, HStack, Host, Image, Label, LabeledContent, Picker, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import { buttonStyle, contentShape, font, foregroundStyle, pickerStyle, shapes, tag } from "@expo/ui/swift-ui/modifiers";
+import Constants from "expo-constants";
+import { router, Stack } from "expo-router";
+import { useState } from "react";
+import { Alert, Linking, Platform } from "react-native";
+import { createApiClient } from "../../src/data/api";
+import { haptic } from "../../src/haptics";
 import { useOnboarding } from "../../src/onboarding/provider";
-import { useTheme } from "../../src/theme/provider";
+import { useSession } from "../../src/session/provider";
+import { useTheme, type ThemeMode } from "../../src/theme/provider";
 
-export default function SettingsScreen() {
+const THEMES: { label: string; value: ThemeMode }[] = [
+  { label: "System", value: "system" },
+  { label: "Light", value: "light" },
+  { label: "Dark", value: "dark" },
+];
+type SFSymbol = NonNullable<React.ComponentProps<typeof Label>["systemImage"]>;
+const DELETE_NOTE = "Deleting your account removes everything Cooper stores for you and disconnects your apps.";
+
+/** Everything the page shows and does, shared by the iOS and Android layouts. */
+function useSettings() {
   const session = useSession();
   const onboarding = useOnboarding();
-  const { mode, setMode, colors } = useTheme();
+  const { getToken } = useAuth();
+  const { user } = useUser();
+  const theme = useTheme();
+  const [deleting, setDeleting] = useState(false);
 
+  const deleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const response = await createApiClient(getToken).v1.account.$delete();
+      if (!response.ok) throw new Error();
+      haptic.success();
+      // The sign-in no longer exists; clearing the local session is all that's left.
+      await Promise.resolve(session.signOut()).catch(() => undefined);
+      router.replace("/(public)/sign-in");
+    } catch {
+      setDeleting(false);
+      haptic.error();
+      Alert.alert("Couldn’t delete your account", "Nothing was lost. Check your connection and try again.");
+    }
+  };
+
+  return {
+    ...theme,
+    deleting,
+    name: user?.fullName || user?.firstName || "Your account",
+    email: user?.primaryEmailAddress?.emailAddress ?? "",
+    version: Constants.expoConfig?.version ?? "—",
+    setTheme: (value: ThemeMode) => {
+      haptic.selection();
+      theme.setMode(value);
+    },
+    openMemory: () => router.push("/memory"),
+    openApps: () => router.push("/connections"),
+    openNotifications: () => void Linking.openSettings(),
+    showIntro: () => void onboarding.reset().then(() => router.replace("/(onboarding)")),
+    signOut: () => {
+      if (deleting) return;
+      Alert.alert("Sign out?", "You can sign back in at any time.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Sign out", style: "destructive", onPress: session.signOut },
+      ]);
+    },
+    confirmDelete: () => {
+      if (deleting) return;
+      Alert.alert("Delete your account?", "Your chats, mates, memories, reminders and app connections are deleted for good. This can’t be undone.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete account", style: "destructive", onPress: () => void deleteAccount() },
+      ]);
+    },
+  };
+}
+
+type Settings = ReturnType<typeof useSettings>;
+
+/** A tappable row that opens something: icon, title, and the system chevron. */
+function LinkRow({ title, icon, color, onPress }: { title: string; icon: SFSymbol; color: string; onPress: () => void }) {
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]} testID="settings-screen">
-      <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
-      <Text style={[styles.detail, { color: colors.textSecondary }]}>User: {session.user?.displayName ?? session.user?.id ?? "Guest"}</Text>
-      <Text style={[styles.detail, { color: colors.textSecondary }]}>Theme: {mode}</Text>
-      <Button title="Apps & connections" onPress={() => router.push("/connections")} color={colors.primary} />
-      <Button title="Memory" onPress={() => router.push("/memory")} color={colors.primary} />
-      <Button
-        title={`Switch to ${mode === "dark" ? "light" : "dark"} mode`}
-        color={colors.primary}
-        onPress={() => setMode(mode === "dark" ? "light" : "dark")}
-      />
-      <Button title="Show onboarding again" onPress={() => void onboarding.reset().then(() => router.replace("/(onboarding)"))} />
-      <Button title="Sign out" onPress={session.signOut} color="#b42318" />
-    </View>
+    <Button onPress={onPress} modifiers={[buttonStyle("plain")]}>
+      <HStack modifiers={[contentShape(shapes.rectangle())]}>
+        <Label title={title} systemImage={icon} color={color} />
+        <Spacer />
+        <Image systemName="chevron.right" size={13} color="#C4C4C7" />
+      </HStack>
+    </Button>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 24, gap: 16, backgroundColor: "#f4f6fb" },
-  title: { fontSize: 24, fontWeight: "700" },
-  detail: { fontSize: 16, color: "#52606d" },
-});
+/** iOS: pure SwiftUI (Form, Label, Picker), so rows size themselves exactly like Settings. */
+function IosSettings({ s }: { s: Settings }) {
+  // UIKit's systemGroupedBackground: the header takes the form's own colour, so they read as one surface.
+  const grouped = s.isDark ? "#000000" : "#F2F2F7";
+  return (
+    <>
+    <Stack.Screen options={{ headerStyle: { backgroundColor: grouped }, headerShadowVisible: false }} />
+    <Host testID="settings-screen" style={{ flex: 1, backgroundColor: grouped }} colorScheme={s.isDark ? "dark" : "light"}>
+      <Form>
+        <Section>
+          <HStack spacing={14}>
+            <Image systemName="person.crop.circle.fill" size={52} color="#d27e41" />
+            <VStack alignment="leading" spacing={2}>
+              <Text modifiers={[font({ size: 20, weight: "semibold" })]}>{s.name}</Text>
+              {s.email ? <Text modifiers={[font({ size: 15 }), foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{s.email}</Text> : null}
+            </VStack>
+          </HStack>
+        </Section>
+
+        <Section title="Cooper">
+          <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
+          <LinkRow title="Apps & connections" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
+          <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" onPress={s.openNotifications} />
+        </Section>
+
+        <Section title="Appearance">
+          <Picker label="Theme" systemImage="circle.lefthalf.filled" selection={s.mode} onSelectionChange={(value: ThemeMode) => s.setTheme(value)} modifiers={[pickerStyle("menu")]}>
+            {THEMES.map((theme) => <Text key={theme.value} modifiers={[tag(theme.value)]}>{theme.label}</Text>)}
+          </Picker>
+        </Section>
+
+        <Section title="About">
+          <LabeledContent label="Version">
+            <Text>{s.version}</Text>
+          </LabeledContent>
+          <Button label="Show the introduction" onPress={s.showIntro} />
+        </Section>
+
+        <Section footer={<Text>{DELETE_NOTE}</Text>}>
+          <Button label="Sign out" role="destructive" onPress={s.signOut} />
+          <Button label={s.deleting ? "Deleting your account…" : "Delete account"} role="destructive" onPress={s.confirmDelete} />
+        </Section>
+      </Form>
+    </Host>
+    </>
+  );
+}
+
+/** Android: Material 3 grouped rows; each section already draws the row surface. */
+function AndroidSettings({ s }: { s: Settings }) {
+  const title = { color: s.colors.text, fontSize: 17 };
+  const muted = { color: s.colors.textMuted, fontSize: 14 };
+  const danger = { color: "#E5484D", fontSize: 17 };
+  const row = (label: string, onPress?: () => void, style = title, value?: string) => (
+    <Row alignment="center" spacing={12} onPress={onPress}>
+      <UniversalText textStyle={style}>{label}</UniversalText>
+      <UniversalSpacer flexible />
+      {value ? <UniversalText textStyle={muted}>{value}</UniversalText> : null}
+    </Row>
+  );
+  return (
+    <UniversalHost testID="settings-screen" style={{ flex: 1 }} colorScheme={s.isDark ? "dark" : "light"}>
+      <FieldGroup>
+        <FieldGroup.Section>
+          <Column spacing={2}>
+            <UniversalText textStyle={{ color: s.colors.text, fontSize: 20, fontWeight: "600" }}>{s.name}</UniversalText>
+            {s.email ? <UniversalText textStyle={muted}>{s.email}</UniversalText> : null}
+          </Column>
+        </FieldGroup.Section>
+        <FieldGroup.Section title="Cooper">
+          {row("Memory", s.openMemory)}
+          {row("Apps & connections", s.openApps)}
+          {row("Notifications", s.openNotifications)}
+        </FieldGroup.Section>
+        <FieldGroup.Section title="Appearance">
+          <Row alignment="center" spacing={12}>
+            <UniversalText textStyle={title}>Theme</UniversalText>
+            <UniversalSpacer flexible />
+            <UniversalPicker selectedValue={s.mode} onValueChange={(value) => s.setTheme(value as ThemeMode)} appearance="menu">
+              {THEMES.map((theme) => <UniversalPicker.Item key={theme.value} label={theme.label} value={theme.value} />)}
+            </UniversalPicker>
+          </Row>
+        </FieldGroup.Section>
+        <FieldGroup.Section title="About">
+          {row("Version", undefined, title, s.version)}
+          {row("Show the introduction", s.showIntro)}
+        </FieldGroup.Section>
+        <FieldGroup.Section>
+          {row("Sign out", s.signOut, danger)}
+          {row(s.deleting ? "Deleting your account…" : "Delete account", s.confirmDelete, danger)}
+          <FieldGroup.SectionFooter>
+            <UniversalText textStyle={muted}>{DELETE_NOTE}</UniversalText>
+          </FieldGroup.SectionFooter>
+        </FieldGroup.Section>
+      </FieldGroup>
+    </UniversalHost>
+  );
+}
+
+export default function SettingsScreen() {
+  const settings = useSettings();
+  return Platform.OS === "ios" ? <IosSettings s={settings} /> : <AndroidSettings s={settings} />;
+}
