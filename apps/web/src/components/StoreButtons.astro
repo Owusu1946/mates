@@ -25,6 +25,9 @@ const { align = "center" } = Astro.props;
     <span class="label"><small>Coming soon to</small>Google Play</span>
   </span>
 </div>
+<a href="#download" class="join" data-waitlist style={`justify-content: ${align === "center" ? "center" : "flex-start"}`}>
+  Join the waitlist <span aria-hidden="true">→</span>
+</a>
 
 <style>
   .ctas {
@@ -57,6 +60,20 @@ const { align = "center" } = Astro.props;
     font-size: 11px;
     font-weight: 500;
     opacity: 0.7;
+  }
+  .join {
+    display: flex;
+    gap: 6px;
+    margin-top: 16px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .join span {
+    transition: transform 0.15s ease;
+  }
+  .join:hover span {
+    transform: translateX(3px);
   }
   @media (max-width: 400px) {
     .ctas {
