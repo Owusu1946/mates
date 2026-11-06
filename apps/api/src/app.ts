@@ -35,6 +35,8 @@ import { runUndo } from "./undo.js";
 import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
+import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
+import { completeInstall, GitHubError, githubConfigured, installUrl, listInstallations, listRepos, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -232,6 +234,40 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!row) return c.json(failure("NOT_FOUND", "Attachment not found", c.get("requestId")), 404);
       // Ids are immutable, so a device can cache the bytes forever.
       return c.body(new Uint8Array(row.data), 200, { "content-type": row.contentType, "cache-control": "private, max-age=31536000, immutable", "content-length": String(row.size) });
+    })
+    .get("/v1/github", auth, async (c) => {
+      if (!githubConfigured()) return c.json({ configured: false as const, installations: [], repos: [] });
+      const userId = c.get("userId");
+      const [installations, repos] = await Promise.all([listInstallations(userId), listRepos(userId).catch(() => [])]);
+      return c.json({ configured: true as const, installations: installations.map((item) => ({ id: item.installationId, account: item.accountLogin })), repos: repos.map((repo) => ({ fullName: repo.fullName, private: repo.private })) });
+    })
+    .get("/v1/github/install", auth, (c) =>
+      githubConfigured() ? c.json({ url: installUrl(c.get("userId")) }) : c.json(failure("NOT_CONFIGURED", "GitHub isn’t set up on this server yet.", c.get("requestId")), 503),
+    )
+    // GitHub sends the browser here after an install; the signed state says whose it is.
+    .get("/v1/github/callback", async (c) => {
+      const back = (status: string) => c.redirect(`muse-clone://connections?github=${status}`);
+      const userId = verifyState(c.req.query("state") ?? "");
+      const installationId = Number(c.req.query("installation_id"));
+      const code = c.req.query("code");
+      if (!userId || !Number.isSafeInteger(installationId) || !code) return back("failed");
+      try {
+        await completeInstall(userId, installationId, code);
+        return back("connected");
+      } catch (error) {
+        if (!(error instanceof GitHubError)) console.error("github_install_failed", error instanceof Error ? error.message : error);
+        return back("failed");
+      }
+    })
+    .get("/v1/code-runs/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
+      const run = await ownedCodeRun(c.get("userId"), c.req.param("id"));
+      return run ? c.json({ card: codeCard(run) }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+    })
+    .post("/v1/code-runs/:id/cancel", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
+      const run = await cancelCodeRun(c.get("userId"), c.req.param("id"));
+      return run ? c.json({ card: codeCard(run) }) : c.json(failure("CONFLICT", "This run has already finished.", c.get("requestId")), 409);
     })
     .get("/v1/missions", auth, async (c) => {
       const chatId = chatIdSchema.safeParse(c.req.query("chatId"));
