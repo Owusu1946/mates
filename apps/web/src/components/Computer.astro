@@ -1,9 +1,10 @@
 ---
 // "Ship code while you sleep": the mates' computer. A run plays out as the same activity lines the
 // app streams, scrolling one at a time, then the pull request lands. One CSS cycle drives both.
+import { mate } from "../palette";
 import Mascot from "./Mascot";
 
-const nova: [string, string, string] = ["#c7dcff", "#5b8def", "#1e3a8a"];
+const nova = mate("blue");
 const lines = [
   "Starting the computer",
   "Cloning acme/app",
@@ -42,8 +43,8 @@ const points = [
         points.map((point) => (
           <li>
             <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <circle cx="9" cy="9" r="9" fill="rgba(48,164,108,0.18)" />
-              <path d="m5.5 9.2 2.3 2.3 4.7-4.9" fill="none" stroke="#4ade80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="9" cy="9" r="9" fill="var(--success-soft)" />
+              <path d="m5.5 9.2 2.3 2.3 4.7-4.9" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
             <div>
               <b>{point.title}</b>
@@ -100,6 +101,7 @@ const points = [
 <style>
   .computer {
     --line-h: 30px;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 56px;
@@ -108,12 +110,11 @@ const points = [
     margin: 140px auto 0;
     padding: 72px 56px;
     border-radius: 32px;
-    background: radial-gradient(120% 90% at 85% 10%, #1b2a4a 0%, transparent 55%), #0b0b0d;
-    color: #f5f5f7;
+    background: var(--panel);
     overflow: hidden;
   }
   .eyebrow {
-    color: #8ab4ff;
+    color: var(--muted);
     font-size: 13px;
     font-weight: 600;
     letter-spacing: 0.06em;
@@ -129,7 +130,7 @@ const points = [
   .lede {
     max-width: 44ch;
     margin: 18px 0 0;
-    color: #a1a1aa;
+    color: var(--muted);
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.6;
   }
@@ -155,7 +156,7 @@ const points = [
     font-weight: 600;
   }
   li span {
-    color: #a1a1aa;
+    color: var(--muted);
     font-size: 14.5px;
     line-height: 1.5;
   }
@@ -166,8 +167,8 @@ const points = [
   }
   .window {
     border-radius: 22px;
-    background: rgba(255, 255, 255, 0.04);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 40px 80px -40px rgba(0, 0, 0, 0.8);
+    background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -36px rgba(0, 0, 0, 0.25);
     overflow: hidden;
   }
   .bar {
@@ -175,7 +176,7 @@ const points = [
     align-items: center;
     gap: 12px;
     padding: 14px 18px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid var(--line);
   }
   .where {
     flex: 1;
@@ -184,8 +185,8 @@ const points = [
     font-size: 14px;
   }
   .where span {
-    color: #71717a;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--muted);
+    font-family: var(--mono);
     font-size: 12px;
   }
   .live {
@@ -194,8 +195,8 @@ const points = [
     gap: 6px;
     padding: 4px 10px;
     border-radius: 999px;
-    background: rgba(74, 222, 128, 0.12);
-    color: #4ade80;
+    background: var(--success-soft);
+    color: var(--success);
     font-size: 12px;
     font-weight: 600;
   }
@@ -218,7 +219,7 @@ const points = [
     height: calc(var(--line-h) * 7 + 28px);
     padding: 14px 18px;
     overflow: hidden;
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-family: var(--mono);
     font-size: 13.5px;
   }
   .feed::before {
@@ -226,7 +227,7 @@ const points = [
     position: absolute;
     inset: 0 0 auto;
     height: 60px;
-    background: linear-gradient(#0f1115, transparent);
+    background: linear-gradient(var(--bg), transparent);
     z-index: 1;
   }
   .scroller {
@@ -250,17 +251,17 @@ const points = [
     align-items: center;
     gap: 10px;
     height: var(--line-h);
-    color: #a1a1aa;
+    color: var(--muted);
     white-space: nowrap;
   }
   .caret {
-    color: #52525b;
+    opacity: 0.5;
   }
   .line.pass {
-    color: #4ade80;
+    color: var(--success);
   }
   .line.final {
-    color: #fff;
+    color: var(--text);
     font-weight: 600;
   }
 
@@ -272,9 +273,8 @@ const points = [
     bottom: 0;
     padding: 18px 20px;
     border-radius: 20px;
-    background: #fff;
-    color: #0f172a;
-    box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+    background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(0, 0, 0, 0.3);
     animation: land 16s infinite;
   }
   @keyframes land {
@@ -304,13 +304,13 @@ const points = [
     gap: 5px;
     padding: 3px 10px;
     border-radius: 999px;
-    background: #1f883d;
-    color: #fff;
+    background: var(--success);
+    color: var(--bg);
     font-size: 12.5px;
     font-weight: 600;
   }
   .num {
-    color: #64748b;
+    color: var(--muted);
     font-size: 14px;
   }
   .pr-title {
@@ -321,17 +321,18 @@ const points = [
   }
   .pr-meta {
     margin-top: 4px;
-    color: #64748b;
+    color: var(--muted);
     font-size: 13.5px;
   }
   .pr-meta b {
-    color: #0f172a;
+    color: var(--text);
   }
   code {
     padding: 1px 6px;
     border-radius: 6px;
-    background: #eff6ff;
-    color: #1d4ed8;
+    background: var(--soft);
+    color: var(--text);
+    font-family: var(--mono);
     font-size: 12.5px;
   }
   .pr-foot {
@@ -340,22 +341,17 @@ const points = [
     gap: 12px;
     margin-top: 14px;
     padding-top: 12px;
-    border-top: 1px solid #e2e8f0;
+    border-top: 1px solid var(--line);
     font-size: 13px;
+    color: var(--muted);
   }
-  .add {
-    color: #1f883d;
+  .add,
+  .checks {
+    color: var(--success);
     font-weight: 600;
   }
   .del {
-    color: #cf222e;
-    font-weight: 600;
-  }
-  .diff {
-    color: #64748b;
-  }
-  .checks {
-    color: #1f883d;
+    color: var(--muted);
     font-weight: 600;
   }
 
