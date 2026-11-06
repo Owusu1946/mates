@@ -377,6 +377,8 @@ export const githubInstallations = pgTable("github_installations", {
 
 export type CodeRunStatus = "queued" | "cloning" | "coding" | "checking" | "pushing" | "done" | "failed" | "cancelled";
 export type CodeCheck = { name: string; command: string; passed: boolean; output: string };
+/** One line of what the computer is doing right now ("Editing src/app.ts"). */
+export type CodeActivity = { at: string; text: string };
 
 /** One job on the mates' computer: clone a repo, make a change, check it, open a pull request. */
 export const codeRuns = pgTable("code_runs", {
@@ -393,6 +395,8 @@ export const codeRuns = pgTable("code_runs", {
   status: text("status").$type<CodeRunStatus>().notNull().default("queued"),
   cancelRequested: boolean("cancel_requested").notNull().default(false),
   checks: jsonb("checks").$type<CodeCheck[]>().notNull().default([]),
+  /** The latest activity lines, newest last; capped so the row stays small. */
+  activity: jsonb("activity").$type<CodeActivity[]>().notNull().default([]),
   prNumber: integer("pr_number"),
   prUrl: text("pr_url"),
   summary: text("summary"),

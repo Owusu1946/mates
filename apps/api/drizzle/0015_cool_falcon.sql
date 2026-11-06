@@ -1,0 +1,1 @@
+ALTER TABLE "code_runs" ADD COLUMN "activity" jsonb DEFAULT '[]'::jsonb NOT NULL;
