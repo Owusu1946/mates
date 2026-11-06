@@ -8,6 +8,14 @@ import Svg, { Path } from "react-native-svg";
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
 
+/** What went wrong, in words that say what to do next. Keyed by the API's failure reason. */
+const FAILURES: Record<string, string> = {
+  expired: "That took a little too long. Try connecting again.",
+  config: "GitHub sign-in isn’t finished on the server yet (the App’s client ID and secret).",
+  oauth: "GitHub didn’t accept the sign-in. Check the App’s client secret and callback URL, then try again.",
+  not_installed: "Install the bot on your GitHub account first, then try again.",
+};
+
 type GitHubState = { configured: boolean; installations: { id: number; account: string }[]; repos: { fullName: string; private: boolean }[] };
 
 export function useGitHub() {
@@ -49,7 +57,10 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
       const returnTo = Linking.createURL("connections");
       const { url } = await runRequest<{ url: string }>(getToken, `github/install?returnTo=${encodeURIComponent(returnTo)}`);
       const result = await WebBrowser.openAuthSessionAsync(url, returnTo);
-      if (result.type === "success" && result.url.includes("github=failed")) setError("GitHub didn’t confirm the connection. Try again.");
+      if (result.type === "success" && result.url.includes("github=failed")) {
+        const reason = /[?&]reason=([a-z_]+)/.exec(result.url)?.[1] ?? "";
+        setError(FAILURES[reason] ?? "GitHub didn’t confirm the connection. Try again.");
+      }
       await github.refetch();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Couldn’t open GitHub.");
