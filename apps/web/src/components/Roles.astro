@@ -1,0 +1,326 @@
+---
+// "Give each mate a job": pick a role, the copy and the phone switch to it. Every role is in the
+// HTML already; the script below only flips which one is visible.
+import Device from "./Device.astro";
+
+type Line =
+  | { me: string }
+  | { them: string }
+  | { stamp: string }
+  | { event: string; value: string; icon: "clock" | "team" | "note" | "computer" };
+
+type Role = {
+  id: string;
+  name: string;
+  gradient: [string, string, string];
+  expression?: number;
+  lead: string;
+  body: string;
+  thread: Line[];
+};
+
+const roles: Role[] = [
+  {
+    id: "shipper",
+    name: "Code Shipper",
+    gradient: ["#c7dcff", "#5b8def", "#1e3a8a"],
+    lead: "Ship features while you sleep.",
+    body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
+    thread: [
+      { stamp: "Tuesday 7:38 PM" },
+      { me: "add a dark mode toggle to settings in acme/app and open a PR. keep it small." },
+      { event: "Started on", value: "Mates’ computer · acme/app", icon: "computer" },
+      { stamp: "8:04 PM" },
+      { them: "PR #42 is up: a toggle in Settings, saved per device. typecheck and tests pass." },
+      { them: "nothing merged. it’s waiting for your review." },
+    ],
+  },
+  {
+    id: "inbox",
+    name: "Inbox Keeper",
+    gradient: ["#d9f99d", "#4ade80", "#166534"],
+    expression: 8,
+    lead: "Inbox zero, every morning.",
+    body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
+    thread: [
+      { stamp: "Monday 10:12 PM" },
+      { me: "every morning: sort my inbox, draft replies to anything urgent, archive newsletters." },
+      { event: "Created routine", value: "Morning inbox sweep", icon: "clock" },
+      { stamp: "8:02 AM" },
+      { them: "47 sorted. 3 drafts waiting: the lease renewal, Sam’s invoice, and the offsite dates." },
+      { them: "nothing sent." },
+    ],
+  },
+  {
+    id: "trips",
+    name: "Trip Planner",
+    gradient: ["#fde68a", "#f59e0b", "#92400e"],
+    expression: 2,
+    lead: "Plan the whole trip.",
+    body: "Flights, stays, a day-by-day plan and places to eat, built around your budget and how you like to travel.",
+    thread: [
+      { stamp: "Sunday 4:20 PM" },
+      { me: "4 days in Lisbon in May, under $1,500. I like food and walking everywhere." },
+      { stamp: "4:31 PM" },
+      { them: "flights from $412, a flat in Príncipe Real, and a walking plan with 6 places to eat." },
+      { event: "Wrote a note", value: "Lisbon, May", icon: "note" },
+      { them: "nothing booked until you say go." },
+    ],
+  },
+  {
+    id: "research",
+    name: "Researcher",
+    gradient: ["#e9d5ff", "#a855f7", "#581c87"],
+    lead: "Answers you can check.",
+    body: "Reads the web so you don’t have to, compares the options side by side, and shows every source it used.",
+    thread: [
+      { stamp: "Thursday 11:05 AM" },
+      { me: "compare the top 3 CRMs for a 5 person team: pricing and what people complain about." },
+      { stamp: "11:18 AM" },
+      { them: "HubSpot wins on the free tier, Pipedrive on simplicity, Attio on flexibility." },
+      { event: "Wrote a note", value: "CRM comparison · 14 sources", icon: "note" },
+    ],
+  },
+  {
+    id: "chief",
+    name: "Chief of Staff",
+    gradient: ["#e5c59e", "#d27e41", "#9A3412"],
+    expression: 2,
+    lead: "Runs the team for you.",
+    body: "Turns a big goal into a plan, assembles the right mates, hands the work out, and checks in until it’s done.",
+    thread: [
+      { stamp: "Monday 9:00 AM" },
+      { me: "launch week: code, release notes and the announcement done by friday." },
+      { event: "Assembled", value: "Nova, Ivy and Sol", icon: "team" },
+      { them: "plan’s up. Nova is on the code, Ivy the notes, Sol drafts the announcement." },
+      { them: "I’ll check in every morning." },
+    ],
+  },
+  {
+    id: "brief",
+    name: "Daily Brief",
+    gradient: ["#fbcfe8", "#ec4899", "#831843"],
+    expression: 8,
+    lead: "Your morning in one message.",
+    body: "Your calendar, the weather and anything urgent, waiting for you before you’ve had coffee.",
+    thread: [
+      { stamp: "Yesterday 9:40 PM" },
+      { me: "every day at 7, brief me: calendar, weather, anything urgent." },
+      { event: "Created routine", value: "Morning brief · 7:00", icon: "clock" },
+      { stamp: "7:00 AM" },
+      { them: "3 meetings, the first at 10. 18° with rain after 4, take a jacket." },
+      { them: "one urgent: the contract needs your signature today." },
+    ],
+  },
+];
+
+const icons = {
+  clock: '<circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5V8l2.3 1.4" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  team: '<circle cx="5.5" cy="6" r="2.3" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="6.5" r="1.9" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 13.5c.6-2.2 2.2-3.3 4-3.3s3.4 1.1 4 3.3M10 10.4c1.8 0 3.4.9 4 3.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  note: '<path d="M4 1.8h5.5L12.5 5v9.2H4z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 8h4.5M6 10.8h3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  computer: '<rect x="1.8" y="2.5" width="12.4" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 14h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+};
+---
+
+<section class="roles" id="missions" data-roles>
+  <div class="side">
+    <h2>Give each mate a job</h2>
+
+    <div class="chips" role="tablist" aria-label="Mate roles">
+      {
+        roles.map((role, index) => (
+          <button
+            type="button"
+            role="tab"
+            class="chip"
+            id={`tab-${role.id}`}
+            aria-selected={index === 0 ? "true" : "false"}
+            aria-controls={`phone-${role.id}`}
+            data-copy={`copy-${role.id}`}
+            style={`--c: ${role.gradient[1]}; --c-deep: ${role.gradient[2]}`}
+          >
+            <span class="dot" style={`background: linear-gradient(135deg, ${role.gradient.join(", ")})`} />
+            {role.name}
+          </button>
+        ))
+      }
+    </div>
+
+    {
+      roles.map((role, index) => (
+        <p class="copy" id={`copy-${role.id}`} hidden={index !== 0}>
+          <strong>{role.lead}</strong> {role.body}
+        </p>
+      ))
+    }
+
+    <a href="#download" class="pill-button light more">Get the app</a>
+  </div>
+
+  <div class="stage">
+    {
+      roles.map((role, index) => (
+        <div class="panel" id={`phone-${role.id}`} role="tabpanel" aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
+          <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, expression: role.expression }]}>
+            {role.thread.map((line, i) => {
+              const delay = `--d: ${0.1 + i * 0.35}s`;
+              if ("stamp" in line) return <div class="stamp in" style={delay}>{line.stamp}</div>;
+              if ("me" in line) return <div class="me in" style={delay}>{line.me}</div>;
+              if ("them" in line) return <div class="them in" style={delay}>{line.them}</div>;
+              return (
+                <div class="event in" style={delay}>
+                  {line.event}
+                  <svg width="15" height="15" viewBox="0 0 16 16" set:html={icons[line.icon]} />
+                  <b>{line.value}</b>
+                </div>
+              );
+            })}
+          </Device>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<script>
+  for (const root of document.querySelectorAll<HTMLElement>("[data-roles]")) {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>("[role=tab]")];
+    const select = (tab: HTMLButtonElement) => {
+      for (const other of tabs) {
+        const on = other === tab;
+        other.setAttribute("aria-selected", String(on));
+        other.tabIndex = on ? 0 : -1;
+        root.querySelector<HTMLElement>(`#${other.getAttribute("aria-controls")}`)!.hidden = !on;
+        root.querySelector<HTMLElement>(`#${other.dataset.copy}`)!.hidden = !on;
+      }
+    };
+    tabs.forEach((tab, index) => {
+      tab.tabIndex = index === 0 ? 0 : -1;
+      tab.addEventListener("click", () => select(tab));
+      tab.addEventListener("keydown", (event) => {
+        const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+        if (!step) return;
+        const next = tabs[(index + step + tabs.length) % tabs.length]!;
+        next.focus();
+        select(next);
+      });
+    });
+  }
+</script>
+
+<style>
+  .roles {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: start;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .side {
+    padding: 40px 0 0 56px;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(28px, 3.2vw, 42px);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 520px;
+    margin-top: 36px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 42px;
+    padding: 0 18px;
+    border: 1px solid #e3e3e3;
+    border-radius: 999px;
+    background: #fff;
+    color: #3a3a3c;
+    font: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  }
+  .chip:hover {
+    border-color: #cfcfcf;
+  }
+  .chip .dot {
+    display: none;
+    width: 22px;
+    height: 22px;
+    margin-left: -8px;
+    border-radius: 50%;
+  }
+  .chip[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--c) 35%, white);
+    background: color-mix(in srgb, var(--c) 10%, white);
+    color: var(--c-deep);
+  }
+  .chip[aria-selected="true"] .dot {
+    display: block;
+  }
+  .chip:focus-visible {
+    outline: 2px solid var(--c);
+    outline-offset: 2px;
+  }
+  .copy {
+    max-width: 44ch;
+    margin: 40px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .copy strong {
+    color: var(--text);
+    font-weight: 500;
+  }
+  .more {
+    margin-top: 48px;
+  }
+
+  .stage {
+    display: flex;
+    justify-content: center;
+    height: 680px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(#000 80%, transparent);
+    mask-image: linear-gradient(#000 80%, transparent);
+  }
+
+  @media (max-width: 860px) {
+    .roles {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 96px;
+    }
+    .side {
+      padding: 0 8px;
+    }
+    .copy {
+      margin-top: 28px;
+    }
+    .more {
+      margin-top: 28px;
+    }
+    .stage {
+      height: 600px;
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 540px;
+    }
+    .panel {
+      transform: scale(0.88);
+      transform-origin: top center;
+    }
+  }
+</style>
