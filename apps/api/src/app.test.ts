@@ -20,6 +20,12 @@ describe("API contract", () => {
     expect(await response.json()).toMatchObject({ ok: true });
   });
 
+  it("treats a trailing slash as the same route", async () => {
+    const response = await createApp(deps).request("/health/");
+    expect(response.status).toBe(301);
+    expect(new URL(response.headers.get("location")!).pathname).toBe("/health");
+  });
+
   it("normalizes missing authentication", async () => {
     const response = await createApp(deps).request("/v1/me");
     expect(response.status).toBe(401);
