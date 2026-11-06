@@ -2,6 +2,7 @@
 // "Give each mate a job": pick a role, the copy and the phone switch to it. Every role is in the
 // HTML already; the script below only flips which one is visible.
 import Device from "./Device.astro";
+import StaticMascot from "./StaticMascot.astro";
 
 type Line =
   | { me: string }
@@ -139,7 +140,7 @@ const icons = {
             data-copy={`copy-${role.id}`}
             style={`--c: ${role.gradient[1]}; --c-deep: ${role.gradient[2]}`}
           >
-            <span class="dot" style={`background: linear-gradient(135deg, ${role.gradient.join(", ")})`} />
+            <StaticMascot class="face" size={26} gradient={role.gradient} expression={role.expression} />
             {role.name}
           </button>
         ))
@@ -252,19 +253,16 @@ const icons = {
   .chip:hover {
     border-color: #cfcfcf;
   }
-  .chip .dot {
+  .chip :global(.face) {
     display: none;
-    width: 22px;
-    height: 22px;
-    margin-left: -8px;
-    border-radius: 50%;
+    margin-left: -10px;
   }
   .chip[aria-selected="true"] {
     border-color: color-mix(in srgb, var(--c) 35%, white);
     background: color-mix(in srgb, var(--c) 10%, white);
     color: var(--c-deep);
   }
-  .chip[aria-selected="true"] .dot {
+  .chip[aria-selected="true"] :global(.face) {
     display: block;
   }
   .chip:focus-visible {
