@@ -31,6 +31,9 @@ body {
   font-family: var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* Wide visuals (phones, mascots) are cropped by their sections; never by a sideways scroll. */
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
 }
 
 a {
