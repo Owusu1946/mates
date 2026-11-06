@@ -80,30 +80,54 @@ export function verifyState(state: string, now = Date.now()): { userId: string; 
 export const installUrl = (userId: string, returnTo?: string) =>
   `https://github.com/apps/${config().slug}/installations/new?state=${encodeURIComponent(signState(userId, Date.now(), safeReturn(returnTo)))}`;
 
+/** Why a connect attempt failed, carried back to the app so it can say something specific. */
+export type ConnectFailure = "expired" | "config" | "oauth" | "not_installed";
+export class ConnectError extends GitHubError {
+  constructor(readonly reason: ConnectFailure, message: string) {
+    super(message);
+  }
+}
+
 /**
- * Completes an install. GitHub's redirect carries the installation id in the URL, so it's only
- * trusted once the user's own GitHub sign-in (the `code`) proves they can see that installation.
+ * GitHub's sign-in page, for when the install redirect came back without a code (user
+ * authorization during installation is off, or the user only changed which repos the App sees).
+ * No redirect_uri: GitHub uses the App's registered callback, so it can't drift from it.
  */
-export async function completeInstall(userId: string, installationId: number, code: string) {
+export function authorizeUrl(state: string) {
+  const { clientId } = config();
+  if (!clientId) throw new ConnectError("config", "GitHub sign-in isn’t set up on this server yet.");
+  return `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&state=${encodeURIComponent(state)}`;
+}
+
+/**
+ * Completes a connection from the user's own GitHub sign-in: every installation of the App that
+ * their account can access is linked to them. Nothing is taken from the redirect URL, so an
+ * installation id can't be swapped in to claim someone else's repositories.
+ */
+export async function completeInstall(userId: string, code: string) {
   const { clientId, clientSecret } = config();
-  if (!clientId || !clientSecret) throw new GitHubError("GitHub sign-in isn’t set up on this server yet.");
+  if (!clientId || !clientSecret) throw new ConnectError("config", "GitHub sign-in isn’t set up on this server yet.");
   const exchange = await fetch("https://github.com/login/oauth/access_token", {
     method: "POST",
     headers: { accept: "application/json", "content-type": "application/json" },
     body: JSON.stringify({ client_id: clientId, client_secret: clientSecret, code }),
   });
-  const { access_token: userToken } = (await exchange.json()) as { access_token?: string };
-  if (!userToken) throw new GitHubError("GitHub didn’t confirm the sign-in. Try connecting again.");
-  const user = new Octokit({ auth: userToken });
+  const body = (await exchange.json().catch(() => ({}))) as { access_token?: string; error?: string; error_description?: string };
+  if (!body.access_token) throw new ConnectError("oauth", `GitHub rejected the sign-in: ${body.error_description ?? body.error ?? exchange.status}.`);
+  const user = new Octokit({ auth: body.access_token });
   const installations = await user.paginate(user.apps.listInstallationsForAuthenticatedUser, { per_page: 100 });
-  const installation = installations.find((item) => item.id === installationId);
-  if (!installation) throw new GitHubError("That installation doesn’t belong to your GitHub account.");
-  const account = installation.account && "login" in installation.account ? installation.account.login : String(installationId);
-  await getDb()
-    .insert(githubInstallations)
-    .values({ installationId, clerkUserId: userId, accountLogin: account })
-    .onConflictDoUpdate({ target: githubInstallations.installationId, set: { clerkUserId: userId, accountLogin: account } });
-  return { account };
+  if (!installations.length) throw new ConnectError("not_installed", "The App isn’t installed on any account you can access.");
+  const linked = installations.map((item) => ({
+    installationId: item.id,
+    clerkUserId: userId,
+    accountLogin: item.account && "login" in item.account ? item.account.login : String(item.id),
+  }));
+  for (const row of linked)
+    await getDb()
+      .insert(githubInstallations)
+      .values(row)
+      .onConflictDoUpdate({ target: githubInstallations.installationId, set: { clerkUserId: userId, accountLogin: row.accountLogin } });
+  return { accounts: linked.map((row) => row.accountLogin) };
 }
 
 export function listInstallations(userId: string) {
