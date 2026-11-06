@@ -1,0 +1,447 @@
+/* The app's call screen, light palette (apps/mobile/src/call/call-ui.tsx), drawn for the web. */
+.cd {
+  --cd-bg: #f7f6f3;
+  --cd-tile: #ffffff;
+  --cd-border: #e7e5e0;
+  --cd-fg: #18181b;
+  --cd-muted: #71717a;
+  --cd-control: #ecebe7;
+  --cd-active: #18181b;
+  --cd-active-fg: #fafafa;
+  --cd-speaking: #d27e41;
+  --cd-danger: #e5484d;
+  --cd-peach: #e8c4b4;
+  --cd-caption: rgba(24, 24, 27, 0.06);
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--cd-fg);
+  font-family: var(--font);
+}
+.cd button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cd button:focus-visible {
+  outline: 2px solid var(--cd-fg);
+  outline-offset: 2px;
+}
+.cd button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.cd-screen {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 14px 0;
+}
+.cd-enter {
+  animation: cd-in 0.35s ease;
+}
+@keyframes cd-in {
+  from {
+    opacity: 0;
+  }
+}
+.cd-center {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+.cd h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.cd-sub {
+  max-width: 250px;
+  color: var(--cd-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Glass: a frosted round button, the web stand-in for the app's Liquid Glass. */
+.cd-glass {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(0, 0, 0, 0.08),
+    0 6px 14px -6px rgba(0, 0, 0, 0.18);
+}
+
+/* Lobby */
+.cd-top {
+  display: flex;
+}
+.cd-lobby {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.cd-lobby p {
+  max-width: 250px;
+  margin: 0;
+  color: var(--cd-muted);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.cd-bring {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.cd-label {
+  color: var(--cd-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cd-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 44px;
+  padding: 0 12px 0 6px;
+  border-radius: 22px;
+  background: var(--cd-tile);
+  box-shadow: inset 0 0 0 1px var(--cd-border);
+  text-align: left;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.cd-chip span {
+  display: grid;
+  line-height: 1.15;
+}
+.cd-chip b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.cd-chip small {
+  color: var(--cd-muted);
+  font-size: 10.5px;
+}
+.cd-chip.on {
+  background: var(--cd-active);
+  color: var(--cd-active-fg);
+  box-shadow: none;
+}
+.cd-chip.on small {
+  color: var(--cd-active-fg);
+  opacity: 0.75;
+}
+.cd-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  height: 52px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 0 0 1px var(--cd-border);
+  font-size: 15.5px !important;
+  font-weight: 600 !important;
+  transition: transform 0.12s ease;
+}
+.cd-pill.prominent {
+  background: var(--cd-active);
+  color: var(--cd-active-fg) !important;
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.5);
+}
+.cd-pill:active,
+.cd-round:active,
+.cd-chip:active,
+.cd-glass:active {
+  transform: scale(0.96);
+}
+
+/* Connecting */
+.cd-ringwrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 170px;
+  height: 170px;
+}
+.cd-calling {
+  font-size: 19px;
+  font-weight: 600;
+}
+.cd-cancel {
+  position: absolute;
+  bottom: 12px;
+}
+
+/* The breathing ring that marks whoever is talking. */
+.cd-ring {
+  position: absolute;
+  inset: 0;
+  border: 2.5px solid var(--cd-speaking);
+  border-radius: 22px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.cd-ring.round {
+  border-radius: 50%;
+}
+.cd-ring.small {
+  border-radius: 16px;
+}
+.cd-ring.active {
+  animation: cd-breathe 0.9s ease-in-out infinite alternate;
+}
+@keyframes cd-breathe {
+  from {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.015);
+  }
+}
+
+/* Live */
+.cd-livehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+}
+.cd-title {
+  display: grid;
+  justify-items: center;
+}
+.cd-title b {
+  font-size: 15px;
+  font-weight: 600;
+}
+.cd-title span {
+  color: var(--cd-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.cd-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  grid-template-columns: 1fr;
+  grid-auto-rows: 1fr;
+}
+.cd-stage.n3,
+.cd-stage.n4 {
+  grid-template-columns: 1fr 1fr;
+}
+.cd-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border-radius: 22px;
+  background: var(--cd-tile);
+  box-shadow: inset 0 0 0 1px var(--cd-border);
+  animation: cd-join 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  transition: opacity 0.3s ease;
+}
+.cd-tile.span {
+  grid-column: span 2;
+}
+.cd-tile.joining {
+  opacity: 0.6;
+}
+@keyframes cd-join {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+}
+.cd-name {
+  position: absolute;
+  left: 11px;
+  right: 11px;
+  bottom: 9px;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.cd-name b {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.cd-name span {
+  overflow: hidden;
+  color: var(--cd-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+.cd-self {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 84px;
+  border-radius: 16px;
+  background: var(--cd-peach);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+  color: #3b2a22;
+}
+.cd-self b {
+  font-size: 13px;
+  font-weight: 700;
+}
+.cd-mutedbadge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+}
+.cd-captions {
+  min-height: 62px;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.cd-capbox {
+  display: grid;
+  gap: 3px;
+  padding: 9px 12px;
+  border-radius: 16px;
+  background: var(--cd-caption);
+}
+.cd-cap {
+  color: var(--cd-muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+  animation: cd-cap 0.3s ease;
+}
+.cd-cap.latest {
+  color: var(--cd-fg);
+}
+.cd-cap b {
+  font-weight: 600;
+}
+@keyframes cd-cap {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.cd-hint {
+  color: var(--cd-muted);
+  font-size: 12.5px;
+  font-weight: 500;
+  text-align: center;
+}
+.cd-controls {
+  display: flex;
+  justify-content: space-around;
+  margin: 10px -4px 0;
+  padding: 8px 0 4px;
+  border-radius: 26px;
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.9);
+}
+.cd-control {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+}
+.cd-control span {
+  color: var(--cd-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.cd-round {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--cd-control);
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.cd-round.active {
+  background: var(--cd-active);
+  color: var(--cd-active-fg) !important;
+}
+.cd-round.danger {
+  background: var(--cd-danger);
+  color: #fff !important;
+}
+.cd-cancel .cd-round {
+  width: 60px;
+  height: 60px;
+}
+
+/* Ended */
+.cd-faces {
+  display: flex;
+}
+.cd-faces span {
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--cd-bg);
+}
+.cd-faces span + span {
+  margin-left: -16px;
+}
+.cd-endactions {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-ring.active {
+    animation: none;
+    opacity: 1;
+  }
+}
