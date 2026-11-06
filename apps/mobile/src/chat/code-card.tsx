@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
+import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import { WorkingDots } from "./activity-line";
@@ -20,6 +21,7 @@ const STEPS: { at: Code["status"]; label: string }[] = [
 ];
 const ACTIVE = ["queued", "cloning", "coding", "checking", "pushing"];
 const GREEN = "#30A46C";
+const LIVE_LINES = 4;
 
 /** A job on the mates' computer, kept live by polling while it runs. */
 export function CodeCard({ state }: { state: WorkflowCard }) {
@@ -29,12 +31,13 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
   const initial = state.code;
   const [openCheck, setOpenCheck] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
+  const [showLog, setShowLog] = useState(false);
   const live = useQuery({
     queryKey: ["code-run", userId, initial?.runId],
     enabled: !!initial,
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `code-runs/${initial!.runId}`)).card,
-    refetchInterval: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 3_000 : false),
+    refetchInterval: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 2_000 : false),
   });
   const code = live.data?.code ?? initial;
   if (!code) return null;
@@ -89,6 +92,8 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
         </View>
       )}
 
+      <ActivityFeed activity={code.activity ?? []} running={running} expanded={showLog} onToggle={() => setShowLog(!showLog)} />
+
       {code.checks.length > 0 && (
         <View style={{ gap: 6 }}>
           {code.checks.map((check) => {
@@ -132,6 +137,48 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
         <Pressable accessibilityRole="button" disabled={stopping} onPress={stop} hitSlop={8} style={{ alignSelf: "flex-start", opacity: stopping ? 0.5 : 1 }}>
           <Text style={{ color: colors.textMuted, fontSize: 14, fontFamily: "DMSans_600SemiBold" }}>{stopping ? "Stopping…" : "Stop"}</Text>
         </Pressable>
+      )}
+    </View>
+  );
+}
+
+/**
+ * What the computer is doing, line by line. While it runs, the last few lines tick past with the
+ * newest one highlighted; afterwards the whole log folds away behind a toggle.
+ */
+function ActivityFeed({ activity, running, expanded, onToggle }: { activity: { at: string; text: string }[]; running: boolean; expanded: boolean; onToggle: () => void }) {
+  const { colors } = useTheme();
+  if (!activity.length) return null;
+  const mono = { fontFamily: "Menlo", fontSize: 12, lineHeight: 18 } as const;
+  if (running)
+    return (
+      <View accessibilityLiveRegion="polite" style={{ padding: 10, borderRadius: 12, backgroundColor: colors.surfaceElevated, gap: 2, overflow: "hidden" }}>
+        {activity.slice(-LIVE_LINES).map((line, index, shown) => {
+          const latest = index === shown.length - 1;
+          return (
+            <Animated.View key={line.at + line.text} entering={FadeIn.duration(200)} layout={LinearTransition.duration(200)} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text numberOfLines={1} style={[mono, { flexShrink: 1, color: latest ? colors.text : colors.textMuted }]}>
+                {line.text}
+              </Text>
+              {latest && <WorkingDots color={colors.textMuted} />}
+            </Animated.View>
+          );
+        })}
+      </View>
+    );
+  return (
+    <View style={{ gap: 6 }}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded }} onPress={onToggle} hitSlop={6} style={{ alignSelf: "flex-start" }}>
+        <Text style={{ color: colors.textMuted, fontSize: 13, fontFamily: "DMSans_600SemiBold" }}>{expanded ? "Hide activity" : `Show activity (${activity.length})`}</Text>
+      </Pressable>
+      {expanded && (
+        <View style={{ padding: 10, borderRadius: 12, backgroundColor: colors.surfaceElevated, gap: 2 }}>
+          {activity.map((line) => (
+            <Text key={line.at + line.text} selectable style={[mono, { color: colors.textSecondary }]}>
+              {line.text}
+            </Text>
+          ))}
+        </View>
       )}
     </View>
   );
