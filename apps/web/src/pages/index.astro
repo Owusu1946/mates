@@ -2,6 +2,7 @@
 import Mascot from "../components/Mascot";
 import FeatureCard from "../components/FeatureCard.astro";
 import Phone from "../components/Phone.astro";
+import Roles from "../components/Roles.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
@@ -79,6 +80,8 @@ const playStore = "#download";
         <Mascot client:visible size={520} />
       </div>
     </FeatureCard>
+
+    <Roles />
   </main>
 </Base>
 
