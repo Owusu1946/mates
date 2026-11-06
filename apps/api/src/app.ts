@@ -34,6 +34,7 @@ import { cancelReminder, upcomingReminders } from "./reminders.js";
 import { runUndo } from "./undo.js";
 import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
+import { deleteAccount } from "./account.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -300,6 +301,14 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_SETTINGS", "Invalid memory settings", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => c.json({ settings: await updateMemorySettings(c.get("userId"), c.req.valid("json")) }))
+    .delete("/v1/account", auth, async (c) => {
+      try {
+        await deleteAccount(c.get("userId"));
+        return c.json({ deleted: true });
+      } catch {
+        return c.json(failure("ACCOUNT_DELETE_FAILED", "Your account couldn’t be fully deleted. Please try again.", c.get("requestId")), 502);
+      }
+    })
     .get("/v1/me", auth, async (c) => {
       const userId = c.get("userId");
       return c.json({
