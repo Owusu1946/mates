@@ -11,6 +11,7 @@
     "dev:clear": "node scripts/dev.mjs --clear",
     "dev:api": "pnpm --filter @expojet/api dev",
     "dev:mobile": "pnpm --filter @muse-clone/mobile dev",
+    "dev:web": "pnpm --filter @muse-clone/web dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
