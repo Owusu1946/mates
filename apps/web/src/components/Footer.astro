@@ -1,0 +1,68 @@
+---
+// The page's last word: the mark, the sections, and the year.
+import Mascot from "./Mascot";
+
+const links = [
+  { label: "Features", href: "#features" },
+  { label: "Missions", href: "#team" },
+  { label: "Computer", href: "#computer" },
+  { label: "Apps", href: "#apps" },
+  { label: "FAQs", href: "#faq" },
+];
+---
+
+<footer class="footer">
+  <a href="/" class="brand" aria-label="Mates home">
+    <Mascot client:visible size={26} />
+    <span>mates</span>
+  </a>
+  <nav aria-label="Footer">
+    {links.map((link) => <a href={link.href}>{link.label}</a>)}
+  </nav>
+  <div class="year">© {new Date().getFullYear()} Mates</div>
+</footer>
+
+<style>
+  .footer {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    width: min(1240px, calc(100% - 32px));
+    margin: 96px auto 0;
+    padding: 28px 0 40px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14.5px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+  }
+  nav a:hover {
+    color: var(--text);
+  }
+  .year {
+    margin-left: auto;
+  }
+
+  @media (max-width: 860px) {
+    .footer {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 20px;
+    }
+    .year {
+      margin-left: 0;
+    }
+  }
+</style>
