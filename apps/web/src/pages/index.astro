@@ -10,12 +10,14 @@ import Roles from "../components/Roles.astro";
 import StoreButtons from "../components/StoreButtons.astro";
 import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
+import Calls from "../components/Calls.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
   { label: "Features", href: "#features" },
   { label: "Missions", href: "#team" },
+  { label: "Calls", href: "#calls" },
   { label: "Computer", href: "#computer" },
   { label: "Pricing", href: "#pricing" },
 ];
@@ -75,6 +77,8 @@ const nav = [
     <Roles />
 
     <Team />
+
+    <Calls />
 
     <Computer />
 

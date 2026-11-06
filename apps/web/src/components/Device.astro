@@ -8,16 +8,22 @@ import Mascot from "./Mascot";
 export type Face = { gradient: [string, string, string]; state?: PolygonState };
 
 interface Props {
-  title: string;
-  faces: Face[];
+  title?: string;
+  faces?: Face[];
   /** "stack": faces above the title, like a group. "pill": one face beside it in a glass pill. */
   header?: "stack" | "pill";
+  /** "full": the slot owns the whole screen under the status bar (no chat header or composer),
+   * and the phone is reachable by keyboard and screen readers, for screens people can use. */
+  screen?: "chat" | "full";
+  /** Screen colour behind the status bar, for full screens with their own background. */
+  background?: string;
 }
 
-const { title, faces, header = "stack" } = Astro.props;
+const { title = "", faces = [], header = "stack", screen = "chat", background } = Astro.props;
+const full = screen === "full";
 ---
 
-<div class="device" aria-hidden="true">
+<div class:list={["device", { full }]} aria-hidden={full ? undefined : "true"} style={background ? `--screen-bg: ${background}` : undefined}>
   <span class="btn action"></span>
   <span class="btn vol-up"></span>
   <span class="btn vol-down"></span>
@@ -35,6 +41,12 @@ const { title, faces, header = "stack" } = Astro.props;
         </span>
       </div>
 
+      {full ? (
+        <div class="fill">
+          <slot />
+        </div>
+      ) : (
+      <>
       <header class="bar">
         <span class="glass round">
           <svg width="10" height="16" viewBox="0 0 10 16"><path d="M8.5 1.5 2 8l6.5 6.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
@@ -70,6 +82,8 @@ const { title, faces, header = "stack" } = Astro.props;
           <svg width="14" height="16" viewBox="0 0 14 16"><path d="M7 14V2M1.5 7.5 7 2l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
         </span>
       </div>
+      </>
+      )}
       <div class="home"></div>
     </div>
   </div>
@@ -119,9 +133,18 @@ const { title, faces, header = "stack" } = Astro.props;
     height: 100%;
     overflow: hidden;
     border-radius: 50px;
-    background: var(--bg);
+    background: var(--screen-bg, var(--bg));
     display: flex;
     flex-direction: column;
+  }
+  /* A full screen: the slot takes everything between the status bar and the home bar. */
+  .device .fill {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    padding-bottom: 22px;
   }
 
   .device .status {
