@@ -1,12 +1,41 @@
 ---
+// Every page's head: title, description, and the link-preview tags that WhatsApp, iMessage, X,
+// LinkedIn, Slack, Discord and Facebook read. Image URLs are absolute because crawlers require it.
 import "../styles/global.css";
 
 interface Props {
   title?: string;
   description?: string;
+  /** Share image, a path under public/. 1200x630. */
+  image?: string;
+  imageAlt?: string;
+  /** Keep a page out of search results (utility pages like the share-card source). */
+  noindex?: boolean;
 }
 
-const { title = "Mates", description = "Your AI mates: they plan, hand off, and ship the work for you." } = Astro.props;
+const NAME = "Mates";
+const {
+  title = "Mates: AI teammates in your pocket",
+  description = "Give your AI mates real work. They plan it, hand it off to each other, use your apps the way you do, and come back with it finished.",
+  image = "/og.png",
+  imageAlt = "Meet your Mate Bots: three phones showing Mates at work",
+  noindex = false,
+} = Astro.props;
+
+const canonical = new URL(Astro.url.pathname, Astro.site).href;
+const imageUrl = new URL(image, Astro.site).href;
+// Tells search engines what this is: a mobile app, coming to iOS and Android.
+const structuredData = {
+  "@context": "https://schema.org",
+  "@type": "MobileApplication",
+  name: NAME,
+  url: Astro.site?.href,
+  description,
+  image: imageUrl,
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "iOS, Android",
+  offers: { "@type": "Offer", price: "15.00", priceCurrency: "USD" },
+};
 ---
 
 <!doctype html>
@@ -17,11 +46,33 @@ const { title = "Mates", description = "Your AI mates: they plan, hand off, and 
     <meta name="theme-color" content="#ffffff" />
     <title>{title}</title>
     <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="canonical" href={new URL(Astro.url.pathname, Astro.site)} />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content={NAME} />
+    <meta property="og:url" content={canonical} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:type" content="website" />
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:secure_url" content={imageUrl} />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={imageAlt} />
+    <meta property="og:locale" content="en_US" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={imageAlt} />
+
+    {!noindex && <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />}
   </head>
   <body>
     <slot />
