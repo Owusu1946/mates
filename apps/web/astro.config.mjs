@@ -3,7 +3,7 @@ import { defineConfig } from "astro/config";
 
 // Static HTML, no client JavaScript unless a component opts in: the landing page should load instantly.
 export default defineConfig({
-  site: "https://mates.app",
+  site: "https://agents.askorin.app",
   integrations: [react()],
   build: { inlineStylesheets: "always" },
   compressHTML: true,
