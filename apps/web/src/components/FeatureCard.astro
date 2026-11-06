@@ -1,6 +1,6 @@
 ---
 // A soft panel with copy on one side and a visual that breaks out of its top edge and is cropped
-// by its bottom one. The visual goes in the "visual" slot.
+// by its bottom one. The visual goes in the "visual" slot, buttons under the copy in "actions".
 interface Props {
   title: string;
   body: string;
@@ -16,6 +16,7 @@ const { title, body, id, flip = false } = Astro.props;
   <div class="copy">
     <h2>{title}</h2>
     <p>{body}</p>
+    {Astro.slots.has("actions") && <div class="actions"><slot name="actions" /></div>}
   </div>
   <div class="visual">
     <slot name="visual" />
@@ -57,6 +58,9 @@ const { title, body, id, flip = false } = Astro.props;
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.6;
   }
+  .actions {
+    margin-top: 32px;
+  }
   .visual {
     align-self: stretch;
     position: relative;
@@ -74,7 +78,10 @@ const { title, body, id, flip = false } = Astro.props;
       order: 0;
       padding: 40px 24px 8px;
     }
-    .visual {
+    .actions {
+    margin-top: 32px;
+  }
+  .visual {
       min-height: 280px;
     }
   }
