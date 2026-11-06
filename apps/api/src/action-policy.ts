@@ -109,6 +109,7 @@ export function activityLabel(slug: string) {
     cooper_set_reminder: "Setting a reminder",
     cooper_assemble_team: "Assembling your team",
     cooper_mission_note: "Updating the team's notes",
+    cooper_ship_code: "Setting up the computer",
   };
   return known[slug] ?? (slug.startsWith("COMPOSIO_") ? "Working with your apps" : humanize(slug) || "Working on it");
 }
