@@ -4,6 +4,7 @@ import Faq from "../components/Faq.astro";
 import FeatureCard from "../components/FeatureCard.astro";
 import Footer from "../components/Footer.astro";
 import HeroStage from "../components/HeroStage.astro";
+import Logo from "../components/Logo.astro";
 import Pricing from "../components/Pricing.astro";
 import Roles from "../components/Roles.astro";
 import StoreButtons from "../components/StoreButtons.astro";
@@ -23,7 +24,7 @@ const nav = [
 <Base>
   <header class="nav">
     <a href="/" class="brand" aria-label="Mates home">
-      <Mascot client:idle size={30} />
+      <Logo size={28} />
       <span>mates</span>
     </a>
     <nav aria-label="Main">

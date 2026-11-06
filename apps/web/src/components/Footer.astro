@@ -1,6 +1,7 @@
 ---
 // The page's last word: the mark and copyright on the left, link columns on the right, split by a
 // dashed rule. Columns stack into two, then one, as the screen narrows.
+import Logo from "./Logo.astro";
 import Mascot from "./Mascot";
 
 type Column = { title: string; links: { label: string; href: string }[] };
@@ -51,7 +52,7 @@ const columns: Column[] = [
   <div class="side">
     <div>
       <a href="/" class="brand" aria-label="Mates home">
-        <Mascot client:visible size={30} />
+        <Logo size={28} />
         <span>mates</span>
       </a>
       <div class="copy">© {new Date().getFullYear()} Mates</div>
