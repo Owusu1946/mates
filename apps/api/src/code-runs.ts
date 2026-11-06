@@ -24,7 +24,7 @@ export const shipCodeTool = {
   function: {
     name: "cooper_ship_code",
     description:
-      "Build, fix or change code in one of the user's GitHub repositories on the mates' computer: clones it, writes the change, runs the repo's checks, pushes a branch and opens a pull request authored by the mates' bot. Returns at once; the work continues in the background. Use for any request to code, fix, ship or open a PR. To change an open PR from an earlier run, pass follow_up_of with that run's id.",
+      "Build, fix or change code in one of the user's GitHub repositories on the mates' computer: clones it, writes the change, runs the repo's checks, pushes a branch and opens a pull request authored by the mates' bot. Returns at once; the work continues in the background. Use for any request to code, fix, ship or open a PR. To add to the pull request the mates already opened from this chat for the same repo (\"also…\", \"fix that…\"), set same_pr to true.",
     parameters: {
       type: "object",
       additionalProperties: false,
@@ -32,7 +32,7 @@ export const shipCodeTool = {
         repo: { type: "string", description: "The repository as the user named it: owner/name, a GitHub URL, or just the name." },
         task: { type: "string", description: "The full change to make, with every detail the user gave. Written for an engineer who can't ask questions." },
         base_branch: { type: "string", description: "Branch to start from and open the PR against. Omit for the repo's default branch." },
-        follow_up_of: { type: "string", description: "Id of an earlier code run whose branch and PR this change continues." },
+        same_pr: { type: "boolean", description: "True to push to the latest pull request from this chat for this repo instead of opening a new one." },
       },
       required: ["repo", "task"],
     },
@@ -58,7 +58,7 @@ export function codeCard(run: CodeRun): WorkflowCard {
 }
 
 /** Starts a run from the chat tool. Returns at once with a card; the work happens in the worker. */
-export async function startCodeRun(userId: string, chatId: string | null, raw: { repo?: unknown; task?: unknown; base_branch?: unknown; follow_up_of?: unknown }) {
+export async function startCodeRun(userId: string, chatId: string | null, raw: { repo?: unknown; task?: unknown; base_branch?: unknown; same_pr?: unknown }) {
   if (!githubConfigured() || !computerConfigured()) return { error: "The mates' computer isn’t set up on this server yet." };
   const task = typeof raw.task === "string" ? raw.task.trim() : "";
   if (!task) return { error: "Say what to build or change." };
@@ -74,9 +74,15 @@ export async function startCodeRun(userId: string, chatId: string | null, raw: {
   const base = typeof raw.base_branch === "string" ? raw.base_branch.trim() : "";
   if (base && (!/^[A-Za-z0-9._\/-]{1,100}$/.test(base) || base.includes("..") || base.startsWith("-"))) return { error: `“${base}” isn’t a valid branch name.` };
 
-  const previous = typeof raw.follow_up_of === "string"
-    ? (await getDb().select().from(codeRuns).where(and(eq(codeRuns.id, raw.follow_up_of), eq(codeRuns.clerkUserId, userId))))[0]
-    : undefined;
+  // A follow-up continues the latest PR this chat opened in the repo: same branch, same PR.
+  const [previous] = raw.same_pr === true && chatId
+    ? await getDb()
+        .select()
+        .from(codeRuns)
+        .where(and(eq(codeRuns.clerkUserId, userId), eq(codeRuns.chatId, chatId), eq(codeRuns.repo, repo.fullName), eq(codeRuns.status, "done")))
+        .orderBy(desc(codeRuns.createdAt))
+        .limit(1)
+    : [];
   const id = randomUUID();
   const values = {
     id,
@@ -85,7 +91,7 @@ export async function startCodeRun(userId: string, chatId: string | null, raw: {
     installationId: repo.installationId,
     repo: repo.fullName,
     baseBranch: previous?.baseBranch ?? (base || repo.defaultBranch),
-    branch: previous?.repo === repo.fullName ? previous.branch : branchName(task, id),
+    branch: previous ? previous.branch : branchName(task, id),
     task,
   };
   const [run] = await getDb().insert(codeRuns).values(values).onConflictDoNothing().returning();
