@@ -1,0 +1,502 @@
+---
+// A small, public dashboard of landing-site visits, read from the API's /site/stats.
+import Logo from "../components/Logo.astro";
+import Base from "../layouts/Base.astro";
+
+const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
+---
+
+<Base title="Mates site analytics" noindex>
+  <main class="dash" data-api={api}>
+    <header class="top">
+      <a href="/" class="brand"><Logo size={24} /><span>mates</span><em>Analytics</em></a>
+      <div class="range" role="group" aria-label="Date range">
+        <button type="button" data-days="7">7 days</button>
+        <button type="button" data-days="30" aria-pressed="true">30 days</button>
+        <button type="button" data-days="90">90 days</button>
+      </div>
+    </header>
+
+    <p class="status" id="status" role="status">Loading…</p>
+
+    <section class="tiles" aria-label="Totals">
+      <div class="tile"><span>Visitors</span><b id="t-visitors">–</b></div>
+      <div class="tile"><span>Page views</span><b id="t-views">–</b></div>
+      <div class="tile"><span>Views per visitor</span><b id="t-ratio">–</b></div>
+      <div class="tile live"><span><i></i>Live now</span><b id="t-live">–</b></div>
+    </section>
+
+    <section class="card chart-card">
+      <div class="card-head">
+        <h2>Daily visitors</h2>
+        <span id="chart-range">Last 30 days</span>
+      </div>
+      <div class="chart" id="chart">
+        <svg id="chart-svg" role="img" aria-label="Daily visitors"></svg>
+        <div class="tip" id="tip" hidden></div>
+      </div>
+    </section>
+
+    <section class="lists">
+      <div class="card"><h2>Top sources</h2><ol class="bars" id="l-referrers"></ol></div>
+      <div class="card"><h2>Devices</h2><ol class="bars" id="l-devices"></ol></div>
+      <div class="card"><h2>Pages</h2><ol class="bars" id="l-paths"></ol></div>
+    </section>
+
+    <details class="card table-card">
+      <summary>Daily numbers</summary>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th scope="col">Day</th><th scope="col">Visitors</th><th scope="col">Page views</th></tr></thead>
+          <tbody id="table"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <p class="foot">Counted without cookies. Bots and link previews are left out. Updates every minute.</p>
+  </main>
+</Base>
+
+<script>
+  // Plain DOM and SVG, no framework: it has to run on older iPhones (iOS 15 Safari) too.
+  type Item = { name: string; views: number };
+  type Stats = {
+    days: number;
+    totals: { views: number; visitors: number };
+    liveVisitors: number;
+    daily: { day: string; views: number; visitors: number }[];
+    referrers: Item[];
+    devices: Item[];
+    paths: Item[];
+  };
+
+  const root = document.querySelector<HTMLElement>(".dash")!;
+  const api = root.dataset.api!;
+  const $ = (id: string) => document.getElementById(id)!;
+  const fmt = (n: number) => n.toLocaleString("en-US");
+  const dayLabel = (day: string) => new Date(day + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const DEVICE: Record<string, string> = { mobile: "Phone", tablet: "Tablet", desktop: "Computer" };
+  let days = 30;
+  let timer: number | undefined;
+
+  function setStatus(text: string, error = false) {
+    const el = $("status");
+    el.textContent = text;
+    el.className = error ? "status error" : "status";
+    el.hidden = !text;
+  }
+
+  function renderList(id: string, items: Item[], label: (name: string) => string = (n) => n) {
+    const list = $(id);
+    if (!items.length) {
+      list.innerHTML = '<li class="empty">Nothing yet</li>';
+      return;
+    }
+    const max = Math.max.apply(null, items.map((i) => i.views));
+    list.innerHTML = "";
+    items.forEach((item) => {
+      const li = document.createElement("li");
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = label(item.name);
+      const value = document.createElement("span");
+      value.className = "value";
+      value.textContent = fmt(item.views);
+      const bar = document.createElement("span");
+      bar.className = "bar";
+      bar.style.width = Math.max(2, (item.views / max) * 100) + "%";
+      li.appendChild(bar);
+      li.appendChild(name);
+      li.appendChild(value);
+      list.appendChild(li);
+    });
+  }
+
+  /** Bars for daily visitors on one y-scale, with three recessive gridlines and a hover tooltip. */
+  function renderChart(daily: Stats["daily"]) {
+    const box = $("chart");
+    const svg = $("chart-svg") as unknown as SVGSVGElement;
+    const width = box.clientWidth;
+    const height = 220;
+    const left = 34;
+    const bottom = 24;
+    const top = 8;
+    const plotW = width - left;
+    const plotH = height - bottom - top;
+    const peak = Math.max(1, Math.max.apply(null, daily.map((d) => d.visitors)));
+    // A round top for the axis: 1, 2, 5 or 10 times a power of ten.
+    const pow = Math.pow(10, Math.floor(Math.log10(peak)));
+    const nice = [1, 2, 5, 10].map((m) => m * pow).filter((v) => v >= peak)[0] || peak;
+    const step = plotW / daily.length;
+    const barW = Math.max(2, Math.min(18, step - 2));
+    const y = (v: number) => top + plotH - (v / nice) * plotH;
+    const parts: string[] = [];
+    [0, 0.5, 1].forEach((f) => {
+      const v = Math.round(nice * f);
+      parts.push(`<line x1="${left}" x2="${width}" y1="${y(v)}" y2="${y(v)}" class="grid"/>`);
+      parts.push(`<text x="${left - 8}" y="${y(v) + 4}" class="axis" text-anchor="end">${fmt(v)}</text>`);
+    });
+    daily.forEach((d, i) => {
+      const x = left + i * step + (step - barW) / 2;
+      const h = Math.max(d.visitors ? 2 : 0, y(0) - y(d.visitors));
+      const r = Math.min(4, barW / 2, h);
+      // Rounded at the data end only, square on the baseline.
+      const path = h
+        ? `M${x},${y(0)}V${y(0) - h + r}Q${x},${y(0) - h} ${x + r},${y(0) - h}H${x + barW - r}Q${x + barW},${y(0) - h} ${x + barW},${y(0) - h + r}V${y(0)}Z`
+        : "";
+      parts.push(`<path d="${path}" class="mark"/>`);
+      parts.push(`<rect x="${left + i * step}" y="${top}" width="${step}" height="${plotH}" class="hit" data-i="${i}"/>`);
+    });
+    const ticks = [0, Math.floor((daily.length - 1) / 2), daily.length - 1];
+    ticks.forEach((i, n) => {
+      const anchor = n === 0 ? "start" : n === 2 ? "end" : "middle";
+      const x = n === 0 ? left : n === 2 ? width : left + i * step + step / 2;
+      parts.push(`<text x="${x}" y="${height - 6}" class="axis" text-anchor="${anchor}">${dayLabel(daily[i]!.day)}</text>`);
+    });
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    svg.setAttribute("width", String(width));
+    svg.setAttribute("height", String(height));
+    svg.innerHTML = parts.join("");
+
+    const tip = $("tip");
+    const show = (target: Element) => {
+      const i = Number(target.getAttribute("data-i"));
+      const d = daily[i]!;
+      tip.innerHTML = `<b>${dayLabel(d.day)}</b><span>${fmt(d.visitors)} visitors</span><span>${fmt(d.views)} views</span>`;
+      tip.hidden = false;
+      const x = left + i * step + step / 2;
+      tip.style.left = Math.min(Math.max(x, 70), width - 70) + "px";
+      tip.style.top = Math.max(0, y(d.visitors) - 70) + "px";
+      svg.querySelectorAll(".mark").forEach((m, n) => m.classList.toggle("dim", n !== i));
+    };
+    const hide = () => {
+      tip.hidden = true;
+      svg.querySelectorAll(".mark").forEach((m) => m.classList.remove("dim"));
+    };
+    svg.querySelectorAll(".hit").forEach((hit) => {
+      hit.addEventListener("mouseenter", () => show(hit));
+      hit.addEventListener("touchstart", () => show(hit), { passive: true });
+    });
+    svg.addEventListener("mouseleave", hide);
+  }
+
+  function render(stats: Stats) {
+    $("t-visitors").textContent = fmt(stats.totals.visitors);
+    $("t-views").textContent = fmt(stats.totals.views);
+    $("t-ratio").textContent = stats.totals.visitors ? (stats.totals.views / stats.totals.visitors).toFixed(1) : "–";
+    $("t-live").textContent = fmt(stats.liveVisitors);
+    $("chart-range").textContent = `Last ${stats.days} days`;
+    renderChart(stats.daily);
+    renderList("l-referrers", stats.referrers);
+    renderList("l-devices", stats.devices, (n) => DEVICE[n] || n);
+    renderList("l-paths", stats.paths, (n) => (n === "/" ? "Home" : n));
+    $("table").innerHTML = stats.daily
+      .slice()
+      .reverse()
+      .map((d) => `<tr><td>${dayLabel(d.day)}</td><td>${fmt(d.visitors)}</td><td>${fmt(d.views)}</td></tr>`)
+      .join("");
+    setStatus(stats.totals.views ? "" : "No visits yet. Share agents.askorin.app and they will show up here.");
+  }
+
+  let last: Stats | null = null;
+  async function load() {
+    try {
+      const response = await fetch(`${api}/site/stats?days=${days}`);
+      if (!response.ok) throw new Error(String(response.status));
+      last = (await response.json()) as Stats;
+      render(last);
+    } catch {
+      setStatus("Couldn’t load the numbers. Check that the API is running, then refresh.", true);
+    }
+  }
+
+  document.querySelectorAll<HTMLButtonElement>(".range button").forEach((button) => {
+    button.addEventListener("click", () => {
+      days = Number(button.dataset.days);
+      document.querySelectorAll(".range button").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+      setStatus("Loading…");
+      void load();
+    });
+  });
+  window.addEventListener("resize", () => last && renderChart(last.daily));
+  // Refresh every minute, only while the tab is visible.
+  const schedule = () => {
+    window.clearInterval(timer);
+    if (!document.hidden) timer = window.setInterval(() => void load(), 60_000);
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void load();
+    schedule();
+  });
+  void load();
+  schedule();
+</script>
+
+<style>
+  .dash {
+    width: min(1080px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 28px 0 56px;
+    font-variant-numeric: tabular-nums;
+  }
+  .top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .brand em {
+    margin-left: 4px;
+    color: var(--muted);
+    font-style: normal;
+    font-weight: 500;
+  }
+  .range {
+    display: inline-flex;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--soft);
+  }
+  .range button {
+    height: 36px;
+    margin: 0;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .range button + button {
+    margin-left: 4px;
+  }
+  .range button[aria-pressed="true"] {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  .range button:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+  .status {
+    margin: 20px 0 0;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: var(--panel);
+    color: var(--muted);
+    font-size: 14.5px;
+  }
+  .status.error {
+    color: var(--text);
+  }
+
+  /* Totals. Margins rather than grid gap so older Safari lays them out the same. */
+  .tiles {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 12px -6px 0;
+  }
+  .tile {
+    flex: 1 1 140px;
+    margin: 6px;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: var(--panel);
+  }
+  .tile span {
+    display: flex;
+    align-items: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .tile b {
+    display: block;
+    margin-top: 8px;
+    font-size: 34px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .live i {
+    width: 8px;
+    height: 8px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: beat 1.6s ease-in-out infinite;
+  }
+  @keyframes beat {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .card {
+    margin-top: 12px;
+    padding: 20px;
+    border-radius: 20px;
+    background: var(--panel);
+  }
+  .card-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+  .card-head span {
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .chart {
+    position: relative;
+    margin-top: 16px;
+  }
+  .chart svg {
+    display: block;
+    overflow: visible;
+  }
+  .chart :global(.grid) {
+    stroke: var(--line);
+    stroke-width: 1;
+  }
+  .chart :global(.axis) {
+    fill: var(--muted);
+    font-size: 11px;
+  }
+  .chart :global(.mark) {
+    fill: var(--accent);
+    transition: opacity 0.15s ease;
+  }
+  .chart :global(.mark.dim) {
+    opacity: 0.35;
+  }
+  .chart :global(.hit) {
+    fill: transparent;
+  }
+  .tip {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    line-height: 1.45;
+    pointer-events: none;
+    -webkit-transform: translateX(-50%);
+    transform: translateX(-50%);
+  }
+  .tip[hidden] {
+    display: none;
+  }
+
+  .lists {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -6px;
+  }
+  .lists .card {
+    flex: 1 1 260px;
+    margin: 12px 6px 0;
+  }
+  .bars {
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .bars :global(li) {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 10px;
+    font-size: 14.5px;
+  }
+  .bars :global(li + li) {
+    margin-top: 4px;
+  }
+  .bars :global(.bar) {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    border-radius: 8px;
+    background: rgba(210, 126, 65, 0.14);
+  }
+  .bars :global(.name),
+  .bars :global(.value) {
+    position: relative;
+  }
+  .bars :global(.name) {
+    overflow: hidden;
+    margin-right: 12px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .bars :global(.value) {
+    color: var(--muted);
+  }
+  .bars :global(.empty) {
+    color: var(--muted);
+  }
+
+  summary {
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin-top: 12px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  th,
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--line);
+    text-align: right;
+  }
+  th:first-child,
+  td:first-child {
+    text-align: left;
+  }
+  th {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .foot {
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  @media (max-width: 520px) {
+    .tile b {
+      font-size: 28px;
+    }
+    .range button {
+      padding: 0 12px;
+    }
+  }
+</style>
