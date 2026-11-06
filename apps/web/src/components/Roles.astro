@@ -1,6 +1,7 @@
 ---
 // "Give each mate a job": pick a role, the copy and the phone switch to it. Every role is in the
 // HTML already; the script below only flips which one is visible.
+import { mate, type Gradient } from "../palette";
 import Device from "./Device.astro";
 import type { PolygonState } from "../../../mobile/src/components/polygon-avatar/polygon-avatar-core";
 import Mascot from "./Mascot";
@@ -14,7 +15,7 @@ type Line =
 type Role = {
   id: string;
   name: string;
-  gradient: [string, string, string];
+  gradient: Gradient;
   state: PolygonState;
   lead: string;
   body: string;
@@ -25,7 +26,7 @@ const roles: Role[] = [
   {
     id: "shipper",
     name: "Code Shipper",
-    gradient: ["#c7dcff", "#5b8def", "#1e3a8a"],
+    gradient: mate("blue"),
     state: "working",
     lead: "Ship features while you sleep.",
     body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
@@ -41,7 +42,7 @@ const roles: Role[] = [
   {
     id: "inbox",
     name: "Inbox Keeper",
-    gradient: ["#d9f99d", "#4ade80", "#166534"],
+    gradient: mate("green"),
     state: "curious",
     lead: "Inbox zero, every morning.",
     body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
@@ -57,7 +58,7 @@ const roles: Role[] = [
   {
     id: "trips",
     name: "Trip Planner",
-    gradient: ["#fde68a", "#f59e0b", "#92400e"],
+    gradient: mate("sunset"),
     state: "excited",
     lead: "Plan the whole trip.",
     body: "Flights, stays, a day-by-day plan and places to eat, built around your budget and how you like to travel.",
@@ -73,7 +74,7 @@ const roles: Role[] = [
   {
     id: "research",
     name: "Researcher",
-    gradient: ["#e9d5ff", "#a855f7", "#581c87"],
+    gradient: mate("purple"),
     state: "searching",
     lead: "Answers you can check.",
     body: "Reads the web so you don’t have to, compares the options side by side, and shows every source it used.",
@@ -88,7 +89,7 @@ const roles: Role[] = [
   {
     id: "chief",
     name: "Chief of Staff",
-    gradient: ["#e5c59e", "#d27e41", "#9A3412"],
+    gradient: mate("amber"),
     state: "proud",
     lead: "Runs the team for you.",
     body: "Turns a big goal into a plan, assembles the right mates, hands the work out, and checks in until it’s done.",
@@ -103,7 +104,7 @@ const roles: Role[] = [
   {
     id: "brief",
     name: "Daily Brief",
-    gradient: ["#fbcfe8", "#ec4899", "#831843"],
+    gradient: mate("rose"),
     state: "happy",
     lead: "Your morning in one message.",
     body: "Your calendar, the weather and anything urgent, waiting for you before you’ve had coffee.",
@@ -141,7 +142,6 @@ const icons = {
             aria-selected={index === 0 ? "true" : "false"}
             aria-controls={`phone-${role.id}`}
             data-copy={`copy-${role.id}`}
-            style={`--c: ${role.gradient[1]}; --c-deep: ${role.gradient[2]}`}
           >
             <Mascot client:visible className="face" size={26} gradient={role.gradient} state={role.state} />
             {role.name}
@@ -244,32 +244,32 @@ const icons = {
     gap: 8px;
     height: 42px;
     padding: 0 18px;
-    border: 1px solid #e3e3e3;
+    border: 1px solid var(--line);
     border-radius: 999px;
-    background: #fff;
-    color: #3a3a3c;
+    background: var(--bg);
+    color: var(--muted);
     font: inherit;
     font-size: 15px;
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   }
   .chip:hover {
-    border-color: #cfcfcf;
+    border-color: rgba(0, 0, 0, 0.18);
   }
   .chip :global(.face) {
     display: none;
     margin-left: -10px;
   }
   .chip[aria-selected="true"] {
-    border-color: color-mix(in srgb, var(--c) 35%, white);
-    background: color-mix(in srgb, var(--c) 10%, white);
-    color: var(--c-deep);
+    border-color: var(--text);
+    background: var(--soft);
+    color: var(--text);
   }
   .chip[aria-selected="true"] :global(.face) {
     display: block;
   }
   .chip:focus-visible {
-    outline: 2px solid var(--c);
+    outline: 2px solid var(--text);
     outline-offset: 2px;
   }
   .copy {
