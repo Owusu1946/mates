@@ -36,7 +36,7 @@ import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
-import { completeInstall, GitHubError, githubConfigured, installUrl, listInstallations, listRepos, verifyState } from "./github.js";
+import { completeInstall, GitHubError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -242,12 +242,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.json({ configured: true as const, installations: installations.map((item) => ({ id: item.installationId, account: item.accountLogin })), repos: repos.map((repo) => ({ fullName: repo.fullName, private: repo.private })) });
     })
     .get("/v1/github/install", auth, (c) =>
-      githubConfigured() ? c.json({ url: installUrl(c.get("userId")) }) : c.json(failure("NOT_CONFIGURED", "GitHub isn’t set up on this server yet.", c.get("requestId")), 503),
+      githubConfigured() ? c.json({ url: installUrl(c.get("userId"), c.req.query("returnTo")) }) : c.json(failure("NOT_CONFIGURED", "GitHub isn’t set up on this server yet.", c.get("requestId")), 503),
     )
     // GitHub sends the browser here after an install; the signed state says whose it is.
     .get("/v1/github/callback", async (c) => {
-      const back = (status: string) => c.redirect(`muse-clone://connections?github=${status}`);
-      const userId = verifyState(c.req.query("state") ?? "");
+      const state = verifyState(c.req.query("state") ?? "");
+      const back = (status: string) => c.redirect(`${state?.returnTo ?? safeReturn(undefined)}${state?.returnTo.includes("?") ? "&" : "?"}github=${status}`);
+      const userId = state?.userId;
       const installationId = Number(c.req.query("installation_id"));
       const code = c.req.query("code");
       if (!userId || !Number.isSafeInteger(installationId) || !code) return back("failed");

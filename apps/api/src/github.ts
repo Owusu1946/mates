@@ -53,27 +53,32 @@ export const repoOctokit = (token: string) => new Octokit({ auth: token });
 
 const stateKey = () => createHmac("sha256", process.env.GITHUB_STATE_SECRET ?? process.env.CLERK_SECRET_KEY ?? "").update("github-install-state").digest();
 
+const DEFAULT_RETURN = "muse-clone://connections";
+/** Only the app's own links: the install flow must never become an open redirect. */
+export const safeReturn = (url: string | undefined) => (url && /^(muse-clone|exps?):\/\/[^\s]{1,300}$/.test(url) ? url : DEFAULT_RETURN);
+
 /** A signed, expiring `state` binding the install round-trip to the user who started it. */
-export function signState(userId: string, now = Date.now()) {
-  const payload = Buffer.from(JSON.stringify({ u: userId, e: now + 15 * 60_000, n: randomBytes(8).toString("hex") })).toString("base64url");
+export function signState(userId: string, now = Date.now(), returnTo = DEFAULT_RETURN) {
+  const payload = Buffer.from(JSON.stringify({ u: userId, e: now + 15 * 60_000, r: safeReturn(returnTo), n: randomBytes(8).toString("hex") })).toString("base64url");
   return `${payload}.${createHmac("sha256", stateKey()).update(payload).digest("base64url")}`;
 }
 
-export function verifyState(state: string, now = Date.now()): string | null {
+export function verifyState(state: string, now = Date.now()): { userId: string; returnTo: string } | null {
   const [payload, signature] = state.split(".");
   if (!payload || !signature) return null;
   const expected = Buffer.from(createHmac("sha256", stateKey()).update(payload).digest("base64url"));
   const given = Buffer.from(signature);
   if (expected.length !== given.length || !timingSafeEqual(expected, given)) return null;
   try {
-    const { u, e } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u: string; e: number };
-    return e > now ? u : null;
+    const { u, e, r } = JSON.parse(Buffer.from(payload, "base64url").toString()) as { u: string; e: number; r?: string };
+    return e > now ? { userId: u, returnTo: safeReturn(r) } : null;
   } catch {
     return null;
   }
 }
 
-export const installUrl = (userId: string) => `https://github.com/apps/${config().slug}/installations/new?state=${encodeURIComponent(signState(userId))}`;
+export const installUrl = (userId: string, returnTo?: string) =>
+  `https://github.com/apps/${config().slug}/installations/new?state=${encodeURIComponent(signState(userId, Date.now(), safeReturn(returnTo)))}`;
 
 /**
  * Completes an install. GitHub's redirect carries the installation id in the URL, so it's only
