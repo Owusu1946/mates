@@ -95,9 +95,15 @@ const facts = [
     font-size: 15px;
     font-weight: 500;
   }
+  /* The phone at 82%, so the whole call fits in view beside the copy. */
   .stage {
     display: flex;
     justify-content: center;
+    height: 630px;
+  }
+  .stage > :global(*) {
+    transform: scale(0.82);
+    transform-origin: top center;
   }
 
   @media (max-width: 860px) {
@@ -112,10 +118,10 @@ const facts = [
   }
   @media (max-width: 420px) {
     .stage {
-      height: 680px;
+      height: 600px;
     }
     .stage > :global(*) {
-      transform: scale(0.88);
+      transform: scale(0.78);
       transform-origin: top center;
     }
   }
