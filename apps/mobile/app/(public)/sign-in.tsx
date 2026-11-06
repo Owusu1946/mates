@@ -82,37 +82,32 @@ export default function SignInScreen() {
     }
   }
   const headings: Record<Mode, [string, string]> = {
-    welcome: [
-      "Your day.\nA little lighter.",
-      "Meet Cooper. A little help with your ideas, your plans, and everything in between.",
-    ],
-    email: ["Welcome back", "A fresh conversation is waiting for you."],
-    forgot: [
-      "Let’s get you back in",
-      "Enter your email and we’ll send a code to reset your password.",
-    ],
-    code: [
-      "Check your inbox",
-      `Enter the verification code sent to ${emailAddress.trim()}.`,
-    ],
-    "new-password": [
-      "A fresh start",
-      "Choose a new password for your Cooper account.",
-    ],
+    welcome: ["Your day,\na little lighter.", "Sign in or create your account to begin."],
+    email: ["Welcome back", "Sign in with your email and password."],
+    forgot: ["Reset your password", "We’ll email you a code to set a new one."],
+    code: ["Check your inbox", `Enter the code we sent to ${emailAddress.trim()}.`],
+    "new-password": ["Choose a new password", "Make it something you haven’t used before."],
   };
+  // Each step steps back to the one before it, so no screen needs a row of "back" links.
+  const previous: Partial<Record<Mode, Mode>> = { email: "welcome", forgot: "email", code: "forgot", "new-password": "email" };
+  const back = previous[mode];
   return (
     <AuthLayout
       testID="auth-screen"
       title={headings[mode][0]}
       subtitle={headings[mode][1]}
-      compact={mode !== "welcome"}
+      hero={mode === "welcome"}
+      onBack={back && !busy ? () => changeMode(back) : undefined}
       footer={
-        <AuthLink
-          disabled={busy}
-          testID="goto-sign-up"
-          title="New here? Create an account"
-          onPress={() => router.push("/(public)/sign-up")}
-        />
+        mode === "welcome" ? (
+          <AuthLink
+            disabled={busy}
+            testID="goto-sign-up"
+            lead="New here?"
+            title="Create an account"
+            onPress={() => router.push("/(public)/sign-up")}
+          />
+        ) : undefined
       }
     >
       {mode === "welcome" ? (
@@ -121,7 +116,7 @@ export default function SignInScreen() {
             disabled={request.busy || fetchStatus === "fetching"}
             onPendingChange={setSocialPending}
           />
-          <AuthAction
+          <AuthLink
             testID="use-email"
             title="Continue with email"
             disabled={busy}
@@ -132,17 +127,18 @@ export default function SignInScreen() {
         <View style={{ gap: authLayout.gap }}>
           {(mode === "email" || mode === "forgot") && (
             <AuthField
-              label="Email address"
+              label="Email"
               testID="email"
               autoCapitalize="none"
               autoCorrect={false}
+              autoFocus
               keyboardType="email-address"
               autoComplete="email"
               textContentType="emailAddress"
-              placeholder="you@example.com"
               value={emailAddress}
               onChangeText={setEmailAddress}
               editable={!busy}
+              returnKeyType={mode === "email" ? "next" : "send"}
             />
           )}
           {mode === "email" && (
@@ -153,7 +149,6 @@ export default function SignInScreen() {
               autoCapitalize="none"
               autoComplete="current-password"
               textContentType="password"
-              placeholder="Your password"
               value={password}
               onChangeText={setPassword}
               editable={!busy}
@@ -168,10 +163,10 @@ export default function SignInScreen() {
             <AuthField
               label="Verification code"
               testID="reset-code"
+              autoFocus
               keyboardType="number-pad"
               autoComplete="one-time-code"
               textContentType="oneTimeCode"
-              placeholder="Enter your code"
               value={code}
               onChangeText={setCode}
               editable={!busy}
@@ -182,36 +177,37 @@ export default function SignInScreen() {
               label="New password"
               testID="new-password"
               secureTextEntry
+              autoFocus
               autoCapitalize="none"
               autoComplete="new-password"
               textContentType="newPassword"
-              placeholder="Choose a strong password"
               value={newPassword}
               onChangeText={setNewPassword}
               editable={!busy}
             />
           )}
+          {mode === "email" && (
+            <AuthLink
+              title="Forgot password?"
+              align="end"
+              disabled={busy}
+              onPress={() => changeMode("forgot")}
+            />
+          )}
           <AuthMessage message={request.error} />
           {!request.error && <AuthMessage message={notice} success />}
           {mode === "email" && (
-            <>
-              <AuthAction
-                testID="sign-in"
-                title="Sign in"
-                loading={request.busy}
-                disabled={busy || !emailAddress.trim() || !password}
-                onPress={() => void request.run(submit)}
-              />
-              <AuthLink
-                title="Forgot password?"
-                disabled={busy}
-                onPress={() => changeMode("forgot")}
-              />
-            </>
+            <AuthAction
+              testID="sign-in"
+              title="Sign in"
+              loading={request.busy}
+              disabled={busy || !emailAddress.trim() || !password}
+              onPress={() => void request.run(submit)}
+            />
           )}
           {mode === "forgot" && (
             <AuthAction
-              title="Send reset code"
+              title="Send code"
               loading={request.busy}
               disabled={busy || !emailAddress.trim()}
               onPress={() => void request.run(sendReset)}
@@ -220,13 +216,14 @@ export default function SignInScreen() {
           {mode === "code" && (
             <>
               <AuthAction
-                title="Verify code"
+                title="Continue"
                 loading={request.busy}
                 disabled={busy || !code.trim()}
                 onPress={() => void request.run(verifyReset)}
               />
               <AuthLink
-                title="Send a new code"
+                lead="Didn’t get it?"
+                title="Send again"
                 disabled={busy}
                 onPress={() => void request.run(sendReset)}
               />
@@ -240,13 +237,6 @@ export default function SignInScreen() {
               onPress={() => void request.run(finishReset)}
             />
           )}
-          <AuthLink
-            title={
-              mode === "email" ? "Other ways to sign in" : "Back to sign in"
-            }
-            disabled={busy}
-            onPress={() => changeMode(mode === "email" ? "welcome" : "email")}
-          />
         </View>
       )}
     </AuthLayout>
