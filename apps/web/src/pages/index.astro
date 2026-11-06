@@ -3,11 +3,12 @@ import Mascot from "../components/Mascot";
 import FeatureCard from "../components/FeatureCard.astro";
 import HeroStage from "../components/HeroStage.astro";
 import Roles from "../components/Roles.astro";
+import Team from "../components/Team.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
   { label: "Features", href: "#features" },
-  { label: "Missions", href: "#missions" },
+  { label: "Missions", href: "#team" },
   { label: "Computer", href: "#computer" },
   { label: "Pricing", href: "#pricing" },
 ];
@@ -82,6 +83,8 @@ const playStore = "#download";
     </FeatureCard>
 
     <Roles />
+
+    <Team />
   </main>
 </Base>
 
