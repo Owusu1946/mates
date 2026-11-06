@@ -1,5 +1,6 @@
 ---
 import Mascot from "../components/Mascot";
+import Phone from "../components/Phone.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
@@ -63,48 +64,8 @@ const playStore = "#download";
         </a>
       </div>
 
-      <div class="stage" aria-hidden="true">
-        <div class="phone">
-          <div class="island"></div>
-          <div class="screen">
-            <div class="chat-head">
-              <div class="faces">
-                <span style="--g: linear-gradient(135deg,#e5c59e,#d27e41,#9a3412)"></span>
-                <span style="--g: linear-gradient(135deg,#bfe3ff,#5b8def,#1e3a8a)"></span>
-                <span style="--g: linear-gradient(135deg,#d9f99d,#4ade80,#166534)"></span>
-              </div>
-              <div>
-                <div class="chat-title">Launch week</div>
-                <div class="chat-sub">Cooper, Nova, Ivy</div>
-              </div>
-            </div>
-
-            <div class="bubble me">Ship dark mode in the app and get the release notes ready.</div>
-
-            <div class="msg">
-              <span class="face" style="--g: linear-gradient(135deg,#e5c59e,#d27e41,#9a3412)"></span>
-              <div class="bubble them">On it. Nova takes the code, Ivy writes the notes.</div>
-            </div>
-
-            <div class="card handoff">
-              <span class="label">Handoff</span>
-              Cooper <span class="to">→</span> Nova · Build dark mode
-            </div>
-
-            <div class="card code">
-              <span class="label">Mates’ computer</span>
-              <div class="repo">acme/app</div>
-              <div class="check">✓ pnpm typecheck</div>
-              <div class="check">✓ pnpm test</div>
-              <div class="pr">PR #42 opened by mates[bot]</div>
-            </div>
-
-            <div class="card note">
-              <span class="label">Note · Ivy</span>
-              Release notes v2.4
-            </div>
-          </div>
-        </div>
+      <div class="stage">
+        <Phone />
       </div>
     </section>
   </main>
@@ -233,12 +194,12 @@ const playStore = "#download";
   .stage {
     position: relative;
     width: 100%;
-    height: 560px;
-    margin-top: 72px;
+    height: 640px;
+    margin-top: 64px;
     display: flex;
     justify-content: center;
-    -webkit-mask-image: linear-gradient(#000 70%, transparent);
-    mask-image: linear-gradient(#000 70%, transparent);
+    -webkit-mask-image: linear-gradient(#000 78%, transparent);
+    mask-image: linear-gradient(#000 78%, transparent);
   }
   .stage::before {
     content: "";
@@ -250,122 +211,6 @@ const playStore = "#download";
     background: radial-gradient(closest-side, rgba(210, 126, 65, 0.22), transparent);
     filter: blur(20px);
   }
-  .phone {
-    position: relative;
-    width: 340px;
-    height: 700px;
-    padding: 12px;
-    border-radius: 56px;
-    background: #111;
-    box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.35), inset 0 0 0 2px #2a2a2a;
-  }
-  .island {
-    position: absolute;
-    top: 24px;
-    left: 50%;
-    width: 96px;
-    height: 28px;
-    border-radius: 20px;
-    background: #000;
-    transform: translateX(-50%);
-    z-index: 1;
-  }
-  .screen {
-    height: 100%;
-    padding: 68px 16px 16px;
-    border-radius: 44px;
-    background: #fff;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    text-align: left;
-    font-size: 14px;
-    line-height: 1.4;
-  }
-  .chat-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--line);
-  }
-  .faces {
-    display: flex;
-  }
-  .faces span,
-  .face {
-    width: 26px;
-    height: 26px;
-    flex: none;
-    border-radius: 50%;
-    background: var(--g);
-    border: 2px solid #fff;
-  }
-  .faces span + span {
-    margin-left: -9px;
-  }
-  .chat-title {
-    font-weight: 600;
-  }
-  .chat-sub {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .bubble {
-    padding: 9px 13px;
-    border-radius: 18px;
-    max-width: 82%;
-  }
-  .bubble.me {
-    align-self: flex-end;
-    background: var(--text);
-    color: #fff;
-    border-bottom-right-radius: 6px;
-  }
-  .msg {
-    display: flex;
-    gap: 8px;
-    align-items: flex-end;
-  }
-  .bubble.them {
-    background: var(--soft);
-    border-bottom-left-radius: 6px;
-  }
-  .card {
-    padding: 11px 13px;
-    border-radius: 16px;
-    border: 1px solid var(--line);
-    font-size: 13px;
-  }
-  .card .label {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--muted);
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-  .handoff .to {
-    color: var(--accent);
-  }
-  .code .repo {
-    font-weight: 600;
-    margin-bottom: 4px;
-  }
-  .code .check {
-    color: #30a46c;
-    font-family: ui-monospace, Menlo, monospace;
-    font-size: 12px;
-  }
-  .code .pr {
-    margin-top: 8px;
-    padding: 8px 10px;
-    border-radius: 10px;
-    background: var(--soft);
-    font-weight: 600;
-  }
-
   @media (max-width: 860px) {
     nav {
       display: none;
@@ -378,6 +223,16 @@ const playStore = "#download";
     }
     .announce {
       font-size: 14px;
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 570px;
+      margin-top: 48px;
+    }
+    .stage > :global(*) {
+      transform: scale(0.88);
+      transform-origin: top center;
     }
   }
 </style>
