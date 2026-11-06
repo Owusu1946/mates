@@ -7,6 +7,10 @@ export default defineConfig({
   integrations: [react()],
   build: { inlineStylesheets: "always" },
   compressHTML: true,
-  // The mascot is imported from the mobile app; one copy of React for both.
-  vite: { resolve: { dedupe: ["react", "react-dom"] } },
+  vite: {
+    // One copy of React for the site and the shared mascot package.
+    resolve: { dedupe: ["react", "react-dom"] },
+    // iPhone 7 tops out at iOS 15: ship syntax and CSS (with -webkit- prefixes) Safari 14 reads.
+    build: { target: "safari14", cssTarget: "safari14" },
+  },
 });
