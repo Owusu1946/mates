@@ -9,7 +9,7 @@ import { pushToUser } from "./delivery.js";
 import { botIdentity, githubConfigured, listRepos, openPullRequest, repoToken } from "./github.js";
 import type { WorkflowCard } from "./integrations.js";
 import { CHAT_MODEL, CODE_MODEL } from "./models.js";
-import { createRunKey, deleteRunKey, type RunKey } from "./openrouter-keys.js";
+import { createRunKey, deleteRunKey, runKeyUsage, type RunKey } from "./openrouter-keys.js";
 
 export type CodeRun = typeof codeRuns.$inferSelect;
 const ACTIVE: CodeRunStatus[] = ["queued", "cloning", "coding", "checking", "pushing"];
@@ -304,6 +304,8 @@ export async function executeCodeRun(id: string, signal: AbortSignal) {
     await log.flush();
     cancel.dispose();
     await computer?.shutdown();
+    const cost = await runKeyUsage(runKey);
+    if (cost !== null) await update(id, { costUsd: cost }).catch(() => undefined);
     await deleteRunKey(runKey);
     await announce(id).catch(() => undefined);
   }
