@@ -1,0 +1,52 @@
+---
+// The hero still: the app mid-mission. Pure HTML and CSS.
+import { mate } from "../palette";
+import Device from "./Device.astro";
+import Mascot from "./Mascot";
+
+const cooper = mate("amber");
+const nova = mate("blue");
+const ivy = mate("green");
+---
+
+<Device title="Launch week" faces={[{ gradient: cooper, state: "happy" }, { gradient: nova, state: "working" }, { gradient: ivy, state: "writing" }]}>
+      <div class="stamp">Today 9:38</div>
+
+      <div class="me in" style="--d: 0.1s">Ship dark mode in the app and get the release notes ready for Friday.</div>
+
+      <div class="mate in" style="--d: 0.5s">
+        <div class="who"><Mascot client:visible size={20} gradient={cooper} state="happy" /> Cooper</div>
+        <p>On it. Nova takes the code, Ivy writes the notes. I’ll keep you posted.</p>
+      </div>
+
+      <div class="card in" style="--d: 0.9s">
+        <div class="label">Handing off</div>
+        <div class="row">
+          <Mascot client:visible size={28} gradient={nova} state="working" />
+          <div class="grow">
+            <div class="row-top"><b>Nova</b><span class="chip working">Working<span class="pulse"><i></i><i></i><i></i></span></span></div>
+            <div class="task">Build dark mode across settings and chat</div>
+          </div>
+        </div>
+        <div class="row">
+          <Mascot client:visible size={28} gradient={ivy} state="proud" />
+          <div class="grow">
+            <div class="row-top"><b>Ivy</b><span class="chip done">✓ Done</span></div>
+            <div class="task">Draft the v2.4 release notes</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card in" style="--d: 1.3s">
+        <div class="label">Mates’ computer</div>
+        <div class="repo">acme/app</div>
+        <div class="branch">mates/dark-mode-3f9a1c</div>
+        <div class="feed">
+          <div class="old">Editing src/theme/tokens.ts</div>
+          <div class="old">pnpm typecheck passed</div>
+          <div class="now">Running pnpm test <span class="pulse"><i></i><i></i><i></i></span></div>
+        </div>
+      </div>
+
+      <div class="note in" style="--d: 1.7s"><span>📝</span> Ivy wrote <b>Release notes v2.4</b></div>
+</Device>

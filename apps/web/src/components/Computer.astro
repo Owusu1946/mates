@@ -1,0 +1,385 @@
+---
+// "Ship code while you sleep": the mates' computer. A run plays out step by step, the same lines
+// the app streams, top to bottom: the current step shimmers while it works and finished ones settle
+// above it, beside the pull request it is building. Without script (or with reduced motion) it
+// shows the finished run.
+import { mate } from "../palette";
+import Mascot from "./Mascot";
+
+const nova = mate("blue");
+const lines = [
+  "Starting the computer",
+  "Cloning acme/app",
+  "Installing dependencies with pnpm",
+  "Thinking",
+  "Searching for useTheme",
+  "Reading src/theme/tokens.ts",
+  "Editing src/theme/tokens.ts",
+  "Editing src/screens/settings.tsx",
+  "Running pnpm typecheck",
+  "pnpm typecheck passed",
+  "Running pnpm test",
+  "pnpm test passed",
+  "Pushing mates/dark-mode-3f9a1c",
+  "Opening the pull request",
+  "Opened PR #42",
+];
+/** Steps in view at once; older ones drop off the top. */
+const VISIBLE = 6;
+const points = [
+  { title: "Its own computer", body: "A fresh, private sandbox for every run. Your laptop stays yours." },
+  { title: "Runs your checks", body: "Typecheck, lint and tests, with fix-ups until they pass." },
+  { title: "Opens a PR, never merges", body: "It works on its own branch. You review, you merge." },
+  { title: "Watch it live", body: "Every file it reads and every command it runs, on your phone." },
+];
+---
+
+<section class="computer" id="computer">
+  <div class="copy">
+    <div class="eyebrow">Mates’ computer</div>
+    <h2>Ship code while you sleep.</h2>
+    <p class="lede">
+      Connect GitHub and ask. A mate clones the repo on its own computer, writes the change, runs your checks, and opens a
+      pull request for you to review.
+    </p>
+    <div class="facts">
+      {
+        points.map((point) => (
+          <div class="fact">
+            <b>{point.title}</b>
+            <span>{point.body}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="visual" aria-hidden="true" data-run data-visible={VISIBLE}>
+    <div class="window">
+      <div class="bar">
+        <Mascot client:visible size={30} gradient={nova} state="working" />
+        <div class="where">
+          <b>acme/app</b>
+          <span>mates/dark-mode-3f9a1c</span>
+        </div>
+      </div>
+      <div class="feed full">
+        {
+          lines.map((line, index) => (
+            <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]} hidden={index < lines.length - VISIBLE}>
+              {line}
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="pr">
+      <div class="pr-top">
+        <span class="badge">
+          <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 2.12a2.25 2.25 0 1 0-1.5 0v5.26a2.25 2.25 0 1 0 1.5 0zm6.5-2.12a.75.75 0 0 1 .75.75v6.38a2.25 2.25 0 1 1-1.5 0V4.5a.75.75 0 0 1 .75-.75zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm7.25 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" /></svg>
+          Open
+        </span>
+        <span class="num">#42</span>
+      </div>
+      <div class="pr-title">Add a dark mode toggle to Settings</div>
+      <div class="pr-meta"><b>mates[bot]</b> wants to merge 1 commit into <code>main</code></div>
+      <div class="pr-foot">
+        <span class="diff"><span class="add">+120</span> <span class="del">−8</span> · 6 files</span>
+        <span>typecheck and tests pass</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  // Plays the run one step at a time, holds on the last step, then starts over. Runs only while the
+  // section is on screen; reduced motion keeps the finished state the HTML already shows.
+  const STEP_MS = 900;
+  const HOLD_STEPS = 5;
+  for (const root of document.querySelectorAll<HTMLElement>("[data-run]")) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
+    const lines = [...root.querySelectorAll<HTMLElement>(".line")];
+    const last = lines.length - 1;
+    const visible = Number(root.dataset.visible);
+    const feed = root.querySelector<HTMLElement>(".feed")!;
+    let step = 0;
+    let timer: number | undefined;
+    const render = () => {
+      const at = Math.min(step, last);
+      feed.classList.toggle("full", at >= visible);
+      lines.forEach((line, index) => {
+        line.hidden = index > at || index <= at - visible;
+        line.classList.toggle("now", index === at && at < last);
+      });
+    };
+    const tick = () => {
+      step = step >= last + HOLD_STEPS ? 0 : step + 1;
+      render();
+    };
+    render();
+    new IntersectionObserver(([entry]) => {
+      clearInterval(timer);
+      timer = entry?.isIntersecting ? window.setInterval(tick, STEP_MS) : undefined;
+    }).observe(root);
+  }
+</script>
+
+<style>
+  .computer {
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 56px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+    padding: 72px 56px;
+    border-radius: 32px;
+    background: var(--panel);
+    overflow: hidden;
+  }
+  .eyebrow {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 32px;
+    margin-top: 40px;
+  }
+  .fact {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  .visual {
+    position: relative;
+  }
+  .window {
+    border-radius: 22px;
+    background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -36px rgba(0, 0, 0, 0.25);
+    overflow: hidden;
+  }
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  .where {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    font-size: 14px;
+  }
+  .where span {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+
+  /* Steps stack top to bottom; once full, the oldest slips away under a soft top edge. */
+  .feed {
+    display: flex;
+    flex-direction: column;
+    height: 232px;
+    padding: 14px 20px 38px;
+    overflow: hidden;
+    font-family: var(--mono);
+    font-size: 13.5px;
+  }
+  .feed.full {
+    -webkit-mask-image: linear-gradient(transparent, #000 18%);
+    mask-image: linear-gradient(transparent, #000 18%);
+  }
+  .line {
+    flex: none;
+    height: 30px;
+    line-height: 30px;
+    color: var(--muted);
+    white-space: nowrap;
+    animation: enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .line[hidden] {
+    display: none;
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  .line.pass {
+    color: var(--success);
+  }
+  .line.final {
+    color: var(--text);
+    font-weight: 600;
+  }
+  /* The step in progress: a band of light sweeps through the text, like a model thinking. */
+  .line.now {
+    background: linear-gradient(100deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -150% 0;
+    }
+  }
+
+  /* The pull request the run is building, tucked under the window. */
+  .pr {
+    position: relative;
+    margin: -24px -6% 0 8%;
+    padding: 18px 20px;
+    border-radius: 20px;
+    background: var(--bg);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(0, 0, 0, 0.3);
+  }
+  .pr-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--success);
+    color: var(--bg);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .num {
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .pr-title {
+    margin-top: 10px;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+  .pr-meta {
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 13.5px;
+  }
+  .pr-meta b {
+    color: var(--text);
+  }
+  code {
+    padding: 1px 6px;
+    border-radius: 6px;
+    background: var(--soft);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+  .pr-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .add {
+    color: var(--success);
+    font-weight: 600;
+  }
+  .del {
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  @media (max-width: 960px) {
+    .computer {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      padding: 48px 24px;
+    }
+    .pr {
+      margin: -24px 0 0 4%;
+    }
+  }
+  @media (max-width: 860px) {
+    .computer {
+      margin-top: 96px;
+    }
+  }
+  @media (max-width: 520px) {
+    .computer {
+      padding: 36px 18px;
+    }
+    .feed {
+      padding-inline: 14px;
+      font-size: 12px;
+    }
+    .bar {
+      padding: 12px 14px;
+    }
+    .pr {
+      margin: -24px 0 0;
+      padding: 16px;
+    }
+    .pr-title {
+      font-size: 16px;
+    }
+    .facts {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    .pr-foot {
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+</style>

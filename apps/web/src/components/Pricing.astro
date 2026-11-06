@@ -1,0 +1,243 @@
+---
+// Pricing for individuals: three plans, monthly or yearly at a discount. The billing switch is
+// two radio buttons and CSS (:has), so it works without script.
+const YEARLY_DISCOUNT = 0.2;
+
+type Plan = { name: string; monthly: number; intro: string; features: string[] };
+const plans: Plan[] = [
+  {
+    name: "Plus",
+    monthly: 15,
+    intro: "Includes:",
+    features: [
+      "Your own team of mates",
+      "Missions with handoffs and shared notes",
+      "Sign in to hundreds of apps",
+      "Routines on a schedule",
+      "The mates’ computer: ship code as pull requests",
+      "Weekly usage included",
+    ],
+  },
+  {
+    name: "Pro",
+    monthly: 40,
+    intro: "Everything in Plus, plus:",
+    features: ["4x Plus usage", "More mates working at the same time", "Longer coding runs", "Priority model access at peak times"],
+  },
+  {
+    name: "Max",
+    monthly: 80,
+    intro: "Everything in Pro, plus:",
+    features: ["10x Plus usage", "The most capable models for every mate", "Earliest access to new features and models"],
+  },
+];
+const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DISCOUNT));
+---
+
+<section class="pricing" id="pricing">
+  <h2>Pricing</h2>
+  <p class="sub">One person, a whole team of mates. Cancel anytime.</p>
+
+  <div class="switch" role="radiogroup" aria-label="Billing period">
+    <input type="radio" name="billing" id="billing-monthly" value="monthly" checked />
+    <label for="billing-monthly">Monthly</label>
+    <input type="radio" name="billing" id="billing-yearly" value="yearly" />
+    <label for="billing-yearly">Yearly <span class="save">Save {YEARLY_DISCOUNT * 100}%</span></label>
+  </div>
+
+  <div class="plans">
+    {
+      plans.map((plan) => (
+        <article class="plan">
+          <h3>{plan.name}</h3>
+          <div class="price monthly">
+            <span class="amount">${plan.monthly}</span>
+            <span class="per">/ month</span>
+          </div>
+          <div class="price yearly">
+            <span class="amount">${yearlyPerMonth(plan)}</span>
+            <span class="per">/ month</span>
+          </div>
+          <div class="billed monthly">Billed monthly</div>
+          <div class="billed yearly">Billed yearly at ${yearlyPerMonth(plan) * 12}</div>
+
+          <a href="#download" class="pill-button dark get">Get {plan.name}</a>
+
+          <div class="intro">{plan.intro}</div>
+          <ul>
+            {plan.features.map((feature) => (
+              <li>
+                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="m3.5 8.4 2.9 2.9 6.1-6.6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                {feature}
+              </li>
+            ))}
+          </ul>
+        </article>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .pricing {
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+    text-align: center;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(32px, 4vw, 56px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+  }
+  .sub {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+  }
+
+  /* Segmented control: the checked radio's label becomes the raised pill. */
+  .switch {
+    display: inline-flex;
+    gap: 4px;
+    margin-top: 32px;
+    padding: 4px;
+    border-radius: 999px;
+    background: var(--soft);
+  }
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .switch label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 22px;
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .switch input:checked + label {
+    background: var(--bg);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+  .switch input:focus-visible + label {
+    outline: 2px solid var(--text);
+    outline-offset: 2px;
+  }
+  .save {
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--success-soft);
+    color: var(--success);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .plans {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 32px;
+    text-align: left;
+  }
+  .plan {
+    display: flex;
+    flex-direction: column;
+    padding: 40px 36px;
+    border-radius: 32px;
+    background: var(--panel);
+  }
+  h3 {
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    font-weight: 500;
+  }
+  .price {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 22px;
+  }
+  .amount {
+    font-size: clamp(40px, 4vw, 52px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1;
+  }
+  .per,
+  .billed {
+    color: var(--muted);
+    font-size: 16px;
+  }
+  .billed {
+    margin-top: 10px;
+  }
+  /* Show one billing period at a time. */
+  .yearly {
+    display: none;
+  }
+  .pricing:has(#billing-yearly:checked) .yearly {
+    display: flex;
+  }
+  .pricing:has(#billing-yearly:checked) .billed.yearly {
+    display: block;
+  }
+  .pricing:has(#billing-yearly:checked) .monthly {
+    display: none;
+  }
+  .get {
+    width: 100%;
+    height: 54px;
+    margin-top: 32px;
+    font-size: 17px;
+  }
+  .intro {
+    margin-top: 36px;
+    font-size: 16px;
+    font-weight: 500;
+  }
+  ul {
+    display: grid;
+    gap: 14px;
+    margin: 18px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    display: flex;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 15.5px;
+    line-height: 1.45;
+  }
+  li svg {
+    flex: none;
+    margin-top: 3px;
+  }
+
+  @media (max-width: 960px) {
+    .plans {
+      grid-template-columns: 1fr;
+      max-width: 520px;
+      margin-inline: auto;
+    }
+  }
+  @media (max-width: 860px) {
+    .pricing {
+      margin-top: 96px;
+    }
+    .plan {
+      padding: 32px 26px;
+    }
+  }
+</style>

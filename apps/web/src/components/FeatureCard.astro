@@ -1,0 +1,102 @@
+---
+// A soft panel with copy on one side and a visual that breaks out of its top edge and is cropped
+// by its bottom one. The visual goes in the "visual" slot, buttons under the copy in "actions".
+interface Props {
+  title: string;
+  body: string;
+  id?: string;
+  /** Put the visual on the left instead. */
+  flip?: boolean;
+}
+
+const { title, body, id, flip = false } = Astro.props;
+---
+
+<section class:list={["feature", { flip }]} id={id}>
+  <div class="copy">
+    <h2>{title}</h2>
+    <p>{body}</p>
+    {Astro.slots.has("actions") && <div class="actions"><slot name="actions" /></div>}
+  </div>
+  <div class="visual">
+    <slot name="visual" />
+  </div>
+</section>
+
+<style>
+  .feature {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    min-height: 420px;
+    margin: 120px auto 0;
+    border-radius: 32px;
+    background: var(--panel);
+    /* Cropped at the bottom and sides only: the visual may rise above the top edge. */
+    clip-path: inset(-160px 0 0 0 round 32px);
+  }
+  .copy {
+    padding: 64px 0 64px 56px;
+  }
+  .flip .copy {
+    order: 2;
+    padding: 64px 56px 64px 0;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(28px, 3.2vw, 42px);
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.1;
+  }
+  p {
+    max-width: 40ch;
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .actions {
+    margin-top: 32px;
+  }
+  .visual {
+    align-self: stretch;
+    position: relative;
+    display: flex;
+    justify-content: center;
+  }
+
+  @media (max-width: 860px) {
+    .feature {
+      grid-template-columns: 1fr;
+      margin-top: 96px;
+    }
+    .copy,
+    .flip .copy {
+      order: 0;
+      padding: 40px 24px 8px;
+    }
+    .actions {
+      margin-top: 24px;
+    }
+    .visual {
+      min-height: 280px;
+    }
+  }
+  @media (max-width: 520px) {
+    .feature {
+      min-height: 0;
+      border-radius: 26px;
+      clip-path: inset(-160px 0 0 0 round 26px);
+    }
+    .copy,
+    .flip .copy {
+      padding: 32px 20px 4px;
+    }
+    .visual {
+      min-height: 240px;
+    }
+  }
+</style>

@@ -1,0 +1,432 @@
+---
+// "One goal. A whole team on it.": a mission from goal to finished work. Your message flows to
+// the lead mate, the plan fans out to three mates, and each one's status ticks from working to
+// done on its own beat. All motion is CSS; the mascots are the live engine.
+import { mate } from "../palette";
+import Mascot from "./Mascot";
+
+const cooper = mate("amber");
+const team = [
+  { name: "Nova", role: "Engineer", task: "Build dark mode", gradient: mate("blue"), state: "working" as const, done: "PR #42 opened", delay: "1.2s" },
+  { name: "Ivy", role: "Writer", task: "Release notes v2.4", gradient: mate("green"), state: "writing" as const, done: "Note written", delay: "2.6s" },
+  { name: "Sol", role: "Marketer", task: "Draft the announcement", gradient: mate("teal"), state: "thinking" as const, done: "Ready for review", delay: "4s" },
+];
+const points = [
+  { title: "Plans the work", body: "The lead mate turns your goal into steps and picks who should do each one." },
+  { title: "Hands it off", body: "Mates pass work between them, share notes, and pick up where the last one left off." },
+  { title: "Keeps you posted", body: "You see every handoff as it happens, and nothing ships without your OK." },
+];
+---
+
+<section class="team" id="team">
+  <div class="intro">
+    <h2>One goal. A whole team on it.</h2>
+    <p>Send one message. Your lead mate plans it, assembles the right mates, and they work it through together.</p>
+  </div>
+
+  <div class="scene" aria-label="A mission: your goal goes to Cooper, who hands work to Nova, Ivy and Sol">
+    <div class="goal">
+      <div class="tag">You</div>
+      <div class="bubble">launch week: code, release notes and the announcement done by friday.</div>
+    </div>
+
+    <div class="wire" aria-hidden="true"><span></span></div>
+
+    <div class="lead">
+      <Mascot client:visible size={64} gradient={cooper} state="proud" />
+      <div class="lead-name">Cooper <span>Lead</span></div>
+      <ol class="plan">
+        <li><i></i>Ship dark mode</li>
+        <li><i></i>Write the release notes</li>
+        <li><i></i>Announce it Friday</li>
+      </ol>
+    </div>
+
+    <svg class="fan" viewBox="0 0 80 100" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 50 C 40 50, 40 16.7, 80 16.7" />
+      <path d="M0 50 L 80 50" />
+      <path d="M0 50 C 40 50, 40 83.3, 80 83.3" />
+    </svg>
+
+    <div class="mates">
+      {
+        team.map((mate) => (
+          <div class="mate" style={`--delay: ${mate.delay}`}>
+            <Mascot client:visible size={40} gradient={mate.gradient} state={mate.state} />
+            <div class="mate-copy">
+              <div class="mate-top">
+                <b>{mate.name}</b>
+                <span class="role">{mate.role}</span>
+              </div>
+              <div class="task">{mate.task}</div>
+            </div>
+            <div class="status">
+              <span class="working">Working<span class="pulse"><i></i><i></i><i></i></span></span>
+              <span class="done">✓ {mate.done}</span>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="points">
+    {
+      points.map((point) => (
+        <div>
+          <h3>{point.title}</h3>
+          <p>{point.body}</p>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .team {
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .intro {
+    text-align: center;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(28px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+  .intro p {
+    max-width: 52ch;
+    margin: 18px auto 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+    text-wrap: balance;
+  }
+
+  .scene {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1.05fr) 88px minmax(0, 1.35fr);
+    align-items: center;
+    margin-top: 56px;
+    padding: 56px;
+    border-radius: 32px;
+    background: var(--panel);
+  }
+
+  .tag {
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .bubble {
+    padding: 14px 18px;
+    border-radius: 22px;
+    border-bottom-right-radius: 8px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+
+  /* The handoff: dashes travel along the wire, then down each branch of the fan. */
+  .wire span {
+    display: block;
+    height: 2px;
+    background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 12px);
+    background-size: 24px 2px;
+    animation: flow 0.9s linear infinite;
+    opacity: 0.7;
+  }
+  @keyframes flow {
+    to {
+      background-position: 24px 0;
+    }
+  }
+  .fan {
+    width: 100%;
+    height: 72%;
+    overflow: visible;
+  }
+  .fan path {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-dasharray: 6 6;
+    vector-effect: non-scaling-stroke;
+    opacity: 0.7;
+    animation: dash 0.9s linear infinite;
+  }
+  @keyframes dash {
+    to {
+      stroke-dashoffset: -24;
+    }
+  }
+
+  .lead {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 22px;
+    border-radius: 24px;
+    background: var(--bg);
+    box-shadow: 0 20px 40px -24px rgba(15, 23, 42, 0.25);
+  }
+  .lead-name {
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .lead-name span {
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 12px;
+    vertical-align: 2px;
+  }
+  .plan {
+    display: grid;
+    gap: 8px;
+    margin: 4px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--muted);
+    font-size: 14.5px;
+  }
+  .plan li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .plan i {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    border: 1.5px solid var(--line);
+    border-radius: 50%;
+  }
+
+  .mates {
+    display: grid;
+    gap: 14px;
+  }
+  .mate {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 20px;
+    background: var(--bg);
+    box-shadow: 0 14px 30px -22px rgba(15, 23, 42, 0.3);
+  }
+  .mate-copy {
+    flex: 1;
+    min-width: 0;
+  }
+  .mate-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 15px;
+  }
+  .role {
+    color: var(--muted);
+    font-size: 12.5px;
+  }
+  .task {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 13.5px;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* Working, then done, then round again: each mate on its own beat. */
+  .status {
+    display: grid;
+    justify-items: end;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .status > span {
+    grid-area: 1 / 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .working {
+    background: var(--soft);
+    color: var(--text);
+    animation: hide-later 8s infinite var(--delay);
+  }
+  .done {
+    background: var(--success-soft);
+    color: var(--success);
+    opacity: 0;
+    animation: show-later 8s infinite var(--delay);
+  }
+  @keyframes hide-later {
+    0%,
+    45% {
+      opacity: 1;
+    }
+    50%,
+    95% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+  @keyframes show-later {
+    0%,
+    45% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    50%,
+    95% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  .pulse {
+    display: inline-flex;
+    gap: 2.5px;
+  }
+  .pulse i {
+    width: 3.5px;
+    height: 3.5px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: blink 1.2s infinite ease-in-out;
+  }
+  .pulse i:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .pulse i:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  @keyframes blink {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+    }
+    40% {
+      opacity: 1;
+    }
+  }
+
+  .points {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-top: 48px;
+    padding: 0 56px;
+  }
+  h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .points p {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 15.5px;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 1100px) {
+    .scene {
+      padding: 40px 32px;
+      grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr) 56px minmax(0, 1.3fr);
+    }
+  }
+  /* Narrow: the flow runs top to bottom and the wires turn vertical. */
+  @media (max-width: 860px) {
+    .team {
+      margin-top: 96px;
+    }
+    .scene {
+      grid-template-columns: 1fr;
+      gap: 0;
+      padding: 28px 20px;
+      margin-top: 36px;
+    }
+    .wire {
+      display: flex;
+      justify-content: center;
+      height: 36px;
+    }
+    .wire span {
+      width: 2px;
+      height: 100%;
+      background: repeating-linear-gradient(180deg, var(--accent) 0 6px, transparent 6px 12px);
+      background-size: 2px 24px;
+      animation-name: flow-down;
+    }
+    @keyframes flow-down {
+      to {
+        background-position: 0 24px;
+      }
+    }
+    .fan {
+      display: none;
+    }
+    .lead {
+      margin-bottom: 20px;
+    }
+    .points {
+      grid-template-columns: 1fr;
+      gap: 24px;
+      padding: 0 8px;
+    }
+  }
+  /* Phones: each mate's status drops under its name instead of squeezing the task. */
+  @media (max-width: 480px) {
+    .scene {
+      padding: 22px 14px;
+    }
+    .lead {
+      padding: 18px;
+    }
+    .mate {
+      flex-wrap: wrap;
+      padding: 12px 14px;
+    }
+    .task {
+      white-space: normal;
+    }
+    .status {
+      flex-basis: 100%;
+      justify-items: start;
+      padding-left: 52px;
+    }
+    .bubble {
+      font-size: 15px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .done {
+      opacity: 1;
+    }
+    .working {
+      opacity: 0;
+    }
+  }
+</style>

@@ -1,0 +1,299 @@
+---
+import Mascot from "../components/Mascot";
+import Faq from "../components/Faq.astro";
+import FeatureCard from "../components/FeatureCard.astro";
+import Footer from "../components/Footer.astro";
+import HeroStage from "../components/HeroStage.astro";
+import Logo from "../components/Logo.astro";
+import Pricing from "../components/Pricing.astro";
+import Roles from "../components/Roles.astro";
+import StoreButtons from "../components/StoreButtons.astro";
+import Team from "../components/Team.astro";
+import Apps from "../components/Apps.astro";
+import Computer from "../components/Computer.astro";
+import Base from "../layouts/Base.astro";
+
+const nav = [
+  { label: "Features", href: "#features" },
+  { label: "Missions", href: "#team" },
+  { label: "Computer", href: "#computer" },
+  { label: "Pricing", href: "#pricing" },
+];
+---
+
+<Base>
+  <header class="nav">
+    <a href="/" class="brand" aria-label="Mates home">
+      <Logo size={28} />
+      <span>mates</span>
+    </a>
+    <nav aria-label="Main">
+      {nav.map((item) => <a href={item.href}>{item.label}</a>)}
+    </nav>
+    <a href="#download" class="pill-button dark nav-cta">Get the app</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <a href="#computer" class="announce">
+        <strong>Mates can ship code now</strong>
+        <span class="dot">·</span>
+        <span class="more-link">See how it works</span>
+        <span class="arrow" aria-hidden="true">↗</span>
+      </a>
+
+      <h1>
+        Meet
+        <span class="inline-mascot"><Mascot client:idle size={96} /></span>
+        Your Mate Bots
+      </h1>
+
+      <p class="lede">
+        AI teammates that live in your pocket. Give them real work and they plan it, hand it off to each other, use your
+        apps the way you do, and come back with it finished.
+      </p>
+
+      <div class="hero-ctas">
+        <StoreButtons />
+      </div>
+
+      <div class="stage">
+        <HeroStage />
+      </div>
+    </section>
+
+    <FeatureCard
+      id="features"
+      title="Message your mates like teammates"
+      body="Hand them tasks the way you’d text a friend. Your mates take projects from start to finish, remember how you work, get sharper over time, and check in when they need your OK."
+    >
+      <div slot="visual" class="big-mascot">
+        <Mascot client:visible size={520} />
+      </div>
+    </FeatureCard>
+
+    <Roles />
+
+    <Team />
+
+    <Computer />
+
+    <Apps />
+
+    <Pricing />
+
+    <Faq />
+
+    <FeatureCard
+      id="download"
+      title="Your mates are ready."
+      body="Download Mates, give them their first job, and get your evenings back."
+    >
+      <StoreButtons slot="actions" align="start" />
+      <div slot="visual" class="big-mascot">
+        <Mascot client:visible size={520} state="excited" />
+      </div>
+    </FeatureCard>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 40px;
+    height: 72px;
+    padding: 0 24px;
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: saturate(180%) blur(16px);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  nav {
+    display: flex;
+    gap: 32px;
+    font-size: 15px;
+  }
+  nav a {
+    color: var(--text);
+    transition: opacity 0.15s ease;
+  }
+  nav a:hover {
+    opacity: 0.6;
+  }
+  .nav-cta {
+    margin-left: auto;
+    height: 44px;
+  }
+
+  .hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 16px 0;
+    text-align: center;
+    overflow: hidden;
+  }
+  .announce {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 15px;
+  }
+  .announce strong {
+    font-weight: 600;
+  }
+  .announce .dot {
+    color: var(--muted);
+  }
+  .announce .arrow {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-left: 6px;
+    border-radius: 50%;
+    background: var(--soft);
+    font-size: 13px;
+    transition: transform 0.15s ease;
+  }
+  .announce:hover .arrow {
+    transform: translate(2px, -2px);
+  }
+
+  h1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.18em;
+    margin: 28px 0 0;
+    font-size: clamp(36px, 6.4vw, 76px);
+    font-weight: 600;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+  .inline-mascot {
+    display: inline-flex;
+    width: 0.92em;
+    height: 0.92em;
+  }
+  .inline-mascot :global(span) {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .inline-mascot :global(svg) {
+    width: 100%;
+    height: 100%;
+  }
+
+  .lede {
+    max-width: 68ch;
+    text-wrap: balance;
+    margin: 20px auto 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.6vw, 19px);
+    line-height: 1.5;
+  }
+  .hero-ctas {
+    margin-top: 32px;
+  }
+
+  /* The phone rises out of the fold, cropped like a product shot. */
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 640px;
+    margin-top: 64px;
+    display: flex;
+    justify-content: center;
+    -webkit-mask-image: linear-gradient(#000 78%, transparent);
+    mask-image: linear-gradient(#000 78%, transparent);
+  }
+  .stage::before {
+    content: "";
+    position: absolute;
+    top: 80px;
+    width: min(900px, 100%);
+    height: 480px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 22%, transparent), transparent);
+    filter: blur(20px);
+  }
+  /* Rises out of the panel's top edge; the panel crops its lower half. */
+  .big-mascot {
+    position: absolute;
+    top: -70px;
+    right: 6%;
+    filter: drop-shadow(0 30px 40px rgba(15, 23, 42, 0.18));
+  }
+
+  @media (max-width: 860px) {
+    .big-mascot {
+      top: 0;
+      right: auto;
+      transform: scale(0.6);
+      transform-origin: top center;
+    }
+    nav {
+      display: none;
+    }
+    .nav {
+      padding: 0 16px;
+    }
+    .nav {
+      height: 60px;
+    }
+    .nav-cta {
+      height: 40px;
+      padding: 0 18px;
+      font-size: 15px;
+    }
+    .hero {
+      padding-top: 24px;
+    }
+    .announce {
+      font-size: 14px;
+    }
+    h1 {
+      margin-top: 22px;
+    }
+    .stage {
+      margin-top: 48px;
+    }
+  }
+  /* Phones: the announcement keeps just its headline and arrow. */
+  @media (max-width: 520px) {
+    .announce .dot,
+    .announce .more-link {
+      display: none;
+    }
+    .lede {
+      margin-top: 16px;
+    }
+    .big-mascot {
+      transform: scale(0.5);
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 570px;
+      margin-top: 48px;
+    }
+    .stage > :global(*) {
+      transform: scale(0.88);
+      transform-origin: top center;
+    }
+  }
+</style>

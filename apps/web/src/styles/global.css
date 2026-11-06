@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --text: #0a0a0a;
+  --muted: #6e6e73;
+  --soft: #f2f2f2;
+  --line: rgba(0, 0, 0, 0.08);
+  /* Feature panels. */
+  --panel: #f8f7f5;
+  /* The mascot's own amber: the only accent. */
+  --accent: #d27e41;
+  --accent-soft: #fbeee3;
+  --accent-deep: #9a3412;
+  /* Checks passed, work done: the same green the app's code card uses. */
+  --success: #30a46c;
+  --success-soft: #eaf6ef;
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  /* Wide visuals (phones, mascots) are cropped by their sections; never by a sideways scroll. */
+  overflow-x: clip;
+  -webkit-text-size-adjust: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.pill-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.pill-button:active {
+  transform: scale(0.97);
+}
+.pill-button.dark {
+  background: var(--text);
+  color: var(--bg);
+}
+.pill-button.dark:hover {
+  background: #262626;
+}
+.pill-button.light {
+  background: var(--soft);
+}
+.pill-button.light:hover {
+  background: #e8e8e8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

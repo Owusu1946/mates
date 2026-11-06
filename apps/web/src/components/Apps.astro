@@ -1,0 +1,142 @@
+---
+// "Works with the apps you already use": two rows of the apps mates can sign in to, drifting in
+// opposite directions. Each shows the brand's real mark in its own colour on a neutral pill.
+import { LOGOS } from "../logos";
+
+const rows = [LOGOS.slice(0, 10), LOGOS.slice(10)];
+const idOf = (name: string) => `logo-${name.toLowerCase().replace(/[^a-z]/g, "")}`;
+---
+
+<section class="apps" id="apps">
+  <h2>Works with the apps you already use.</h2>
+  <p>
+    Connect once and your mates sign in and use your apps the way you do, across email, calendars, docs, code and more.
+    Hundreds of apps, and you decide what each mate can touch.
+  </p>
+
+  {/* Each mark is drawn once and reused by both copies of its row. */}
+  <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+    {
+      LOGOS.map((logo) => (
+        <symbol id={idOf(logo.name)} viewBox="0 0 24 24">
+          <path fill={logo.color} d={logo.path} />
+        </symbol>
+      ))
+    }
+  </svg>
+
+  <div class="rows" aria-label={`Connects to ${LOGOS.map((logo) => logo.name).join(", ")} and hundreds more`}>
+    {
+      rows.map((row, index) => (
+        <div class:list={["row", { reverse: index % 2 === 1 }]} aria-hidden="true">
+          {/* Two copies back to back so the loop has no seam. */}
+          <div class="track">
+            {[...row, ...row].map((logo) => (
+              <span class="pill">
+                <span class="mark">
+                  <svg width="20" height="20">
+                    <use href={`#${idOf(logo.name)}`} />
+                  </svg>
+                </span>
+                {logo.name}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))
+    }
+  </div>
+
+  <div class="more">and hundreds more</div>
+</section>
+
+<style>
+  .apps {
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+    text-align: center;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(28px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+  p {
+    max-width: 66ch;
+    margin: 18px auto 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+    text-wrap: balance;
+  }
+
+  .rows {
+    display: grid;
+    gap: 14px;
+    margin-top: 48px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .row {
+    overflow: hidden;
+  }
+  .track {
+    display: flex;
+    gap: 12px;
+    width: max-content;
+    animation: drift 40s linear infinite;
+  }
+  .reverse .track {
+    animation-direction: reverse;
+  }
+  .rows:hover .track {
+    animation-play-state: paused;
+  }
+  /* The track is two copies long; sliding one copy's width loops it seamlessly. */
+  @keyframes drift {
+    to {
+      transform: translateX(calc(-50% - 6px));
+    }
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    height: 52px;
+    padding: 0 20px 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--bg);
+    font-size: 16px;
+    white-space: nowrap;
+  }
+  .mark {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--soft);
+  }
+  .more {
+    margin-top: 24px;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  @media (max-width: 860px) {
+    .apps {
+      margin-top: 96px;
+    }
+    .pill {
+      height: 46px;
+      font-size: 15px;
+    }
+    .mark {
+      width: 30px;
+      height: 30px;
+    }
+  }
+</style>

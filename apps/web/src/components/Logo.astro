@@ -1,0 +1,21 @@
+---
+// The Mates mark, inlined from brand/ so the page and every other use share one file.
+import logo from "../../../../brand/mates-logo.svg?raw";
+
+interface Props {
+  size: number;
+}
+
+const { size } = Astro.props;
+const svg = logo.replace("<svg ", `<svg width="${size}" height="${size}" aria-hidden="true" `).replace(/<title>[^<]*<\/title>/, "");
+---
+
+<span class="logo" style={`width: ${size}px; height: ${size}px`} set:html={svg} />
+
+<style>
+  .logo {
+    display: inline-flex;
+    flex: none;
+    color: var(--text);
+  }
+</style>
