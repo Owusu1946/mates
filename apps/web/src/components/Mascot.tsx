@@ -10,7 +10,7 @@ import PolygonAvatar, {
   mouthPath,
   toPath,
   type PolygonState,
-} from "../../../mobile/src/components/polygon-avatar/polygon-avatar-core";
+} from "@muse-clone/mascot";
 
 type Props = { size: number; state?: PolygonState; gradient?: [string, string, string]; className?: string };
 
