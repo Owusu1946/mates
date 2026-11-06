@@ -1,5 +1,5 @@
 export const features = {
-  "onboarding": false,
+  "onboarding": true,
   "darkMode": true,
   "liquidGlass": true,
   "haptics": true,
