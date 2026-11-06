@@ -1,0 +1,97 @@
+---
+// The source of public/og.png, the link-preview image: a 1200x630 card built from the site's own
+// parts, so the preview always matches the page. Regenerate with `pnpm --filter @muse-clone/web og`.
+import HeroStage from "../components/HeroStage.astro";
+import Logo from "../components/Logo.astro";
+import Mascot from "../components/Mascot";
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Mates share card" noindex>
+  <div class="card">
+    <div class="brand"><Logo size={34} /><span>mates</span></div>
+    <h1>
+      Meet <span class="mascot"><Mascot client:load size={84} /></span> Your Mate Bots
+    </h1>
+    <p>AI teammates in your pocket. They plan, hand off and finish real work.</p>
+    <div class="phones"><HeroStage /></div>
+    <div class="url">agents.askorin.app</div>
+  </div>
+</Base>
+
+<style>
+  :global(html),
+  :global(body) {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+  }
+  .card {
+    position: relative;
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: 58px;
+    background: radial-gradient(60% 50% at 50% 100%, color-mix(in srgb, var(--accent) 16%, transparent), transparent), var(--bg);
+  }
+  .brand {
+    position: absolute;
+    top: 34px;
+    left: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .url {
+    position: absolute;
+    top: 40px;
+    right: 44px;
+    color: var(--muted);
+    font-size: 20px;
+    font-weight: 500;
+  }
+  h1 {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin: 40px 0 0;
+    font-size: 84px;
+    font-weight: 700;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+  .mascot {
+    display: inline-flex;
+  }
+  p {
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: 26px;
+  }
+  /* A still frame: every message already in place. */
+  .card :global(.device .in) {
+    opacity: 1;
+    animation: none;
+  }
+  /* The hero's three phones, rising from the bottom edge. */
+  .phones {
+    position: absolute;
+    top: 268px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+  }
+  .phones > :global(*) {
+    width: 1600px;
+    flex: none;
+    transform: scale(0.8);
+    transform-origin: top center;
+  }
+</style>
