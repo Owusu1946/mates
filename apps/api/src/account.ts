@@ -6,9 +6,11 @@ import {
   attachments,
   browserSessions,
   chats,
+  codeRuns,
   delegations,
   deviceTokens,
   findings,
+  githubInstallations,
   integrationSessions,
   mates,
   memories,
@@ -28,6 +30,7 @@ import { getComposio } from "./integrations.js";
  * an owner column (messages, outbox, events, deliveries, members, notes) cascade from these.
  */
 export const ACCOUNT_TABLES = [
+  codeRuns,
   routines,
   delegations,
   findings,
@@ -43,6 +46,7 @@ export const ACCOUNT_TABLES = [
   chats,
   mates,
   integrationSessions,
+  githubInstallations,
   profiles,
 ] as const;
 
