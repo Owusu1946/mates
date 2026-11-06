@@ -20,6 +20,16 @@ describe("API contract", () => {
     expect(await response.json()).toMatchObject({ ok: true });
   });
 
+  it("accepts site visits from the landing page without auth, and never from crawlers", async () => {
+    const response = await createApp(deps).request("/site/visit", {
+      method: "POST",
+      headers: { "content-type": "text/plain", origin: "https://agents.askorin.app", "user-agent": "WhatsApp/2.23.20.0" },
+      body: JSON.stringify({ path: "/", referrer: "" }),
+    });
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("https://agents.askorin.app");
+  });
+
   it("treats a trailing slash as the same route", async () => {
     const response = await createApp(deps).request("/health/");
     expect(response.status).toBe(301);
