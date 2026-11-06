@@ -6,6 +6,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
 import { secureHeaders } from "hono/secure-headers";
+import { trimTrailingSlash } from "hono/trailing-slash";
 import { bodyLimit } from "hono/body-limit";
 import { z } from "zod";
 import { validator } from "hono/validator";
@@ -111,6 +112,8 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
   });
 
   return new Hono<{ Variables: Variables }>()
+    // "/v1/github/callback/" (as GitHub settings are often pasted) reaches "/v1/github/callback".
+    .use("*", trimTrailingSlash())
     .use("*", async (c, next) => {
       c.set("requestId", c.req.header("x-request-id") ?? crypto.randomUUID());
       await next();
