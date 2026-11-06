@@ -1,0 +1,55 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base>
+  <header class="nav">
+    <a href="/" class="brand">Mates</a>
+  </header>
+
+  <main class="hero">
+    <h1>Mates</h1>
+    <p>Your AI mates. They plan, hand off, and ship the work for you.</p>
+  </main>
+</Base>
+
+<style>
+  .nav {
+    position: fixed;
+    inset: 0 0 auto;
+    display: flex;
+    align-items: center;
+    height: 64px;
+    padding: 0 24px;
+  }
+
+  .brand {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .hero {
+    min-height: 100svh;
+    display: grid;
+    place-content: center;
+    gap: 16px;
+    padding: 0 16px;
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(64px, 16vw, 200px);
+    font-weight: 600;
+    letter-spacing: -0.06em;
+    line-height: 0.9;
+  }
+
+  p {
+    margin: 0 auto;
+    max-width: 32ch;
+    color: var(--muted);
+    font-size: clamp(16px, 2vw, 20px);
+    line-height: 1.5;
+  }
+</style>
