@@ -58,6 +58,16 @@ describe("code runs", () => {
     expect(prompt).toContain("Run pnpm test after changes.");
     expect(prompt).toContain("`pnpm test`");
     expect(prompt).toContain("1 failed");
+    expect(prompt).toContain("grep and glob");
+  });
+
+  it("sends only the failures when a fix round continues the session", () => {
+    const failures = [{ name: "test", command: "pnpm test", passed: false, output: "1 failed" }];
+    const prompt = coderPrompt({ task: "Add a /health route", rules: "Long rules", checks: [{ command: "pnpm test" }], failures, continued: true });
+    expect(prompt).toContain("1 failed");
+    expect(prompt).not.toContain("Add a /health route");
+    expect(prompt).not.toContain("Long rules");
+    expect(coderPrompt({ task: "Add a /health route", rules: null, checks: [], continued: true })).toContain("Add a /health route");
   });
 
   it("writes a PR description with checks and the requester", () => {

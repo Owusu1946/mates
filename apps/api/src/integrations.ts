@@ -44,6 +44,8 @@ export type WorkflowCard = {
     checks: { name: string; command: string; passed: boolean; output: string }[];
     /** What the computer has been doing, newest last ("Editing src/app.ts"). */
     activity?: { at: string; text: string }[];
+    /** Dollars spent on the coding model, once the run has ended. */
+    costUsd?: number;
     pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number };
     error?: string;
   };

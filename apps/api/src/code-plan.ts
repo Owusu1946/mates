@@ -72,15 +72,27 @@ export function resolveRepo(query: string, repos: string[]): { repo: string } | 
 }
 
 /** What the coding agent is asked to do: the task, the repo's own rules, and the bar to clear. */
-export function coderPrompt(input: { task: string; rules: string | null; checks: { command: string }[]; failures?: CodeCheck[] }) {
+/** Every token the coder reads is paid for: this is how it should move through a repo. */
+const ECONOMY =
+  "Work economically. Find code with grep and glob before opening anything, read only the parts of a file you need, and change files with targeted edits instead of rewriting them. Skip lockfiles, build output, node_modules and generated files. Don't re-read a file you just edited. When a command prints a lot, keep the end (for example `pnpm test 2>&1 | tail -n 60`).";
+
+/**
+ * The coder's brief. A fix round continues the same session, which already holds the task, the
+ * rules and what it read, so it gets only the failures: re-sending the rest would pay for it twice.
+ */
+export function coderPrompt(input: { task: string; rules: string | null; checks: { command: string }[]; failures?: CodeCheck[]; continued?: boolean }) {
+  const failed = input.failures?.length
+    ? `These checks failed after your last change. Fix the causes, not the tests:\n\n${input.failures.map((check) => `$ ${check.command}\n${check.output.slice(-2_000)}`).join("\n\n")}`
+    : null;
+  if (input.continued && failed) return `${failed}\n\nUse targeted edits; don't start over.`;
   const parts = [
     `You are working in a git repository. Make this change:\n\n${input.task}`,
     "Follow the existing code style and structure. Keep the change focused: no unrelated refactors, no new dependencies unless the task needs them. Do not commit, push or create branches; that is handled for you. Never print or write secrets.",
+    ECONOMY,
   ];
   if (input.rules) parts.push(`The repository's own instructions:\n\n${input.rules.slice(0, 6_000)}`);
-  if (input.checks.length) parts.push(`These must pass when you finish: ${input.checks.map((check) => `\`${check.command}\``).join(", ")}. Run them and fix what fails.`);
-  if (input.failures?.length)
-    parts.push(`These checks failed after your last change. Fix the causes, not the tests:\n\n${input.failures.map((check) => `$ ${check.command}\n${check.output.slice(-2_000)}`).join("\n\n")}`);
+  if (input.checks.length) parts.push(`These must pass when you finish: ${input.checks.map((check) => `\`${check.command}\``).join(", ")}. Run each once before you finish and fix what fails.`);
+  if (failed) parts.push(failed);
   return parts.join("\n\n");
 }
 
