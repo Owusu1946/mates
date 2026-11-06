@@ -1,6 +1,8 @@
 ---
 // The mascot drawn once at build time from the app's own geometry: a face, no JavaScript.
-// The live one (Mascot.tsx) only draws its face after hydrating, so it suits the hero, not a list.
+// `alive` brings it to life with CSS alone (blinks, glances, a slow float), each instance on its
+// own clock so a row of mates never blinks in unison. The live one (Mascot.tsx) needs React to
+// draw its face, so it suits a few hero spots, not every avatar in a phone.
 import {
   DEFAULT_GRADIENT,
   EXPRESSIONS,
@@ -18,17 +20,20 @@ interface Props {
   gradient?: [string, string, string];
   /** Which of the mascot's expressions to show. 0 is its resting face, 2 a wide smile. */
   expression?: number;
+  alive?: boolean;
   class?: string;
 }
 
-const { size, gradient = DEFAULT_GRADIENT, expression = 0, class: className } = Astro.props;
+const { size, gradient = DEFAULT_GRADIENT, expression = 0, alive = true, class: className } = Astro.props;
 const rings = EXPRESSIONS[expression % EXPRESSIONS.length]!;
 const spec = MOUTHS[expression % MOUTHS.length]!;
 const body = SHAPE.body.match(/ d="([^"]+)"/)![1];
 const id = `m${Math.random().toString(36).slice(2, 8)}`;
+// Desynchronise: every mascot starts its loops at a different point.
+const clock = `--blink-delay: -${(Math.random() * 5).toFixed(2)}s; --look-delay: -${(Math.random() * 9).toFixed(2)}s; --float-delay: -${(Math.random() * 4).toFixed(2)}s`;
 ---
 
-<svg class={className} viewBox="-15 -15 258.541 258.541" width={size} height={size} aria-hidden="true">
+<svg class:list={["mascot", { alive }, className]} style={clock} viewBox="-15 -15 258.541 258.541" width={size} height={size} aria-hidden="true">
   <defs>
     <linearGradient id={`${id}g`} x1="1" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color={gradient[0]} />
@@ -36,10 +41,73 @@ const id = `m${Math.random().toString(36).slice(2, 8)}`;
       <stop offset="100%" stop-color={gradient[2]} />
     </linearGradient>
   </defs>
-  <path transform={SHAPE.fit} fill={`url(#${id}g)`} d={body} />
-  <g transform={FACE_ANCHOR}>
-    <path fill="#fff" d={toPath(rings[0]!)} />
-    <path fill="#fff" d={toPath(rings[1]!)} />
-    <path fill="none" stroke="#fff" stroke-width={MOUTH_STROKE} stroke-linecap="round" d={mouthPath(mouthFrame(rings, spec), spec)} />
+  <g class="body">
+    <path transform={SHAPE.fit} fill={`url(#${id}g)`} d={body} />
+    <g transform={FACE_ANCHOR}>
+      <g class="look">
+        <g class="eyes">
+          <path fill="#fff" d={toPath(rings[0]!)} />
+          <path fill="#fff" d={toPath(rings[1]!)} />
+        </g>
+        <path fill="none" stroke="#fff" stroke-width={MOUTH_STROKE} stroke-linecap="round" d={mouthPath(mouthFrame(rings, spec), spec)} />
+      </g>
+    </g>
   </g>
 </svg>
+
+<style>
+  .mascot {
+    overflow: visible;
+    flex: none;
+  }
+  .alive .body {
+    transform-box: view-box;
+    transform-origin: 50% 90%;
+    animation: float 4s ease-in-out infinite var(--float-delay);
+  }
+  .alive .look {
+    animation: look 9s ease-in-out infinite var(--look-delay);
+  }
+  .alive .eyes {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: blink 5s infinite var(--blink-delay);
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(0deg);
+    }
+    50% {
+      transform: translateY(-6px) rotate(-2deg);
+    }
+  }
+  /* A glance off to one side, a beat back at you, then the other way. */
+  @keyframes look {
+    0%,
+    18%,
+    50%,
+    68%,
+    100% {
+      transform: translate(0, 0);
+    }
+    24%,
+    42% {
+      transform: translate(9px, -3px);
+    }
+    74%,
+    92% {
+      transform: translate(-8px, 2px);
+    }
+  }
+  @keyframes blink {
+    0%,
+    92%,
+    100% {
+      transform: scaleY(1);
+    }
+    95% {
+      transform: scaleY(0.1);
+    }
+  }
+</style>
