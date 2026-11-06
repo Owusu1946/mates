@@ -1,6 +1,7 @@
 ---
-// "Ship code while you sleep": the mates' computer. A run plays out as the same activity lines the
-// app streams, scrolling one at a time, then the pull request lands. One CSS cycle drives both.
+// "Ship code while you sleep": the mates' computer. A run plays out step by step, the same lines
+// the app streams: the current step shimmers while it works, finished ones settle, and the pull
+// request lands at the end. Without script (or with reduced motion) it shows the finished run.
 import { mate } from "../palette";
 import Mascot from "./Mascot";
 
@@ -25,7 +26,7 @@ const lines = [
 const points = [
   { title: "Its own computer", body: "A fresh, private sandbox for every run. Your laptop stays yours." },
   { title: "Runs your checks", body: "Typecheck, lint and tests, with fix-ups until they pass." },
-  { title: "Opens a PR, never merges", body: "It works on its own branch. You review and you merge." },
+  { title: "Opens a PR, never merges", body: "It works on its own branch. You review, you merge." },
   { title: "Watch it live", body: "Every file it reads and every command it runs, on your phone." },
 ];
 ---
@@ -38,25 +39,19 @@ const points = [
       Connect GitHub and ask. A mate clones the repo on its own computer, writes the change, runs your checks, and opens a
       pull request for you to review.
     </p>
-    <ul>
+    <div class="facts">
       {
         points.map((point) => (
-          <li>
-            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-              <circle cx="9" cy="9" r="9" fill="var(--success-soft)" />
-              <path d="m5.5 9.2 2.3 2.3 4.7-4.9" fill="none" stroke="var(--success)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <div>
-              <b>{point.title}</b>
-              <span>{point.body}</span>
-            </div>
-          </li>
+          <div class="fact">
+            <b>{point.title}</b>
+            <span>{point.body}</span>
+          </div>
         ))
       }
-    </ul>
+    </div>
   </div>
 
-  <div class="visual" aria-hidden="true">
+  <div class="visual" aria-hidden="true" data-run>
     <div class="window">
       <div class="bar">
         <Mascot client:visible size={30} gradient={nova} state="working" />
@@ -64,23 +59,17 @@ const points = [
           <b>acme/app</b>
           <span>mates/dark-mode-3f9a1c</span>
         </div>
-        <span class="live"><i></i>Live</span>
       </div>
       <div class="feed">
-        <div class="scroller">
-          {
-            lines.map((line) => (
-              <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]}>
-                <span class="caret">›</span>
-                {line}
-              </div>
-            ))
-          }
-        </div>
+        {
+          lines.map((line) => (
+            <div class:list={["line", { pass: line.endsWith("passed"), final: line.startsWith("Opened") }]}>{line}</div>
+          ))
+        }
       </div>
     </div>
 
-    <div class="pr">
+    <div class="pr shown">
       <div class="pr-top">
         <span class="badge">
           <svg width="14" height="14" viewBox="0 0 16 16"><path fill="currentColor" d="M5 3.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0zm0 2.12a2.25 2.25 0 1 0-1.5 0v5.26a2.25 2.25 0 1 0 1.5 0zm6.5-2.12a.75.75 0 0 1 .75.75v6.38a2.25 2.25 0 1 1-1.5 0V4.5a.75.75 0 0 1 .75-.75zM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5zm7.25 0a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5z" /></svg>
@@ -92,15 +81,46 @@ const points = [
       <div class="pr-meta"><b>mates[bot]</b> wants to merge 1 commit into <code>main</code></div>
       <div class="pr-foot">
         <span class="diff"><span class="add">+120</span> <span class="del">−8</span> · 6 files</span>
-        <span class="checks">✓ typecheck ✓ test</span>
+        <span>typecheck and tests pass</span>
       </div>
     </div>
   </div>
 </section>
 
+<script>
+  // Plays the run one step at a time, holds on the finished PR, then starts over. Runs only while
+  // the section is on screen; reduced motion keeps the finished state the HTML already shows.
+  const STEP_MS = 900;
+  const HOLD_STEPS = 5;
+  for (const root of document.querySelectorAll<HTMLElement>("[data-run]")) {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
+    const lines = [...root.querySelectorAll<HTMLElement>(".line")];
+    const pr = root.querySelector<HTMLElement>(".pr")!;
+    const last = lines.length - 1;
+    let step = 0;
+    let timer: number | undefined;
+    const render = () => {
+      const at = Math.min(step, last);
+      lines.forEach((line, index) => {
+        line.hidden = index > at;
+        line.classList.toggle("now", index === at && at < last);
+      });
+      pr.classList.toggle("shown", step >= last);
+    };
+    const tick = () => {
+      step = step >= last + HOLD_STEPS ? 0 : step + 1;
+      render();
+    };
+    render();
+    new IntersectionObserver(([entry]) => {
+      clearInterval(timer);
+      timer = entry?.isIntersecting ? window.setInterval(tick, STEP_MS) : undefined;
+    }).observe(root);
+  }
+</script>
+
 <style>
   .computer {
-    --line-h: 30px;
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -134,28 +154,25 @@ const points = [
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.6;
   }
-  ul {
+  .facts {
     display: grid;
-    gap: 18px;
-    margin: 36px 0 0;
-    padding: 0;
-    list-style: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px 32px;
+    margin-top: 40px;
   }
-  li {
-    display: flex;
-    gap: 12px;
-    align-items: flex-start;
+  .fact {
+    display: grid;
+    align-content: start;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
   }
-  li svg {
-    flex: none;
-    margin-top: 2px;
-  }
-  li b {
-    display: block;
+  .fact b {
     font-size: 15.5px;
     font-weight: 600;
+    letter-spacing: -0.01em;
   }
-  li span {
+  .fact span {
     color: var(--muted);
     font-size: 14.5px;
     line-height: 1.5;
@@ -163,7 +180,7 @@ const points = [
 
   .visual {
     position: relative;
-    padding-bottom: 90px;
+    padding-bottom: 96px;
   }
   .window {
     border-radius: 22px;
@@ -189,73 +206,36 @@ const points = [
     font-family: var(--mono);
     font-size: 12px;
   }
-  .live {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
-    border-radius: 999px;
-    background: var(--success-soft);
-    color: var(--success);
-    font-size: 12px;
-    font-weight: 600;
-  }
-  .live i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    animation: beat 1.4s ease-in-out infinite;
-  }
-  @keyframes beat {
-    50% {
-      opacity: 0.3;
-    }
-  }
 
-  /* A window onto the log: it steps up one line at a time, like the app's feed. */
+  /* Newest step at the bottom; older ones fade out over the top edge. */
   .feed {
-    position: relative;
-    height: calc(var(--line-h) * 7 + 28px);
-    padding: 14px 18px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: 238px;
+    padding: 14px 20px;
     overflow: hidden;
     font-family: var(--mono);
     font-size: 13.5px;
-  }
-  .feed::before {
-    content: "";
-    position: absolute;
-    inset: 0 0 auto;
-    height: 60px;
-    background: linear-gradient(var(--bg), transparent);
-    z-index: 1;
-  }
-  .scroller {
-    animation: scroll 16s infinite;
-  }
-  @keyframes scroll {
-    0% {
-      transform: translateY(0);
-      /* 15 lines, 7 in view: 8 steps of one line each. */
-      animation-timing-function: steps(8, end);
-    }
-    66% {
-      transform: translateY(-240px);
-    }
-    100% {
-      transform: translateY(-240px);
-    }
+    -webkit-mask-image: linear-gradient(transparent, #000 45%);
+    mask-image: linear-gradient(transparent, #000 45%);
   }
   .line {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: var(--line-h);
+    flex: none;
+    height: 30px;
+    line-height: 30px;
     color: var(--muted);
     white-space: nowrap;
+    animation: enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  .caret {
-    opacity: 0.5;
+  .line[hidden] {
+    display: none;
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
   }
   .line.pass {
     color: var(--success);
@@ -264,8 +244,27 @@ const points = [
     color: var(--text);
     font-weight: 600;
   }
+  /* The step in progress: a band of light sweeps through the text, like a model thinking. */
+  .line.now {
+    background: linear-gradient(100deg, var(--muted) 0%, var(--muted) 40%, var(--text) 50%, var(--muted) 60%, var(--muted) 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      enter 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+      shimmer 1.5s linear infinite;
+  }
+  @keyframes shimmer {
+    from {
+      background-position: 100% 0;
+    }
+    to {
+      background-position: -150% 0;
+    }
+  }
 
-  /* The payoff: the pull request lands once the log reaches the end. */
+  /* The payoff: the pull request lands once the run is done. */
   .pr {
     position: absolute;
     left: 8%;
@@ -275,23 +274,15 @@ const points = [
     border-radius: 20px;
     background: var(--bg);
     box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(0, 0, 0, 0.3);
-    animation: land 16s infinite;
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+    transition:
+      opacity 0.5s ease,
+      transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
-  @keyframes land {
-    0%,
-    68% {
-      opacity: 0;
-      transform: translateY(24px) scale(0.97);
-    }
-    72%,
-    96% {
-      opacity: 1;
-      transform: none;
-    }
-    100% {
-      opacity: 0;
-      transform: translateY(8px);
-    }
+  .pr.shown {
+    opacity: 1;
+    transform: none;
   }
   .pr-top {
     display: flex;
@@ -342,11 +333,10 @@ const points = [
     margin-top: 14px;
     padding-top: 12px;
     border-top: 1px solid var(--line);
-    font-size: 13px;
     color: var(--muted);
+    font-size: 13px;
   }
-  .add,
-  .checks {
+  .add {
     color: var(--success);
     font-weight: 600;
   }
@@ -371,12 +361,14 @@ const points = [
       margin-top: 96px;
     }
   }
-  @media (prefers-reduced-motion: reduce) {
-    .scroller {
-      transform: translateY(-240px);
+  @media (max-width: 520px) {
+    .facts {
+      grid-template-columns: 1fr;
+      gap: 20px;
     }
-    .pr {
-      opacity: 1;
+    .pr-foot {
+      flex-direction: column;
+      gap: 4px;
     }
   }
 </style>
