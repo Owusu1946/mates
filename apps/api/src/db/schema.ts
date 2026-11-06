@@ -10,6 +10,7 @@ import {
   boolean,
   uniqueIndex,
   bigserial,
+  bigint,
   customType,
   vector,
 } from "drizzle-orm/pg-core";
@@ -365,3 +366,42 @@ export const missionNotes = pgTable("mission_notes", {
   version: integer("version").notNull().default(1),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("mission_notes_title_idx").on(t.missionId, sql`lower(${t.title})`)]);
+
+/** A GitHub App installation the user made, giving the mates' bot access to some repos. */
+export const githubInstallations = pgTable("github_installations", {
+  installationId: bigint("installation_id", { mode: "number" }).primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  accountLogin: text("account_login").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("github_installations_user_idx").on(t.clerkUserId)]);
+
+export type CodeRunStatus = "queued" | "cloning" | "coding" | "checking" | "pushing" | "done" | "failed" | "cancelled";
+export type CodeCheck = { name: string; command: string; passed: boolean; output: string };
+
+/** One job on the mates' computer: clone a repo, make a change, check it, open a pull request. */
+export const codeRuns = pgTable("code_runs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  /** The chat message whose card shows this run's progress. */
+  messageId: text("message_id"),
+  installationId: bigint("installation_id", { mode: "number" }).notNull(),
+  repo: text("repo").notNull(),
+  baseBranch: text("base_branch").notNull(),
+  branch: text("branch").notNull(),
+  task: text("task").notNull(),
+  status: text("status").$type<CodeRunStatus>().notNull().default("queued"),
+  cancelRequested: boolean("cancel_requested").notNull().default(false),
+  checks: jsonb("checks").$type<CodeCheck[]>().notNull().default([]),
+  prNumber: integer("pr_number"),
+  prUrl: text("pr_url"),
+  summary: text("summary"),
+  sandboxId: text("sandbox_id"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("code_runs_user_idx").on(t.clerkUserId, t.createdAt),
+  // Two runs pushing to one branch would race; a follow-up waits for the active run to end.
+  uniqueIndex("code_runs_active_branch_idx").on(t.repo, t.branch).where(sql`status IN ('queued','cloning','coding','checking','pushing')`),
+]);
