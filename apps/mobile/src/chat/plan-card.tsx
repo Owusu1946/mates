@@ -1,6 +1,5 @@
 import { useAuth } from "@clerk/expo";
 import { useAui, useAuiState } from "@assistant-ui/react-native";
-import { Button, Host } from "@expo/ui";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Text, View } from "react-native";
@@ -8,6 +7,7 @@ import { AppLogo } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { runRequest } from "./background-chat";
+import { CardButton } from "./card-button";
 
 type Action = NonNullable<WorkflowCard["plan"]>["actions"][number];
 
@@ -99,14 +99,10 @@ export function PlanCard({ state }: { state: WorkflowCard }) {
               ) : action.links?.length || action.undo ? (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, marginLeft: -8 }}>
                   {action.links?.map((link) => (
-                    <Host key={link.url} matchContents colorScheme={isDark ? "dark" : "light"}>
-                      <Button label={link.label} variant="text" onPress={() => void Linking.openURL(link.url)} />
-                    </Host>
+                    <CardButton key={link.url} label={link.label} variant="text" onPress={() => void Linking.openURL(link.url)} />
                   ))}
                   {action.undo && action.status === "done" && (
-                    <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-                      <Button label={undone[action.id] === "busy" ? "Undoing…" : "Undo"} variant="text" disabled={undone[action.id] === "busy"} onPress={() => void undo(action)} />
-                    </Host>
+                    <CardButton label={undone[action.id] === "busy" ? "Undoing…" : "Undo"} variant="text" disabled={undone[action.id] === "busy"} onPress={() => void undo(action)} />
                   )}
                 </View>
               ) : null}
@@ -117,16 +113,12 @@ export function PlanCard({ state }: { state: WorkflowCard }) {
       })}
       {reviewing ? (
         <View style={{ flexDirection: "row", gap: 10, flexWrap: "wrap" }}>
-          <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-            <Button
-              label={selected.size === plan.actions.length ? "Approve" : `Approve ${selected.size}`}
-              disabled={running || selected.size === 0}
-              onPress={() => answer(`approve:${[...selected].join(",")}`, "approved")}
-            />
-          </Host>
-          <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-            <Button label="Not now" variant="outlined" disabled={running} onPress={() => answer("decline", "declined")} />
-          </Host>
+          <CardButton
+            label={selected.size === plan.actions.length ? "Approve" : `Approve ${selected.size}`}
+            disabled={running || selected.size === 0}
+            onPress={() => answer(`approve:${[...selected].join(",")}`, "approved")}
+          />
+          <CardButton label="Not now" variant="outlined" disabled={running} onPress={() => answer("decline", "declined")} />
         </View>
       ) : answered && state.phase === "waiting" ? (
         <Text style={{ color: colors.textSecondary }}>{answered === "approved" ? "Approved. Working on it…" : "Declined. Nothing was changed."}</Text>
