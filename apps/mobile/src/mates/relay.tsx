@@ -33,7 +33,7 @@ export function HandoffCard({ state }: { state: WorkflowCard }) {
       style={{ marginVertical: 8, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 12 }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <MateAvatar gradient={handoff.from.gradient} size={22} still />
+        <MateAvatar gradient={handoff.from.gradient} shape={handoff.from.shape} size={22} still />
         <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>
           {handoff.round ? `ROUND ${handoff.round} · ` : ""}
           {handoff.from.name.toUpperCase()} HANDED OFF
@@ -45,7 +45,7 @@ export function HandoffCard({ state }: { state: WorkflowCard }) {
           <View key={`${item.mate.id}-${i}`} style={{ flexDirection: "row", gap: 12 }}>
             <View style={{ alignItems: "center" }}>
               <View style={{ opacity: item.status === "queued" ? 0.5 : 1 }}>
-                <MateAvatar gradient={item.mate.gradient} size={30} still />
+                <MateAvatar gradient={item.mate.gradient} shape={item.mate.shape} size={30} still />
               </View>
               {!last && <View style={{ flex: 1, width: 2, marginTop: 4, borderRadius: 1, backgroundColor: item.status === "done" ? "#30A46C" : colors.border }} />}
             </View>

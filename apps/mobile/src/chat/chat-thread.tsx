@@ -584,7 +584,7 @@ function SpeakerLabel({ state }: { state: WorkflowCard }) {
   if (!state.speaker) return null;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 2 }}>
-      <MateAvatar gradient={state.speaker.gradient} size={24} still />
+      <MateAvatar gradient={state.speaker.gradient} shape={state.speaker.shape} size={24} still />
       <Text style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 14 }}>{state.speaker.name}</Text>
     </View>
   );
@@ -607,7 +607,7 @@ function EmptyChat() {
       keyboardShouldPersistTaps="handled"
     >
       <View style={{ marginBottom: 8, alignItems: "center" }}>
-        {chat?.kind === "group" ? <GroupAvatar gradients={chat.members.map((m) => m.gradient)} size={120} /> : <EmptyChatAvatar gradient={chat?.mate?.gradient} />}
+        {chat?.kind === "group" ? <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={120} /> : <EmptyChatAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} />}
       </View>
       <Text
         accessibilityRole="header"
@@ -1040,7 +1040,7 @@ function ChatComposer() {
                     backgroundColor: pressed ? colors.muted : "transparent",
                   })}
                 >
-                  <MateAvatar gradient={mate.gradient} size={34} still />
+                  <MateAvatar gradient={mate.gradient} shape={mate.shape} size={34} still />
                   <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 15 }}>{mate.name}</Text>
                 </Pressable>
               ))}
@@ -1493,9 +1493,9 @@ function ChatTitle() {
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, maxWidth: 220, opacity: pressed ? 0.7 : 1 })}
     >
       {chat?.kind === "group" ? (
-        <GroupAvatar gradients={chat.members.map((m) => m.gradient)} size={30} />
+        <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={30} />
       ) : (
-        <MateAvatar gradient={chat?.mate?.gradient} size={30} still />
+        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} still />
       )}
       <View style={{ flexShrink: 1 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 17 }}>{name}</Text>

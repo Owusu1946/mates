@@ -35,7 +35,7 @@ export function AddMatesSheet({
           const member = members.find(m => m.id === mate.id);
           return (
             <View key={mate.id} style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingVertical: 10 }}>
-              <MateAvatar size={44} gradient={mate.gradient} still />
+              <MateAvatar size={44} gradient={mate.gradient} shape={mate.shape} still />
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 16 }}>{mate.name}</Text>
                 <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 13 }}>{mate.role}</Text>

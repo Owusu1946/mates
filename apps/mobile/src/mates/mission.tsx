@@ -109,7 +109,7 @@ export function TeamCard({ state }: { state: WorkflowCard }) {
       <Text style={{ color: colors.text, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{team.name}</Text>
       {team.members.map((member) => (
         <View key={member.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          <MateAvatar gradient={member.gradient} size={34} still />
+          <MateAvatar gradient={member.gradient} shape={member.shape} size={34} still />
           <Text style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 15 }}>{member.name}</Text>
           <Text style={{ color: colors.textMuted, fontSize: 13 }}>{member.role}</Text>
         </View>
