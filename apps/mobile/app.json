@@ -35,6 +35,12 @@
         }
       ],
       [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to use the microphone so you can talk to your mates."
+        }
+      ],
+      [
         "expo-media-library",
         {
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos.",
