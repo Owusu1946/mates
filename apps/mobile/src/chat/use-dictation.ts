@@ -102,10 +102,15 @@ export function useDictation({ onLevel, onAutoStop }: { onLevel: (level: number)
     const timer = setTimeout(() => timeout.abort(), 40_000);
     try {
       if (!base || !token) throw new Error("not signed in");
-      const body = new FormData();
-      // React Native uploads a file from its path given { uri, name, type }.
-      body.append("audio", { uri, name: "dictation.m4a", type: "audio/mp4" } as unknown as Blob);
-      const response = await fetch(`${base}/v1/transcribe`, { method: "POST", headers: { authorization: `Bearer ${token}` }, body, signal: timeout.signal });
+      // The clip's bytes as the body. Expo's fetch rejects React Native's { uri, name, type }
+      // FormData parts, so no multipart here.
+      const audio = await new File(uri).arrayBuffer();
+      const response = await fetch(`${base}/v1/transcribe`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "audio/mp4" },
+        body: audio,
+        signal: timeout.signal,
+      });
       const data = (await response.json().catch(() => null)) as { text?: string; error?: { message?: string } } | null;
       if (!response.ok) throw new Error(data?.error?.message ?? `HTTP ${response.status}`);
       return data?.text?.trim() ?? "";
