@@ -5,6 +5,7 @@ import FeatureCard from "../components/FeatureCard.astro";
 import Footer from "../components/Footer.astro";
 import HeroStage from "../components/HeroStage.astro";
 import Logo from "../components/Logo.astro";
+import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
 import Roles from "../components/Roles.astro";
 import StoreButtons from "../components/StoreButtons.astro";
@@ -35,6 +36,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       {nav.map((item) => <a href={item.href}>{item.label}</a>)}
     </nav>
     <Waitlist client:load api={api} />
+    <MobileMenu items={[...nav, { label: "FAQs", href: "#faq" }]} />
   </header>
 
   <main>
