@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanUrl, executeWebTool, forcedSearch, searchRequest, SourceLedger, sourcesCard } from "./web-search.js";
+import { citeLinks, cleanUrl, executeWebTool, forcedSearch, searchRequest, SourceLedger, sourcesCard } from "./web-search.js";
 
 const NOW = new Date("2026-11-07T12:00:00Z");
 
@@ -68,5 +68,14 @@ describe("web search", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("bad", { status: 422 })));
     const rejected = await executeWebTool("web_search", { objective: "Find a fact", queries: ["fact"] }, { ledger: new SourceLedger(), sessionId: "run", signal: new AbortController().signal, step: () => {} });
     expect(rejected).toMatchObject({ results: [] });
+  });
+
+  it("turns citations into source links, collapsing repeats and dropping unknown ids", () => {
+    const ledger = new SourceLedger();
+    ledger.add([{ url: "https://www.lonelyplanet.com/zanzibar" }, { url: "https://weather.com/z" }]);
+    expect(citeLinks("Dry from June [s1][s1][s2]. Rain in April [s9].", ledger)).toBe(
+      "Dry from June [lonelyplanet.com](https://www.lonelyplanet.com/zanzibar) [weather.com](https://weather.com/z). Rain in April.",
+    );
+    expect(citeLinks("No citations here.", ledger)).toBe("No citations here.");
   });
 });

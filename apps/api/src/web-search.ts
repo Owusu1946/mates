@@ -205,3 +205,23 @@ export async function executeWebTool(
     return { results: [], error: "Web search is unavailable right now. Answer from what you know, say that you couldn't check the web, and don't retry." };
   }
 }
+
+/**
+ * "[s1]" becomes a link the app renders as a small source chip: " [lonelyplanet.com](https://…)".
+ * Repeats of the same source side by side collapse to one; ids the run never saw are dropped.
+ */
+export function citeLinks(text: string, ledger: SourceLedger): string {
+  const byId = new Map(ledger.all().map((source) => [source.id, source]));
+  return text
+    .replace(/(?:\[(s\d+)\])+/g, (group: string, _id: string, offset: number, whole: string) => {
+      const ids = [...new Set([...group.matchAll(/\[(s\d+)\]/g)].map((match) => match[1]!))];
+      const links = ids
+        .map((id) => byId.get(id))
+        .filter((source): source is WebSource => !!source)
+        .map((source) => `[${source.domain}](${source.url})`)
+        .join(" ");
+      // A space before the first link, unless the text already has one there.
+      return links && !/\s/.test(whole[offset - 1] ?? " ") ? ` ${links}` : links;
+    })
+    .replace(/ +([.,;:!?])/g, "$1");
+}

@@ -14,7 +14,7 @@ import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleTool, routineSpecSchema, draftRoutine } from "./scheduling.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
-import { executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
+import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
 import { saveUndo } from "./undo.js";
@@ -570,7 +570,8 @@ export async function createAgentResponse(
             if (!calls.size) continue; // Unreadable: retry this step on the fallback model.
           }
           if (!calls.size) {
-            if (text.trim()) send({ choices: [{ delta: { content: text } }] });
+            // The user sees citations as source links; the run's own history keeps the [s1] ids.
+            if (text.trim()) send({ choices: [{ delta: { content: ledger.size ? citeLinks(text, ledger) : text } }] });
             if (searchUnavailable) card(`web_search_${runId}`, { kind: "step", phase: "done", stage: "summary", label: sources.get("web")?.size ? "Alternative sources checked" : "Search finished", detail: sources.get("web")?.size ? undefined : "The answer explains any remaining limits." });
             const [paused] = await getDb().select().from(browserSessions).where(and(eq(browserSessions.runId, runId), eq(browserSessions.status, "user_control")));
             if (paused) {
