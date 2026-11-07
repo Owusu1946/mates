@@ -65,6 +65,7 @@ import { GlassContainer, GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvai
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
 import * as Haptics from "expo-haptics";
 import { VoiceDictationBar } from "./voice-dictation-bar";
+import { useDictation } from "./use-dictation";
 import {
   startVoiceTranscription,
   type VoiceTranscriptionSession,
@@ -872,12 +873,27 @@ function ChatComposer() {
 
   const handleCameraCapture = (photo: { uri: string }) => attachPhotos([photo.uri]);
 
+  // Phones record and transcribe through the API (Deepgram); the web build keeps Web Speech.
+  const nativeVoice = Platform.OS !== "web";
+  const stopVoiceRef = useRef<() => void>(() => {});
+  const dictation = useDictation({ onLevel: setAudioLevel, onAutoStop: () => stopVoiceRef.current() });
+  const dictationRef = useRef(dictation);
+  dictationRef.current = dictation;
+  /** Ends the current recording and returns what was said. */
+  const finishVoice = async () => {
+    if (nativeVoice) return dictation.stop();
+    const session = voiceSessionRef.current;
+    voiceSessionRef.current = null;
+    return session ? (await session.stop()) || liveTranscript : liveTranscript;
+  };
+
   useEffect(() => {
     return () => {
       if (voiceSessionRef.current) {
         voiceSessionRef.current.cancel();
         voiceSessionRef.current = null;
       }
+      void dictationRef.current.cancel();
     };
   }, []);
 
@@ -891,6 +907,10 @@ function ChatComposer() {
     setVoiceStatus("listening");
     setIsVoiceActive(true);
 
+    if (nativeVoice) {
+      if (!(await dictation.start())) setIsVoiceActive(false);
+      return;
+    }
     const session = startVoiceTranscription({
       onInterim: (text) => {
         setLiveTranscript(text);
@@ -907,20 +927,7 @@ function ChatComposer() {
 
   const stopVoice = async () => {
     setVoiceStatus("transcribing");
-    let finalSpeech = liveTranscript;
-    if (voiceSessionRef.current) {
-      // Natural transcription settle duration matching ChatGPT
-      const [res] = await Promise.all([
-        voiceSessionRef.current.stop(),
-        new Promise<string>((resolve) =>
-          setTimeout(() => resolve(""), 750),
-        ),
-      ]);
-      finalSpeech = res || liveTranscript;
-      voiceSessionRef.current = null;
-    } else {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-    }
+    const finalSpeech = await finishVoice();
 
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -938,19 +945,11 @@ function ChatComposer() {
     setLiveTranscript("");
   };
 
+  stopVoiceRef.current = () => void stopVoice();
+
   const sendVoice = async () => {
     setVoiceStatus("transcribing");
-    let finalSpeech = liveTranscript;
-    if (voiceSessionRef.current) {
-      const [res] = await Promise.all([
-        voiceSessionRef.current.stop(),
-        new Promise<string>((resolve) =>
-          setTimeout(() => resolve(""), 600),
-        ),
-      ]);
-      finalSpeech = res || liveTranscript;
-      voiceSessionRef.current = null;
-    }
+    const finalSpeech = await finishVoice();
 
     try {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -976,6 +975,7 @@ function ChatComposer() {
       voiceSessionRef.current.cancel();
       voiceSessionRef.current = null;
     }
+    if (nativeVoice) void dictation.cancel();
     setIsVoiceActive(false);
     setVoiceStatus("listening");
     setLiveTranscript("");

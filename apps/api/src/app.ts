@@ -38,6 +38,7 @@ import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, gro
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
+import { keytermsFor, transcribe, transcriptionConfigured } from "./transcription.js";
 import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
@@ -272,6 +273,28 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       // Indexed while the user is still typing; the reply never waits on it.
       void analyzeAttachment(attachment.id).catch(() => console.warn("attachment_analysis_failed", { id: attachment.id }));
       return c.json({ attachment }, 201);
+    })
+    // Composer dictation: a short recorded clip in, text out. Clips stay under the 1 MB /v1 limit
+    // (the app caps recordings at 3 minutes of 32 kbps speech audio).
+    .post("/v1/transcribe", auth, async (c) => {
+      if (!transcriptionConfigured()) return c.json(failure("TRANSCRIPTION_UNAVAILABLE", "Voice typing isn’t set up on this server yet", c.get("requestId")), 503);
+      const body = await c.req.parseBody().catch(() => null);
+      const audio = body?.audio;
+      if (!(audio instanceof File) || !audio.size) return c.json(failure("INVALID_AUDIO", "No recording was received", c.get("requestId")), 400);
+      const contentType = audio.type || "audio/mp4";
+      if (!contentType.startsWith("audio/")) return c.json(failure("INVALID_AUDIO", "That isn’t an audio recording", c.get("requestId")), 400);
+      const names = await listMatesAndGroups(c.get("userId"))
+        .then((list) => list.mates.map((mate) => mate.name))
+        .catch(() => [] as string[]);
+      const started = Date.now();
+      try {
+        const text = await transcribe(await audio.arrayBuffer(), { contentType, keyterms: keytermsFor(names), signal: c.req.raw.signal });
+        console.info("transcription_done", { requestId: c.get("requestId"), bytes: audio.size, ms: Date.now() - started, empty: !text });
+        return c.json({ text });
+      } catch (error) {
+        console.warn("transcription_failed", { requestId: c.get("requestId"), message: error instanceof Error ? error.message : String(error) });
+        return c.json(failure("TRANSCRIPTION_FAILED", "Couldn’t transcribe that. Try again.", c.get("requestId")), 502);
+      }
     })
     .get("/v1/attachments/:id", auth, async (c) => {
       const row = await getAttachment(c.get("userId"), c.req.param("id"));
