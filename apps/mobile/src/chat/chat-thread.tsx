@@ -53,6 +53,8 @@ import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MissionBanner, TeamCard } from "../mates/mission";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CodeCard } from "./code-card";
+import { SourcesCard } from "./sources-card";
+import * as WebBrowser from "expo-web-browser";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ComposerTextInput } from "./composer-input";
 import { ActionApproval } from "./action-approval";
@@ -468,7 +470,7 @@ function ChatMessage() {
           <MessagePrimitive.Content
             renderToolCall={({ part }) =>
               part.result ? (
-                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
+                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
                   (part.result as WorkflowCard).kind,
                 ) ? (
                   <AppResponseCard state={part.result as WorkflowCard} />
@@ -484,7 +486,19 @@ function ChatMessage() {
                 <UserText text={part.text} />
               ) : (
                 <Markdown
+                  // Links, including source citations, open in the in-app browser.
+                  onLinkPress={(url) => {
+                    if (url.startsWith("https://") || url.startsWith("http://")) void WebBrowser.openBrowserAsync(url);
+                    return false;
+                  }}
                   style={{
+                    // Citations arrive as [site](url) links: quiet, like source chips.
+                    link: {
+                      color: colors.mutedForeground,
+                      fontFamily: "DMSans_500Medium",
+                      fontSize: 14,
+                      textDecorationLine: "none",
+                    },
                     body: {
                       color: colors.foreground,
                       fontFamily: "DMSans_400Regular",
@@ -766,6 +780,8 @@ function ChatComposer() {
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
+  // Picked from the @ menu: the next message always searches the web (sent as "@Web").
+  const [searchOn, setSearchOn] = useState(false);
   const [reduceTransparency, setReduceTransparency] = useState(false);
   const [isVoiceActive, setIsVoiceActive] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -981,12 +997,14 @@ function ChatComposer() {
     isGlassEffectAPIAvailable();
   const sendMessage = () => {
     if (!canSend || uploads.length) return;
-    if (selectedApp) {
+    const tags = [selectedApp ? `@${selectedApp.name}` : null, searchOn ? "@Web" : null].filter(Boolean).join(" ");
+    if (tags) {
       const text = composerText.trimEnd();
-      aui.composer.setText(`${text}${text ? " " : ""}@${selectedApp.name}`);
+      aui.composer.setText(`${text}${text ? " " : ""}${tags}`);
     }
     aui.composer.send();
     setSelectedApp(null);
+    setSearchOn(false);
   };
   const mentionMatch = composerText.match(/(?:^|\s)@([^\s@]*)$/);
   const mentionQuery = mentionMatch?.[1]?.toLowerCase() ?? "";
@@ -995,11 +1013,13 @@ function ChatComposer() {
   const mentionApps = (appsQuery.data ?? []).filter((app) =>
     `${app.name} ${app.slug}`.toLowerCase().includes(mentionQuery),
   ).slice(0, 6);
+  // "Web search" leads the @ menu while the typed word could still be it.
+  const mentionWeb = !searchOn && ("web search".includes(mentionQuery) || "search".startsWith(mentionQuery));
   const [stopError, setStopError] = useState<string | null>(null);
   const colors = useChatColors();
   return (
     <View style={{ width: "100%", maxWidth: 792, alignSelf: "center" }}>
-      {mentionMatch && (appsQuery.data || mentionMates.length > 0) && (
+      {mentionMatch && (mentionWeb || appsQuery.data || mentionMates.length > 0) && (
         <View
           style={{
             position: "absolute",
@@ -1016,11 +1036,40 @@ function ChatComposer() {
             boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
           }}
         >
-          {mentionApps.length || mentionMates.length ? (
+          {mentionWeb || mentionApps.length || mentionMates.length ? (
             <ScrollView
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 284 }}
             >
+              {mentionWeb && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Search the web"
+                  onPress={() => {
+                    const at = composerText.lastIndexOf("@");
+                    const prefix = composerText.slice(0, at).trimEnd();
+                    aui.composer.setText(prefix ? `${prefix} ` : "");
+                    setSearchOn(true);
+                  }}
+                  style={({ pressed }) => ({
+                    minHeight: 52,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    paddingHorizontal: 10,
+                    borderRadius: 14,
+                    backgroundColor: pressed ? colors.muted : "transparent",
+                  })}
+                >
+                  <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: colors.muted }}>
+                    <ChatIcon name="globe" color={colors.foreground} size={19} />
+                  </View>
+                  <View>
+                    <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 15 }}>Web search</Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Look it up on the web</Text>
+                  </View>
+                </Pressable>
+              )}
               {mentionMates.map((mate) => (
                 <Pressable
                   key={mate.id}
@@ -1215,13 +1264,22 @@ function ChatComposer() {
                   </Pressable>
                 </View>
               )}
+              {searchOn && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 8, paddingRight: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: colors.muted }}>
+                  <ChatIcon name="globe" color={colors.foreground} size={15} />
+                  <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Search</Text>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Turn off web search" hitSlop={6} onPress={() => setSearchOn(false)}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
+                  </Pressable>
+                </View>
+              )}
               {/* Grows with its content between min and max height; no height state per keystroke. */}
               <ComposerTextInput
                 maxLength={8000}
                 multiline
                 blurOnSubmit={false}
                 onSubmitWeb={sendMessage}
-                placeholder={selectedApp ? "" : "Ask Cooper…"}
+                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : "Ask Cooper…"}
                 placeholderTextColor={colors.mutedForeground}
                 style={{
                   flex: 1,
