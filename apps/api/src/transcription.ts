@@ -29,7 +29,12 @@ export const BASE_KEYTERMS = [
   "Tamale",
   "Cape Coast",
   "East Legon",
+  "Legon",
   "Osu",
+  "Madina",
+  "Tema",
+  "Kasoa",
+  "Spintex",
   "cedis",
 ];
 
