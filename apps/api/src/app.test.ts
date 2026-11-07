@@ -62,6 +62,17 @@ describe("API contract", () => {
     const text = new File(["hello"], "notes.txt", { type: "text/plain" });
     const wrong = await app.request("/v1/transcribe", { method: "POST", headers: { authorization: "Bearer test" }, body: form(text) });
     expect(wrong.status).toBe(400);
+
+    // What the phone sends: the clip's bytes as the body, typed audio/mp4.
+    const deepgram = vi.fn(async () => new Response(JSON.stringify({ results: { channels: [{ alternatives: [{ transcript: "Hello Nova." }] }] } }), { status: 200 }));
+    vi.stubGlobal("fetch", deepgram);
+    const raw = await app.request("/v1/transcribe", { method: "POST", headers: { authorization: "Bearer test", "content-type": "audio/mp4" }, body: new Uint8Array([1, 2, 3]) });
+    expect(raw.status).toBe(200);
+    expect(await raw.json()).toEqual({ text: "Hello Nova." });
+    expect(deepgram).toHaveBeenCalledWith(expect.stringContaining("api.deepgram.com/v1/listen"), expect.objectContaining({ headers: expect.objectContaining({ "content-type": "audio/mp4" }) }));
+    vi.unstubAllGlobals();
+    const empty = await app.request("/v1/transcribe", { method: "POST", headers: { authorization: "Bearer test", "content-type": "audio/mp4" }, body: new Uint8Array([]) });
+    expect(empty.status).toBe(400);
     if (saved === undefined) delete process.env.DEEPGRAM_API_KEY;
     else process.env.DEEPGRAM_API_KEY = saved;
   });
