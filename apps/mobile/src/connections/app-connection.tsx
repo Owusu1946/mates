@@ -1,5 +1,5 @@
 import { useAuth } from "@clerk/expo";
-import { Button, Host } from "@expo/ui";
+import { CardButton } from "../chat/card-button";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
@@ -189,14 +189,8 @@ export function ConnectionButton({
   };
   return (
     <View style={{ gap: 8 }}>
-      <Host
-        matchContents
-        colorScheme={isDark ? "dark" : "light"}
-        seedColor={isDark ? "#e4e4e7" : "#18181b"}
-      >
-        <Button
-          label={
-            opening
+      <CardButton
+        label={opening
               ? "Connecting…"
               : connected
                 ? onConnected
@@ -204,13 +198,10 @@ export function ConnectionButton({
                   : "Connected"
                 : pending
                   ? "Finish connecting"
-                  : (label ?? `Connect ${app.name}`)
-          }
-          disabled={disabled || opening || (connected && !onConnected)}
-          onPress={() => void connect()}
-          style={{ borderRadius: 22 }}
-        />
-      </Host>
+                  : (label ?? `Connect ${app.name}`)}
+        disabled={disabled || opening || (connected && !onConnected)}
+        onPress={() => void connect()}
+      />
       {(error || status.error) && (
         <Text
           accessibilityLiveRegion="polite"

@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { useAui } from "@assistant-ui/react-native";
-import { Button, Host } from "@expo/ui";
+import { CardButton } from "../chat/card-button";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
@@ -68,7 +68,6 @@ export function MissionBanner({ chatId }: { chatId: string }) {
         : data.status === "paused"
           ? "Paused"
           : "Mission complete";
-  const host = (children: React.ReactNode) => <Host matchContents colorScheme={isDark ? "dark" : "light"}>{children}</Host>;
 
   return (
     <View style={{ marginHorizontal: 12, marginBottom: 6, padding: 12, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 6 }}>
@@ -77,23 +76,22 @@ export function MissionBanner({ chatId }: { chatId: string }) {
         {status}
       </Text>
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 2, marginLeft: -8 }}>
-        {host(<Button label={`Notes · ${data.notes.length}`} variant="text" onPress={() => router.push(`/mission/${encodeURIComponent(chatId)}` as never)} />)}
-        {ACTIVE.includes(data.status) && host(<Button label="Pause" variant="text" disabled={busy} onPress={() => void act("pause")} />)}
-        {data.status === "paused" && host(<Button label="Resume" variant="text" disabled={busy} onPress={() => void act("resume")} />)}
-        {data.status !== "done" &&
-          host(
-            <Button
-              label="Stop"
-              variant="text"
-              disabled={busy}
-              onPress={() =>
-                Alert.alert("Stop this mission?", "The team stops working. Notes and the conversation are kept.", [
-                  { text: "Cancel", style: "cancel" },
-                  { text: "Stop", style: "destructive", onPress: () => void act("stop") },
-                ])
-              }
-            />,
-          )}
+        <CardButton label={`Notes · ${data.notes.length}`} variant="text" onPress={() => router.push(`/mission/${encodeURIComponent(chatId)}` as never)} />
+        {ACTIVE.includes(data.status) && <CardButton label="Pause" variant="text" disabled={busy} onPress={() => void act("pause")} />}
+        {data.status === "paused" && <CardButton label="Resume" variant="text" disabled={busy} onPress={() => void act("resume")} />}
+        {data.status !== "done" && (
+          <CardButton
+            label="Stop"
+            variant="text"
+            disabled={busy}
+            onPress={() =>
+              Alert.alert("Stop this mission?", "The team stops working. Notes and the conversation are kept.", [
+                { text: "Cancel", style: "cancel" },
+                { text: "Stop", style: "destructive", onPress: () => void act("stop") },
+              ])
+            }
+          />
+        )}
       </View>
     </View>
   );
@@ -117,9 +115,7 @@ export function TeamCard({ state }: { state: WorkflowCard }) {
         </View>
       ))}
       <View style={{ alignSelf: "flex-start", marginLeft: -8 }}>
-        <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-          <Button label={`Open ${team.name}`} variant="text" onPress={() => void aui.threads.switchToThread(team.chatId)} />
-        </Host>
+        <CardButton label={`Open ${team.name}`} variant="text" onPress={() => void aui.threads.switchToThread(team.chatId)} />
       </View>
     </View>
   );
