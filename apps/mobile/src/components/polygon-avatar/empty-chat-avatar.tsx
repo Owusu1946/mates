@@ -1,9 +1,10 @@
 import { PolygonAvatar } from "./polygon-avatar";
+import { shapeOf } from "./polygon-avatar-core";
 import { View } from "react-native";
 
 const AVATAR_SIZE = 120;
 
-export function EmptyChatAvatar({ gradient }: { gradient?: [string, string, string] }) {
+export function EmptyChatAvatar({ gradient, shape }: { gradient?: [string, string, string]; shape?: string }) {
   return (
     <View
       style={{
@@ -14,7 +15,7 @@ export function EmptyChatAvatar({ gradient }: { gradient?: [string, string, stri
         overflow: "visible",
       }}
     >
-      <PolygonAvatar state="idle" size={AVATAR_SIZE} gradient={gradient} />
+      <PolygonAvatar state="idle" size={AVATAR_SIZE} gradient={gradient} shape={shapeOf(shape)} />
     </View>
   );
 }

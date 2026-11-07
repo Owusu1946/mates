@@ -32,6 +32,12 @@ export type MateRole = keyof typeof ROLE_PRESETS;
 const MAX_MATES = 20;
 export const GROUP_LIMITS = { min: 2, max: 8 } as const;
 
+/** Mascot silhouettes a mate can wear. Mates created without one get a random pick. */
+export const MATE_SHAPES = ["hexagon", "circle", "triangle"] as const;
+export type MateShape = (typeof MATE_SHAPES)[number];
+export const randomShape = (): MateShape => MATE_SHAPES[Math.floor(Math.random() * MATE_SHAPES.length)]!;
+const shapeSchema = z.enum(MATE_SHAPES);
+
 const colorSchema = z.enum(Object.keys(MATE_PALETTE) as [MateColor, ...MateColor[]]);
 const roleSchema = z.enum(Object.keys(ROLE_PRESETS) as [MateRole, ...MateRole[]]);
 /** No "@" so mentions stay unambiguous; letters, numbers, spaces and simple punctuation. */
@@ -42,6 +48,7 @@ export const mateInputSchema = z.object({
   role: roleSchema.default("companion"),
   roleDescription: z.string().trim().max(600).default(""),
   color: colorSchema.default("teal"),
+  shape: shapeSchema.optional(),
 });
 export const mateUpdateSchema = mateInputSchema.partial();
 export const groupInputSchema = z.object({
@@ -52,7 +59,7 @@ export const groupInputSchema = z.object({
 export const groupUpdateSchema = groupInputSchema.partial();
 
 export type Mate = typeof mates.$inferSelect;
-export type PersonaMate = Pick<Mate, "id" | "name" | "role" | "roleDescription" | "color">;
+export type PersonaMate = Pick<Mate, "id" | "name" | "role" | "roleDescription" | "color" | "shape">;
 export type Persona = { kind: "mate" | "group"; chatId: string; mates: PersonaMate[]; leaderId: string };
 
 export const mateChatId = (mateId: string) => `mate_${mateId}`;
@@ -62,6 +69,7 @@ export const gradientOf = (color: string): [string, string, string] => [...(MATE
 export const matePresets = () => ({
   palette: Object.entries(MATE_PALETTE).map(([key, gradient]) => ({ key, gradient: [...gradient] })),
   roles: Object.entries(ROLE_PRESETS).map(([key, role]) => ({ key, label: role.label, brief: role.brief })),
+  shapes: [...MATE_SHAPES],
 });
 export class MateError extends Error {
   constructor(readonly code: "NAME_TAKEN" | "LIMIT" | "NOT_FOUND" | "DEFAULT_MATE" | "INVALID_MEMBERS") {
@@ -69,7 +77,7 @@ export class MateError extends Error {
   }
 }
 
-const personaColumns = { id: mates.id, name: mates.name, role: mates.role, roleDescription: mates.roleDescription, color: mates.color };
+const personaColumns = { id: mates.id, name: mates.name, role: mates.role, roleDescription: mates.roleDescription, color: mates.color, shape: mates.shape };
 
 /** Every user has Cooper. Idempotent and race-safe, so it can run on every list. */
 export async function ensureDefaultMate(userId: string): Promise<Mate> {
@@ -129,7 +137,7 @@ export async function createMate(userId: string, input: z.infer<typeof mateInput
   const roleDescription = input.roleDescription || ROLE_PRESETS[input.role].brief;
   // The mate and its conversation are created together, so a mate never lacks a chat.
   const [[mate]] = await getDb().batch([
-    getDb().insert(mates).values({ id, clerkUserId: userId, name: input.name, role: input.role, roleDescription, color: input.color }).returning(),
+    getDb().insert(mates).values({ id, clerkUserId: userId, name: input.name, role: input.role, roleDescription, color: input.color, shape: input.shape ?? randomShape() }).returning(),
     getDb().insert(chats).values({ id: mateChatId(id), clerkUserId: userId, title: input.name, kind: "mate", mateId: id }),
   ]);
   return { ...mate!, gradient: gradientOf(mate!.color), chatId: mateChatId(id) };
@@ -275,7 +283,7 @@ export function previewOf(message: StoredMessage, persona?: { name: string }) {
 }
 
 type ChatRow = typeof chats.$inferSelect;
-const publicMate = (m: PersonaMate) => ({ id: m.id, name: m.name, role: m.role, color: m.color, gradient: gradientOf(m.color) });
+const publicMate = (m: PersonaMate) => ({ id: m.id, name: m.name, role: m.role, color: m.color, shape: m.shape, gradient: gradientOf(m.color) });
 
 /** Adds who each chat is with and its newest message, in one parallel round of queries. */
 export async function enrichChats(userId: string, rows: ChatRow[]) {

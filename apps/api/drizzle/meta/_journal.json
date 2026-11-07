@@ -134,6 +134,13 @@
       "when": 1794006487264,
       "tag": "0018_rare_lightspeed",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794049094797,
+      "tag": "0019_productive_sheva_callister",
+      "breakpoints": true
     }
   ]
 }

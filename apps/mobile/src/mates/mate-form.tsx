@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
 import { useTheme } from "../theme/provider";
@@ -7,7 +7,14 @@ import { MateAvatar } from "./mate-avatar";
 
 export const NAME_PATTERN = /^[\p{L}\p{N} .'_-]+$/u;
 
-/** Create or edit a mate: name, colour (with a live preview) and role. */
+const SHAPES = [
+  { key: "hexagon", label: "Hexagon" },
+  { key: "circle", label: "Circle" },
+  { key: "triangle", label: "Triangle" },
+];
+const SURPRISE = "surprise";
+
+/** Create or edit a mate: name, colour and shape (with a live preview) and role. */
 export function MateForm({
   presets,
   initial,
@@ -27,6 +34,16 @@ export function MateForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [color, setColor] = useState(initial?.color ?? presets.palette[1]?.key ?? "teal");
   const [role, setRole] = useState(initial?.role ?? "companion");
+  // New mates start on "Surprise me": the server picks a shape. Editing starts on the mate's own.
+  const shapes = SHAPES.filter((s) => !presets.shapes || presets.shapes.includes(s.key));
+  const [shape, setShape] = useState(initial?.shape ?? (initial ? "hexagon" : SURPRISE));
+  const [previewIndex, setPreviewIndex] = useState(0);
+  useEffect(() => {
+    if (shape !== SURPRISE) return;
+    const timer = setInterval(() => setPreviewIndex((i) => (i + 1) % shapes.length), 1400);
+    return () => clearInterval(timer);
+  }, [shape, shapes.length]);
+  const previewShape = shape === SURPRISE ? shapes[previewIndex]?.key : shape;
   const brief = (key: string) => presets.roles.find((r) => r.key === key)?.brief ?? "";
   const [description, setDescription] = useState(initial?.roleDescription || brief(initial?.role ?? "companion"));
   const gradient = presets.palette.find((p) => p.key === color)?.gradient;
@@ -40,7 +57,7 @@ export function MateForm({
   return (
     <View style={{ gap: 22 }}>
       <View style={{ alignItems: "center" }}>
-        <MateAvatar gradient={gradient} size={112} state="happy" />
+        <MateAvatar gradient={gradient} shape={previewShape} size={112} state="happy" />
       </View>
       <View>
         <Text style={label}>Name</Text>
@@ -64,6 +81,37 @@ export function MateForm({
                 <View style={{ flex: 1, borderRadius: 17, overflow: "hidden", flexDirection: "row" }}>
                   {swatch.gradient.map((stop) => <View key={stop} style={{ flex: 1, backgroundColor: stop }} />)}
                 </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+      <View>
+        <Text style={label}>Shape</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+          {!initial && (
+            <Pressable
+              accessibilityRole="radio"
+              accessibilityState={{ checked: shape === SURPRISE }}
+              accessibilityLabel="Surprise me"
+              onPress={() => setShape(SURPRISE)}
+              style={{ height: 48, paddingHorizontal: 14, borderRadius: 24, justifyContent: "center", borderWidth: 2, borderColor: shape === SURPRISE ? colors.text : colors.border }}
+            >
+              <Text style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 14 }}>Surprise me</Text>
+            </Pressable>
+          )}
+          {shapes.map((option) => {
+            const on = option.key === shape;
+            return (
+              <Pressable
+                key={option.key}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: on }}
+                accessibilityLabel={option.label}
+                onPress={() => setShape(option.key)}
+                style={{ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
+              >
+                <MateAvatar gradient={gradient} shape={option.key} size={36} still />
               </Pressable>
             );
           })}
@@ -109,7 +157,7 @@ export function MateForm({
         tintColor={colors.text}
         style={{ width: "100%" }}
         disabled={!valid || submitting}
-        onPress={() => onSubmit({ name: trimmed, color, role, roleDescription: description.trim() })}
+        onPress={() => onSubmit({ name: trimmed, color, role, roleDescription: description.trim(), ...(shape === SURPRISE ? {} : { shape }) })}
       >
         {submitting ? <ActivityIndicator color={colors.background} /> : <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 17, opacity: valid ? 1 : 0.5 }}>{submitLabel}</Text>}
       </LiquidGlassButton>

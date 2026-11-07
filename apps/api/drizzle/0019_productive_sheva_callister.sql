@@ -1,0 +1,1 @@
+ALTER TABLE "mates" ADD COLUMN "shape" text DEFAULT 'hexagon' NOT NULL;

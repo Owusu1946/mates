@@ -126,7 +126,7 @@ function ChatRow({ chat, active, colors, onPress, onLongPress }: { chat: ChatSum
       delayLongPress={350}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, paddingHorizontal: 6, borderRadius: 16, backgroundColor: pressed || active ? colors.muted : "transparent" })}
     >
-      {chat.kind === "group" ? <GroupAvatar gradients={chat.members.map((m) => m.gradient)} size={46} /> : <MateAvatar gradient={chat.mate?.gradient} size={46} still />}
+      {chat.kind === "group" ? <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={46} /> : <MateAvatar gradient={chat.mate?.gradient} shape={chat.mate?.shape} size={46} still />}
       <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
           <Text numberOfLines={1} style={{ flex: 1, color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 16 }}>{name}</Text>

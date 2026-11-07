@@ -47,7 +47,7 @@ function Lobby({ call, onClose }: { call: Call; onClose: () => void }) {
       </View>
       <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, gap: 28 }}>
         <View style={{ alignItems: "center", gap: 14 }}>
-          <MateAvatar size={160} state="idle" gradient={call.lead.gradient} />
+          <MateAvatar size={160} state="idle" gradient={call.lead.gradient} shape={call.lead.shape} />
           <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: font.bold, fontSize: 28 }}>Talk with {call.lead.name}</Text>
           <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 15, textAlign: "center", maxWidth: 300, lineHeight: 22 }}>
             Hop on a voice call. Bring bot mates along to research, plan or create with you.
@@ -70,7 +70,7 @@ function Lobby({ call, onClose }: { call: Call; onClose: () => void }) {
                     backgroundColor: selected ? colors.controlActive : colors.tile, borderWidth: 1, borderColor: selected ? colors.controlActive : colors.tileBorder,
                   }}
                 >
-                  <MateAvatar size={36} gradient={mate.gradient} still />
+                  <MateAvatar size={36} gradient={mate.gradient} shape={mate.shape} still />
                   <View>
                     <Text style={{ color: selected ? colors.controlActiveForeground : colors.foreground, fontFamily: font.semibold, fontSize: 14 }}>{mate.name}</Text>
                     <Text style={{ color: selected ? colors.controlActiveForeground : colors.mutedForeground, fontFamily: font.regular, fontSize: 11, opacity: selected ? 0.75 : 1 }}>{mate.role}</Text>
@@ -101,7 +101,7 @@ function Connecting({ call }: { call: Call }) {
     <Animated.View entering={FadeIn} exiting={FadeOut} style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 18 }}>
       <View style={{ width: 200, height: 200, alignItems: "center", justifyContent: "center" }}>
         <SpeakingRing active color={colors.speaking} radius={100} />
-        <MateAvatar size={160} state="waking" gradient={call.lead.gradient} />
+        <MateAvatar size={160} state="waking" gradient={call.lead.gradient} shape={call.lead.shape} />
       </View>
       <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 22 }}>Calling {call.lead.name}…</Text>
       {coming.length > 0 && (
@@ -157,6 +157,7 @@ function Live({ call, initials, onMinimize }: { call: Call; initials: string; on
                 role={member.role}
                 state={avatarState(member, listening)}
                 gradient={member.gradient}
+                shape={member.shape}
                 speaking={member.speaking}
                 joining={member.status === "joining"}
                 width={width}
@@ -210,7 +211,7 @@ function Ended({ call, onDone }: { call: Call; onDone: () => void }) {
       <View style={{ flexDirection: "row" }}>
         {members.map((mate, i) => (
           <View key={mate.id} style={{ marginLeft: i ? -18 : 0, borderRadius: 40, backgroundColor: colors.background, padding: 3 }}>
-            <MateAvatar size={72} state="happy" gradient={mate.gradient} />
+            <MateAvatar size={72} state="happy" gradient={mate.gradient} shape={mate.shape} />
           </View>
         ))}
       </View>

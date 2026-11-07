@@ -102,12 +102,12 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
 }
 
 export function speakerCard(mate: PersonaMate): WorkflowCard {
-  return { kind: "speaker", phase: "done", label: mate.name, speaker: { id: mate.id, name: mate.name, color: mate.color, gradient: gradientOf(mate.color) } };
+  return { kind: "speaker", phase: "done", label: mate.name, speaker: { id: mate.id, name: mate.name, color: mate.color, shape: mate.shape, gradient: gradientOf(mate.color) } };
 }
 
 export type HandoffStatus = "queued" | "working" | "done" | "waiting" | "failed";
 
-const summary = (mate: PersonaMate) => ({ id: mate.id, name: mate.name, color: mate.color, gradient: gradientOf(mate.color) });
+const summary = (mate: PersonaMate) => ({ id: mate.id, name: mate.name, color: mate.color, shape: mate.shape, gradient: gradientOf(mate.color) });
 
 /** The relay for a round: who the leader handed work to, in order, and how far each has got. */
 export function handoffCard(leader: PersonaMate, items: { mate: PersonaMate; task: string; status: HandoffStatus }[], round?: number): WorkflowCard {

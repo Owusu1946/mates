@@ -154,7 +154,7 @@ export async function assembleTeam(userId: string, leader: PersonaMate, raw: unk
   return { ok: true, group, mission: mission!, members, created, skipped: args.data.members.length - memberIds.length };
 }
 
-export function teamCard(result: { group: { chatId: string; name: string }; members: { id: string; name: string; role: string; color: string }[] }): WorkflowCard {
+export function teamCard(result: { group: { chatId: string; name: string }; members: { id: string; name: string; role: string; color: string; shape?: string }[] }): WorkflowCard {
   return {
     kind: "team",
     phase: "done",
@@ -162,7 +162,7 @@ export function teamCard(result: { group: { chatId: string; name: string }; memb
     team: {
       chatId: result.group.chatId,
       name: result.group.name,
-      members: result.members.map((m) => ({ id: m.id, name: m.name, role: m.role, color: m.color, gradient: gradientOf(m.color) })),
+      members: result.members.map((m) => ({ id: m.id, name: m.name, role: m.role, color: m.color, shape: m.shape, gradient: gradientOf(m.color) })),
     },
   };
 }

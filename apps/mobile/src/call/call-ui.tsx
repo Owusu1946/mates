@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { PolygonAvatar } from "../components/polygon-avatar/polygon-avatar";
-import type { PolygonState } from "../components/polygon-avatar/polygon-avatar-core";
+import { shapeOf, type PolygonState } from "../components/polygon-avatar/polygon-avatar-core";
 import { ChatIcon } from "../chat/chat-icon";
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
 import { useTheme } from "../theme/provider";
@@ -62,10 +62,10 @@ export const font = {
 };
 
 /** Small avatars draw at 30fps; `still` holds a single frame for lists and chips. */
-export function MateAvatar({ size, state = "idle", gradient, still = false }: { size: number; state?: PolygonState; gradient?: [string, string, string]; still?: boolean }) {
+export function MateAvatar({ size, state = "idle", gradient, shape, still = false }: { size: number; state?: PolygonState; gradient?: [string, string, string]; shape?: string; still?: boolean }) {
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <PolygonAvatar state={state} size={size} gradient={gradient} paused={still} frameRate={size >= 120 ? 60 : 30} title={null} />
+      <PolygonAvatar state={state} size={size} gradient={gradient} shape={shapeOf(shape)} paused={still} frameRate={size >= 120 ? 60 : 30} title={null} />
     </View>
   );
 }
@@ -91,12 +91,13 @@ export function SpeakingRing({ active, color, radius }: { active: boolean; color
 }
 
 export function ParticipantTile({
-  name, role, state, gradient, speaking, joining, width, height, avatarSize, onLongPress,
+  name, role, state, gradient, shape, speaking, joining, width, height, avatarSize, onLongPress,
 }: {
   name: string;
   role: string;
   state: PolygonState;
   gradient: [string, string, string];
+  shape?: string;
   speaking: boolean;
   joining: boolean;
   width: DimensionValue;
@@ -116,7 +117,7 @@ export function ParticipantTile({
         alignItems: "center", justifyContent: "center", opacity: joining ? 0.6 : 1,
       }}
     >
-      <MateAvatar size={avatarSize} state={state} gradient={gradient} />
+      <MateAvatar size={avatarSize} state={state} gradient={gradient} shape={shape} />
       <View style={{ position: "absolute", left: 14, bottom: 12, right: 14, flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 14 }}>{name}</Text>
         <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 12, flexShrink: 1 }}>

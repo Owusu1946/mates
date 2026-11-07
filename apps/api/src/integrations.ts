@@ -28,12 +28,12 @@ export type WorkflowCard = {
   finishedAt?: string;
   memory?: { id: string; text: string; action: "saved" | "updated" | "forgotten" };
   /** In a group, marks whose reply the following text is. */
-  speaker?: { id: string; name: string; color: string; gradient: [string, string, string] };
+  speaker?: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] };
   /** Who the leader handed this round to, each with their task and live status. */
   handoff?: {
     round?: number;
-    from: { id: string; name: string; color: string; gradient: [string, string, string] };
-    items: { mate: { id: string; name: string; color: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "done" | "waiting" | "failed" }[];
+    from: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] };
+    items: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "done" | "waiting" | "failed" }[];
   };
   /** A job on the mates' computer: live steps, check results, and the pull request it opened. */
   code?: {
@@ -52,7 +52,7 @@ export type WorkflowCard = {
   /** A mission note a mate just wrote. */
   note?: { title: string; version: number; author: string; chatId: string };
   /** A team the leader assembled for a mission. */
-  team?: { chatId: string; name: string; members: { id: string; name: string; role: string; color: string; gradient: [string, string, string] }[] };
+  team?: { chatId: string; name: string; members: { id: string; name: string; role: string; color: string; shape?: string; gradient: [string, string, string] }[] };
   plan?: {
     summary: string;
     actions: {

@@ -5,10 +5,11 @@ import { useMemo } from "react";
 import { createApiClient } from "../data/api";
 
 export type Gradient = [string, string, string];
-export type MateSummary = { id: string; name: string; role: string; color: string; gradient: Gradient };
+/** `shape` is the mascot silhouette (hexagon, circle, triangle); older payloads may lack it. */
+export type MateSummary = { id: string; name: string; role: string; color: string; shape?: string; gradient: Gradient };
 export type Mate = MateSummary & { roleDescription: string; isDefault: boolean; chatId: string };
 export type Group = { chatId: string; name: string; mateIds: string[]; leaderMateId: string | null };
-export type Presets = { palette: { key: string; gradient: Gradient }[]; roles: { key: string; label: string; brief: string }[] };
+export type Presets = { palette: { key: string; gradient: Gradient }[]; roles: { key: string; label: string; brief: string }[]; shapes?: string[] };
 export type ChatSummary = {
   id: string;
   title: string;
@@ -19,7 +20,8 @@ export type ChatSummary = {
   leaderMateId: string | null;
   preview: { from: string; text: string; at: string } | null;
 };
-export type MateInput = { name: string; role: string; roleDescription: string; color: string };
+/** Leave `shape` out to let the server pick one at random. */
+export type MateInput = { name: string; role: string; roleDescription: string; color: string; shape?: string };
 export type GroupInput = { name: string; mateIds: string[]; leaderMateId?: string };
 
 /** Cooper's original look; used until mates load. */

@@ -70,7 +70,7 @@ export function GroupForm({
                   <View style={{ width: 24, height: 24, borderRadius: 8, borderWidth: 1.5, borderColor: on ? colors.text : colors.border, backgroundColor: on ? colors.text : "transparent", alignItems: "center", justifyContent: "center" }}>
                     {on && <ChatIcon name="check" color={colors.background} size={14} />}
                   </View>
-                  <MateAvatar gradient={mate.gradient} size={40} still />
+                  <MateAvatar gradient={mate.gradient} shape={mate.shape} size={40} still />
                   <Text style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 16, flex: 1 }} numberOfLines={1}>{mate.name}</Text>
                 </Pressable>
                 {on && (
