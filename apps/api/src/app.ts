@@ -278,18 +278,28 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     // (the app caps recordings at 3 minutes of 32 kbps speech audio).
     .post("/v1/transcribe", auth, async (c) => {
       if (!transcriptionConfigured()) return c.json(failure("TRANSCRIPTION_UNAVAILABLE", "Voice typing isn’t set up on this server yet", c.get("requestId")), 503);
-      const body = await c.req.parseBody().catch(() => null);
-      const audio = body?.audio;
-      if (!(audio instanceof File) || !audio.size) return c.json(failure("INVALID_AUDIO", "No recording was received", c.get("requestId")), 400);
-      const contentType = audio.type || "audio/mp4";
+      // The phone sends the clip as a raw audio body; other clients may send multipart field "audio".
+      const header = c.req.header("content-type") ?? "";
+      let bytes: ArrayBuffer | null = null;
+      let contentType = header.split(";")[0]!.trim();
+      if (contentType.startsWith("audio/")) {
+        bytes = await c.req.arrayBuffer().catch(() => null);
+      } else {
+        const audio = (await c.req.parseBody().catch(() => null))?.audio;
+        if (audio instanceof File) {
+          contentType = audio.type || "audio/mp4";
+          bytes = await audio.arrayBuffer();
+        }
+      }
+      if (!bytes?.byteLength) return c.json(failure("INVALID_AUDIO", "No recording was received", c.get("requestId")), 400);
       if (!contentType.startsWith("audio/")) return c.json(failure("INVALID_AUDIO", "That isn’t an audio recording", c.get("requestId")), 400);
       const names = await listMatesAndGroups(c.get("userId"))
         .then((list) => list.mates.map((mate) => mate.name))
         .catch(() => [] as string[]);
       const started = Date.now();
       try {
-        const text = await transcribe(await audio.arrayBuffer(), { contentType, keyterms: keytermsFor(names), signal: c.req.raw.signal });
-        console.info("transcription_done", { requestId: c.get("requestId"), bytes: audio.size, ms: Date.now() - started, empty: !text });
+        const text = await transcribe(bytes, { contentType, keyterms: keytermsFor(names), signal: c.req.raw.signal });
+        console.info("transcription_done", { requestId: c.get("requestId"), bytes: bytes.byteLength, ms: Date.now() - started, empty: !text });
         return c.json({ text });
       } catch (error) {
         console.warn("transcription_failed", { requestId: c.get("requestId"), message: error instanceof Error ? error.message : String(error) });
