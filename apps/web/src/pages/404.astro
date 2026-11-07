@@ -1,0 +1,96 @@
+---
+// Any link that leads nowhere lands here: a lost mascot and a way back.
+import Logo from "../components/Logo.astro";
+import Mascot from "../components/Mascot";
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="Page not found · Mates" noindex>
+  <header class="bar">
+    <a href="/" class="brand" aria-label="Mates home"><Logo size={26} /><span>mates</span></a>
+  </header>
+  <main class="lost">
+    <div class="mascot">
+      <span class="glow"></span>
+      <Mascot client:load size={150} state="confused" />
+    </div>
+    <p class="code">404</p>
+    <h1>This page wandered off.</h1>
+    <p class="lede">The link may be broken, or the page may have moved. Your mates are still where you left them.</p>
+    <div class="actions">
+      <a href="/" class="pill-button dark">Back home</a>
+      <a href="/#faq" class="pill-button light">Read the FAQs</a>
+    </div>
+  </main>
+</Base>
+
+<style>
+  .bar {
+    display: flex;
+    align-items: center;
+    width: min(1080px, calc(100% - 32px));
+    height: 72px;
+    margin: 0 auto;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .lost {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 16px 96px;
+    text-align: center;
+  }
+  .mascot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 220px;
+    height: 180px;
+  }
+  .glow {
+    position: absolute;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(210, 126, 65, 0.2), rgba(210, 126, 65, 0));
+  }
+  .code {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+  }
+  h1 {
+    margin: 8px 0 0;
+    font-size: clamp(32px, 5vw, 52px);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+  }
+  .lede {
+    max-width: 40ch;
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 32px;
+  }
+  .actions a {
+    height: 50px;
+    margin: 6px;
+    padding: 0 24px;
+  }
+</style>

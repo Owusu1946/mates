@@ -1,0 +1,132 @@
+---
+import Legal from "../layouts/Legal.astro";
+import { LEGAL } from "../legal";
+
+const sections = [
+  { id: "agreement", title: "Agreement" },
+  { id: "eligibility", title: "Who can use Mates" },
+  { id: "account", title: "Your account" },
+  { id: "mates", title: "Working with your mates" },
+  { id: "acceptable-use", title: "Acceptable use" },
+  { id: "connected", title: "Connected apps and GitHub" },
+  { id: "content", title: "Your content" },
+  { id: "plans", title: "Plans and payment" },
+  { id: "availability", title: "Early access and changes" },
+  { id: "ending", title: "Ending your use" },
+  { id: "disclaimers", title: "Disclaimers" },
+  { id: "liability", title: "Limitation of liability" },
+  { id: "law", title: "Governing law" },
+  { id: "contact", title: "Contact" },
+];
+const mail = `mailto:${LEGAL.contact}`;
+---
+
+<Legal title="Terms of Service" description="The terms for using Mates and the Mates website." sections={sections}>
+  <h2 id="agreement">Agreement</h2>
+  <p>
+    These terms are an agreement between you and {LEGAL.operator} (“we”, “us”), who operates {LEGAL.product}, covering
+    the {LEGAL.product} app, this website and the waitlist. By using any of them you agree to these terms and to our
+    <a href="/privacy">Privacy Policy</a>. If you don’t agree, please don’t use {LEGAL.product}.
+  </p>
+
+  <h2 id="eligibility">Who can use Mates</h2>
+  <p>
+    You must be at least 13, or the minimum age in your country if higher, and able to form a binding agreement. If you use
+    {LEGAL.product} for an organisation, you confirm you’re allowed to accept these terms for it.
+  </p>
+
+  <h2 id="account">Your account</h2>
+  <p>
+    Keep your sign-in secure; you’re responsible for what happens in your account. Tell us at
+    <a href={mail}>{LEGAL.contact}</a> if you think someone else has accessed it.
+  </p>
+
+  <h2 id="mates">Working with your mates</h2>
+  <p>
+    Your mates are AI. They can be wrong, incomplete or out of date, and can misunderstand what you ask. Check their work
+    before you rely on it, especially for anything important such as health, legal, financial or safety matters, where
+    they are no substitute for a professional.
+  </p>
+  <p>
+    When you ask a mate to act for you, for example to draft an email, change a calendar, use a website or change code, it
+    acts on your behalf and you’re responsible for those actions. Review what they prepare before it goes out. Code always
+    comes back as a pull request: reviewing and merging it is your decision.
+  </p>
+
+  <h2 id="acceptable-use">Acceptable use</h2>
+  <p>Don’t use {LEGAL.product} to:</p>
+  <ul>
+    <li>break the law or anyone’s rights, including privacy and intellectual property;</li>
+    <li>harass, deceive, impersonate or harm others, or create spam or malware;</li>
+    <li>access accounts, systems or data you’re not allowed to;</li>
+    <li>disrupt, overload, probe or reverse-engineer the service, or get around its limits;</li>
+    <li>resell {LEGAL.product} or use it to build a competing product.</li>
+  </ul>
+  <p>We may limit or suspend use that breaks these rules or puts others at risk.</p>
+
+  <h2 id="connected">Connected apps and GitHub</h2>
+  <p>
+    When you connect another service, your use of it stays subject to that service’s own terms. You give your mates
+    permission to use it as you instruct, and you can revoke that at any time. We aren’t responsible for other services or
+    for changes they make. For GitHub, the Mates app only works on the repositories you choose.
+  </p>
+
+  <h2 id="content">Your content</h2>
+  <p>
+    You keep ownership of what you put into {LEGAL.product} and of what your mates create for you. You give us permission
+    to store and process that content only as needed to run {LEGAL.product} for you, as described in the Privacy Policy.
+    You confirm you have the right to share what you give us.
+  </p>
+
+  <h2 id="plans">Plans and payment</h2>
+  <p>
+    Paid plans, when available, are billed in advance for each monthly or yearly period, usually through the App Store or
+    Google Play under their payment terms, and renew until you cancel. Cancelling stops the next renewal; you keep access
+    until the end of the period you paid for. Usage limits for each plan are shown in the app. We’ll give you notice before
+    any price change applies to you.
+  </p>
+
+  <h2 id="availability">Early access and changes</h2>
+  <p>
+    {LEGAL.product} is new and some features are early or experimental. Joining the waitlist doesn’t guarantee access or a
+    launch date. We may add, change or remove features, and we’ll give notice of changes that significantly affect you.
+  </p>
+
+  <h2 id="ending">Ending your use</h2>
+  <p>
+    You can stop using {LEGAL.product} and delete your account at any time in Settings. We may suspend or end access if you
+    seriously or repeatedly break these terms, or if we have to for legal reasons, and we’ll tell you unless the law or
+    safety prevents it.
+  </p>
+
+  <h2 id="disclaimers">Disclaimers</h2>
+  <p>
+    {LEGAL.product} is provided “as is” and “as available”. To the extent the law allows, we make no promises that it will
+    be uninterrupted, error-free, or that AI output will be accurate or fit for a particular purpose.
+  </p>
+
+  <h2 id="liability">Limitation of liability</h2>
+  <p>
+    To the extent the law allows, we aren’t liable for indirect or consequential losses, or for loss of data, profits or
+    business, and our total liability for any claim is limited to the amount you paid us in the 12 months before it, or
+    US$50 if you haven’t paid anything. Nothing in these terms limits liability that can’t be limited by law, or your
+    rights as a consumer where you live.
+  </p>
+
+  <h2 id="law">Governing law</h2>
+  <p>
+    These terms are governed by the laws of {LEGAL.country}, and disputes will be handled by the courts of {LEGAL.country},
+    unless the law where you live gives you the right to bring a claim there. We’d always rather sort a problem out
+    directly, so please contact us first.
+  </p>
+  <p>
+    We may update these terms. We’ll change the date at the top and tell you about significant changes before they take
+    effect. Using {LEGAL.product} after that means you accept the new terms.
+  </p>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    Questions about these terms: <a href={mail}>{LEGAL.contact}</a>. {LEGAL.product} is operated by {LEGAL.operator},
+    {LEGAL.country}.
+  </p>
+</Legal>

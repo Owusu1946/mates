@@ -1,0 +1,149 @@
+---
+import Legal from "../layouts/Legal.astro";
+import { LEGAL } from "../legal";
+
+const sections = [
+  { id: "summary", title: "The short version" },
+  { id: "website", title: "This website" },
+  { id: "app", title: "The Mates app" },
+  { id: "use", title: "How we use it" },
+  { id: "sharing", title: "Who we share it with" },
+  { id: "retention", title: "How long we keep it" },
+  { id: "rights", title: "Your rights" },
+  { id: "security", title: "Security" },
+  { id: "children", title: "Children" },
+  { id: "changes", title: "Changes" },
+  { id: "contact", title: "Contact" },
+];
+const mail = `mailto:${LEGAL.contact}`;
+---
+
+<Legal title="Privacy Policy" description="What Mates collects, why, who it is shared with, and how to get it deleted." sections={sections}>
+  <h2 id="summary">The short version</h2>
+  <p class="summary">
+    We collect what Mates needs to work for you and nothing more. We don’t sell your data or use it for advertising. The
+    website sets no cookies. You can delete your account, and everything in it, at any time.
+  </p>
+  <p>
+    This policy explains how {LEGAL.operator} (“we”, “us”), who operates {LEGAL.product}, handles personal information on
+    {LEGAL.site} and in the {LEGAL.product} mobile app. It applies wherever you are, and we follow Ghana’s Data Protection
+    Act, 2012 (Act 843) and, where they apply to you, laws such as the EU and UK GDPR.
+  </p>
+
+  <h2 id="website">This website</h2>
+  <h3>The waitlist</h3>
+  <p>
+    If you join the waitlist we store your email address, the time you joined, and the site that sent you to us (for
+    example “x.com”), if any. We use your email only to tell you when {LEGAL.product} is ready.
+  </p>
+  <h3>Visit counts</h3>
+  <p>
+    To count visits we record, for each page view, the page, the time, the referring site’s name, and whether you used a
+    phone, tablet or computer. To count unique visitors without tracking you, we turn your IP address and browser details
+    into a one-way code that changes every day. We never store your IP address, and the code can’t be traced back to you
+    or linked across days. Crawlers and link previews are not counted.
+  </p>
+  <p>The website sets no cookies and uses no advertising or third-party tracking scripts.</p>
+
+  <h2 id="app">The Mates app</h2>
+  <h3>Your account</h3>
+  <p>Your name, email address and profile picture, from your sign-up or from Apple or Google if you sign in with them.</p>
+  <h3>What you give your mates</h3>
+  <p>
+    Your messages, the photos and files you share, the mates and groups you create, missions, notes, routines and the
+    results your mates produce. This is the content Mates needs to do the work you ask for.
+  </p>
+  <h3>Apps you connect</h3>
+  <p>
+    When you connect an app such as Gmail or Google Calendar, your mates can read and act in it on your instructions. The
+    sign-in for those apps is held by our connections provider, not stored by us. You can disconnect any app at any time.
+  </p>
+  <h3>GitHub</h3>
+  <p>
+    If you install the Mates GitHub app, we store which accounts and repositories you gave it. When a mate works on your
+    code, it copies the repository to a private, temporary computer that is deleted when the run ends. Changes come back
+    as a pull request; the mates never merge.
+  </p>
+  <h3>Device and usage</h3>
+  <p>
+    A push notification token, so we can tell you when work is done, and basic technical logs (such as errors and request
+    times) to keep the service running.
+  </p>
+
+  <h2 id="use">How we use it</h2>
+  <ul>
+    <li>To run {LEGAL.product}: answer your messages, carry out the tasks you give your mates, and keep your history.</li>
+    <li>To send you notifications you asked for, and, if you joined the waitlist, the launch email.</li>
+    <li>To keep the service secure, prevent abuse, and fix problems.</li>
+    <li>To understand, in aggregate, how the website and app are used, so we can improve them.</li>
+  </ul>
+  <p>
+    We process your information to provide the service you signed up for, with your consent (such as the waitlist and
+    connected apps, which you can withdraw), and for our legitimate interest in keeping {LEGAL.product} safe and working.
+    We don’t train our own AI models on your content, and we don’t sell or rent personal information. The AI providers
+    listed below handle the messages they process under their own data policies.
+  </p>
+
+  <h2 id="sharing">Who we share it with</h2>
+  <p>
+    {LEGAL.product} is built on trusted providers who process data for us, only to run the service. Depending on what you
+    use, they include:
+  </p>
+  <ul>
+    <li><b>Clerk</b>, for sign-in and accounts.</li>
+    <li><b>Neon</b>, our database, which holds your account, chats and files.</li>
+    <li><b>Railway</b> and <b>Vercel</b>, which host our servers and this website.</li>
+    <li><b>OpenRouter</b> and the AI model providers it routes to, which process your messages to generate replies.</li>
+    <li><b>Composio</b>, which manages the apps you connect.</li>
+    <li><b>Browserbase</b>, which runs a cloud browser when a mate needs to use a website for you.</li>
+    <li><b>GitHub</b> and <b>Modal</b>, for coding tasks on your repositories and the temporary computers they run on.</li>
+    <li><b>Trigger.dev</b>, which runs long tasks in the background.</li>
+    <li><b>Expo</b>, which delivers push notifications.</li>
+  </ul>
+  <p>
+    These providers may store or process data outside your country. We only share information when the law requires it
+    or to protect people’s safety, and otherwise never with anyone else.
+  </p>
+
+  <h2 id="retention">How long we keep it</h2>
+  <ul>
+    <li>Account data and your content: until you delete it or delete your account.</li>
+    <li>Waitlist emails: until we’ve sent the launch email, or sooner if you ask us to remove you.</li>
+    <li>Visit counts: these hold nothing that identifies you, and we keep them to see trends over time.</li>
+    <li>Coding computers: deleted when each run ends.</li>
+  </ul>
+  <p>Deleting your account in Settings removes your data from our systems and disconnects your apps and GitHub.</p>
+
+  <h2 id="rights">Your rights</h2>
+  <p>
+    You can ask to see, correct, export or delete your personal information, and object to or limit how we use it. Most of
+    this you can do yourself in the app. For anything else, email <a href={mail}>{LEGAL.contact}</a> and we’ll reply within
+    30 days. You can also complain to your local data protection authority; in Ghana, that’s the Data Protection
+    Commission.
+  </p>
+
+  <h2 id="security">Security</h2>
+  <p>
+    Data is encrypted in transit, access is limited to what each part of the service needs, and coding work runs on
+    isolated computers with short-lived, single-repository access. No system is perfectly secure, but we work to protect
+    your information and will tell you promptly if a breach affects you.
+  </p>
+
+  <h2 id="children">Children</h2>
+  <p>
+    {LEGAL.product} is not meant for anyone under 13, or the minimum age to consent in your country if higher. We don’t
+    knowingly collect their information; if you believe a child has used {LEGAL.product}, contact us and we’ll delete it.
+  </p>
+
+  <h2 id="changes">Changes</h2>
+  <p>
+    If we change this policy we’ll update the date at the top, and for significant changes we’ll tell you in the app or by
+    email before they take effect.
+  </p>
+
+  <h2 id="contact">Contact</h2>
+  <p>
+    Questions or requests about your privacy: <a href={mail}>{LEGAL.contact}</a>. {LEGAL.product} is operated by
+    {LEGAL.operator}, {LEGAL.country}.
+  </p>
+</Legal>

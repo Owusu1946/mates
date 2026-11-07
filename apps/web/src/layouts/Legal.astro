@@ -1,0 +1,177 @@
+---
+// A long-form page (privacy, terms): the site's header and footer around a readable article with a
+// table of contents. Each <h2> in the slot needs an id for the contents to link to.
+import Footer from "../components/Footer.astro";
+import Logo from "../components/Logo.astro";
+import { LEGAL } from "../legal";
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  sections: { id: string; title: string }[];
+}
+
+const { title, description, sections } = Astro.props;
+---
+
+<Base title={`${title} · Mates`} description={description}>
+  <header class="bar">
+    <a href="/" class="brand" aria-label="Mates home"><Logo size={26} /><span>mates</span></a>
+    <a href="/" class="back">Back to the site</a>
+  </header>
+
+  <main class="legal">
+    <div class="head">
+      <h1>{title}</h1>
+      <p class="meta">Effective {LEGAL.effective}</p>
+    </div>
+    <div class="layout">
+      <nav class="toc" aria-label="On this page">
+        <div class="toc-title">On this page</div>
+        <ol>{sections.map((section) => <li><a href={`#${section.id}`}>{section.title}</a></li>)}</ol>
+      </nav>
+      <article class="prose">
+        <slot />
+      </article>
+    </div>
+  </main>
+
+  <Footer />
+</Base>
+
+<style>
+  .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: min(1080px, calc(100% - 32px));
+    height: 72px;
+    margin: 0 auto;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+  }
+  .back {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .back:hover {
+    color: var(--text);
+  }
+
+  .legal {
+    width: min(1080px, calc(100% - 32px));
+    margin: 40px auto 0;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 600;
+    letter-spacing: -0.045em;
+  }
+  .meta {
+    margin: 12px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .layout {
+    display: flex;
+    align-items: flex-start;
+    margin-top: 48px;
+  }
+  .toc {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 24px;
+    flex: 0 0 220px;
+    margin-right: 56px;
+  }
+  .toc-title {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .toc ol {
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .toc li + li {
+    margin-top: 10px;
+  }
+  .toc a {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.4;
+  }
+  .toc a:hover {
+    color: var(--text);
+  }
+
+  .prose {
+    flex: 1;
+    min-width: 0;
+    max-width: 68ch;
+    font-size: 16.5px;
+    line-height: 1.7;
+  }
+  .prose :global(h2) {
+    margin: 48px 0 0;
+    padding-top: 8px;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    scroll-margin-top: 24px;
+  }
+  .prose :global(h2:first-child) {
+    margin-top: 0;
+  }
+  .prose :global(h3) {
+    margin: 28px 0 0;
+    font-size: 17.5px;
+    font-weight: 600;
+  }
+  .prose :global(p),
+  .prose :global(ul) {
+    margin: 14px 0 0;
+    color: var(--text);
+  }
+  .prose :global(ul) {
+    padding-left: 22px;
+  }
+  .prose :global(li + li) {
+    margin-top: 6px;
+  }
+  .prose :global(a) {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose :global(.summary) {
+    padding: 20px 24px;
+    border-radius: 20px;
+    background: var(--panel);
+    color: var(--text);
+  }
+
+  @media (max-width: 860px) {
+    .layout {
+      display: block;
+      margin-top: 32px;
+    }
+    .toc {
+      position: static;
+      margin: 0 0 32px;
+      padding: 18px 20px;
+      border-radius: 18px;
+      background: var(--panel);
+    }
+  }
+</style>
