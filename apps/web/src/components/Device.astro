@@ -3,9 +3,10 @@
 // the default slot and use the classes below (.me, .mate, .card, .stamp, .event, .note, .in).
 // Styles are global but scoped under .device so pages can reuse the app look without clashing.
 import type { PolygonState } from "@muse-clone/mascot";
+import type { ShapeName } from "../shapes";
 import Mascot from "./Mascot";
 
-export type Face = { gradient: [string, string, string]; state?: PolygonState };
+export type Face = { gradient: [string, string, string]; state?: PolygonState; shape?: ShapeName };
 
 interface Props {
   title?: string;
@@ -54,12 +55,12 @@ const full = screen === "full";
         {
           header === "stack" ? (
             <div class="title">
-              <div class="stack">{faces.map((face) => <Mascot client:visible size={26} gradient={face.gradient} state={face.state} />)}</div>
+              <div class="stack">{faces.map((face) => <Mascot client:visible size={26} gradient={face.gradient} state={face.state} shape={face.shape} />)}</div>
               <div class="name">{title} <span class="chev">›</span></div>
             </div>
           ) : (
             <div class="glass pill">
-              <Mascot client:visible size={24} gradient={faces[0]!.gradient} state={faces[0]!.state} />
+              <Mascot client:visible size={24} gradient={faces[0]!.gradient} state={faces[0]!.state} shape={faces[0]!.shape} />
               <span>{title}</span>
             </div>
           )

@@ -9,7 +9,7 @@ const nova = mate("blue");
 const ivy = mate("green");
 ---
 
-<Device title="Launch week" faces={[{ gradient: cooper, state: "happy" }, { gradient: nova, state: "working" }, { gradient: ivy, state: "writing" }]}>
+<Device title="Launch week" faces={[{ gradient: cooper, state: "happy" }, { gradient: nova, state: "working", shape: "triangle" }, { gradient: ivy, state: "writing", shape: "circle" }]}>
       <div class="stamp">Today 9:38</div>
 
       <div class="me in" style="--d: 0.1s">Ship dark mode in the app and get the release notes ready for Friday.</div>
@@ -22,14 +22,14 @@ const ivy = mate("green");
       <div class="card in" style="--d: 0.9s">
         <div class="label">Handing off</div>
         <div class="row">
-          <Mascot client:visible size={28} gradient={nova} state="working" />
+          <Mascot client:visible size={28} gradient={nova} state="working" shape="triangle" />
           <div class="grow">
             <div class="row-top"><b>Nova</b><span class="chip working">Working<span class="pulse"><i></i><i></i><i></i></span></span></div>
             <div class="task">Build dark mode across settings and chat</div>
           </div>
         </div>
         <div class="row">
-          <Mascot client:visible size={28} gradient={ivy} state="proud" />
+          <Mascot client:visible size={28} gradient={ivy} state="proud" shape="circle" />
           <div class="grow">
             <div class="row-top"><b>Ivy</b><span class="chip done">✓ Done</span></div>
             <div class="task">Draft the v2.4 release notes</div>

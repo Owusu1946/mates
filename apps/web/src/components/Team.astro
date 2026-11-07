@@ -7,9 +7,9 @@ import Mascot from "./Mascot";
 
 const cooper = mate("amber");
 const team = [
-  { name: "Nova", role: "Engineer", task: "Build dark mode", gradient: mate("blue"), state: "working" as const, done: "PR #42 opened", delay: "1.2s" },
-  { name: "Ivy", role: "Writer", task: "Release notes v2.4", gradient: mate("green"), state: "writing" as const, done: "Note written", delay: "2.6s" },
-  { name: "Sol", role: "Marketer", task: "Draft the announcement", gradient: mate("teal"), state: "thinking" as const, done: "Ready for review", delay: "4s" },
+  { name: "Nova", role: "Engineer", task: "Build dark mode", gradient: mate("blue"), shape: "triangle" as const, state: "working" as const, done: "PR #42 opened", delay: "1.2s" },
+  { name: "Ivy", role: "Writer", task: "Release notes v2.4", gradient: mate("green"), shape: "circle" as const, state: "writing" as const, done: "Note written", delay: "2.6s" },
+  { name: "Sol", role: "Marketer", task: "Draft the announcement", gradient: mate("teal"), shape: "hexagon" as const, state: "thinking" as const, done: "Ready for review", delay: "4s" },
 ];
 const points = [
   { title: "Plans the work", body: "The lead mate turns your goal into steps and picks who should do each one." },
@@ -52,7 +52,7 @@ const points = [
       {
         team.map((mate) => (
           <div class="mate" style={`--delay: ${mate.delay}`}>
-            <Mascot client:visible size={40} gradient={mate.gradient} state={mate.state} />
+            <Mascot client:visible size={40} gradient={mate.gradient} state={mate.state} shape={mate.shape} />
             <div class="mate-copy">
               <div class="mate-top">
                 <b>{mate.name}</b>
