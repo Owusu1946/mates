@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -49,6 +49,8 @@ export type WorkflowCard = {
     pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number };
     error?: string;
   };
+  /** The web pages an answer drew on, cited ones first: shown as a Sources pill under the answer. */
+  sources?: { id: string; url: string; title: string; domain: string; publishedAt: string | null; favicon: string }[];
   /** A mission note a mate just wrote. */
   note?: { title: string; version: number; author: string; chatId: string };
   /** A team the leader assembled for a mission. */
