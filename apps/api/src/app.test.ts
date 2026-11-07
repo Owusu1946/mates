@@ -42,6 +42,30 @@ describe("API contract", () => {
     expect(await bot.json()).toEqual({ position: null, already: false });
   });
 
+  it("guards voice typing: auth, a configured key, and an audio upload", async () => {
+    const app = createApp(deps);
+    const form = (file: File) => {
+      const body = new FormData();
+      body.append("audio", file);
+      return body;
+    };
+    const clip = new File([new Uint8Array([1, 2, 3])], "dictation.m4a", { type: "audio/mp4" });
+    expect((await app.request("/v1/transcribe", { method: "POST", body: form(clip) })).status).toBe(401);
+
+    const saved = process.env.DEEPGRAM_API_KEY;
+    delete process.env.DEEPGRAM_API_KEY;
+    const unconfigured = await app.request("/v1/transcribe", { method: "POST", headers: { authorization: "Bearer test" }, body: form(clip) });
+    expect(unconfigured.status).toBe(503);
+    expect(await unconfigured.json()).toMatchObject({ error: { code: "TRANSCRIPTION_UNAVAILABLE" } });
+
+    process.env.DEEPGRAM_API_KEY = "test-key";
+    const text = new File(["hello"], "notes.txt", { type: "text/plain" });
+    const wrong = await app.request("/v1/transcribe", { method: "POST", headers: { authorization: "Bearer test" }, body: form(text) });
+    expect(wrong.status).toBe(400);
+    if (saved === undefined) delete process.env.DEEPGRAM_API_KEY;
+    else process.env.DEEPGRAM_API_KEY = saved;
+  });
+
   it("treats a trailing slash as the same route", async () => {
     const response = await createApp(deps).request("/health/");
     expect(response.status).toBe(301);
