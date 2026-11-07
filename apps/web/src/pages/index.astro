@@ -12,6 +12,7 @@ import StoreButtons from "../components/StoreButtons.astro";
 import Waitlist from "../components/Waitlist";
 import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
+import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
@@ -105,6 +106,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   </main>
 
   <Footer />
+  <BackToTop client:idle />
 </Base>
 
 <style>
