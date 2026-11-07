@@ -2,6 +2,7 @@
 // "Give each mate a job": pick a role, the copy and the phone switch to it. Every role is in the
 // HTML already; the script below only flips which one is visible.
 import { mate, type Gradient } from "../palette";
+import type { ShapeName } from "../shapes";
 import Device from "./Device.astro";
 import type { PolygonState } from "@muse-clone/mascot";
 import Mascot from "./Mascot";
@@ -17,6 +18,8 @@ type Role = {
   name: string;
   gradient: Gradient;
   state: PolygonState;
+  /** Silhouette; the hexagon unless set. */
+  shape?: ShapeName;
   lead: string;
   body: string;
   thread: Line[];
@@ -27,6 +30,7 @@ const roles: Role[] = [
     id: "shipper",
     name: "Code Shipper",
     gradient: mate("blue"),
+    shape: "triangle",
     state: "working",
     lead: "Ship features while you sleep.",
     body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
@@ -43,6 +47,7 @@ const roles: Role[] = [
     id: "inbox",
     name: "Inbox Keeper",
     gradient: mate("green"),
+    shape: "circle",
     state: "curious",
     lead: "Inbox zero, every morning.",
     body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
@@ -143,7 +148,7 @@ const icons = {
             aria-controls={`phone-${role.id}`}
             data-copy={`copy-${role.id}`}
           >
-            <Mascot client:visible className="face" size={26} gradient={role.gradient} state={role.state} />
+            <Mascot client:visible className="face" size={26} gradient={role.gradient} state={role.state} shape={role.shape} />
             {role.name}
           </button>
         ))
@@ -165,7 +170,7 @@ const icons = {
     {
       roles.map((role, index) => (
         <div class="panel" id={`phone-${role.id}`} role="tabpanel" aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
-          <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, state: role.state }]}>
+          <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, state: role.state, shape: role.shape }]}>
             {role.thread.map((line, i) => {
               const delay = `--d: ${0.1 + i * 0.35}s`;
               if ("stamp" in line) return <div class="stamp in" style={delay}>{line.stamp}</div>;

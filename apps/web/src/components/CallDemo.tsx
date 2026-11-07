@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { PolygonState } from "@muse-clone/mascot";
 import { mate, type Gradient } from "../palette";
+import type { ShapeName } from "../shapes";
 import Mascot from "./Mascot";
 import "./CallDemo.css";
 
@@ -11,7 +12,7 @@ import "./CallDemo.css";
  */
 
 type Phase = "lobby" | "connecting" | "live" | "ended";
-type BotMate = { id: string; name: string; role: string; gradient: Gradient; lines: string[] };
+type BotMate = { id: string; name: string; role: string; gradient: Gradient; shape?: ShapeName; lines: string[] };
 type Member = BotMate & { joining: boolean; speaking: boolean };
 type Caption = { id: number; speaker: string; text: string };
 
@@ -23,8 +24,8 @@ const LEAD: BotMate = {
   lines: ["Hey! I’m here. What are we planning?", "Got it. I’ll pull it together while we talk.", "Nova, can you check flights for Friday?"],
 };
 const OTHERS: BotMate[] = [
-  { id: "nova", name: "Nova", role: "Research", gradient: mate("blue"), lines: ["Three options. The 9am is the cheapest.", "Prices dropped this morning, I’ll hold that one."] },
-  { id: "ivy", name: "Ivy", role: "Planning", gradient: mate("green"), lines: ["Thursday afternoon is free to pack.", "I’ll put the trip on your calendar."] },
+  { id: "nova", name: "Nova", role: "Research", gradient: mate("blue"), shape: "triangle", lines: ["Three options. The 9am is the cheapest.", "Prices dropped this morning, I’ll hold that one."] },
+  { id: "ivy", name: "Ivy", role: "Planning", gradient: mate("green"), shape: "circle", lines: ["Thursday afternoon is free to pack.", "I’ll put the trip on your calendar."] },
   { id: "sol", name: "Sol", role: "Creative", gradient: mate("teal"), lines: ["I can draft your out-of-office note.", "Here’s a warmer version of it."] },
 ];
 
@@ -180,7 +181,7 @@ export default function CallDemo() {
                     className={`cd-chip${on ? " on" : ""}`}
                     onClick={act(() => setInvited((list) => (on ? list.filter((x) => x !== m.id) : [...list, m.id])))}
                   >
-                    <Mascot size={30} state="idle" gradient={m.gradient} />
+                    <Mascot size={30} state="idle" gradient={m.gradient} shape={m.shape} />
                     <span>
                       <b>{m.name}</b>
                       <small>{m.role}</small>
@@ -237,7 +238,7 @@ export default function CallDemo() {
           <div className="cd-faces">
             {(summary?.members ?? [LEAD]).map((m) => (
               <span key={m.id}>
-                <Mascot size={60} state="happy" gradient={m.gradient} />
+                <Mascot size={60} state="happy" gradient={m.gradient} shape={m.shape} />
               </span>
             ))}
           </div>
@@ -297,7 +298,7 @@ function Live(props: {
       <div className={`cd-stage n${Math.min(count, 4)}`}>
         {members.map((m, i) => (
           <div key={m.id} className={`cd-tile${m.joining ? " joining" : ""}${count % 2 === 1 && count > 2 && i === count - 1 ? " span" : ""}`}>
-            <Mascot size={avatar} state={avatarState(m, listening)} gradient={m.gradient} />
+            <Mascot size={avatar} state={avatarState(m, listening)} gradient={m.gradient} shape={m.shape} />
             <div className="cd-name">
               <b>{m.name}</b>
               <span>{m.joining ? "Joining…" : m.role}</span>
