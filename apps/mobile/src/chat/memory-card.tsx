@@ -1,11 +1,11 @@
 import { useAuth } from "@clerk/expo";
-import { Button, Host } from "@expo/ui";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Text, View } from "react-native";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
+import { CardButton } from "./card-button";
 
 /** The "Memory updated" chip on a reply, with undo for a memory Cooper just saved. */
 export function MemoryCard({ state }: { state: WorkflowCard }) {
@@ -37,13 +37,9 @@ export function MemoryCard({ state }: { state: WorkflowCard }) {
       </Text>
       <View style={{ flexDirection: "row", gap: 4, marginLeft: -8 }}>
         {memory.action === "saved" && !undone && (
-          <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-            <Button label={busy ? "Undoing…" : "Undo"} variant="text" disabled={busy} onPress={() => void undo()} />
-          </Host>
+          <CardButton label={busy ? "Undoing…" : "Undo"} variant="text" disabled={busy} onPress={() => void undo()} />
         )}
-        <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-          <Button label="Manage" variant="text" onPress={() => router.push("/(app)/memory")} />
-        </Host>
+        <CardButton label="Manage" variant="text" onPress={() => router.push("/(app)/memory")} />
       </View>
     </View>
   );

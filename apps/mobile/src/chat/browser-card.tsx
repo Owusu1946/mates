@@ -1,6 +1,5 @@
 import { useAuth } from "@clerk/expo";
 import { useAui, useAuiState } from "@assistant-ui/react-native";
-import { Button, Host } from "@expo/ui";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Modal, Text, TextInput, View, ScrollView } from "react-native";
@@ -8,6 +7,7 @@ import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
+import { CardButton } from "./card-button";
 
 type LiveState = WorkflowCard & { previewUrl?: string | null };
 const ended = ["completed", "cancelled", "expired", "error", "blocked"];
@@ -71,9 +71,7 @@ export function BrowserCard({ state }: { state: WorkflowCard }) {
     } catch (e) { setError(e instanceof Error ? e.message : "Couldn’t update browser"); } finally { setPending(false); }
   }
   const button = (label: string, onPress: () => void, disabled = false) => (
-    <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-      <Button label={label} onPress={onPress} disabled={disabled || pending} />
-    </Host>
+    <CardButton key={label} label={label} onPress={onPress} disabled={disabled || pending} />
   );
   const preview = (height: number) => live.previewUrl && !terminal ? <View style={{ height, borderRadius: 14, overflow: "hidden", backgroundColor: isDark ? "#18181b" : "#fff" }} pointerEvents={canControl ? "auto" : "none"}>
     <WebView source={{ uri: live.previewUrl }} style={{ flex: 1, width: "100%", height }} originWhitelist={["*"]} javaScriptEnabled domStorageEnabled thirdPartyCookiesEnabled allowsInlineMediaPlayback mediaPlaybackRequiresUserAction={false}

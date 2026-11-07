@@ -1,5 +1,4 @@
 import { useAui, useAuiState } from "@assistant-ui/react-native";
-import { Button, Host } from "@expo/ui";
 import type { WorkflowCard } from "@expojet/api-contract";
 import * as Linking from "expo-linking";
 import { useEffect, useRef, useState } from "react";
@@ -8,6 +7,7 @@ import { AppLogo } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { ProductResult } from "./product-result";
+import { CardButton } from "./card-button";
 
 export function AppResponseCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
@@ -172,8 +172,8 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
                 </View>
               )}
               {item.url && (
-                <Host matchContents colorScheme={isDark ? "dark" : "light"}>
-                  <Button
+                <View style={{ marginLeft: -8 }}>
+                  <CardButton
                     variant="text"
                     label={
                       state.toolkit === "gmail"
@@ -191,7 +191,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
                         );
                     }}
                   />
-                </Host>
+                </View>
               )}
             </View>
           ))}
