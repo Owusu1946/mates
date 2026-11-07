@@ -15,6 +15,7 @@ export interface BotMate {
   name: string;
   role: string;
   gradient: [string, string, string];
+  shape?: string;
   lines: string[];
 }
 
@@ -40,8 +41,8 @@ const ROLE_LINES: Record<string, string[]> = {
   study: ["Let's go through it one step at a time.", "Want a quick quiz on that?"],
 };
 
-export function toCallMate(mate: { id: string; name: string; role: string; gradient: [string, string, string] }): BotMate {
-  return { id: mate.id, name: mate.name, role: mate.role, gradient: mate.gradient, lines: ROLE_LINES[mate.role] ?? ROLE_LINES.companion! };
+export function toCallMate(mate: { id: string; name: string; role: string; gradient: [string, string, string]; shape?: string }): BotMate {
+  return { id: mate.id, name: mate.name, role: mate.role, gradient: mate.gradient, shape: mate.shape, lines: ROLE_LINES[mate.role] ?? ROLE_LINES.companion! };
 }
 
 export type CallRoster = { lead: BotMate; others: BotMate[]; group: string[] };
