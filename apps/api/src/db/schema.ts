@@ -322,6 +322,8 @@ export const mates = pgTable("mates", {
   role: text("role").notNull().default("companion"),
   roleDescription: text("role_description").notNull().default(""),
   color: text("color").notNull().default("amber"),
+  /** The mascot silhouette: hexagon (Cooper and older mates), circle or triangle. */
+  shape: text("shape").notNull().default("hexagon"),
   /** Cooper: provisioned for every user, cannot be deleted. */
   isDefault: boolean("is_default").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
