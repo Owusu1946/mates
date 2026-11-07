@@ -14,6 +14,7 @@ import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleTool, routineSpecSchema, draftRoutine } from "./scheduling.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
+import { executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
 import { saveUndo } from "./undo.js";
@@ -131,10 +132,15 @@ export async function createAgentResponse(
   // Embedded once, in parallel with session setup; memory and recall both search with it.
   const lastUserText = turns.filter((t) => t.role === "user").at(-1)?.content ?? "";
   const queryVector = lastUserText.trim() ? embedOne(lastUserText).catch(() => null) : Promise.resolve(null);
+  // "@Web" forces a web search on the first step; the model never sees the tag itself.
+  const webOn = webSearchConfigured();
+  const forced = forcedSearch(lastUserText);
+  const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
+  const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
   let session = await getIntegrationSession(userId);
   let messages: ModelMessage[] = [
-    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) },
-    ...turns,
+    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) },
+    ...modelTurns,
   ];
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
@@ -337,7 +343,7 @@ export async function createAgentResponse(
     ...(mission ? [missionNoteTool] : []),
     ...(memory.enabled ? [memoryTool] : []),
     ...(recallOn ? [recallTool] : []),
-    ...browserTools,
+    ...(webOn ? [webSearchTool, webReadTool, ...browserTools.filter((tool) => tool.function.name !== "browser_search")] : browserTools),
   ];
   const toolNames = new Set(tools.map((tool) => (tool as { function: { name: string } }).function.name));
   let model = CHAT_MODEL;
@@ -358,6 +364,21 @@ export async function createAgentResponse(
   if (mission) messages.push({ role: "system", content: await missionContext(mission) });
   const sources = new Map<string, Map<string, Record<string, unknown>>>();
   const emptyLookups = new Set<string>();
+  // Pages seen earlier in this run keep their ids when it resumes.
+  const ledger = new SourceLedger(
+    messages.flatMap((message) => {
+      if (message.role !== "tool" || !message.content?.includes('"cooperToolkit":"web"')) return [];
+      try {
+        const saved = JSON.parse(message.content) as { results?: { id: string; url: string; title: string; published: string | null; excerpts: string[] }[] };
+        return (saved.results ?? [])
+          .filter((r) => r.id && r.url)
+          .map((r): WebSource => ({ id: r.id, url: r.url, title: r.title, domain: new URL(r.url).hostname.replace(/^www\./, ""), publishedAt: r.published, excerpts: r.excerpts ?? [] }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  const webCalls = { web_search: 0, web_read: 0 };
   for (const message of messages)
     if (message.role === "tool" && message.content) {
       try {
@@ -471,6 +492,7 @@ export async function createAgentResponse(
                 stream: true,
                 messages: provider,
                 tools: finishWithResults || turn === 31 ? [] : tools,
+                ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),
                 parallel_tool_calls: false,
               }),
             },
@@ -558,6 +580,7 @@ export async function createAgentResponse(
             }
             if (!hasResults)
               for (const [toolkit, evidence] of sources) {
+                if (toolkit === "web" && ledger.size) continue; // Shown as the Sources pill instead.
                 const items = fallbackItems(toolkit, evidence);
                 if (!items.length && !emptyLookups.has(toolkit)) continue;
                 const app = toolkit === "web" ? null : await getApp(session, toolkit);
@@ -582,6 +605,7 @@ export async function createAgentResponse(
                   ],
                 });
               }
+            if (ledger.size) card(`sources_${runId}`, sourcesCard(ledger.forAnswer(text)));
             finishActivity();
             await getDb()
               .update(agentRuns)
@@ -705,6 +729,18 @@ export async function createAgentResponse(
                 hasResults = true;
                 finishWithResults = true;
               } catch (error) { messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: error instanceof Error ? error.message : "Schedule could not be drafted" }) }); }
+            } else if (call.function.name === "web_search" || call.function.name === "web_read") {
+              const name = call.function.name;
+              const limit = name === "web_search" ? SEARCH_LIMIT : READ_LIMIT;
+              webCalls[name]++;
+              const output =
+                webCalls[name] > limit
+                  ? { results: [], error: `That is ${limit} ${name} calls for this request. Answer with what you have.` }
+                  : await executeWebTool(name, args, { ledger, sessionId: runId, signal, step: activity });
+              const map = sources.get("web") ?? new Map<string, Record<string, unknown>>();
+              collectSources(output, map);
+              sources.set("web", map);
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ...output, cooperToolkit: "web" }).slice(0, 40_000) });
             } else if (call.function.name.startsWith("browser_")) {
               try {
                 if (call.function.name === "browser_search" && searchUnavailable) throw new Error("Use the fallback source now; search already failed. Open trusted retailer websites or discover another search tool.");
