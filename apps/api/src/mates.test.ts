@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { handoffCard, normalisePlan, parseMentions } from "./groups.js";
-import { mateChatId, mateInputSchema, personaPreamble, previewOf, ROLE_PRESETS, type PersonaMate } from "./mates.js";
+import { MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
-const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal" });
+const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
 const scout = mate("m1", "Scout", "research");
 const ama = mate("m2", "Ama");
 const amaLee = mate("m3", "Ama Lee", "money", "a careful money mate");
@@ -11,6 +11,8 @@ describe("mates", () => {
   it("accepts a well-formed mate and fills in defaults", () => {
     expect(mateInputSchema.parse({ name: "  Scout " })).toEqual({ name: "Scout", role: "companion", roleDescription: "", color: "teal" });
     expect(mateInputSchema.safeParse({ name: "@scout" }).success).toBe(false);
+    expect(mateInputSchema.parse({ name: "Nova", shape: "triangle" }).shape).toBe("triangle");
+    expect(mateInputSchema.safeParse({ name: "Nova", shape: "star" }).success).toBe(false);
     expect(mateInputSchema.safeParse({ name: "" }).success).toBe(false);
     expect(mateInputSchema.safeParse({ name: "Scout", color: "neon" }).success).toBe(false);
     expect(mateChatId("abc")).toBe("mate_abc");
@@ -61,5 +63,10 @@ describe("handoff relay", () => {
     expect(working.handoff!.from.gradient).toHaveLength(3);
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "done" }]).label).toBe("Scout handed off");
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "waiting" }]).phase).toBe("done");
+  });
+
+  it("gives a mate created without a shape a random one of the three", () => {
+    const seen = new Set(Array.from({ length: 200 }, () => randomShape()));
+    expect([...seen].sort()).toEqual([...MATE_SHAPES].sort());
   });
 });
