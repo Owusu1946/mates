@@ -13,6 +13,7 @@ import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleTool, routineSpecSchema, draftRoutine } from "./scheduling.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
+import { describeStep } from "./step-labels.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
 import { saveUndo } from "./undo.js";
@@ -941,7 +942,9 @@ export async function createAgentResponse(
                 call.function.name === "COMPOSIO_MULTI_EXECUTE_TOOL"
                   ? batchTier(batch.map((tool) => tool.tool_slug ?? ""))
                   : isReadOnlyComposioCall(call.function.name, batch) ? "read" : "write";
-              activity(batch[0]?.tool_slug ? activityLabel(batch[0].tool_slug) : activityLabel(call.function.name));
+              // One line per tool, saying what it is doing with what it was given ("Writing the heading …").
+              if (batch.length) for (const tool of batch) activity(describeStep(tool.tool_slug ?? "", tool.arguments ?? {}));
+              else activity(describeStep(call.function.name, args));
               try {
                 const output = await getComposio().provider.executeToolCall(
                   session,
