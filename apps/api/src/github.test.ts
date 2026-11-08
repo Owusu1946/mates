@@ -11,14 +11,14 @@ describe("GitHub install state", () => {
   });
 
   it("round-trips the user who started the install", () => {
-    expect(verifyState(signState("user_123"))).toEqual({ userId: "user_123", returnTo: "muse-clone://connections" });
+    expect(verifyState(signState("user_123"))).toEqual({ userId: "user_123", returnTo: "mates://connections" });
     expect(verifyState(signState("user_123", Date.now(), "exp://192.168.0.2:8081/--/connections"))?.returnTo).toBe("exp://192.168.0.2:8081/--/connections");
   });
 
   it("only returns to the app, never to the web", () => {
-    expect(safeReturn("https://evil.example/steal")).toBe("muse-clone://connections");
-    expect(safeReturn("javascript:alert(1)")).toBe("muse-clone://connections");
-    expect(safeReturn("muse-clone://connections")).toBe("muse-clone://connections");
+    expect(safeReturn("https://evil.example/steal")).toBe("mates://connections");
+    expect(safeReturn("javascript:alert(1)")).toBe("mates://connections");
+    expect(safeReturn("mates://connections")).toBe("mates://connections");
   });
 
   it("rejects tampered, expired and foreign states", () => {
