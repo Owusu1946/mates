@@ -1,5 +1,5 @@
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { StyleSheet, useColorScheme, View } from "react-native";
 import Animated, {
   Easing,
@@ -25,9 +25,9 @@ import { CIRCLE, HEXAGON, OUTLINE_POINTS, TRIANGLE } from "./outlines";
  * cells part and melt into their own shapes, wake up as mates and look at each other, then
  * part to reveal the app.
  *
- * Up to the shapes, everything runs on the UI thread. The mascot engine draws through JS, so
- * it only takes over once the app has loaded and only if this phone kept up during the morph;
- * otherwise the shapes simply fade out.
+ * Up to the shapes, everything runs on the UI thread. The mascot engine draws through JS, so it
+ * takes over only if this phone kept up during the morph; otherwise the shapes breathe on the
+ * UI thread until the app is ready.
  */
 
 /** Matches `imageWidth` for expo-splash-screen in app.json, so the first frame lines up. */
@@ -53,9 +53,8 @@ const MID = { x: SPLASH_SIZE / 2, y: (CELLS[0]!.y + CELLS[1]!.y) / 2 };
 const WAKE = 120; // ms of plain honeycomb before anything moves
 const MORPH = 460;
 const SPREAD = 0.3; // how far the cells part while morphing, relative to their offset from the middle
-const PROBE = 240; // ms of JS frame-rate check once loaded, before the engine starts
 const EYES_IN = 160;
-const ALIVE = 950; // how long the mates look at each other
+const ALIVE = 1100; // the least time the mates spend alive, looking at each other
 const MAX_WAIT = 4000; // never hold the app hostage to a slow network
 const EXIT = 420;
 
@@ -116,12 +115,12 @@ function LivingMate({ cell, cheer, spread, fade }: { cell: Cell; cheer: boolean;
 
 /**
  * Whether the JS thread holds ~24 fps over `ms` (null until measured), which the engine needs.
- * Measured only once the app has loaded: launch itself is always busy and would fail every phone.
+ * Dev builds run JS several times slower than release, so there it always says yes.
  */
 function useJsKeepsUp(ms: number, enabled: boolean) {
-  const [keepsUp, setKeepsUp] = useState<boolean | null>(null);
+  const [keepsUp, setKeepsUp] = useState<boolean | null>(__DEV__ ? enabled : null);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || __DEV__) return;
     let frames = 0;
     let raf = 0;
     const started = Date.now();
@@ -136,17 +135,21 @@ function useJsKeepsUp(ms: number, enabled: boolean) {
   return keepsUp;
 }
 
-type Phase = "morphing" | "waiting" | "alive" | "leaving" | "gone";
+/** "alive": the engine has the mates. "shaped": they stay plain shapes (slow phone or Reduce Motion). */
+type Phase = "morphing" | "alive" | "shaped" | "leaving" | "gone";
 
 /** Covers the app until it's ready and the intro has played, then fades out and unmounts. */
 export function AnimatedSplash({ ready }: { ready: boolean }) {
   const scheme = useColorScheme() === "dark" ? "dark" : "light";
   const motion = !useReducedMotion();
-  const [phase, setPhase] = useState<Phase>(motion ? "morphing" : "waiting");
+  const [phase, setPhase] = useState<Phase>(motion ? "morphing" : "shaped");
+  const [introDone, setIntroDone] = useState(!motion);
   const [awake, setAwake] = useState(false);
   const [cheer, setCheer] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
-  const keepsUp = useJsKeepsUp(PROBE, motion && ready && phase === "waiting");
+  const keepsUp = useJsKeepsUp(MORPH, motion);
+  const keepsUpRef = useRef(keepsUp);
+  keepsUpRef.current = keepsUp;
 
   const morph = useSharedValue(0);
   const spread = useSharedValue(0);
@@ -160,40 +163,38 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
     if (!motion) return () => clearTimeout(max);
     morph.value = withDelay(WAKE, withTiming(1, { duration: MORPH, easing: ease }));
     spread.value = withDelay(WAKE, withTiming(SPREAD, { duration: MORPH, easing: ease }));
-    // Shaped: breathe on the UI thread while the app finishes loading, so they're never still.
-    breath.value = withDelay(WAKE + MORPH, withRepeat(withSequence(withTiming(1.035, { duration: 700, easing: Easing.inOut(Easing.sin) }), withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })), -1));
-    const morphed = setTimeout(() => setPhase((p) => (p === "morphing" ? "waiting" : p)), WAKE + MORPH);
+    // Shaped: wake up straight away if this phone can afford the engine. Loading carries on
+    // underneath; it's mostly network, so the JS thread has room.
+    const morphed = setTimeout(() => setPhase(keepsUpRef.current === false ? "shaped" : "alive"), WAKE + MORPH);
     return () => {
       clearTimeout(max);
       clearTimeout(morphed);
     };
-  }, [motion, morph, spread, breath]);
-
-  // Shaped and loaded: wake up if this phone can afford the engine, otherwise go straight in.
-  useEffect(() => {
-    if (timedOut && phase !== "leaving" && phase !== "gone") return setPhase("leaving");
-    if (phase !== "waiting" || !ready) return;
-    if (!motion) return setPhase("leaving");
-    if (keepsUp !== null) setPhase(keepsUp ? "alive" : "leaving");
-  }, [phase, ready, keepsUp, motion, timedOut]);
+  }, [motion, morph, spread]);
 
   useEffect(() => {
-    if (phase === "alive" || phase === "leaving") {
-      cancelAnimation(breath);
-      breath.value = withTiming(1, { duration: 160 });
-    }
+    if (__DEV__) console.log("splash", phase, { ready, keepsUp, introDone, timedOut });
+  }, [phase, ready, keepsUp, introDone, timedOut]);
+
+  useEffect(() => {
     if (phase === "alive") {
       setAwake(true);
       mates.value = withTiming(1, { duration: EYES_IN });
       shapes.value = withDelay(EYES_IN, withTiming(0, { duration: 1 }));
       const cheerUp = setTimeout(() => setCheer(true), ALIVE * 0.4);
-      const done = setTimeout(() => setPhase("leaving"), ALIVE);
+      const played = setTimeout(() => setIntroDone(true), ALIVE);
       return () => {
         clearTimeout(cheerUp);
-        clearTimeout(done);
+        clearTimeout(played);
       };
     }
+    if (phase === "shaped" && motion) {
+      // Plain shapes breathe on the UI thread while the app finishes loading.
+      breath.value = withRepeat(withSequence(withTiming(1.035, { duration: 700, easing: Easing.inOut(Easing.sin) }), withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })), -1);
+      setIntroDone(true);
+    }
     if (phase === "leaving") {
+      cancelAnimation(breath);
       const gone = () => setPhase("gone");
       if (motion) spread.value = withTiming(SPREAD + 0.4, { duration: EXIT, easing: ease });
       veil.value = withDelay(
@@ -204,6 +205,12 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
       );
     }
   }, [phase, motion, mates, shapes, spread, veil, breath]);
+
+  // The intro always plays in full; then go in once the app knows where to send the user.
+  // The cap only stops a slow network holding the splash, never the mates mid-intro.
+  useEffect(() => {
+    if ((phase === "alive" || phase === "shaped") && introDone && (ready || timedOut)) setPhase("leaving");
+  }, [phase, introDone, ready, timedOut]);
 
   const cover = useAnimatedStyle(() => ({ opacity: veil.value }));
 
