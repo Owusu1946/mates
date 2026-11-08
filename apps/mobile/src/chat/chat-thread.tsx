@@ -123,10 +123,10 @@ type ChatPalette = (typeof palettes)["light"];
 const EMPTY_CHAT_WIDTH = 340;
 const EMPTY_CHAT_AVATAR_SIZE = 104;
 
-const EMPTY_SUGGESTION_INTERVAL_MS = 5_200;
+const EMPTY_SUGGESTION_INTERVAL_MS = 4_000;
 const EMPTY_PROMPT_BLOCK_HEIGHT = 120;
-const EMPTY_PROMPT_OUT_MS = 380;
-const EMPTY_PROMPT_IN_MS = 560;
+const EMPTY_PROMPT_OUT_MS = 200;
+const EMPTY_PROMPT_IN_MS = 340;
 
 const suggestionSpots: { prompt: string; chip: string; icon: ChatIconName }[] = [
   { prompt: "Help me plan my week", chip: "Plan", icon: "tasks" },
@@ -173,8 +173,8 @@ function EmptyChatRotatingPrompt({
 
     const arrive = (next: number) => {
       setDisplayed(next);
-      translateY.value = 8;
-      scale.value = 0.975;
+      translateY.value = 6;
+      scale.value = 0.98;
       const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
       opacity.value = withTiming(1, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
       translateY.value = withTiming(0, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
@@ -202,7 +202,7 @@ function EmptyChatRotatingPrompt({
     >
       <Animated.View style={[{ width: "100%", alignItems: "center" }, motion]}>
         <View style={{ width: "100%", paddingVertical: 18 }}>
-          <Glow color={accent} size={280} opacity={0.36} style={{ top: -70, left: 30 }} />
+          <Glow color={accent} size={360} opacity={0.55} style={{ top: -110, left: -10 }} />
           <View
             style={{
               width: "100%",
@@ -218,8 +218,8 @@ function EmptyChatRotatingPrompt({
               paddingVertical: 16,
               shadowColor: accent,
               shadowOffset: { width: 0, height: 12 },
-              shadowOpacity: 0.16,
-              shadowRadius: 24,
+              shadowOpacity: 0.28,
+              shadowRadius: 28,
               elevation: 4,
             }}
           >
@@ -1736,7 +1736,7 @@ function ChatTitle() {
       {chat?.kind === "group" ? (
         <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={30} />
       ) : (
-        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} still />
+        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} />
       )}
       <View style={{ flexShrink: 1 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 17 }}>{name}</Text>
