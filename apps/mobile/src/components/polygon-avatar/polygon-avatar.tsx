@@ -104,11 +104,12 @@ export function PolygonAvatar({
   const reactId = useId();
   const uid = useMemo(() => "mascot" + reactId.replace(/[^a-zA-Z0-9]/g, ""), [reactId]);
   const reducedMotion = useReducedMotion();
-  const [background, setBackground] = useState(AppState.currentState !== "active");
+  // Only a real background pauses it: at launch the state can still read "unknown".
+  const [background, setBackground] = useState(AppState.currentState === "background");
   const [, redraw] = useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
-    const subscription = AppState.addEventListener("change", (next) => setBackground(next !== "active"));
+    const subscription = AppState.addEventListener("change", (next) => setBackground(next === "background"));
     return () => subscription.remove();
   }, []);
 
