@@ -53,7 +53,7 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
     setError(null);
     haptic.light();
     try {
-      // GitHub hands back to this link (muse-clone:// in builds, exp:// in Expo Go), closing the sheet.
+      // GitHub hands back to this link (mates:// in builds, exp:// in Expo Go), closing the sheet.
       const returnTo = Linking.createURL("connections");
       const { url } = await runRequest<{ url: string }>(getToken, `github/install?returnTo=${encodeURIComponent(returnTo)}`);
       const result = await WebBrowser.openAuthSessionAsync(url, returnTo);

@@ -152,7 +152,7 @@ describe("GitHub connect callback", () => {
   it("sends an expired or forged state back to the app with a reason", async () => {
     const response = await createApp(deps).request("/v1/github/callback?state=nope&code=abc");
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("muse-clone://connections?github=failed&reason=expired");
+    expect(response.headers.get("location")).toBe("mates://connections?github=failed&reason=expired");
   });
 
   it("signs the user in with GitHub when the install returned no code", async () => {

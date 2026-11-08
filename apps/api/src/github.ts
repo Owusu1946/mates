@@ -53,9 +53,9 @@ export const repoOctokit = (token: string) => new Octokit({ auth: token });
 
 const stateKey = () => createHmac("sha256", process.env.GITHUB_STATE_SECRET ?? process.env.CLERK_SECRET_KEY ?? "").update("github-install-state").digest();
 
-const DEFAULT_RETURN = "muse-clone://connections";
+const DEFAULT_RETURN = "mates://connections";
 /** Only the app's own links: the install flow must never become an open redirect. */
-export const safeReturn = (url: string | undefined) => (url && /^(muse-clone|exps?):\/\/[^\s]{1,300}$/.test(url) ? url : DEFAULT_RETURN);
+export const safeReturn = (url: string | undefined) => (url && /^(mates|exps?):\/\/[^\s]{1,300}$/.test(url) ? url : DEFAULT_RETURN);
 
 /** A signed, expiring `state` binding the install round-trip to the user who started it. */
 export function signState(userId: string, now = Date.now(), returnTo = DEFAULT_RETURN) {
