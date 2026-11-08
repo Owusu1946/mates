@@ -27,6 +27,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type GestureResponderEvent,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -39,6 +40,8 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
+  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import { CooperMark } from "../components/auth/cooper-mark";
@@ -125,8 +128,10 @@ const EMPTY_CHAT_AVATAR_SIZE = 104;
 
 const EMPTY_SUGGESTION_INTERVAL_MS = 4_000;
 const EMPTY_PROMPT_BLOCK_HEIGHT = 120;
-const EMPTY_PROMPT_OUT_MS = 200;
-const EMPTY_PROMPT_IN_MS = 340;
+const EMPTY_PROMPT_OUT_MS = 160;
+const EMPTY_PROMPT_IN_MS = 240;
+const EMPTY_PROMPT_VERTICAL_PADDING = 18;
+const EMPTY_SCREEN_TAP_GLOW_SIZE = 360;
 
 const suggestionSpots: { prompt: string; chip: string; icon: ChatIconName }[] = [
   { prompt: "Help me plan my week", chip: "Plan", icon: "tasks" },
@@ -173,8 +178,8 @@ function EmptyChatRotatingPrompt({
 
     const arrive = (next: number) => {
       setDisplayed(next);
-      translateY.value = 6;
-      scale.value = 0.98;
+      translateY.value = 4;
+      scale.value = 0.99;
       const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
       opacity.value = withTiming(1, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
       translateY.value = withTiming(0, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
@@ -189,7 +194,6 @@ function EmptyChatRotatingPrompt({
     opacity: opacity.value,
     transform: [{ translateY: translateY.value }, { scale: scale.value }],
   }));
-
   return (
     <ThreadPrimitive.Suggestion
       prompt={spot.prompt}
@@ -201,8 +205,8 @@ function EmptyChatRotatingPrompt({
       })}
     >
       <Animated.View style={[{ width: "100%", alignItems: "center" }, motion]}>
-        <View style={{ width: "100%", paddingVertical: 18 }}>
-          <Glow color={accent} size={360} opacity={0.55} style={{ top: -110, left: -10 }} />
+        <View style={{ width: "100%", paddingVertical: EMPTY_PROMPT_VERTICAL_PADDING }}>
+          <Glow color={accent} size={280} opacity={0.26} style={{ top: -75, left: 10 }} />
           <View
             style={{
               width: "100%",
@@ -217,10 +221,10 @@ function EmptyChatRotatingPrompt({
               paddingHorizontal: 16,
               paddingVertical: 16,
               shadowColor: accent,
-              shadowOffset: { width: 0, height: 12 },
-              shadowOpacity: 0.28,
-              shadowRadius: 28,
-              elevation: 4,
+              shadowOffset: { width: 0, height: 7 },
+              shadowOpacity: 0.14,
+              shadowRadius: 18,
+              elevation: 2,
             }}
           >
             <View
@@ -764,6 +768,38 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
   const accent = glowColorForChat(chat);
   const compact = keyboardVisible;
   const avatarSize = compact ? 80 : EMPTY_CHAT_AVATAR_SIZE;
+  const screenRef = useRef<View>(null);
+  const screenTapX = useSharedValue(-EMPTY_SCREEN_TAP_GLOW_SIZE / 2);
+  const screenTapY = useSharedValue(-EMPTY_SCREEN_TAP_GLOW_SIZE / 2);
+  const screenTapOpacity = useSharedValue(0);
+  const screenTapScale = useSharedValue(0.7);
+
+  const screenTapGlowMotion = useAnimatedStyle(() => ({
+    opacity: screenTapOpacity.value,
+    transform: [
+      { translateX: screenTapX.value },
+      { translateY: screenTapY.value },
+      { scale: screenTapScale.value },
+    ],
+  }));
+
+  const showScreenTapGlow = (event: GestureResponderEvent) => {
+    if (reducedMotion) return;
+    const { pageX, pageY } = event.nativeEvent;
+    screenRef.current?.measureInWindow((left, top) => {
+      screenTapX.value = pageX - left - EMPTY_SCREEN_TAP_GLOW_SIZE / 2;
+      screenTapY.value = pageY - top - EMPTY_SCREEN_TAP_GLOW_SIZE / 2;
+      screenTapScale.value = 0.7;
+      screenTapOpacity.value = withSequence(
+        withTiming(0.38, { duration: 100 }),
+        withDelay(160, withTiming(0, { duration: 390 })),
+      );
+      screenTapScale.value = withTiming(1, {
+        duration: 520,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+      });
+    });
+  };
 
   useEffect(() => {
     setActiveSpot(0);
@@ -786,18 +822,19 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
         : "How can I help you today?";
 
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{
-        flexGrow: 1,
-        justifyContent: compact ? "flex-end" : "center",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingVertical: compact ? 12 : 28,
-      }}
-      keyboardShouldPersistTaps="handled"
-    >
+    <View ref={screenRef} style={{ flex: 1 }} onTouchStart={showScreenTapGlow}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: compact ? "flex-end" : "center",
+          alignItems: "center",
+          paddingHorizontal: 20,
+          paddingVertical: compact ? 12 : 28,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={{ width: "100%", maxWidth: EMPTY_CHAT_WIDTH, gap: compact ? 12 : 16 }}>
         {!compact ? (
           <View style={{ alignItems: "center", gap: 12 }}>
@@ -867,7 +904,22 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
           />
         </View>
       </View>
-    </ScrollView>
+      </ScrollView>
+      <Animated.View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              width: EMPTY_SCREEN_TAP_GLOW_SIZE,
+              height: EMPTY_SCREEN_TAP_GLOW_SIZE,
+            },
+            screenTapGlowMotion,
+          ]}
+        >
+          <Glow color={accent} size={EMPTY_SCREEN_TAP_GLOW_SIZE} opacity={0.6} />
+        </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
