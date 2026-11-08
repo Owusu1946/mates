@@ -6,8 +6,11 @@ import Animated, {
   useAnimatedProps,
   useAnimatedStyle,
   useReducedMotion,
+  cancelAnimation,
   useSharedValue,
   withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
   type SharedValue,
 } from "react-native-reanimated";
@@ -50,6 +53,7 @@ const MID = { x: SPLASH_SIZE / 2, y: (CELLS[0]!.y + CELLS[1]!.y) / 2 };
 const WAKE = 120; // ms of plain honeycomb before anything moves
 const MORPH = 460;
 const SPREAD = 0.3; // how far the cells part while morphing, relative to their offset from the middle
+const PROBE = 240; // ms of JS frame-rate check once loaded, before the engine starts
 const EYES_IN = 160;
 const ALIVE = 950; // how long the mates look at each other
 const MAX_WAIT = 4000; // never hold the app hostage to a slow network
@@ -58,20 +62,20 @@ const EXIT = 420;
 const ease = Easing.bezier(0.22, 1, 0.36, 1);
 const AnimatedPath = Animated.createAnimatedComponent(Path);
 
-/** Where a cell sits: parted from the middle by `spread`, shrinking a touch as it leaves. */
-function usePlacement(cell: Cell, spread: SharedValue<number>, fade: SharedValue<number>) {
+/** Where a cell sits: parted from the middle by `spread`, shrinking a touch as it leaves; `breath` (1 = rest) gently scales it. */
+function usePlacement(cell: Cell, spread: SharedValue<number>, fade: SharedValue<number>, breath?: SharedValue<number>) {
   return useAnimatedStyle(() => ({
     opacity: fade.value,
     transform: [
       { translateX: (cell.x - MID.x) * spread.value },
       { translateY: (cell.y - MID.y) * spread.value },
-      { scale: 1 - 0.25 * Math.max(0, spread.value - SPREAD) },
+      { scale: (1 - 0.25 * Math.max(0, spread.value - SPREAD)) * (breath?.value ?? 1) },
     ],
   }));
 }
 
-function MorphingCell({ cell, index, morph, spread, fade }: { cell: Cell; index: number; morph: SharedValue<number>; spread: SharedValue<number>; fade: SharedValue<number> }) {
-  const placement = usePlacement(cell, spread, fade);
+function MorphingCell({ cell, index, morph, spread, fade, breath }: { cell: Cell; index: number; morph: SharedValue<number>; spread: SharedValue<number>; fade: SharedValue<number>; breath: SharedValue<number> }) {
+  const placement = usePlacement(cell, spread, fade, breath);
   const to = cell.outline;
   const outline = useAnimatedProps(() => {
     const t = morph.value;
@@ -110,9 +114,12 @@ function LivingMate({ cell, cheer, spread, fade }: { cell: Cell; cheer: boolean;
   );
 }
 
-/** Whether the JS thread held ~35 fps over `ms` (null until measured); the engine needs that. */
+/**
+ * Whether the JS thread holds ~24 fps over `ms` (null until measured), which the engine needs.
+ * Measured only once the app has loaded: launch itself is always busy and would fail every phone.
+ */
 function useJsKeepsUp(ms: number, enabled: boolean) {
-  const [keepsUp, setKeepsUp] = useState<boolean | null>(enabled ? null : false);
+  const [keepsUp, setKeepsUp] = useState<boolean | null>(null);
   useEffect(() => {
     if (!enabled) return;
     let frames = 0;
@@ -121,7 +128,7 @@ function useJsKeepsUp(ms: number, enabled: boolean) {
     const tick = () => {
       frames++;
       if (Date.now() - started < ms) raf = requestAnimationFrame(tick);
-      else setKeepsUp(frames >= (ms / 1000) * 35);
+      else setKeepsUp(frames >= (ms / 1000) * 24);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -139,34 +146,42 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
   const [awake, setAwake] = useState(false);
   const [cheer, setCheer] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
-  const keepsUp = useJsKeepsUp(WAKE + MORPH, motion);
+  const keepsUp = useJsKeepsUp(PROBE, motion && ready && phase === "waiting");
 
   const morph = useSharedValue(0);
   const spread = useSharedValue(0);
   const shapes = useSharedValue(1);
   const mates = useSharedValue(0);
   const veil = useSharedValue(1);
+  const breath = useSharedValue(1);
 
   useEffect(() => {
     const max = setTimeout(() => setTimedOut(true), MAX_WAIT);
     if (!motion) return () => clearTimeout(max);
     morph.value = withDelay(WAKE, withTiming(1, { duration: MORPH, easing: ease }));
     spread.value = withDelay(WAKE, withTiming(SPREAD, { duration: MORPH, easing: ease }));
+    // Shaped: breathe on the UI thread while the app finishes loading, so they're never still.
+    breath.value = withDelay(WAKE + MORPH, withRepeat(withSequence(withTiming(1.035, { duration: 700, easing: Easing.inOut(Easing.sin) }), withTiming(1, { duration: 700, easing: Easing.inOut(Easing.sin) })), -1));
     const morphed = setTimeout(() => setPhase((p) => (p === "morphing" ? "waiting" : p)), WAKE + MORPH);
     return () => {
       clearTimeout(max);
       clearTimeout(morphed);
     };
-  }, [motion, morph, spread]);
+  }, [motion, morph, spread, breath]);
 
   // Shaped and loaded: wake up if this phone can afford the engine, otherwise go straight in.
   useEffect(() => {
     if (timedOut && phase !== "leaving" && phase !== "gone") return setPhase("leaving");
-    if (phase !== "waiting" || !ready || keepsUp === null) return;
-    setPhase(keepsUp ? "alive" : "leaving");
-  }, [phase, ready, keepsUp, timedOut]);
+    if (phase !== "waiting" || !ready) return;
+    if (!motion) return setPhase("leaving");
+    if (keepsUp !== null) setPhase(keepsUp ? "alive" : "leaving");
+  }, [phase, ready, keepsUp, motion, timedOut]);
 
   useEffect(() => {
+    if (phase === "alive" || phase === "leaving") {
+      cancelAnimation(breath);
+      breath.value = withTiming(1, { duration: 160 });
+    }
     if (phase === "alive") {
       setAwake(true);
       mates.value = withTiming(1, { duration: EYES_IN });
@@ -188,7 +203,7 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
         }),
       );
     }
-  }, [phase, motion, mates, shapes, spread, veil]);
+  }, [phase, motion, mates, shapes, spread, veil, breath]);
 
   const cover = useAnimatedStyle(() => ({ opacity: veil.value }));
 
@@ -202,7 +217,7 @@ export function AnimatedSplash({ ready }: { ready: boolean }) {
     >
       <View style={styles.mark}>
         {CELLS.map((cell, index) => (
-          <MorphingCell key={index} cell={cell} index={index} morph={morph} spread={spread} fade={shapes} />
+          <MorphingCell key={index} cell={cell} index={index} morph={morph} spread={spread} fade={shapes} breath={breath} />
         ))}
         {awake ? CELLS.map((cell, index) => <LivingMate key={index} cell={cell} cheer={cheer && index === 0} spread={spread} fade={mates} />) : null}
       </View>
