@@ -1,10 +1,10 @@
 {
   "expo": {
     "name": "Mates",
-    "slug": "muse-clone",
+    "slug": "mates",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "muse-clone",
+    "scheme": "mates",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
     "splash": {
@@ -18,7 +18,7 @@
         "backgroundImage": "./assets/adaptive-icon-background.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png"
       },
-      "package": "com.expojet.museclone"
+      "package": "app.askorin.mates"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -59,7 +59,7 @@
       "typedRoutes": true
     },
     "ios": {
-      "bundleIdentifier": "com.expojet.museclone"
+      "bundleIdentifier": "app.askorin.mates"
     },
     "runtimeVersion": {
       "policy": "appVersion"
