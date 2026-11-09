@@ -7,6 +7,7 @@ import { WebView } from "react-native-webview";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
+import { useMateName } from "../mates/data";
 import { CardButton } from "./card-button";
 
 type LiveState = WorkflowCard & { previewUrl?: string | null };
@@ -19,6 +20,7 @@ export function BrowserCard({ state }: { state: WorkflowCard }) {
   const running = useAuiState(s => s.thread.isRunning);
   const { isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const mateName = useMateName();
   const [live, setLive] = useState<LiveState>(state);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function BrowserCard({ state }: { state: WorkflowCard }) {
     const refresh = async () => {
       try {
         const response = await api.v1.browser[":id"].$get({ param: { id } });
-        if (!response.ok) throw new Error("This browser has ended. Ask Cooper to start again.");
+        if (!response.ok) throw new Error(`This browser has ended. Ask ${mateName} to start again.`);
         const data = await response.json();
         if (alive && "browserSessionId" in data) { setLive(data); setError(null); }
       } catch (e) { if (alive) setError(e instanceof Error ? e.message : "Live view unavailable"); }
@@ -82,13 +84,13 @@ export function BrowserCard({ state }: { state: WorkflowCard }) {
   const controls = <View style={{ gap: 12 }}>
     <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
       {!terminal && status === "running" && button("Take control", () => { void command("pause"); })}
-      {canControl && button(status === "verification" ? "Verification done · Continue" : "Continue with Cooper", () => setChoice("continue"))}
+      {canControl && button(status === "verification" ? "Verification done · Continue" : `Continue with ${mateName}`, () => setChoice("continue"))}
       {status === "verification" && button("Try another site", () => setChoice("alternative"), running)}
       {status === "approval" && <>{button("Confirm action", () => setChoice("approve"), running)}{button("Decline", () => setChoice("decline"), running)}</>}
       {!terminal && button("End browser", () => { void command("close"); })}
     </View>
     {status === "user_control" && running && <Text style={{ color: muted }}>Pausing after the current step…</Text>}
-    {status === "verification" && <Text style={{ color: muted, fontSize: 13, lineHeight: 19 }}>Complete the challenge in the live page, then continue. Cooper will check that access was restored.</Text>}
+    {status === "verification" && <Text style={{ color: muted, fontSize: 13, lineHeight: 19 }}>Complete the challenge in the live page, then continue. {mateName} will check that access was restored.</Text>}
     {canControl && status !== "verification" && <View style={{ gap: 10 }}>
       <Text style={{ color: muted, fontSize: 13 }}>Tap a field in the website, then enter text here. Private input goes directly to that field.</Text>
       <TextInput value={input} onChangeText={setInput} secureTextEntry={privateInput} autoCapitalize="none" autoCorrect={false} placeholder="Type into the selected field" placeholderTextColor={muted} style={{ color: foreground, borderWidth: 1, borderColor: border, borderRadius: 14, padding: 14 }} />
@@ -114,7 +116,7 @@ export function BrowserCard({ state }: { state: WorkflowCard }) {
     {!!error && <Text style={{ color: isDark ? "#f87171" : "#dc2626", fontSize: 13 }}>{error}</Text>}
     <Modal visible={expanded} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setExpanded(false)}>
       <ScrollView keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 12, paddingBottom: insets.bottom + 12, paddingHorizontal: 16, gap: 14, backgroundColor: background }} style={{ backgroundColor: background }}>
-        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: foreground, fontSize: 18, fontFamily: "DMSans_600SemiBold" }}>Cooper’s browser</Text>{button("Done", () => { setExpanded(false); setInput(""); })}</View>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}><Text style={{ color: foreground, fontSize: 18, fontFamily: "DMSans_600SemiBold" }}>{mateName}’s browser</Text>{button("Done", () => { setExpanded(false); setInput(""); })}</View>
         <View style={{ flex: 1 }}>{preview(canControl ? 330 : 500)}</View>
         {!!error && <Text style={{ color: "#dc2626" }}>{error}</Text>}
         {controls}

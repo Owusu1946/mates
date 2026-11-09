@@ -36,7 +36,7 @@ export default function ConnectionsScreen() {
   const foreground = isDark ? "#fafafa" : "#18181b";
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const border = isDark ? "#3f3f46" : "#e4e4e7";
-  const disconnect = (app: AppConnection) => Alert.alert(`Disconnect ${app.name}?`, "Cooper will need a new connection to use this app again.", [
+  const disconnect = (app: AppConnection) => Alert.alert(`Disconnect ${app.name}?`, "Your mates will need a new connection to use this app again.", [
     { text: "Cancel", style: "cancel" },
     { text: "Disconnect", style: "destructive", onPress: async () => {
       setDisconnecting(app.slug); setError(null);
@@ -62,8 +62,8 @@ export default function ConnectionsScreen() {
     onEndReached={() => { if (apps.hasNextPage && !apps.isFetchingNextPage) void apps.fetchNextPage(); }}
     onEndReachedThreshold={.5}
     ListHeaderComponent={<View style={{ gap: 16, marginBottom: 18 }}>
-      <Text style={{ fontFamily: "DMSans_600SemiBold", fontSize: 27, letterSpacing: -.7, color: foreground }}>Your apps, with Cooper.</Text>
-      <Text style={{ fontFamily: "DMSans_400Regular", fontSize: 15, lineHeight: 22, color: muted }}>Connect once. Let Cooper bring your work together.</Text>
+      <Text style={{ fontFamily: "DMSans_600SemiBold", fontSize: 27, letterSpacing: -.7, color: foreground }}>Your apps, with your mates.</Text>
+      <Text style={{ fontFamily: "DMSans_400Regular", fontSize: 15, lineHeight: 22, color: muted }}>Connect once. Let your mates bring your work together.</Text>
       <GitHubCard isDark={isDark} />
       <View style={{ flexDirection: "row", gap: 9, alignItems: "center", borderRadius: 18, paddingHorizontal: 14, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
         <ChatIcon name="search" color={muted} size={19} />
@@ -72,12 +72,12 @@ export default function ConnectionsScreen() {
       <View style={{ flexDirection: "row", gap: 8 }}>{[false, true].map((connected) => <Pressable key={String(connected)} accessibilityRole="button" accessibilityState={{ selected: connectedOnly === connected }} onPress={() => setConnectedOnly(connected)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: connectedOnly === connected ? foreground : isDark ? "#27272a" : "#f4f4f5" }}><Text style={{ color: connectedOnly === connected ? background : foreground, fontFamily: "DMSans_600SemiBold", fontSize: 14 }}>{connected ? "Connected" : "All apps"}</Text></Pressable>)}</View>
       {(error || apps.error) && <View style={{ gap: 8 }}><Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 14 }}>{error ?? apps.error?.message}</Text><Pressable accessibilityRole="button" onPress={() => void apps.refetch()}><Text style={{ color: foreground, fontWeight: "600" }}>Try again</Text></Pressable></View>}
     </View>}
-    ListEmptyComponent={apps.isPending ? <ActivityIndicator style={{ marginTop: 35 }} color={muted} /> : !apps.error ? <View style={{ paddingVertical: 30, gap: 8 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{search ? "No apps found" : connectedOnly ? "Your connected apps will appear here" : "No apps available yet"}</Text><Text style={{ color: muted, fontSize: 14 }}>{search ? "Try a different app name." : "Browse All apps, or ask Cooper to help with an app."}</Text></View> : null}
+    ListEmptyComponent={apps.isPending ? <ActivityIndicator style={{ marginTop: 35 }} color={muted} /> : !apps.error ? <View style={{ paddingVertical: 30, gap: 8 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{search ? "No apps found" : connectedOnly ? "Your connected apps will appear here" : "No apps available yet"}</Text><Text style={{ color: muted, fontSize: 14 }}>{search ? "Try a different app name." : "Browse All apps, or ask a mate to help with an app."}</Text></View> : null}
     ListFooterComponent={apps.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 20 }} color={muted} /> : null}
     renderItem={({ item: app }) => <View style={{ paddingVertical: 17, borderBottomWidth: .5, borderBottomColor: border, gap: 12 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <AppLogo name={app.name} logo={app.logo} />
-        <View style={{ flex: 1, gap: 3 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{app.name}</Text><Text style={{ color: muted, fontSize: 13 }}>{app.noAuth ? "Ready to use" : app.connected ? "Connected to Cooper" : "Connect to use with Cooper"}</Text></View>
+        <View style={{ flex: 1, gap: 3 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{app.name}</Text><Text style={{ color: muted, fontSize: 13 }}>{app.noAuth ? "Ready to use" : app.connected ? "Connected" : "Connect to use with your mates"}</Text></View>
         {app.connected && !app.noAuth && <Pressable disabled={disconnecting === app.slug} accessibilityRole="button" onPress={() => disconnect(app)} hitSlop={8}><Text style={{ color: muted, fontSize: 13 }}>{disconnecting === app.slug ? "Disconnecting…" : "Disconnect"}</Text></Pressable>}
       </View>
       {!app.noAuth && <ConnectionButton app={app} label="Connect" />}

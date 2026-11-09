@@ -41,7 +41,7 @@ export default function MemoryScreen() {
     run(() => api.v1.memories[":id"].$patch({ param: { id }, json: { text } }), "Couldn’t save that change.").then(() => setEditing(null));
   const remove = (id: string) => run(() => api.v1.memories[":id"].$delete({ param: { id } }), "Couldn’t delete that memory.");
   const removeAll = () =>
-    Alert.alert("Delete all memories?", "Cooper will forget everything it has saved about you. This can’t be undone.", [
+    Alert.alert("Delete all memories?", "Your mates will forget everything they’ve saved about you. This can’t be undone.", [
       { text: "Cancel", style: "cancel" },
       { text: "Delete all", style: "destructive", onPress: () => void run(() => api.v1.memories.$delete(), "Couldn’t delete memories.") },
     ]);
@@ -57,21 +57,21 @@ export default function MemoryScreen() {
       refreshControl={<RefreshControl refreshing={query.isFetching} onRefresh={() => void query.refetch()} />}
     >
       <Text style={{ color: colors.textSecondary, fontSize: 15, lineHeight: 22 }}>
-        Cooper remembers useful things you tell it, so you don’t have to repeat yourself. You’re in control: edit or delete anything here.
+        Your mates remember useful things you tell them, so you don’t have to repeat yourself. You’re in control: edit or delete anything here.
       </Text>
 
       <View style={{ padding: 16, gap: 16, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface }}>
         <View style={row}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>Memory</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Let Cooper use and save memories.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Let your mates use and save memories.</Text>
           </View>
           <Switch value={settings.memoryEnabled} onValueChange={(memoryEnabled) => void setSetting({ memoryEnabled })} accessibilityLabel="Memory" />
         </View>
         <View style={[row, { opacity: settings.memoryEnabled ? 1 : 0.5 }]}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>Save automatically</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Cooper decides what’s worth remembering. You’ll see “Memory updated” when it does.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Your mates decide what’s worth remembering. You’ll see “Memory updated” when they do.</Text>
           </View>
           <Switch
             value={settings.autoMemory}
@@ -83,7 +83,7 @@ export default function MemoryScreen() {
         <View style={[row, { opacity: settings.memoryEnabled ? 1 : 0.5 }]}>
           <View style={{ flex: 1 }}>
             <Text style={{ color: colors.text, fontSize: 16, fontWeight: "600" }}>Reference chat history</Text>
-            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Cooper can look back at earlier chats and files you’ve shared when they’re relevant.</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13 }}>Your mates can look back at earlier chats and files you’ve shared when they’re relevant.</Text>
           </View>
           <Switch
             value={settings.historyRecall}
@@ -104,7 +104,7 @@ export default function MemoryScreen() {
       </View>
       {query.isSuccess && memories.length === 0 && (
         <Text style={{ color: colors.textSecondary, lineHeight: 21 }}>
-          Nothing saved yet. Tell Cooper “remember that…” or just chat — it will keep what’s useful.
+          Nothing saved yet. Tell a mate “remember that…” or just chat — they’ll keep what’s useful.
         </Text>
       )}
       {memories.map((memory) => (
@@ -129,7 +129,7 @@ export default function MemoryScreen() {
             <>
               <Text style={{ color: colors.text, fontSize: 16, lineHeight: 22 }}>{memory.text}</Text>
               <Text style={{ color: colors.textMuted, fontSize: 12 }}>
-                {memory.category} · {memory.source === "auto" ? "saved by Cooper" : "you asked"} · {new Date(memory.updatedAt).toLocaleDateString()}
+                {memory.category} · {memory.source === "auto" ? "saved automatically" : "you asked"} · {new Date(memory.updatedAt).toLocaleDateString()}
               </Text>
               <View style={{ flexDirection: "row", gap: 4, marginLeft: -8 }}>
                 {host(<Button label="Edit" variant="text" onPress={() => setEditing({ id: memory.id, text: memory.text })} />)}

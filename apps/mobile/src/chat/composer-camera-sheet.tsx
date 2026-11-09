@@ -128,7 +128,7 @@ export function ComposerCameraSheet({
                 </View>
                 <Text style={styles.permissionTitle}>Camera Access Required</Text>
                 <Text style={styles.permissionBody}>
-                  Allow camera access to take a photo of anything and ask Cooper about it.
+                  Allow camera access to take a photo of anything and ask your mates about it.
                 </Text>
                 <Pressable
                   accessibilityRole="button"

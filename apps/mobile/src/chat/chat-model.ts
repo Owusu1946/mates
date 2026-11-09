@@ -48,7 +48,7 @@ function readEvent(event: string) {
   if (payload.error)
     throw new Error(
       payload.error.message ??
-        "Cooper could not finish that response. Please try again.",
+        "That response didn’t finish. Please try again.",
     );
   return payload;
 }
@@ -62,7 +62,7 @@ export function createChatModel(
       const apiUrl = resolveApiUrl();
       if (!apiUrl)
         throw new Error(
-          "Cooper is unavailable right now. Please try again later.",
+          "Your mate is unavailable right now. Please try again later.",
         );
       const token = await getToken();
       if (!token)
@@ -139,8 +139,8 @@ export function createChatModel(
             ? failure.error
             : failure?.error?.message) ??
             (response.status === 503
-              ? "Cooper is unavailable right now. Please try again later."
-              : "Cooper could not respond. Please try again."),
+              ? "Your mate is unavailable right now. Please try again later."
+              : "Your mate couldn’t respond. Please try again."),
         );
       }
       if (!response.body) throw new Error("The chat response was empty.");
@@ -193,7 +193,7 @@ export function createChatModel(
         }
         if (!content.length)
           throw new Error(
-            "Cooper did not return a response. Please try again.",
+            "No response came back. Please try again.",
           );
       } catch (error) {
         for (let i = 0; i < content.length; i++) {
