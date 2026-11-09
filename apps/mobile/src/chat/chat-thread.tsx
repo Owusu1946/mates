@@ -206,7 +206,6 @@ function EmptyChatRotatingPrompt({
     >
       <Animated.View style={[{ width: "100%", alignItems: "center" }, motion]}>
         <View style={{ width: "100%", paddingVertical: EMPTY_PROMPT_VERTICAL_PADDING }}>
-          <Glow color={accent} size={280} opacity={0.26} style={{ top: -75, left: 10 }} />
           <View
             style={{
               width: "100%",
@@ -220,11 +219,6 @@ function EmptyChatRotatingPrompt({
               borderColor: colors.border,
               paddingHorizontal: 16,
               paddingVertical: 16,
-              shadowColor: accent,
-              shadowOffset: { width: 0, height: 7 },
-              shadowOpacity: 0.14,
-              shadowRadius: 18,
-              elevation: 2,
             }}
           >
             <View
@@ -823,6 +817,21 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
 
   return (
     <View ref={screenRef} style={{ flex: 1 }} onTouchStart={showScreenTapGlow}>
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}
+      >
+        <Glow
+          color={accent}
+          size={520}
+          opacity={0.32}
+          style={{
+            left: "50%",
+            top: "50%",
+            transform: [{ translateX: -260 }, { translateY: -260 }],
+          }}
+        />
+      </View>
       <ScrollView
         style={{ flex: 1 }}
         contentInsetAdjustmentBehavior="never"
@@ -846,12 +855,6 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
                 justifyContent: "center",
               }}
             >
-              <Glow
-                color={accent}
-                size={avatarSize * 2.6}
-                opacity={0.5}
-                style={{ left: -avatarSize * 0.8, top: -avatarSize * 0.8 }}
-              />
               {chat?.kind === "group" ? (
                 <GroupAvatar
                   gradients={chat.members.map((m) => m.gradient)}
@@ -883,17 +886,17 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              gap: 10,
+              gap: 8,
             }}
           >
             {chat?.kind === "group" ? (
               <GroupAvatar
                 gradients={chat.members.map((m) => m.gradient)}
                 shapes={chat.members.map((m) => m.shape)}
-                size={44}
+                size={32}
               />
             ) : (
-              <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={44} />
+              <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={32} />
             )}
             <Text
               accessibilityRole="header"
