@@ -25,6 +25,7 @@ import { refreshNotificationRegistration } from "../../src/data/notifications";
 import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 import { LeaderGate } from "../../src/onboarding/leader-gate";
+import { useCacheReady } from "../../src/data/offline-cache";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
@@ -106,7 +107,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
             const { runs } = await runRequest<{ runs: { id: string; updatedAt: string }[] }>(() => tokenRef.current(), `runs?chatId=${encodeURIComponent(id)}`);
             const next = runs.map(run => `${run.id}:${run.updatedAt}`).join("|");
             if (next !== fingerprint && !local.thread.getState().isRunning) {
-              const saved = await history.load();
+              const saved = await history.loadFresh();
               if (!disposed && !local.thread.getState().isRunning) local.thread.import(saved);
               fingerprint = next;
             }
@@ -118,6 +119,13 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         void recover();
         return () => { disposed = true; clearInterval(timer); listener.remove(); };
       }, [aui, history, local]);
+      // A cached chat on screen picks up the server copy as soon as it arrives, unless the user has
+      // already moved it on (sent a message, a run is going), which the next sync covers.
+      useEffect(() => chats.onFreshHistory((id, repository, shownHeadId) => {
+        const thread = local.thread.getState();
+        if (id !== aui.threadListItem.getState().remoteId || thread.isRunning || thread.messages.at(-1)?.id !== shownHeadId) return;
+        local.thread.import(repository);
+      }), [aui, local, chats]);
       return local;
     },
   });
@@ -154,6 +162,9 @@ function AuthenticatedStack({ userId }: { userId: string }) {
 export default function ProtectedLayout() {
   const session = useSession();
   const { isLoaded, userId } = useAuth();
+  const { colors } = useTheme();
+  // The device cache loads behind the splash, so the first frame can show the last known chats.
+  const cacheReady = useCacheReady(userId ?? null);
   if (session.status === "loading" || !isLoaded) {
     return (
       <View style={styles.loading}>
@@ -165,8 +176,9 @@ export default function ProtectedLayout() {
     return <Redirect href="/(public)/sign-in" />;
 
   if (!userId) return <Redirect href="/(public)/sign-in" />;
+  if (!cacheReady) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   return (
-    <LeaderGate key={userId} userId={userId}>
+    <LeaderGate key={userId}>
       <AuthenticatedStack userId={userId} />
     </LeaderGate>
   );
