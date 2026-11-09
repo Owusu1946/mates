@@ -7,9 +7,10 @@ import { createApiClient } from "../data/api";
 export type Gradient = [string, string, string];
 /** `shape` is the mascot silhouette (see SHAPE_NAMES in @muse-clone/mascot); older payloads may lack it. */
 export type MateSummary = { id: string; name: string; role: string; color: string; shape?: string; gradient: Gradient };
-export type Mate = MateSummary & { roleDescription: string; isDefault: boolean; chatId: string };
+/** `setupAt` is null for a lead mate whose setup screen is still due. */
+export type Mate = MateSummary & { roleDescription: string; isDefault: boolean; chatId: string; setupAt?: string | null };
 export type Group = { chatId: string; name: string; mateIds: string[]; leaderMateId: string | null };
-export type Presets = { palette: { key: string; gradient: Gradient }[]; roles: { key: string; label: string; brief: string }[]; shapes?: string[] };
+export type Presets = { palette: { key: string; gradient: Gradient }[]; roles: { key: string; label: string; brief: string }[]; shapes?: string[]; dayNames?: string[] };
 export type ChatSummary = {
   id: string;
   title: string;
@@ -83,6 +84,10 @@ export function useMateActions() {
     updateMate: useMutation({
       mutationFn: ({ id, ...input }: Partial<MateInput> & { id: string }) =>
         after(async () => (await read<{ mate: Mate }>(await api.v1.mates[":id"].$patch({ param: { id }, json: input as never }), "Couldn’t save your mate.")).mate)(),
+    }),
+    setupLeader: useMutation({
+      mutationFn: (input: { name: string; shape: string; color: string }) =>
+        after(async () => (await read<{ mate: Mate }>(await api.v1.leader.$post({ json: input as never }), "Couldn’t save your mate.")).mate)(),
     }),
     deleteMate: useMutation({
       mutationFn: (id: string) => after(async () => read(await api.v1.mates[":id"].$delete({ param: { id } }), "Couldn’t remove this mate."))(),

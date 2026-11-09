@@ -2,6 +2,7 @@ import {
   Add01Icon,
   Activity01Icon,
   AiBrain01Icon,
+  DiceFaces03Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
   ArrowUp02Icon,
@@ -82,6 +83,7 @@ const icons = {
   thumbsDown: ThumbsDownIcon,
   previous: ArrowLeft01Icon,
   next: ArrowRight01Icon,
+  shuffle: DiceFaces03Icon,
 };
 
 export function ChatIcon({
