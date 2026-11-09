@@ -877,32 +877,53 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
             </Text>
           </View>
         ) : (
-          <Text
-            accessibilityRole="header"
-            numberOfLines={2}
+          <View
             style={{
-              color: colors.foreground,
-              fontSize: 20,
-              fontFamily: "DMSans_600SemiBold",
-              letterSpacing: -0.4,
-              textAlign: "center",
-              maxWidth: 300,
-              alignSelf: "center",
+              width: "100%",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
             }}
           >
-            {title}
-          </Text>
+            {chat?.kind === "group" ? (
+              <GroupAvatar
+                gradients={chat.members.map((m) => m.gradient)}
+                shapes={chat.members.map((m) => m.shape)}
+                size={44}
+              />
+            ) : (
+              <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={44} />
+            )}
+            <Text
+              accessibilityRole="header"
+              numberOfLines={2}
+              style={{
+                flexShrink: 1,
+                color: colors.foreground,
+                fontSize: 20,
+                fontFamily: "DMSans_600SemiBold",
+                letterSpacing: -0.4,
+                textAlign: "left",
+                maxWidth: 300,
+              }}
+            >
+              {title}
+            </Text>
+          </View>
         )}
 
-        <View style={{ minHeight: EMPTY_PROMPT_BLOCK_HEIGHT, justifyContent: "center" }}>
-          <EmptyChatRotatingPrompt
-            key={chat?.id ?? "chat"}
-            index={activeSpot}
-            colors={colors}
-            accent={accent}
-            reducedMotion={!!reducedMotion}
-          />
-        </View>
+        {!compact && (
+          <View style={{ minHeight: EMPTY_PROMPT_BLOCK_HEIGHT, justifyContent: "center" }}>
+            <EmptyChatRotatingPrompt
+              key={chat?.id ?? "chat"}
+              index={activeSpot}
+              colors={colors}
+              accent={accent}
+              reducedMotion={!!reducedMotion}
+            />
+          </View>
+        )}
       </View>
       </ScrollView>
       <Animated.View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -1013,6 +1034,12 @@ function ChatComposer() {
   const { getToken } = useAuth();
   const appsQuery = useConnectedMentionApps();
   const currentChat = useCurrentChat();
+  const currentMateName =
+    currentChat?.kind === "mate"
+      ? currentChat.mate?.name ?? currentChat.title
+      : currentChat?.kind === "group"
+        ? currentChat.title
+        : "Cooper";
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
@@ -1514,7 +1541,7 @@ function ChatComposer() {
                 multiline
                 blurOnSubmit={false}
                 onSubmitWeb={sendMessage}
-                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : "Ask Cooper…"}
+                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : `Ask ${currentMateName}…`}
                 placeholderTextColor={colors.mutedForeground}
                 style={{
                   flex: 1,
@@ -1652,7 +1679,7 @@ function ChatDrawer({
               letterSpacing: -0.5,
             }}
           >
-            Cooper
+            Mate
           </Text>
         )}
         <LiquidGlassButton
