@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { env } from "../env";
 import type { SessionState } from "./types";
 import { disableNotifications } from "../data/notifications";
+import { clearCache } from "../data/offline-cache";
 
 const SessionContext = createContext<SessionState | null>(null);
 function ClerkSession({ children }: PropsWithChildren) {
@@ -16,7 +17,10 @@ function ClerkSession({ children }: PropsWithChildren) {
     signIn: () => {},
     signOut: () => { void (async () => {
       if (auth.userId) await disableNotifications(auth.getToken, auth.userId).catch(() => {});
+      const userId = auth.userId;
       await auth.signOut();
+      // Nothing of this account's chats stays on the device.
+      if (userId) await clearCache(userId);
     })(); },
   }), [auth.isLoaded, auth.isSignedIn, auth.signOut, auth.getToken, auth.userId, user]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
