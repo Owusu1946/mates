@@ -3,6 +3,7 @@ import { useAuiState } from "@assistant-ui/react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { createApiClient } from "../data/api";
+import { readCache, writeCache } from "../data/offline-cache";
 
 export type Gradient = [string, string, string];
 /** `shape` is the mascot silhouette (see SHAPE_NAMES in @muse-clone/mascot); older payloads may lack it. */
@@ -24,6 +25,7 @@ export type ChatSummary = {
 /** Leave `shape` out to let the server pick one at random. */
 export type MateInput = { name: string; role: string; roleDescription: string; color: string; shape?: string };
 export type GroupInput = { name: string; mateIds: string[]; leaderMateId?: string };
+type MatesData = { mates: Mate[]; groups: Group[]; presets: Presets };
 
 /** Cooper's original look; used until mates load. */
 export const DEFAULT_GRADIENT: Gradient = ["#e5c59e", "#d27e41", "#9A3412"];
@@ -32,6 +34,12 @@ async function read<T>(response: { ok: boolean; json(): Promise<unknown> }, fall
   const body = (await response.json().catch(() => null)) as (T & { error?: { message?: string } }) | null;
   if (!response.ok || !body) throw new Error(body?.error?.message ?? fallback);
   return body;
+}
+
+/** Starts a query from its device copy (if any), dated so it still refreshes once stale. */
+function fromCache<T>(key: string) {
+  const entry = readCache<T>(key);
+  return entry ? { initialData: entry.data, initialDataUpdatedAt: entry.at } : {};
 }
 
 function useApi() {
@@ -45,8 +53,13 @@ export function useMates() {
   const { userId } = useAuth();
   return useQuery({
     queryKey: ["mates", userId],
-    queryFn: async () => read<{ mates: Mate[]; groups: Group[]; presets: Presets }>(await api.v1.mates.$get(), "Couldn’t load your mates."),
+    queryFn: async () => {
+      const data = await read<MatesData>(await api.v1.mates.$get(), "Couldn’t load your mates.");
+      writeCache("mates", data);
+      return data;
+    },
     staleTime: 60_000,
+    ...fromCache<MatesData>("mates"),
   });
 }
 
@@ -56,8 +69,13 @@ export function useChats() {
   const { userId } = useAuth();
   return useQuery({
     queryKey: ["chats", userId],
-    queryFn: async () => (await read<{ chats: ChatSummary[] }>(await api.v1.chats.$get(), "Couldn’t load your chats.")).chats,
+    queryFn: async () => {
+      const { chats } = await read<{ chats: ChatSummary[] }>(await api.v1.chats.$get(), "Couldn’t load your chats.");
+      writeCache("chats", chats);
+      return chats;
+    },
     staleTime: 15_000,
+    ...fromCache<ChatSummary[]>("chats"),
   });
 }
 
