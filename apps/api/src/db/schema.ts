@@ -372,6 +372,35 @@ export const missionNotes = pgTable("mission_notes", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("mission_notes_title_idx").on(t.missionId, sql`lower(${t.title})`)]);
 
+/**
+ * The mission's work board: one task per row, owned by a mate, with what "done" means and what it
+ * waits on. The leader plans and reviews tasks; mates do them, in parallel when they're independent.
+ */
+export const missionTasks = pgTable("mission_tasks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  missionId: uuid("mission_id").notNull().references(() => missions.id, { onDelete: "cascade" }),
+  /** Null when the owner was deleted; the leader reassigns it next round. */
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  objective: text("objective").notNull(),
+  doneWhen: text("done_when").notNull().default(""),
+  /** Ids of tasks that must be done first. */
+  dependsOn: jsonb("depends_on").$type<string[]>().notNull().default([]),
+  status: text("status").$type<"queued" | "working" | "review" | "done" | "failed" | "waiting" | "cancelled">().notNull().default("queued"),
+  /** Runs that errored or timed out; revisions the leader asked for. Both are capped. */
+  attempts: integer("attempts").notNull().default(0),
+  revisions: integer("revisions").notNull().default(0),
+  /** The leader's latest review note, given to the mate on a revision. */
+  feedback: text("feedback"),
+  /** The agent run of a task paused on the user (e.g. connect an app), for resuming it. */
+  agentRunId: uuid("agent_run_id"),
+  position: integer("position").notNull().default(0),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("mission_tasks_mission_idx").on(t.missionId, t.position), index("mission_tasks_run_idx").on(t.agentRunId)]);
+
 /** A GitHub App installation the user made, giving the mates' bot access to some repos. */
 export const githubInstallations = pgTable("github_installations", {
   installationId: bigint("installation_id", { mode: "number" }).primaryKey(),
