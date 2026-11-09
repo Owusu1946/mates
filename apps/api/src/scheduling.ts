@@ -3,9 +3,10 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chats, delegations, routineOccurrences, routines } from "./db/schema.js";
+import { chatMessages, chats, delegations, routineOccurrences, routines } from "./db/schema.js";
 import { createChatStore } from "./chats.js";
 import { publishOutbox, submitRun, workerConfigured } from "./durable-runs.js";
+import { ensureDefaultMate, mateChatId } from "./mates.js";
 
 export const routineSpecSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -41,14 +42,43 @@ export function nextOccurrence(spec: RoutineSpec, after = new Date()): Date | nu
   throw new Error("The next occurrence could not be calculated");
 }
 
-export const scheduleInstructions = `For requests to do work later or repeatedly, call cooper_schedule_draft after clarifying missing date, local time, timezone or task details. The user's timezone is given below; use it unless they name another. Support once, daily and weekly. Weekdays are ISO Monday=1 through Sunday=7. onceAt must include a UTC offset. Show a draft, never claim a routine is active before explicit confirmation. Routines deliver results in this chat; external email/Slack delivery still requires per-run approval and is not standing consent. Conditional monitoring (only notify on change or below a threshold) is not supported yet: explain that and ask whether unconditional checking is acceptable before drafting. Do not silently drop the requested condition. Never turn an ordinary question into a routine.`;
+export const scheduleInstructions = `For requests to do work later or on a repeat, call cooper_schedule_draft. Ask a short question only when the time or the task is genuinely missing. The user asking is the decision: the routine is active as soon as you call the tool, so never ask them to confirm it, and tell them when it next runs. Write the prompt as the task to do each time, keeping every action the user asked for (who to email, what to draft or send). It runs in this chat, as you, and the user is notified. The user's timezone is given below; use it unless they name another. Support once, daily and weekly. Weekdays are ISO Monday=1 through Sunday=7. onceAt must include a UTC offset. Conditional monitoring (only notify on change or below a threshold) is not supported yet: explain that and ask whether unconditional checking is acceptable. Do not silently drop the requested condition. Never turn an ordinary question into a routine.`;
 /** The phone's timezone when known; Accra is only the fallback for older clients. */
 export function scheduleContext(timezone?: string) {
   const zone = timezone && IANAZone.isValidZone(timezone) ? timezone : "Africa/Accra";
   const local = DateTime.now().setZone(zone).toFormat("cccc d LLLL yyyy, HH:mm");
   return `${scheduleInstructions} The user's timezone is ${zone}; their local time is ${local}. Current UTC time is ${new Date().toISOString()}. Use this exact clock when resolving relative dates and requests such as in five minutes; do not guess today's date. Write times for the user in their timezone and pass that timezone to apps.`;
 }
-export const scheduleTool = { type: "function" as const, function: { name: "cooper_schedule_draft", description: "Create a schedule draft with the next concrete occurrence; the user must press Confirm before it runs. No external-action consent is granted.", parameters: z.toJSONSchema(routineSpecSchema) } };
+export const scheduleTool = { type: "function" as const, function: { name: "cooper_schedule_draft", description: "Schedule work for later or on a repeat. It is active at once and runs in this chat; the user can pause or cancel it from the card.", parameters: z.toJSONSchema(routineSpecSchema) } };
+
+/** A routine as the user asked for it in chat: active at once, keeping their own words as its scope. */
+export async function scheduleRoutine(userId: string, spec: RoutineSpec, chatId: string | undefined, request: string) {
+  if (!workerConfigured()) throw new Error("Scheduled work isn't available right now.");
+  if (chatId && !(await createChatStore().get(userId, chatId))) throw new Error("Chat not found");
+  const nextRunAt = nextOccurrence(spec);
+  if (!nextRunAt) throw new Error("Choose a future date and time");
+  const stored = { ...spec, request: request.trim().slice(0, 2000) };
+  const [routine] = await getDb().insert(routines).values({ clerkUserId: userId, chatId, title: spec.title, spec: stored, status: "active", nextRunAt }).returning();
+  return routine!;
+}
+
+/**
+ * Where a routine's runs go: the mate or group chat it was set up in, so that mate does the
+ * work under its own name and look. Anything else (older chats, a deleted chat) goes to the
+ * lead mate's chat.
+ */
+export async function routineChat(userId: string, chatId: string | null): Promise<string> {
+  if (chatId) {
+    const [chat] = await getDb().select({ kind: chats.kind }).from(chats).where(and(eq(chats.id, chatId), eq(chats.clerkUserId, userId)));
+    if (chat && (chat.kind === "mate" || chat.kind === "group")) return chatId;
+  }
+  return mateChatId((await ensureDefaultMate(userId)).id);
+}
+
+/** The run's user turn: shown in the app as a small "scheduled" marker rather than a message. */
+export function routineMessage(id: string, routine: { id: string; title: string }, prompt: string, createdAt: Date) {
+  return { id, role: "user", createdAt: createdAt.toISOString(), content: [{ type: "text", text: prompt }], metadata: { custom: { routine: { id: routine.id, title: routine.title } } } };
+}
 
 export async function draftRoutine(userId: string, spec: RoutineSpec, chatId?: string) {
   if (chatId && !(await createChatStore().get(userId, chatId))) throw new Error("Chat not found");
@@ -90,18 +120,30 @@ export async function runRoutineNow(userId: string, id: string, requestKey: stri
   const [routine] = await getDb().select().from(routines).where(and(eq(routines.id, id), eq(routines.clerkUserId, userId)));
   if (!routine || !["active", "paused"].includes(routine.status)) throw new Error("ROUTINE_CONFLICT");
   const spec = routineSpecSchema.parse(routine.spec);
-  const chatId = `routine_${id}_${requestKey.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 50)}`;
+  const prompt = scheduledPrompt(spec, requestOf(routine));
+  const chatId = await routineChat(userId, routine.chatId);
   const parentId = `user_${requestKey}`;
-  // The routine speaks as the mate (or group leader) whose chat drafted it.
-  const [source] = routine.chatId ? await getDb().select({ mateId: chats.mateId, leaderMateId: chats.leaderMateId }).from(chats).where(eq(chats.id, routine.chatId)) : [];
-  await createChatStore().initialize(userId, chatId, "routine", source?.mateId ?? source?.leaderMateId ?? null);
-  const run = await submitRun(userId, { chatId, parentId, assistantMessageId: `assistant_${requestKey}`, requestKey: `manual_${id}_${requestKey}`, messages: [{ role: "user", content: scheduledPrompt(spec) }] });
+  // The marker joins the chat after its newest message; submitRun keeps this row as is.
+  const [head] = await getDb().select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.chatId, chatId)).orderBy(desc(chatMessages.createdAt)).limit(1);
+  await getDb().insert(chatMessages).values({ chatId, id: parentId, parentId: head?.id ?? null, message: routineMessage(parentId, routine, prompt, new Date()) }).onConflictDoNothing();
+  const run = await submitRun(userId, { chatId, parentId, assistantMessageId: `assistant_${requestKey}`, requestKey: `manual_${id}_${requestKey}`, messages: [{ role: "user", content: prompt }] });
   await getDb().insert(routineOccurrences).values({ routineId: id, version: routine.version, scheduledFor: run.createdAt, delegationId: run.id }).onConflictDoNothing();
   return run;
 }
 
-function scheduledPrompt(spec: RoutineSpec) {
-  return `Scheduled routine: ${spec.prompt}\nRun the task now. Deliver the findings here in this chat. This routine does not grant permission for external writes. Pause and request approval for any external mutation.`;
+/** The user's own words from when they set the routine up, if it was set up in chat. */
+const requestOf = (routine: { spec: Record<string, unknown> }) => (typeof routine.spec.request === "string" ? routine.spec.request : "");
+
+/**
+ * The scheduled run's instructions. The user's request is standing consent for exactly what it
+ * describes, so the run doesn't stop to ask; anything beyond it still needs the user.
+ */
+export function scheduledPrompt(spec: RoutineSpec, request = "") {
+  return [
+    `Scheduled task "${spec.title}", which the user set up: ${spec.prompt}`,
+    request ? `The user's own words when they set it up: "${request}"` : "",
+    "Do it now and post the result here. This is the user's standing request: carry out the actions it describes, such as drafting or sending the email it names, without asking for confirmation. Do not take external actions it does not describe; if one seems needed, explain why and ask.",
+  ].filter(Boolean).join("\n");
 }
 
 export async function dispatchDueRoutines() {
@@ -109,18 +151,24 @@ export async function dispatchDueRoutines() {
   const now = new Date();
   const due = await getDb().select().from(routines).where(and(eq(routines.status, "active"), lte(routines.nextRunAt, now))).limit(50);
   for (const routine of due) {
-    const spec = routineSpecSchema.parse(routine.spec);
-    const next = nextOccurrence(spec, now); // Coalesce missed occurrences into one useful run.
-    const id = randomUUID();
-    const chatId = `routine_${id}`;
-    const prompt = scheduledPrompt(spec);
-    const request = { messages: [{ role: "user", content: prompt }], chatId, requestKey: `occurrence_${routine.id}_${routine.version}_${routine.nextRunAt!.toISOString()}`, parentId: `user_${id}`, assistantMessageId: `assistant_${id}` };
-    await claimRoutineOccurrence(routine, next, id, chatId, prompt, request, now);
+    // One routine failing (e.g. its chat is mid-run, so it retries next tick) never blocks the rest.
+    try {
+      const spec = routineSpecSchema.parse(routine.spec);
+      const next = nextOccurrence(spec, now); // Coalesce missed occurrences into one useful run.
+      const id = randomUUID();
+      const chatId = await routineChat(routine.clerkUserId, routine.chatId);
+      const prompt = scheduledPrompt(spec, requestOf(routine));
+      const request = { messages: [{ role: "user", content: prompt }], chatId, requestKey: `occurrence_${routine.id}_${routine.version}_${routine.nextRunAt!.toISOString()}`, parentId: `user_${id}`, assistantMessageId: `assistant_${id}` };
+      await claimRoutineOccurrence(routine, next, id, chatId, prompt, request, now);
+    } catch (error) {
+      console.warn("routine_dispatch_failed", { routineId: routine.id, message: error instanceof Error ? error.message : String(error) });
+    }
   }
   await publishOutbox();
 }
 
-// Claim, occurrence, user message, job and submission outbox are one SQL transaction.
+// Claim, occurrence, user message, job and submission outbox are one SQL transaction. The run joins
+// the routine's chat after its newest message (read before this statement's own insert).
 export async function claimRoutineOccurrence(routine: typeof routines.$inferSelect, next: Date | null, id: string, chatId: string, prompt: string, request: Record<string, unknown> & { requestKey: string; assistantMessageId: string; parentId: string }, now: Date) {
     await getDb().execute(sql`
       WITH claimed AS (
@@ -128,8 +176,7 @@ export async function claimRoutineOccurrence(routine: typeof routines.$inferSele
         WHERE id=${routine.id} AND version=${routine.version} AND status='active' AND next_run_at=${routine.nextRunAt}
         RETURNING id,clerk_user_id,version
       ), thread AS (
-        INSERT INTO chats(id,clerk_user_id,title,kind,leader_mate_id)
-        SELECT ${chatId},clerk_user_id,${routine.title},'routine',(SELECT COALESCE(mate_id, leader_mate_id) FROM chats WHERE id=${routine.chatId}) FROM claimed RETURNING id
+        UPDATE chats SET updated_at=now() WHERE id=${chatId} AND clerk_user_id=${routine.clerkUserId} AND EXISTS (SELECT 1 FROM claimed) RETURNING id
       ), job AS (
         INSERT INTO delegations(id,clerk_user_id,chat_id,request_key,request_hash,request,assistant_message_id,parent_id,agent_run_id)
         SELECT ${id}::uuid,c.clerk_user_id,t.id,${request.requestKey},${request.requestKey},${JSON.stringify(request)}::jsonb,${request.assistantMessageId},${request.parentId},${id}::uuid FROM claimed c CROSS JOIN thread t RETURNING id
@@ -137,7 +184,8 @@ export async function claimRoutineOccurrence(routine: typeof routines.$inferSele
         INSERT INTO routine_occurrences(routine_id,scheduled_for,version,delegation_id)
         SELECT c.id,${routine.nextRunAt},c.version,j.id FROM claimed c CROSS JOIN job j
       ), message AS (
-        INSERT INTO chat_messages(chat_id,id,message) SELECT t.id,${request.parentId},${JSON.stringify({ id: request.parentId, role: "user", createdAt: now.toISOString(), content: [{ type: "text", text: prompt }] })}::jsonb FROM thread t
+        INSERT INTO chat_messages(chat_id,id,parent_id,message)
+        SELECT t.id,${request.parentId},(SELECT id FROM chat_messages WHERE chat_id=${chatId} ORDER BY created_at DESC LIMIT 1),${JSON.stringify(routineMessage(request.parentId, routine, prompt, now))}::jsonb FROM thread t
       ) INSERT INTO submission_outbox(delegation_id) SELECT id FROM job
     `);
 }

@@ -11,7 +11,7 @@ import {
 } from "./integrations.js";
 import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
-import { scheduleContext, scheduleTool, routineSpecSchema, draftRoutine } from "./scheduling.js";
+import { scheduleContext, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
@@ -726,9 +726,10 @@ export async function createAgentResponse(
               });
             } else if (call.function.name === "cooper_schedule_draft") {
               try {
-                const draft = await draftRoutine(userId, routineSpecSchema.parse(args), execution?.chatId);
-                card(call.id, { kind: "schedule", phase: "waiting", label: draft.title, detail: String(draft.spec.prompt), routineId: draft.id, routineVersion: draft.version, routineSpec: draft.spec, nextRunAt: draft.nextRunAt!.toISOString() });
-                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ draftCreated: true, confirmationRequired: true, nextRunAt: draft.nextRunAt, timezone: draft.spec.timezone }) });
+                // Asking is the decision: active at once, scoped by the user's own words.
+                const routine = await scheduleRoutine(userId, routineSpecSchema.parse(args), execution?.chatId, turns[lastUserIndex]?.content ?? "");
+                card(call.id, { kind: "schedule", phase: "done", label: routine.title, detail: String(routine.spec.prompt), routineId: routine.id, routineVersion: routine.version, routineSpec: routine.spec, nextRunAt: routine.nextRunAt!.toISOString() });
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ scheduled: true, active: true, nextRunAt: routine.nextRunAt, timezone: routine.spec.timezone, note: "It is active. Tell the user when it next runs, in their timezone; they can pause or cancel it from the card." }) });
                 hasResults = true;
                 finishWithResults = true;
               } catch (error) { messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: error instanceof Error ? error.message : "Schedule could not be drafted" }) }); }

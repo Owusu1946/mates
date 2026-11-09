@@ -588,8 +588,29 @@ function ReplyFailed() {
   return <>{useMateName()} couldn’t reply. Please try again.</>;
 }
 
+/** A scheduled run's turn: a quiet marker, since the user didn't type it just now. */
+function RoutineMarker({ title, at }: { title: string; at: Date }) {
+  const colors = useChatColors();
+  const time = at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return (
+    <MessagePrimitive.Root style={{ width: "100%", alignItems: "center", paddingVertical: 4 }}>
+      <View accessibilityLabel={`Scheduled: ${title} at ${time}`} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, backgroundColor: colors.muted }}>
+        <ChatIcon name="clock" color={colors.mutedForeground} size={14} />
+        <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontFamily: "DMSans_500Medium", fontSize: 13, maxWidth: 260 }}>
+          {title} · {time}
+        </Text>
+      </View>
+    </MessagePrimitive.Root>
+  );
+}
+
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role);
+  const routineTitle = useAuiState((state) => {
+    const routine = (state.message.metadata?.custom as { routine?: { title?: unknown } } | undefined)?.routine;
+    return typeof routine?.title === "string" ? routine.title : null;
+  });
+  const createdAt = useAuiState((state) => state.message.createdAt);
   const running = useAuiState(
     (state) => state.message.status?.type === "running",
   );
@@ -599,6 +620,7 @@ function ChatMessage() {
   );
   const colors = useChatColors();
   const user = role === "user";
+  if (user && routineTitle) return <RoutineMarker title={routineTitle} at={createdAt} />;
   return (
     <MessagePrimitive.Root
       style={{
