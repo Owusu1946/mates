@@ -1,6 +1,7 @@
 import "../src/monitoring/init";
 import "../src/style-entry";
 import { Stack } from "expo-router";
+import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { StatusBar } from "expo-status-bar";
@@ -12,6 +13,7 @@ import {
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 import { DataProvider } from "../src/data/provider";
+import { DevNotificationPanel } from "../src/dev/dev-notification-panel";
 import { OnboardingProvider, useOnboarding } from "../src/onboarding/provider";
 import { SessionProvider, useSession } from "../src/session/provider";
 import { AnimatedSplash } from "../src/splash/animated-splash";
@@ -20,6 +22,15 @@ import { ThemeProvider } from "../src/theme/provider";
 // The native splash stays up until the animated one has drawn the same first frame over it.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ fade: false });
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 /** Plays the splash until we know where to send the user. */
 function Splash() {
@@ -45,6 +56,7 @@ export default function RootLayout() {
             <OnboardingProvider>
               <Stack screenOptions={{ headerShown: false }} />
               <Splash />
+              <DevNotificationPanel />
             </OnboardingProvider>
           </DataProvider>
         </SessionProvider>
