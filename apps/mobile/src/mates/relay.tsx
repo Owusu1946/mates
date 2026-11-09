@@ -5,9 +5,9 @@ import { WorkingDots } from "../chat/activity-line";
 import { useTheme } from "../theme/provider";
 import { MateAvatar } from "./mate-avatar";
 
-type Status = NonNullable<WorkflowCard["handoff"]>["items"][number]["status"];
+export type Status = NonNullable<WorkflowCard["handoff"]>["items"][number]["status"];
 
-function StatusPill({ status }: { status: Status }) {
+export function StatusPill({ status }: { status: Status }) {
   const { colors } = useTheme();
   const text = { queued: "Up next", working: "Working", review: "In review", changes: "Revising", done: "Done", waiting: "Needs you", failed: "Didn’t finish" }[status];
   const tint = status === "done" ? "#30A46C" : status === "failed" ? colors.error : status === "waiting" ? colors.text : colors.textMuted;
@@ -57,6 +57,11 @@ export function HandoffCard({ state }: { state: WorkflowCard }) {
               <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 19 }}>
                 {item.task || "Asked directly"}
               </Text>
+              {item.status === "working" && item.step ? (
+                <Text numberOfLines={1} style={{ color: colors.textMuted, fontSize: 13 }}>
+                  {item.step}
+                </Text>
+              ) : null}
             </View>
           </View>
         );

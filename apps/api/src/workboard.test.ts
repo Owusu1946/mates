@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PersonaMate } from "./mates.js";
-import { boardCard, LIMITS, normaliseDecision, orphanedTasks, ownerFor, readyTasks, stuckTasks, taskBrief, type BoardTask, type RawDecision } from "./workboard.js";
+import { boardCard, boardView, LIMITS, normaliseDecision, orphanedTasks, ownerFor, readyTasks, stuckTasks, taskBrief, type BoardTask, type RawDecision } from "./workboard.js";
 
 const mate = (id: string, name: string, roleDescription: string): PersonaMate => ({ id, name, role: "custom", roleDescription, color: "teal", shape: "hexagon" });
 const kojo = mate("lead", "Kojo", "chief of staff");
@@ -156,5 +156,18 @@ describe("keeping the board healthy", () => {
     expect(card.handoff!.items.map((i) => i.status)).toEqual(["changes", "working"]);
     expect(card.handoff!.items[1]!.step).toBe("Searching for prices…");
     expect(card.label).toBe("Round 3");
+  });
+
+  it("shows the pinned board: owners, live steps for working tasks, timing, cancelled tasks hidden", () => {
+    const started = new Date("2026-11-10T08:00:00Z");
+    const tasks = [
+      { ...task({ id: "a", status: "working", mateId: "nova" }), startedAt: started, finishedAt: null },
+      { ...task({ id: "b", status: "queued", revisions: 1, mateId: "ghost" }), startedAt: null, finishedAt: null },
+      { ...task({ id: "c", status: "cancelled" }), startedAt: null, finishedAt: null },
+    ];
+    const view = boardView(tasks, new Map([["nova", { id: "nova", name: "Nova", color: "blue", shape: "circle" }]]), new Map([["a", "Reading 4 sources…"], ["b", "stale"]]));
+    expect(view.map((t) => [t.id, t.status, t.mate?.name ?? null, t.step])).toEqual([["a", "working", "Nova", "Reading 4 sources…"], ["b", "changes", null, null]]);
+    expect(view[0]!.startedAt).toBe("2026-11-10T08:00:00.000Z");
+    expect(view[0]!.mate?.gradient).toHaveLength(3);
   });
 });
