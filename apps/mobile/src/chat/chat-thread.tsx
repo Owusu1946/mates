@@ -50,7 +50,7 @@ import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar"
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
-import { ToolWorkflowCard } from "./workflow-card";
+import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
 import { AppResponseCard } from "./app-results";
 import { BrowserCard } from "./browser-card";
 import type { WorkflowCard } from "@expojet/api-contract";
@@ -365,9 +365,7 @@ function MessageActions({ user }: { user: boolean }) {
 }
 
 function ThinkingIndicator() {
-  const running = useAuiState(
-    (state) => state.message.status?.type === "running",
-  );
+  const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
   const colors = useChatColors();
   if (!running) return null;
@@ -611,9 +609,7 @@ function ChatMessage() {
     return typeof routine?.title === "string" ? routine.title : null;
   });
   const createdAt = useAuiState((state) => state.message.createdAt);
-  const running = useAuiState(
-    (state) => state.message.status?.type === "running",
-  );
+  const running = useAuiState(isMessageLive);
   const editing = useAuiState((state) => state.message.composer.isEditing);
   const hasContent = useAuiState((state) =>
     state.message.content.some((part) => part.type !== "text" || part.text.trim().length > 0),

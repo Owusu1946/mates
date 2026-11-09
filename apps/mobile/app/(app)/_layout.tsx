@@ -7,6 +7,7 @@ import {
   useAui,
   useLocalRuntime,
   useRemoteThreadListRuntime,
+  type ChatModelAdapter,
 } from "@assistant-ui/react-native";
 import { useEffect, useMemo, useRef } from "react";
 import {
@@ -88,7 +89,24 @@ function AuthenticatedStack({ userId }: { userId: string }) {
     adapter: chats.list,
     runtimeHook: function CooperThreadRuntime() {
       const aui = useAui();
-      const model = useMemo(() => createChatModel(() => tokenRef.current(), () => aui.threadListItem.initialize()), [aui]);
+      // Counts this phone's own runs, so history refreshes never overwrite a reply mid-stream.
+      const streamingHere = useRef(0);
+      const model = useMemo<ChatModelAdapter>(() => {
+        const base = createChatModel(() => tokenRef.current(), () => aui.threadListItem.initialize());
+        return {
+          ...base,
+          async *run(options) {
+            streamingHere.current++;
+            try {
+              const result = base.run(options);
+              if (Symbol.asyncIterator in result) yield* result;
+              else yield await result;
+            } finally {
+              streamingHere.current--;
+            }
+          },
+        };
+      }, [aui]);
       const history = useMemo(() => chats.history(
         () => aui.threadListItem.getState().remoteId,
         () => aui.threadListItem.initialize(),
@@ -101,22 +119,22 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         let fingerprint = "";
         const recover = async () => {
           const id = aui.threadListItem.getState().remoteId;
-          if (disposed || busy || !id || local.thread.getState().isRunning || AppState.currentState !== "active") return;
+          if (disposed || busy || !id || streamingHere.current > 0 || AppState.currentState !== "active") return;
           busy = true;
           try {
             const capabilities = await runRequest<{ durableRuns: boolean }>(() => tokenRef.current(), "capabilities");
             if (!capabilities.durableRuns) return;
             const { runs } = await runRequest<{ runs: { id: string; updatedAt: string }[] }>(() => tokenRef.current(), `runs?chatId=${encodeURIComponent(id)}`);
             const next = runs.map(run => `${run.id}:${run.updatedAt}`).join("|");
-            if (next !== fingerprint && !local.thread.getState().isRunning) {
+            if (next !== fingerprint && streamingHere.current === 0) {
               const saved = await history.loadFresh();
-              if (!disposed && !local.thread.getState().isRunning) local.thread.import(saved);
+              if (!disposed && streamingHere.current === 0) local.thread.import(saved);
               fingerprint = next;
             }
           } catch { /* Keep cached history while disconnected. */ }
           finally { busy = false; }
         };
-        const timer = setInterval(() => void recover(), 2500);
+        const timer = setInterval(() => void recover(), 2000);
         const listener = AppState.addEventListener("change", state => { if (state === "active") void recover(); });
         void recover();
         return () => { disposed = true; clearInterval(timer); listener.remove(); };
@@ -125,7 +143,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       // already moved it on (sent a message, a run is going), which the next sync covers.
       useEffect(() => chats.onFreshHistory((id, repository, shownHeadId) => {
         const thread = local.thread.getState();
-        if (id !== aui.threadListItem.getState().remoteId || thread.isRunning || thread.messages.at(-1)?.id !== shownHeadId) return;
+        if (id !== aui.threadListItem.getState().remoteId || streamingHere.current > 0 || thread.messages.at(-1)?.id !== shownHeadId) return;
         local.thread.import(repository);
       }), [aui, local, chats]);
       return local;

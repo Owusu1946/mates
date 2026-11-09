@@ -55,14 +55,19 @@ function toRepository(items: HistoryItem[]): Repository {
   return {
     messages: items.map((item) => {
       // Older rows may lack a status or hold malformed parts; one must not break the chat.
-      const raw = item.message as unknown as { role: string; content?: unknown; status?: unknown };
+      const raw = item.message as unknown as { role: string; content?: unknown; status?: { type?: string }; metadata?: { custom?: Record<string, unknown> } };
       const content = Array.isArray(raw.content) ? raw.content.filter((part) => typeof (part as { type?: unknown })?.type === "string") : [];
+      // A reply the server is still writing (a mission round, a routine, a run started elsewhere)
+      // is marked live rather than running: assistant-ui treats a trailing running message as this
+      // phone's own run, which would lock the composer and stop history refreshes.
+      const live = raw.role === "assistant" && raw.status?.type === "running";
       return {
         ...item,
         message: {
           ...item.message,
           content: content.length || raw.role !== "assistant" ? content : [{ type: "text", text: "" }],
-          ...(raw.role === "assistant" && !raw.status ? { status: { type: "complete", reason: "unknown" } } : {}),
+          ...(raw.role === "assistant" && (!raw.status || live) ? { status: { type: "complete", reason: "unknown" } } : {}),
+          ...(live ? { metadata: { ...raw.metadata, custom: { ...raw.metadata?.custom, live: true } } } : {}),
           createdAt: new Date(item.message.createdAt),
         } as typeof item.message,
       };

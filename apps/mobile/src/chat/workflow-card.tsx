@@ -10,13 +10,15 @@ import { ActivityLine } from "./activity-line";
 /** Apps connected per waiting run; a plan can wait on several before it may resume. */
 const connectedByRun = new Map<string, Set<string>>();
 
+/** This phone's run in progress, or a reply the server is still writing (marked live on import). */
+export const isMessageLive = (s: { message: { status?: { type?: string }; metadata?: { custom?: unknown } } }) =>
+  s.message.status?.type === "running" || (s.message.metadata?.custom as { live?: unknown } | undefined)?.live === true;
+
 export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
-  const messageRunning = useAuiState(
-    (s) => s.message.status?.type === "running",
-  );
+  const messageRunning = useAuiState(isMessageLive);
   const hasAction = useAuiState((s) =>
     s.message.content.some(
       (part) =>
