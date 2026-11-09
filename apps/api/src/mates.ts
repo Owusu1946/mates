@@ -33,7 +33,8 @@ const MAX_MATES = 20;
 export const GROUP_LIMITS = { min: 2, max: 8 } as const;
 
 /** Mascot silhouettes a mate can wear. Mates created without one get a random pick. */
-export const MATE_SHAPES = ["hexagon", "circle", "triangle"] as const;
+/** Mirrors SHAPE_NAMES in @muse-clone/mascot; the app draws each one. */
+export const MATE_SHAPES = ["hexagon", "circle", "triangle", "oval", "squircle", "pill", "cloud", "teardrop", "pebble"] as const;
 export type MateShape = (typeof MATE_SHAPES)[number];
 export const randomShape = (): MateShape => MATE_SHAPES[Math.floor(Math.random() * MATE_SHAPES.length)]!;
 const shapeSchema = z.enum(MATE_SHAPES);

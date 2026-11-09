@@ -2858,9 +2858,67 @@ export const TRIANGLE: PolygonShape = {
   anchor: { x: 107, y: 150, scale: 0.8 },
 }
 
-export type ShapeName = 'hexagon' | 'circle' | 'triangle'
-export const SHAPE_NAMES: ShapeName[] = ['hexagon', 'circle', 'triangle']
-export const SHAPES: Record<ShapeName, PolygonShape> = { hexagon: SHAPE, circle: CIRCLE, triangle: TRIANGLE }
+/** A soft egg, a little wider than tall. */
+export const OVAL: PolygonShape = {
+  name: 'Oval',
+  fit: SHAPE.fit,
+  ...outline('M100 22C152 22 192 56 192 104C192 150 152 182 100 182C48 182 8 150 8 104C8 56 48 22 100 22Z'),
+  anchor: { x: 106, y: 108, scale: 1.08 },
+}
+
+/** An app-icon squircle: straight sides, deep soft corners. */
+export const SQUIRCLE: PolygonShape = {
+  name: 'Rounded square',
+  fit: SHAPE.fit,
+  ...outline('M100 18C160 18 182 40 182 100C182 160 160 182 100 182C40 182 18 160 18 100C18 40 40 18 100 18Z'),
+  anchor: { x: 106, y: 105, scale: 1.08 },
+}
+
+/** A wide capsule. Short, so the face sits small and centred. */
+export const PILL: PolygonShape = {
+  name: 'Pill',
+  fit: SHAPE.fit,
+  ...outline('M58 46L142 46A54 54 0 0 1 142 154L58 154A54 54 0 0 1 58 46Z'),
+  anchor: { x: 106, y: 111, scale: 0.76 },
+}
+
+/** Three puffs on a soft base; the face sits low, under the big puff. */
+export const CLOUD: PolygonShape = {
+  name: 'Cloud',
+  fit: SHAPE.fit,
+  ...outline('M52 172C26 172 10 154 10 130C10 108 26 92 46 90C48 60 72 38 102 38C126 38 146 52 154 74C176 76 192 96 192 120C192 150 172 172 144 172Z'),
+  anchor: { x: 104, y: 128, scale: 0.92 },
+}
+
+/** Point up, round below; the face sits in the round part. */
+export const TEARDROP: PolygonShape = {
+  name: 'Teardrop',
+  fit: SHAPE.fit,
+  ...outline('M100 12C108 12 112 18 118 28C148 70 176 98 176 128C176 168 142 196 100 196C58 196 24 168 24 128C24 98 52 70 82 28C88 18 92 12 100 12Z'),
+  anchor: { x: 106, y: 140, scale: 0.92 },
+}
+
+/** A smooth river stone, leaning a little. */
+export const PEBBLE: PolygonShape = {
+  name: 'Pebble',
+  fit: SHAPE.fit,
+  ...outline('M78 18C128 6 178 30 186 84C194 138 158 186 100 190C44 194 8 156 12 104C16 60 40 28 78 18Z'),
+  anchor: { x: 108, y: 108, scale: 1.04 },
+}
+
+export type ShapeName = 'hexagon' | 'circle' | 'triangle' | 'oval' | 'squircle' | 'pill' | 'cloud' | 'teardrop' | 'pebble'
+export const SHAPE_NAMES: ShapeName[] = ['hexagon', 'circle', 'triangle', 'oval', 'squircle', 'pill', 'cloud', 'teardrop', 'pebble']
+export const SHAPES: Record<ShapeName, PolygonShape> = {
+  hexagon: SHAPE,
+  circle: CIRCLE,
+  triangle: TRIANGLE,
+  oval: OVAL,
+  squircle: SQUIRCLE,
+  pill: PILL,
+  cloud: CLOUD,
+  teardrop: TEARDROP,
+  pebble: PEBBLE,
+}
 /** The silhouette for a stored name; anything unknown (or missing) is the hexagon. */
 export const shapeOf = (name: string | null | undefined): PolygonShape => SHAPES[name as ShapeName] ?? SHAPE
 

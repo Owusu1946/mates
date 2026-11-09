@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { createApiClient } from "../data/api";
 
 export type Gradient = [string, string, string];
-/** `shape` is the mascot silhouette (hexagon, circle, triangle); older payloads may lack it. */
+/** `shape` is the mascot silhouette (see SHAPE_NAMES in @muse-clone/mascot); older payloads may lack it. */
 export type MateSummary = { id: string; name: string; role: string; color: string; shape?: string; gradient: Gradient };
 export type Mate = MateSummary & { roleDescription: string; isDefault: boolean; chatId: string };
 export type Group = { chatId: string; name: string; mateIds: string[]; leaderMateId: string | null };

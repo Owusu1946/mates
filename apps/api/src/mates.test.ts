@@ -11,7 +11,7 @@ describe("mates", () => {
   it("accepts a well-formed mate and fills in defaults", () => {
     expect(mateInputSchema.parse({ name: "  Scout " })).toEqual({ name: "Scout", role: "companion", roleDescription: "", color: "teal" });
     expect(mateInputSchema.safeParse({ name: "@scout" }).success).toBe(false);
-    expect(mateInputSchema.parse({ name: "Nova", shape: "triangle" }).shape).toBe("triangle");
+    for (const shape of MATE_SHAPES) expect(mateInputSchema.parse({ name: "Nova", shape }).shape).toBe(shape);
     expect(mateInputSchema.safeParse({ name: "Nova", shape: "star" }).success).toBe(false);
     expect(mateInputSchema.safeParse({ name: "" }).success).toBe(false);
     expect(mateInputSchema.safeParse({ name: "Scout", color: "neon" }).success).toBe(false);
@@ -65,8 +65,8 @@ describe("handoff relay", () => {
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "waiting" }]).phase).toBe("done");
   });
 
-  it("gives a mate created without a shape a random one of the three", () => {
-    const seen = new Set(Array.from({ length: 200 }, () => randomShape()));
+  it("gives a mate created without a shape a random one of any shape", () => {
+    const seen = new Set(Array.from({ length: 600 }, () => randomShape()));
     expect([...seen].sort()).toEqual([...MATE_SHAPES].sort());
   });
 });
