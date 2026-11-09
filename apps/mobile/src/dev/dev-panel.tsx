@@ -2,7 +2,7 @@ import * as Notifications from "expo-notifications";
 import { fetch } from "expo/fetch";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { getDevicePushToken, requestNotificationPermission } from "../data/notifications";
 
 type PushTicket = { status?: string; id?: string; message?: string; details?: { error?: string } };
@@ -18,6 +18,7 @@ const sampleNotifications: Record<SampleKind, { title: string; body: string; kin
 
 export function DevPanel() {
   const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [expoToken, setExpoToken] = useState<string | null>(null);
@@ -77,7 +78,7 @@ export function DevPanel() {
     return `Expo accepted the sample ${sample.kind} push${ticket.id ? ` · ticket ${ticket.id.slice(0, 8)}` : ""}.`;
   });
 
-  const bottom = Math.max(insets.bottom, 12) + 14;
+  const bottom = Math.max(insets.bottom, 12) + 14 + height * 0.15;
 
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
@@ -85,7 +86,7 @@ export function DevPanel() {
         <View style={[styles.panel, { bottom, right: 14 }]}>
           <View style={styles.header}>
             <View>
-              <Text style={styles.title}>Test scenarios</Text>
+              <Text style={styles.title}>Dev Tools</Text>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close notification tools" onPress={() => setOpen(false)} style={styles.close}>
               <Text style={styles.closeText}>×</Text>
@@ -110,7 +111,7 @@ export function DevPanel() {
             {busy && <ActivityIndicator size="small" color="#a78bfa" />}
             <Text style={styles.feedbackText}>{message}</Text>
           </View>
-          <Text style={styles.note}>Each sample arrives as a device notification. Push notification sends through Expo.</Text>
+          {/* <Text style={styles.note}>Each sample arrives as a device notification. Push notification sends through Expo.</Text> */}
         </View>
       )}
 

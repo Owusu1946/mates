@@ -21,23 +21,36 @@ import { ChatSyncContext } from "../../src/chat/chat-sync";
 import { useSession } from "../../src/session/provider";
 import { useTheme } from "../../src/theme/provider";
 import { runRequest } from "../../src/chat/background-chat";
+import { refreshNotificationRegistration } from "../../src/data/notifications";
 import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
+  const handledResponses = useRef(new Map<string, number>());
   useEffect(() => {
     const open = (response: Notifications.NotificationResponse) => {
+      const now = Date.now();
+      const responseKey = `${response.notification.request.identifier}:${response.actionIdentifier}`;
+      const previous = handledResponses.current.get(responseKey);
+      if (previous && now - previous < 2_000) return;
+      handledResponses.current.set(responseKey, now);
+      for (const [key, timestamp] of handledResponses.current) {
+        if (now - timestamp >= 2_000) handledResponses.current.delete(key);
+      }
+
       const data = response.notification.request.content.data;
-      // A reminder opens what it is about, such as the meeting's Meet link.
-      if (typeof data?.reminderId === "string" && typeof data.url === "string" && data.url.startsWith("https://")) {
-        void Linking.openURL(data.url);
+      const chatId = data?.chatId;
+      if (typeof data?.reminderId === "string") {
+        if (typeof data.url === "string" && data.url.startsWith("https://")) void Linking.openURL(data.url);
+        else if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
+        else router.push("/(app)");
         return;
       }
-      const chatId = data?.chatId;
       if (typeof data?.codeRunId === "string") {
         if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
         else if (typeof data.url === "string" && data.url.startsWith("https://")) void Linking.openURL(data.url);
+        else router.push("/(app)");
         return;
       }
       if (typeof chatId === "string" && typeof data?.delegationId !== "string") {
@@ -54,6 +67,18 @@ function AuthenticatedStack({ userId }: { userId: string }) {
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
   tokenRef.current = getToken;
+  useEffect(() => {
+    const refresh = () => {
+      void refreshNotificationRegistration(() => tokenRef.current(), userId).catch(() => {
+        // Keep the last saved registration when the API or Expo is temporarily unavailable.
+      });
+    };
+    refresh();
+    const subscription = AppState.addEventListener("change", state => {
+      if (state === "active") refresh();
+    });
+    return () => subscription.remove();
+  }, [userId]);
   const chats = useMemo(() => createRemoteChats(userId, () => tokenRef.current()), [userId]);
   const runtime = useRemoteThreadListRuntime({
     adapter: chats.list,

@@ -1671,9 +1671,16 @@ function useStartingChat() {
   }, [key, remoteId]);
   useEffect(() => {
     if (notificationChatId && chats.data?.some((chat) => chat.id === notificationChatId)) {
-      if (remoteId !== notificationChatId) void aui.threads.switchToThread(notificationChatId);
-      router.setParams({ notificationChatId: undefined });
-      return;
+      let cancelled = false;
+      void (async () => {
+        try {
+          if (remoteId !== notificationChatId) await aui.threads.switchToThread(notificationChatId);
+          if (!cancelled) router.setParams({ notificationChatId: undefined });
+        } catch {
+          if (!cancelled) Alert.alert("Couldn’t open chat", "Tap the notification again to retry.");
+        }
+      })();
+      return () => { cancelled = true; };
     }
     if (remoteId || !chats.data || !mates.data) return;
     let cancelled = false;
