@@ -324,8 +324,10 @@ export const mates = pgTable("mates", {
   color: text("color").notNull().default("amber"),
   /** The mascot silhouette, one of MATE_SHAPES in mates.ts; hexagon for Cooper and older mates. */
   shape: text("shape").notNull().default("hexagon"),
-  /** Cooper: provisioned for every user, cannot be deleted. */
+  /** The lead mate: provisioned for every user, cannot be deleted. */
   isDefault: boolean("is_default").notNull().default(false),
+  /** When the user named and styled their lead mate; null means the setup screen is still due. */
+  setupAt: timestamp("setup_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [

@@ -34,7 +34,7 @@ import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memor
 import { cancelReminder, upcomingReminders } from "./reminders.js";
 import { runUndo } from "./undo.js";
 import { missionForChat, setMissionStatus } from "./missions.js";
-import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, updateGroup, updateMate } from "./mates.js";
+import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, leaderSetupSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, setupLeader, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
@@ -381,6 +381,11 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_MATE", "Check the mate's details", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => c.json({ mate: await updateMate(c.get("userId"), c.req.param("id"), c.req.valid("json")) }))
+    .post("/v1/leader", auth, validator("json", (value, c) => {
+      const parsed = leaderSetupSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_MATE", "Check your mate's name, shape and colour", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => c.json({ mate: await setupLeader(c.get("userId"), c.req.valid("json")) }))
     .delete("/v1/mates/:id", auth, async (c) => {
       await deleteMate(c.get("userId"), c.req.param("id"));
       return c.json({ ok: true });

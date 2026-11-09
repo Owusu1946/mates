@@ -24,6 +24,7 @@ import { runRequest } from "../../src/chat/background-chat";
 import { refreshNotificationRegistration } from "../../src/data/notifications";
 import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
+import { LeaderGate } from "../../src/onboarding/leader-gate";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
@@ -164,7 +165,11 @@ export default function ProtectedLayout() {
     return <Redirect href="/(public)/sign-in" />;
 
   if (!userId) return <Redirect href="/(public)/sign-in" />;
-  return <AuthenticatedStack key={userId} userId={userId} />;
+  return (
+    <LeaderGate key={userId} userId={userId}>
+      <AuthenticatedStack userId={userId} />
+    </LeaderGate>
+  );
 }
 
 const styles = StyleSheet.create({

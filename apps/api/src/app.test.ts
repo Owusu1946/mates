@@ -77,6 +77,11 @@ describe("API contract", () => {
     else process.env.DEEPGRAM_API_KEY = saved;
   });
 
+  it("requires sign-in to set up the lead mate", async () => {
+    const response = await createApp(deps).request("/v1/leader", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: "Kojo", shape: "cloud", color: "blue" }) });
+    expect(response.status).toBe(401);
+  });
+
   it("treats a trailing slash as the same route", async () => {
     const response = await createApp(deps).request("/health/");
     expect(response.status).toBe(301);
