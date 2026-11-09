@@ -2,6 +2,7 @@ import {
   Add01Icon,
   Activity01Icon,
   AiBrain01Icon,
+  Clock01Icon,
   DiceFaces03Icon,
   ArrowLeft01Icon,
   ArrowRight01Icon,
@@ -84,6 +85,7 @@ const icons = {
   previous: ArrowLeft01Icon,
   next: ArrowRight01Icon,
   shuffle: DiceFaces03Icon,
+  clock: Clock01Icon,
 };
 
 export function ChatIcon({
