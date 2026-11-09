@@ -12,7 +12,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import Markdown from "react-native-markdown-display";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AccessibilityInfo,
@@ -41,6 +41,7 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withDelay,
+  withRepeat,
   withSequence,
   withTiming,
 } from "react-native-reanimated";
@@ -67,7 +68,7 @@ import { HandoffCard, NoteChip } from "../mates/relay";
 import { CodeCard } from "./code-card";
 import { SourcesCard } from "./sources-card";
 import * as WebBrowser from "expo-web-browser";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { readCache, writeCache } from "../data/offline-cache";
 import { ComposerTextInput } from "./composer-input";
 import { ActionApproval } from "./action-approval";
 import { AppLogo } from "../connections/app-connection";
@@ -947,11 +948,41 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
   );
 }
 
-function ChatBody({ keyboardVisible }: { keyboardVisible: boolean }) {
+/** Placeholder bubbles while a chat's messages load, so loading never looks like an empty chat. */
+function MessagesLoading() {
+  const colors = useChatColors();
+  const reduceMotion = useReducedMotion();
+  const pulse = useSharedValue(0.55);
+  useEffect(() => {
+    if (reduceMotion) return;
+    pulse.value = withRepeat(withTiming(1, { duration: 750, easing: Easing.inOut(Easing.quad) }), -1, true);
+  }, [pulse, reduceMotion]);
+  const style = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  const bubble = (width: `${number}%`, mine: boolean, height = 18) => (
+    <View style={{ alignSelf: mine ? "flex-end" : "flex-start", width, height, borderRadius: 9, backgroundColor: colors.muted }} />
+  );
+  return (
+    <Animated.View accessibilityLabel="Loading messages" style={[{ flex: 1, justifyContent: "flex-end", paddingHorizontal: 20, paddingBottom: 24, gap: 10 }, style]}>
+      {bubble("46%", true, 36)}
+      {bubble("82%", false)}
+      {bubble("74%", false)}
+      {bubble("52%", false)}
+      <View style={{ height: 14 }} />
+      {bubble("38%", true, 36)}
+      {bubble("78%", false)}
+      {bubble("60%", false)}
+    </Animated.View>
+  );
+}
+
+function ChatBody({ keyboardVisible, loading }: { keyboardVisible: boolean; loading: boolean }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
+  const isLoading = useAuiState((state) => state.thread.isLoading);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
-      {isEmpty ? (
+      {isEmpty && (loading || isLoading) ? (
+        <MessagesLoading />
+      ) : isEmpty ? (
         <EmptyChat keyboardVisible={keyboardVisible} />
       ) : (
         <ThreadPrimitive.MessagesFlatList
@@ -1922,50 +1953,89 @@ function DrawerPushedContent({ children }: { children: React.ReactNode }) {
 }
 
 /** Keeps the open chat a real mate conversation: the last one opened, else Cooper. */
+const LAST_CHAT = "last-chat";
+
+/**
+ * Opens the chat to resume at launch: the last one open, else the lead mate's. Both come from the
+ * device cache, so the chat opens on the first frame; the server lists confirm it afterwards.
+ * Returns true until that chat is open (or there's none to open), for the loading state.
+ */
 function useStartingChat() {
   const aui = useAui();
   const router = useRouter();
   const { notificationChatId } = useLocalSearchParams<{ notificationChatId?: string }>();
-  const { userId } = useAuth();
   const remoteId = useAuiState((state) => state.threadListItem.remoteId);
+  const threadId = useAuiState((state) => state.threadListItem.id);
+  const firstThreadId = useRef(threadId);
+  const openedAtLaunch = useRef<string | null>(null);
   const chats = useChats();
   const mates = useMates();
-  const key = `cooper:last-chat:${userId}`;
+  const [starting, setStarting] = useState(true);
+  const leaderChat = mates.data?.mates.find((mate) => mate.isDefault)?.chatId;
+  // Typed as void, but it returns the switch task; failures must be caught either way.
+  const open = useCallback((id: string) => Promise.resolve(aui.threads.switchToThread(id)), [aui]);
+
   useEffect(() => {
-    if (remoteId) void AsyncStorage.setItem(key, remoteId).catch(() => {});
-  }, [key, remoteId]);
+    if (remoteId) writeCache(LAST_CHAT, remoteId);
+  }, [remoteId]);
+
   useEffect(() => {
-    if (notificationChatId && chats.data?.some((chat) => chat.id === notificationChatId)) {
-      let cancelled = false;
-      void (async () => {
-        try {
-          if (remoteId !== notificationChatId) await aui.threads.switchToThread(notificationChatId);
-          if (!cancelled) router.setParams({ notificationChatId: undefined });
-        } catch {
-          if (!cancelled) Alert.alert("Couldn’t open chat", "Tap the notification again to retry.");
-        }
-      })();
-      return () => { cancelled = true; };
-    }
-    if (remoteId || !chats.data || !mates.data) return;
+    if (!notificationChatId || !chats.data?.some((chat) => chat.id === notificationChatId)) return;
     let cancelled = false;
-    void AsyncStorage.getItem(key)
-      .catch(() => null)
-      .then((last) => {
-        if (cancelled) return;
-        const target = last && chats.data.some((chat) => chat.id === last) ? last : mates.data.mates.find((m) => m.isDefault)?.chatId;
-        if (target) void aui.threads.switchToThread(target);
+    void (async () => {
+      try {
+        if (remoteId !== notificationChatId) await aui.threads.switchToThread(notificationChatId);
+        if (!cancelled) router.setParams({ notificationChatId: undefined });
+      } catch {
+        if (!cancelled) Alert.alert("Couldn’t open chat", "Tap the notification again to retry.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [aui, chats.data, notificationChatId, remoteId, router]);
+
+  useEffect(() => {
+    if (!starting || notificationChatId) return;
+    // A chat is open, or the user started a new one before launch finished: nothing to resume.
+    if (remoteId || threadId !== firstThreadId.current) return setStarting(false);
+    const last = readCache<string>(LAST_CHAT)?.data;
+    const target = last && (!chats.data || chats.data.some((chat) => chat.id === last)) ? last : leaderChat;
+    if (!target) {
+      if (mates.data || mates.isError) setStarting(false);
+      return;
+    }
+    let cancelled = false;
+    openedAtLaunch.current = target;
+    open(target)
+      .catch(() => {
+        // The saved chat is gone; the lead mate's chat always exists.
+        if (!cancelled && leaderChat && target !== leaderChat) return open(leaderChat);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (!cancelled) setStarting(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [aui, chats.data, key, mates.data, notificationChatId, remoteId, router]);
+  }, [chats.data, leaderChat, mates.data, mates.isError, notificationChatId, open, remoteId, starting, threadId]);
+
+  // Once the server has answered, leave a resumed chat that was deleted on another device.
+  useEffect(() => {
+    const resumed = openedAtLaunch.current;
+    if (!resumed || remoteId !== resumed || !chats.isFetchedAfterMount || !chats.data) return;
+    openedAtLaunch.current = null;
+    if (!chats.data.some((chat) => chat.id === resumed) && leaderChat && leaderChat !== resumed) void open(leaderChat).catch(() => undefined);
+  }, [chats.data, chats.isFetchedAfterMount, leaderChat, open, remoteId]);
+
+  return starting;
 }
 
 export function ChatThread() {
   const colors = useChatColors();
   const { isDark } = useTheme();
-  useStartingChat();
+  const starting = useStartingChat();
   const { width } = useWindowDimensions();
   const [drawerOpen, setDrawerOpen] = useState(false);
   return (
@@ -1989,13 +2059,13 @@ export function ChatThread() {
       renderDrawerContent={() => <ChatDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />}
     >
       <DrawerPushedContent>
-        <ChatScreen onOpenMenu={() => setDrawerOpen(true)} />
+        <ChatScreen starting={starting} onOpenMenu={() => setDrawerOpen(true)} />
       </DrawerPushedContent>
     </Drawer>
   );
 }
 
-function ChatScreen({ onOpenMenu }: { onOpenMenu: () => void }) {
+function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: () => void }) {
   const colors = useChatColors();
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
@@ -2025,7 +2095,7 @@ function ChatScreen({ onOpenMenu }: { onOpenMenu: () => void }) {
         <ChatHeader onOpenMenu={onOpenMenu} />
         <GroupMissionBanner />
         <ChatSyncNotice />
-        <ChatBody keyboardVisible={keyboardVisible} />
+        <ChatBody keyboardVisible={keyboardVisible} loading={starting} />
         <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
           <ChatComposer />
         </View>
