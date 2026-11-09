@@ -34,6 +34,16 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         void Linking.openURL(data.url);
         return;
       }
+      const chatId = data?.chatId;
+      if (typeof data?.codeRunId === "string") {
+        if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
+        else if (typeof data.url === "string" && data.url.startsWith("https://")) void Linking.openURL(data.url);
+        return;
+      }
+      if (typeof chatId === "string" && typeof data?.delegationId !== "string") {
+        router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
+        return;
+      }
       const id = data?.delegationId;
       if (typeof id === "string" && /^[a-f0-9-]{36}$/i.test(id)) router.push({ pathname: "/(app)/feed", params: { runId: id } });
     };

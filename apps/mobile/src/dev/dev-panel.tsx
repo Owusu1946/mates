@@ -1,9 +1,9 @@
-import Constants from "expo-constants";
 import * as Notifications from "expo-notifications";
 import { fetch } from "expo/fetch";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { getDevicePushToken, requestNotificationPermission } from "../data/notifications";
 
 type PushTicket = { status?: string; id?: string; message?: string; details?: { error?: string } };
 type PushResponse = { data?: PushTicket | PushTicket[]; errors?: { message?: string }[] };
@@ -16,8 +16,6 @@ const sampleNotifications: Record<SampleKind, { title: string; body: string; kin
   background: { title: "Your task finished", body: "The app is ready to review. Want me to make a PR?", kind: "background-result" },
 };
 
-const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
-
 export function DevPanel() {
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
@@ -26,25 +24,6 @@ export function DevPanel() {
   const [message, setMessage] = useState("Choose a sample to preview a task or test a notification.");
 
   if (!__DEV__ || Platform.OS === "web") return null;
-
-  const requirePermission = async () => {
-    let current = await Notifications.getPermissionsAsync();
-    if (current.status !== "granted") current = await Notifications.requestPermissionsAsync();
-    if (current.status !== "granted") throw new Error("Allow notifications in system settings, then try again.");
-    if (Platform.OS === "android") {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "Cooper",
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-  };
-
-  const getExpoToken = async () => {
-    if (!projectId) throw new Error("No EAS project ID is configured.");
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-    setExpoToken(token);
-    return token;
-  };
 
   const run = async (action: () => Promise<string>) => {
     setBusy(true);
@@ -58,7 +37,7 @@ export function DevPanel() {
   };
 
   const sendLocal = (seconds: number, kind: SampleKind) => run(async () => {
-    await requirePermission();
+    await requestNotificationPermission();
     const sample = sampleNotifications[kind];
     await Notifications.scheduleNotificationAsync({
       content: {
@@ -75,8 +54,8 @@ export function DevPanel() {
   });
 
   const sendExpoPush = (kind: SampleKind) => run(async () => {
-    await requirePermission();
-    const token = expoToken ?? await getExpoToken();
+    const token = expoToken ?? await getDevicePushToken();
+    setExpoToken(token);
     const sample = sampleNotifications[kind];
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
       method: "POST",
