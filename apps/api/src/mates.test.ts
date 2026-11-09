@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { handoffCard, normalisePlan, parseMentions } from "./groups.js";
-import { MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
+import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
 const scout = mate("m1", "Scout", "research");
@@ -63,6 +63,20 @@ describe("handoff relay", () => {
     expect(working.handoff!.from.gradient).toHaveLength(3);
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "done" }]).label).toBe("Scout handed off");
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "waiting" }]).phase).toBe("done");
+  });
+
+  it("names a new lead mate for the day it arrives, in Akan", () => {
+    // 2026-11-08 was a Sunday.
+    const days = Array.from({ length: 7 }, (_, i) => dayName(new Date(Date.UTC(2026, 10, 8 + i, 12))));
+    expect(days).toEqual(["Kwesi", "Kojo", "Kwabena", "Kweku", "Yaw", "Kofi", "Kwame"]);
+    expect(DAY_NAMES).toHaveLength(7);
+  });
+
+  it("needs a name, shape and colour to set up the lead mate", () => {
+    expect(leaderSetupSchema.parse({ name: " Kojo ", shape: "cloud", color: "blue" })).toEqual({ name: "Kojo", shape: "cloud", color: "blue" });
+    expect(leaderSetupSchema.safeParse({ name: "Kojo", shape: "cloud" }).success).toBe(false);
+    expect(leaderSetupSchema.safeParse({ name: "Kojo", shape: "star", color: "blue" }).success).toBe(false);
+    expect(leaderSetupSchema.safeParse({ name: "@kojo", shape: "cloud", color: "blue" }).success).toBe(false);
   });
 
   it("gives a mate created without a shape a random one of any shape", () => {

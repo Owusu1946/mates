@@ -29,6 +29,10 @@ export const ROLE_PRESETS = {
 } as const;
 export type MateRole = keyof typeof ROLE_PRESETS;
 
+/** Akan day names, Sunday first: a new lead mate is named for the day it arrives. */
+export const DAY_NAMES = ["Kwesi", "Kojo", "Kwabena", "Kweku", "Yaw", "Kofi", "Kwame"] as const;
+export const dayName = (date = new Date()) => DAY_NAMES[date.getUTCDay()]!;
+
 const MAX_MATES = 20;
 export const GROUP_LIMITS = { min: 2, max: 8 } as const;
 
@@ -52,6 +56,8 @@ export const mateInputSchema = z.object({
   shape: shapeSchema.optional(),
 });
 export const mateUpdateSchema = mateInputSchema.partial();
+/** The setup screen after sign-up: the lead mate's name, shape and colour. */
+export const leaderSetupSchema = z.object({ name: nameSchema, shape: shapeSchema, color: colorSchema });
 export const groupInputSchema = z.object({
   name: z.string().trim().min(1).max(60),
   mateIds: z.array(z.string().uuid()).min(GROUP_LIMITS.min).max(GROUP_LIMITS.max),
@@ -71,6 +77,7 @@ export const matePresets = () => ({
   palette: Object.entries(MATE_PALETTE).map(([key, gradient]) => ({ key, gradient: [...gradient] })),
   roles: Object.entries(ROLE_PRESETS).map(([key, role]) => ({ key, label: role.label, brief: role.brief })),
   shapes: [...MATE_SHAPES],
+  dayNames: [...DAY_NAMES],
 });
 export class MateError extends Error {
   constructor(readonly code: "NAME_TAKEN" | "LIMIT" | "NOT_FOUND" | "DEFAULT_MATE" | "INVALID_MEMBERS") {
@@ -80,14 +87,17 @@ export class MateError extends Error {
 
 const personaColumns = { id: mates.id, name: mates.name, role: mates.role, roleDescription: mates.roleDescription, color: mates.color, shape: mates.shape };
 
-/** Every user has Cooper. Idempotent and race-safe, so it can run on every list. */
+/**
+ * Every user has a lead mate. Idempotent and race-safe, so it can run on every list. New ones are
+ * named for today and wait for the setup screen (setupAt null); older accounts kept Cooper.
+ */
 export async function ensureDefaultMate(userId: string): Promise<Mate> {
   const [existing] = await getDb().select().from(mates).where(and(eq(mates.clerkUserId, userId), eq(mates.isDefault, true)));
   let cooper = existing;
   if (!cooper) {
     const [created] = await getDb()
       .insert(mates)
-      .values({ clerkUserId: userId, name: "Cooper", role: "companion", roleDescription: ROLE_PRESETS.companion.brief, color: "amber", isDefault: true })
+      .values({ clerkUserId: userId, name: dayName(), role: "companion", roleDescription: ROLE_PRESETS.companion.brief, color: "amber", isDefault: true })
       .onConflictDoNothing()
       .returning();
     cooper = created ?? (await getDb().select().from(mates).where(and(eq(mates.clerkUserId, userId), eq(mates.isDefault, true))))[0]!;
@@ -157,6 +167,14 @@ export async function updateMate(userId: string, id: string, input: z.infer<type
   // The chat title follows the name: recall, the feed and notifications read it.
   if (input.name) await getDb().update(chats).set({ title: input.name }).where(and(eq(chats.id, mateChatId(id)), eq(chats.clerkUserId, userId)));
   return { ...mate, gradient: gradientOf(mate.color), chatId: mateChatId(id) };
+}
+
+/** Saves the setup screen: names and styles the lead mate, and marks setup done. */
+export async function setupLeader(userId: string, input: z.infer<typeof leaderSetupSchema>) {
+  const leader = await ensureDefaultMate(userId);
+  const mate = await updateMate(userId, leader.id, { name: input.name, shape: input.shape, color: input.color });
+  await getDb().update(mates).set({ setupAt: new Date() }).where(eq(mates.id, leader.id));
+  return { ...mate, setupAt: new Date() };
 }
 
 /** Cascades remove the mate's chat and its group memberships; leaders fall back to the first member. */
