@@ -80,6 +80,7 @@
     },
     "ios": {
       "bundleIdentifier": "app.askorin.mates",
+      "deploymentTarget": "17.0",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
