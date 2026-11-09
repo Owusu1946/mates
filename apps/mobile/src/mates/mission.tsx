@@ -35,6 +35,8 @@ export type Mission = {
   workingTask: string | null;
   /** Older servers don't send the board. */
   tasks?: BoardTask[];
+  /** What the leader is doing right now (reviewing, planning), while no mate is working. */
+  leaderStep?: string | null;
   notes: MissionNote[];
 };
 
@@ -142,7 +144,9 @@ export function MissionBanner({ chatId }: { chatId: string }) {
     data.status === "running"
       ? working.length
         ? `${workers} ${working.length > 1 ? "are" : "is"} working · round ${data.round}`
-        : tasks.some((t) => t.status === "review")
+        : data.leaderStep
+          ? `${data.leaderStep.replace(/…$/, "")} · round ${data.round}`
+          : tasks.some((t) => t.status === "review")
           ? `Reviewing the team’s work · round ${data.round}`
           : `Round ${data.round} · lining up the next step`
       : data.status === "needs_input"

@@ -229,8 +229,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
    * One mate's turn through the shared agent, in its own agent-run row. `coordinator` is the
    * leader coordinating its team: no tools at all, so it can only plan, review and report.
    */
-  type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; signal?: AbortSignal };
-  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, signal: turnSignal = signal }: MateTurn = {}) =>
+  type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; boardTask?: boolean; signal?: AbortSignal };
+  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, boardTask = false, signal: turnSignal = signal }: MateTurn = {}) =>
     process.env.COMPOSIO_API_KEY && !coordinator
       ? createAgentResponse(turns, turnSignal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
           runId: agentRunId,
@@ -238,6 +238,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           timezone: request.timezone,
           preamble,
           speaker: mate,
+          boardTask,
           checkpoint: async (pendingTool, history) => {
             await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
@@ -290,6 +291,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         await runMate(mate, agentRunId, personaPreamble(mate, { members: persona.mates, task: task.title }), {
           turns: [{ role: "user", content: taskBrief({ goal, task, inputs }) }],
           resume,
+          boardTask: true,
           signal: AbortSignal.any([signal, timeout]),
         }),
         buffer,
@@ -355,11 +357,18 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     if (round > LIMITS.rounds) return checkIn(mission.id, "We've been at this a long time. Should the team keep going, change course, or wrap up with what we have?");
 
     const before = new Map(board.map((t) => [t.id, t.status]));
+    // Shown at once, so a round never opens on a silent "preparing" while the leader thinks.
+    const leaderStatus = (label: string, phase: "running" | "done") =>
+      mergePayload(content, { cooper: { id: `leader_status_${id}`, state: { kind: "step", phase, label, activity: [{ label, state: phase }], startedAt: new Date().toISOString() } } });
+    leaderStatus(board.some((t) => t.status === "review") ? `${leader.name} is reviewing the team’s work…` : board.length ? `${leader.name} is lining up the next step…` : `${leader.name} is planning the work…`, "running");
+    showBoard();
+    await persist("progress");
     const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages });
     if (decision) {
       board = await applyDecision(mission.id, board, decision);
+      leaderStatus(decision.reviews.length ? `${leader.name} reviewed the team’s work` : `${leader.name} planned the next step`, "done");
       if (decision.handoff) say(leader, decision.handoff);
-    }
+    } else leaderStatus(`${leader.name} carried on with the plan`, "done");
     showBoard();
     await persist("progress");
     if (decision?.action === "checkin") return checkIn(mission.id, decision.question);

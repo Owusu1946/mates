@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { chatMessages, chats, delegations, mates, missionNotes, missions, missionTasks, submissionOutbox } from "./db/schema.js";
-import { boardView } from "./workboard.js";
+import { boardView, leaderStepOf } from "./workboard.js";
 import type { WorkflowCard } from "./integrations.js";
 import { createGroup, createMate, gradientOf, MateError, MATE_PALETTE, ROLE_PRESETS, type MateColor, type MateRole, type PersonaMate } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
@@ -314,6 +314,7 @@ export async function missionForChat(userId: string, chatId: string) {
     working: working ? current?.mate.name ?? speaker?.result?.speaker?.name ?? "The team" : null,
     workingTask: current?.task || null,
     tasks: boardView(tasks, new Map(people.map((p) => [p.id, p])), steps),
+    leaderStep: leaderStepOf(working?.content ?? []),
     notes: notes.map((n) => ({ id: n.id, title: n.title, version: n.version, author: n.author, updatedAt: n.updatedAt, content: n.content })),
   };
 }
