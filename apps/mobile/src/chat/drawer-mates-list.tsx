@@ -160,10 +160,20 @@ export function MatesList({ open, query, colors, onSelect }: { open: boolean; qu
   const chats = useChats();
   const currentId = useAuiState((state) => state.threadListItem.remoteId);
   const [showEarlier, setShowEarlier] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
   const { refetch } = chats;
   useEffect(() => {
     if (open) void refetch();
   }, [open, refetch]);
+
+  const refreshFromPull = async () => {
+    setPullRefreshing(true);
+    try {
+      await refetch();
+    } finally {
+      setPullRefreshing(false);
+    }
+  };
 
   const q = query.trim().toLowerCase();
   const matches = (chat: ChatSummary) => !q || `${nameOf(chat)} ${chat.preview?.text ?? ""}`.toLowerCase().includes(q);
@@ -183,12 +193,26 @@ export function MatesList({ open, query, colors, onSelect }: { open: boolean; qu
     onSelect();
   };
 
-  if (!chats.data)
+  if (!chats.data) {
+    const retryable = chats.isError || chats.fetchStatus === "paused";
+    const message = chats.isError
+      ? "Couldn’t load your recent chats. Tap to retry."
+      : chats.fetchStatus === "paused"
+        ? "Waiting for a connection. Tap to retry."
+        : "Loading your recent chats…";
     return (
-      <Text style={{ color: chats.isError ? colors.foreground : colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 15, paddingTop: 6 }} onPress={() => void refetch()}>
-        {chats.isError ? "Couldn’t load your mates. Tap to retry." : "Loading your mates…"}
-      </Text>
+      <Pressable
+        accessibilityRole={retryable ? "button" : undefined}
+        disabled={!retryable}
+        onPress={() => void refetch()}
+        style={{ paddingTop: 6 }}
+      >
+        <Text style={{ color: retryable ? colors.foreground : colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 15 }}>
+          {message}
+        </Text>
+      </Pressable>
     );
+  }
 
   return (
     <FlatList
@@ -198,8 +222,8 @@ export function MatesList({ open, query, colors, onSelect }: { open: boolean; qu
       contentContainerStyle={{ paddingBottom: 14, gap: 2 }}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={chats.isRefetching} onRefresh={() => void refetch()} />}
-      ListEmptyComponent={<Text style={{ color: colors.mutedForeground, fontSize: 15, paddingTop: 6 }}>No matches.</Text>}
+      refreshControl={<RefreshControl refreshing={pullRefreshing} onRefresh={() => void refreshFromPull()} />}
+      ListEmptyComponent={<Text style={{ color: colors.mutedForeground, fontSize: 15, paddingTop: 6 }}>{q ? "No matches." : "No recent chats yet."}</Text>}
       renderItem={({ item }) =>
         item.type === "earlier" ? (
           <Pressable
