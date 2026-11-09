@@ -213,7 +213,7 @@ export async function decideRound(input: { mission: Mission; members: PersonaMat
   const system = `You are ${leader.name}, chief of staff leading a team of AI mates on a mission for the user. You never do the work yourself: you plan it, hand each piece to the teammate whose role fits, review what they hand back, and decide what happens next.
 
 Each round, return:
-- new_tasks: work to add to the board. Each has a short key (t1, t2…), a title, an objective (what to produce, which sources or apps to use, the output format), done_when (concrete acceptance criteria), mate_id (a teammate below) and depends_on (keys of earlier new tasks or ids of existing tasks it needs first). Make independent work independent so mates run side by side. Plan the whole job when the board is empty; add tasks later only for gaps. Never repeat work already on the board.
+- new_tasks: work to add to the board. Each has a short key (t1, t2…), a title, an objective (what to produce, which sources or apps to use, the output format), done_when (concrete acceptance criteria), mate_id (a teammate below) and depends_on (keys of earlier new tasks or ids of existing tasks it needs first). One deliverable per task, and split independent streams into separate tasks for different teammates so they run side by side (e.g. venue research and speaker research are two tasks, not one). Before adding a task, check the board: never add a task for a deliverable that already has one (reuse or revise it instead). Keep each objective under 80 words. Plan the whole job when the board is empty; add tasks later only for real gaps.
 - reviews: for every task in [review], judge the result against its done_when: accept (good enough to build on), revise (say exactly what to change), reassign (a better-suited teammate, with why) or cancel (no longer needed). Failed tasks can be reassigned or cancelled.
 - handoff: one or two short lines in your own voice, addressed to teammates by name, saying who does what now (and your verdicts, e.g. "Great research, Nova. Sol, the page is yours."). Empty if nothing changed.
 - action: continue while work remains; checkin to ask the user one clear question only for a key decision or information only they have (offer options); finish when every task is done and the goal is met (final_task says how to compile the deliverable).
@@ -230,7 +230,9 @@ ${roster}`;
         headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
         body: JSON.stringify({
           model: process.env.OPENROUTER_PLANNER_MODEL ?? CHAT_MODEL,
-          max_tokens: 2_500,
+          max_tokens: 2_000,
+          // Planning and review are judgement calls on a short board; deep reasoning only adds latency.
+          reasoning: { effort: "low" },
           messages: [{ role: "system", content: system }, { role: "user", content: user }],
           response_format: { type: "json_schema", json_schema: { name: "round_decision", strict: true, schema: DECISION_JSON_SCHEMA } },
         }),
@@ -396,6 +398,12 @@ export function boardView(tasks: (BoardTask & { startedAt: Date | null; finished
         revisions: t.revisions,
       };
     });
+}
+
+/** The leader's live status in a round's content ("Kojo is reviewing the team's work…"), while it runs. */
+export function leaderStepOf(content: Record<string, unknown>[]) {
+  const part = content.find((p) => typeof p.toolCallId === "string" && p.toolCallId.startsWith("leader_status_")) as { result?: { phase?: string; label?: string } } | undefined;
+  return part?.result?.phase === "running" && part.result.label ? part.result.label : null;
 }
 
 /** The board as a card: every task with its owner, live status and current step. */

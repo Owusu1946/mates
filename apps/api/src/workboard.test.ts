@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PersonaMate } from "./mates.js";
-import { boardCard, boardView, LIMITS, normaliseDecision, orphanedTasks, ownerFor, readyTasks, stuckTasks, taskBrief, type BoardTask, type RawDecision } from "./workboard.js";
+import { boardCard, boardView, leaderStepOf, LIMITS, normaliseDecision, orphanedTasks, ownerFor, readyTasks, stuckTasks, taskBrief, type BoardTask, type RawDecision } from "./workboard.js";
 
 const mate = (id: string, name: string, roleDescription: string): PersonaMate => ({ id, name, role: "custom", roleDescription, color: "teal", shape: "hexagon" });
 const kojo = mate("lead", "Kojo", "chief of staff");
@@ -169,5 +169,12 @@ describe("keeping the board healthy", () => {
     expect(view.map((t) => [t.id, t.status, t.mate?.name ?? null, t.step])).toEqual([["a", "working", "Nova", "Reading 4 sources…"], ["b", "changes", null, null]]);
     expect(view[0]!.startedAt).toBe("2026-11-10T08:00:00.000Z");
     expect(view[0]!.mate?.gradient).toHaveLength(3);
+  });
+
+  it("reads the leader's live status while it reviews or plans, and nothing once it's done", () => {
+    const part = (phase: string) => [{ type: "tool-call", toolCallId: "leader_status_r1", result: { kind: "step", phase, label: "Kojo is reviewing the team’s work…" } }];
+    expect(leaderStepOf(part("running"))).toBe("Kojo is reviewing the team’s work…");
+    expect(leaderStepOf(part("done"))).toBeNull();
+    expect(leaderStepOf([])).toBeNull();
   });
 });
