@@ -33,7 +33,7 @@ export type WorkflowCard = {
   handoff?: {
     round?: number;
     from: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] };
-    items: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "done" | "waiting" | "failed" }[];
+    items: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "review" | "changes" | "done" | "waiting" | "failed"; step?: string }[];
   };
   /** A job on the mates' computer: live steps, check results, and the pull request it opened. */
   code?: {
