@@ -75,6 +75,8 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
       body: JSON.stringify({
         model: CHAT_MODEL,
         max_tokens: 400,
+        // Routing is a quick call; low reasoning keeps replies in a group from feeling slow.
+        reasoning: { effort: "low" },
         messages: [
           {
             role: "system",
