@@ -181,108 +181,19 @@ export async function runMissionNote(missionId: string, authorMateId: string | u
     return note ? { title: note.title, version: note.version, content: note.content } : { error: `No note titled "${title}".` };
   }
   if (!content?.trim()) return { error: "A note needs content." };
-  // Rounds run one at a time, so update-then-insert can't race; the unique index backs it anyway.
-  const [updated] = await getDb()
-    .update(missionNotes)
-    .set({ content, authorMateId: authorMateId ?? null, version: sql`${missionNotes.version} + 1`, updatedAt: new Date() })
-    .where(match)
-    .returning();
-  const note = updated ?? (await getDb().insert(missionNotes).values({ missionId, authorMateId: authorMateId ?? null, title, content }).returning())[0]!;
-  return { saved: note.title, version: note.version };
+  return saveNote(missionId, authorMateId, title, content);
 }
 
-export async function notesTouchedSince(missionId: string, since: Date) {
-  const [row] = await getDb()
-    .select({ count: sql<number>`count(*)::int` })
-    .from(missionNotes)
-    .where(and(eq(missionNotes.missionId, missionId), gte(missionNotes.updatedAt, since)));
-  return row?.count ?? 0;
-}
-
-export type MissionStep =
-  | { action: "assign"; handoff: string; assignments: { mateId: string; task: string }[] }
-  | { action: "checkin"; question: string }
-  | { action: "finish"; task: string };
-
-const stepSchema = z.object({
-  action: z.enum(["assign", "checkin", "finish"]),
-  handoff: z.string(),
-  question: z.string(),
-  final_task: z.string(),
-  assignments: z.array(z.object({ mate_id: z.string(), task: z.string() })),
-});
-
-/** Turns the leader's structured answer into a step the run can execute, never an invalid one. */
-export function normaliseStep(raw: z.infer<typeof stepSchema>, memberIds: string[], leaderId: string): MissionStep {
-  if (raw.action === "checkin" && raw.question.trim()) return { action: "checkin", question: raw.question.trim().slice(0, 500) };
-  if (raw.action === "finish") return { action: "finish", task: raw.final_task.trim() || "Compile the final deliverable from the notes and summarise what was done." };
-  const valid = new Set(memberIds);
-  const seen = new Set<string>();
-  const assignments = raw.assignments
-    .filter((a) => valid.has(a.mate_id) && !seen.has(a.mate_id) && seen.add(a.mate_id))
-    .slice(0, 3)
-    .map((a) => ({ mateId: a.mate_id, task: a.task.trim().slice(0, 600) }));
-  if (!assignments.length) return { action: "checkin", question: "I'm not sure what the team should do next. How would you like to proceed?" };
-  return { action: "assign", handoff: assignments.some((a) => a.mateId !== leaderId) ? raw.handoff.trim().slice(0, 400) : "", assignments };
-}
-
-/** The leader decides the next round: hand work out, ask the user something key, or finish. */
-export async function planMissionRound(input: { mission: Mission; members: PersonaMate[]; leaderId: string; turns: { role: string; content: string }[] }): Promise<MissionStep> {
-  const leader = input.members.find((m) => m.id === input.leaderId) ?? input.members[0]!;
-  const notes = await missionNotesOf(input.mission.id);
-  const roster = input.members.map((m) => `- ${m.id}: ${m.name} — ${m.roleDescription || m.role}`).join("\n");
-  const recent = input.turns.slice(-10).map((t) => `${t.role === "user" ? "User" : "Team"}: ${t.content.slice(0, 700)}`).join("\n");
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      signal: AbortSignal.timeout(30_000),
-      headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        model: process.env.OPENROUTER_PLANNER_MODEL ?? CHAT_MODEL,
-        max_tokens: 700,
-        messages: [
-          {
-            role: "system",
-            content: `You are ${leader.name}, leader of a team of AI mates working on a mission for the user. Decide round ${input.mission.round}:
-- "assign": hand the next concrete steps to 1–3 mates whose roles fit, each with a specific task that moves the mission forward and builds on the notes. Write a one-line handoff in your voice addressed to them by name (empty if you assign only yourself).
-- "checkin": ask the user one clear question, only for a key decision (which idea or direction, the name, the business model, anything costly or irreversible) or information only they have. Offer the options you'd suggest.
-- "finish": when the goal's deliverables are complete in the notes and the setup is done; final_task tells you how to compile and deliver the result.
-Never repeat work already in the notes. Leave unused fields empty.
-Team (id: name — role):
-${roster}`,
-          },
-          { role: "user", content: `Mission: ${input.mission.goal}\n\nNotes:\n${notesDigest(notes, 500)}\n\nRecent conversation:\n${recent}` },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "mission_step",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                action: { type: "string", enum: ["assign", "checkin", "finish"] },
-                handoff: { type: "string" },
-                question: { type: "string" },
-                final_task: { type: "string" },
-                assignments: {
-                  type: "array",
-                  items: { type: "object", properties: { mate_id: { type: "string" }, task: { type: "string" } }, required: ["mate_id", "task"], additionalProperties: false },
-                },
-              },
-              required: ["action", "handoff", "question", "final_task", "assignments"],
-              additionalProperties: false,
-            },
-          },
-        },
-      }),
-    });
-    if (!response.ok) throw new Error(String(response.status));
-    const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
-    return normaliseStep(stepSchema.parse(JSON.parse(result.choices?.[0]?.message?.content ?? "null")), input.members.map((m) => m.id), leader.id);
-  } catch {
-    return { action: "checkin", question: "I couldn't plan the next step just now. Reply to let the team continue." };
-  }
+/** Creates or replaces a note by title in one statement, so teammates writing at once never clash. */
+export async function saveNote(missionId: string, authorMateId: string | undefined, title: string, content: string) {
+  const result = await getDb().execute(sql`
+    INSERT INTO mission_notes (mission_id, author_mate_id, title, content)
+    VALUES (${missionId}, ${authorMateId ?? null}, ${title.slice(0, 120)}, ${content.slice(0, NOTE_CHARS)})
+    ON CONFLICT (mission_id, lower(title)) DO UPDATE
+      SET content = EXCLUDED.content, author_mate_id = EXCLUDED.author_mate_id, version = mission_notes.version + 1, updated_at = now()
+    RETURNING title, version`);
+  const row = result.rows[0] as { title: string; version: number } | undefined;
+  return { saved: row?.title ?? title, version: Number(row?.version ?? 1) };
 }
 
 type StoredMessage = { role?: string; content?: { type?: string; text?: unknown; result?: { kind?: string; speaker?: { name?: string } } }[] };
