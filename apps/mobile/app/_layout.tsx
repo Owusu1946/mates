@@ -13,7 +13,7 @@ import {
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
 import { DataProvider } from "../src/data/provider";
-import { DevNotificationPanel } from "../src/dev/dev-notification-panel";
+import { DevPanel } from "../src/dev/dev-panel";
 import { OnboardingProvider, useOnboarding } from "../src/onboarding/provider";
 import { SessionProvider, useSession } from "../src/session/provider";
 import { AnimatedSplash } from "../src/splash/animated-splash";
@@ -56,7 +56,7 @@ export default function RootLayout() {
             <OnboardingProvider>
               <Stack screenOptions={{ headerShown: false }} />
               <Splash />
-              <DevNotificationPanel />
+              <DevPanel />
             </OnboardingProvider>
           </DataProvider>
         </SessionProvider>

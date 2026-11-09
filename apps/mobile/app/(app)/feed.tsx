@@ -60,7 +60,7 @@ export default function FeedScreen() {
       </>}
     </View>}
     {feed.isLoading && <Text style={{ color: colors.textSecondary }}>Loading findings…</Text>}
-    {feed.data?.items.length === 0 && <Text style={{ color: colors.textSecondary, paddingVertical: 30 }}>Your completed tasks and routine results will appear here.</Text>}
+    {feed.data?.items.length === 0 && !feed.isLoading && <Text style={{ color: colors.textSecondary, paddingVertical: 30 }}>Your completed tasks and routine results will appear here.</Text>}
     {feed.data?.items.map(item => <Pressable key={item.id} accessibilityRole="button" onPress={() => {
       setSelected(item.id);
       void runRequest(getToken, `feed/${item.id}/read`, {}).then(() => feed.refetch()).catch(() => setError("Couldn’t mark this result as read."));
