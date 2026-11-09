@@ -9,11 +9,11 @@ type Status = NonNullable<WorkflowCard["handoff"]>["items"][number]["status"];
 
 function StatusPill({ status }: { status: Status }) {
   const { colors } = useTheme();
-  const text = { queued: "Up next", working: "Working", done: "Done", waiting: "Needs you", failed: "Didn’t finish" }[status];
+  const text = { queued: "Up next", working: "Working", review: "In review", changes: "Revising", done: "Done", waiting: "Needs you", failed: "Didn’t finish" }[status];
   const tint = status === "done" ? "#30A46C" : status === "failed" ? colors.error : status === "waiting" ? colors.text : colors.textMuted;
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-      {status === "working" && <WorkingDots color={colors.textMuted} />}
+      {(status === "working" || status === "review") && <WorkingDots color={colors.textMuted} />}
       <Text style={{ color: tint, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>{status === "done" ? `✓ ${text}` : text}</Text>
     </View>
   );

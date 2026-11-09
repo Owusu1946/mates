@@ -10,7 +10,8 @@ import { createAgentResponse } from "./agent-chat.js";
 import { linkAttachments } from "./attachments.js";
 import { personaPreamble, resolvePersona, type Persona, type PersonaMate } from "./mates.js";
 import { handoffCard, parseMentions, planGroupTurn, speakerCard, type Assignment, type HandoffStatus } from "./groups.js";
-import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, notesTouchedSince, planMissionRound, yieldMissionRound } from "./missions.js";
+import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
+import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
 import { extractMemories, memoryCard, memorySettings } from "./memory.js";
 import { recordExchange } from "./recall.js";
@@ -158,7 +159,9 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   let status = "failed";
   let failure: string | null = null;
   let lastFlush = 0;
-  const persist = async (type: string, finalStatus?: string) => {
+  let persisting: Promise<void> = Promise.resolve();
+  const persist = (type: string, finalStatus?: string) => (persisting = persisting.catch(() => undefined).then(() => persistNow(type, finalStatus)));
+  const persistNow = async (type: string, finalStatus?: string) => {
     sequence++;
     const createdAt = new Date(run.createdAt.getTime() + 1).toISOString();
     const message = { id: run.assistantMessageId, role: "assistant", createdAt, content: structuredClone(content), metadata: { custom: { delegationId: id, resumed: !!request.resumeRunId } }, status: { type: finalStatus === "failed" ? "incomplete" : finalStatus ? "complete" : "running", ...(finalStatus ? { reason: finalStatus === "failed" ? "error" : "stop" } : {}) } };
@@ -180,8 +183,14 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   /** Set when this run is one round of a group's mission rather than a reply to the user. */
   const missionInfo = (run.request as { mission?: { id: string; round: number } }).mission;
   let finishing = false;
-  const consume = async (response: Response) => {
+  /**
+   * Streams one agent response into `target`. The run's own content persists as it streams; a
+   * teammate's buffer (parallel work) only reports its current step. Returns whether it errored;
+   * only errors in the run's own content fail the run.
+   */
+  const consume = async (response: Response, target: Content = content, onStep?: (label: string) => void) => {
     if (!response.ok || !response.body) throw new Error("The agent could not start. Check server integrations.");
+    let errored = false;
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -197,20 +206,33 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           const data = event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n");
           if (data && data !== "[DONE]") {
             const payload = JSON.parse(data) as Record<string, unknown>;
-            if (payload.error) failure = "This request couldn’t finish. Earlier findings have been saved.";
-            mergePayload(content, payload);
-            if (Date.now() - lastFlush > 350 || payload.cooper) await persist("progress");
+            if (payload.error) {
+              errored = true;
+              if (target === content) failure = "This request couldn’t finish. Earlier findings have been saved.";
+            }
+            mergePayload(target, payload);
+            if (target === content) {
+              if (Date.now() - lastFlush > 350 || payload.cooper) await persist("progress");
+            } else {
+              const state = (payload.cooper as { state?: { kind?: string; label?: string; phase?: string } } | undefined)?.state;
+              if (state?.kind === "step" && state.phase === "running" && state.label) onStep?.(state.label);
+            }
           }
           boundary = buffer.search(/\r?\n\r?\n/);
         }
         if (done) break;
       }
     } finally { reader.releaseLock(); }
+    return errored;
   };
-  /** One mate's turn through the shared agent, in its own agent-run row. */
-  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, turns = request.messages, resume?: { resumeRunId?: string; choice?: string }) =>
-    process.env.COMPOSIO_API_KEY
-      ? createAgentResponse(turns, signal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
+  /**
+   * One mate's turn through the shared agent, in its own agent-run row. `coordinator` is the
+   * leader coordinating its team: no tools at all, so it can only plan, review and report.
+   */
+  type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; signal?: AbortSignal };
+  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, signal: turnSignal = signal }: MateTurn = {}) =>
+    process.env.COMPOSIO_API_KEY && !coordinator
+      ? createAgentResponse(turns, turnSignal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
           runId: agentRunId,
           chatId: run.chatId ?? undefined,
           timezone: request.timezone,
@@ -221,19 +243,183 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
           },
         })
-      : requestChatCompletion(turns, signal, run.clerkUserId, undefined, undefined, preamble);
+      : requestChatCompletion(turns, turnSignal, run.clerkUserId, undefined, undefined, preamble);
+  const leaderOf = () => persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
+  const steps = new Map<string, string>();
+  let board: BoardTask[] = [];
+  let boardRound = 0;
+  let lastBoardFlush = 0;
+  let speakerTurn = 0;
+  const showBoard = () => mergePayload(content, { cooper: { id: `board_${id}`, state: boardCard(leaderOf(), persona.mates, board, boardRound, steps) } });
+  const say = (mate: PersonaMate, text: string) => {
+    mergePayload(content, { cooper: { id: `speaker_${id}_say${speakerTurn++}`, state: speakerCard(mate) } });
+    mergePayload(content, { choices: [{ delta: { content: text } }] });
+  };
+  const setLocal = (taskId: string, values: Partial<BoardTask>) => {
+    board = board.map((t) => (t.id === taskId ? { ...t, ...values } : t));
+  };
+  /** Pauses the mission on one clear question to the user and lets them know. */
+  const checkIn = async (missionId: string, question: string) => {
+    const leader = leaderOf();
+    say(leader, question);
+    await getDb().update(missions).set({ status: "needs_input", question, updatedAt: new Date() }).where(eq(missions.id, missionId));
+    const [chat] = run.chatId ? await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, run.chatId)) : [];
+    await pushToUser(run.clerkUserId, { title: chat?.title ?? leader.name, body: `${leader.name}: ${question}`.slice(0, 200), data: { chatId: run.chatId, chatKind: "group" } }).catch(() => false);
+  };
+
+  /**
+   * One teammate does one task: its own brief, the results it builds on in full, a time limit.
+   * Its report joins the round as its own block; the result is saved for the leader to review.
+   */
+  const runTask = async (missionId: string, goal: string, task: BoardTask, resume?: { resumeRunId?: string; choice?: string }) => {
+    const leader = leaderOf();
+    const mate = persona.mates.find((m) => m.id === task.mateId) ?? leader;
+    const agentRunId = resume?.resumeRunId ?? randomUUID();
+    await setTask(task.id, { status: "working", startedAt: new Date(), agentRunId });
+    setLocal(task.id, { status: "working" });
+    showBoard();
+    await persist("progress");
+    const results = await notesByTitle(missionId);
+    const titles = new Map(board.map((t) => [t.id, t.title]));
+    const inputs = task.dependsOn.map((dep) => titles.get(dep)).filter((t): t is string => !!t).map((title) => ({ title, content: results.get(title.toLowerCase()) ?? "" }));
+    const buffer: Content = [];
+    const timeout = AbortSignal.timeout(LIMITS.taskMs);
+    let errored = false;
+    try {
+      errored = await consume(
+        await runMate(mate, agentRunId, personaPreamble(mate, { members: persona.mates, task: task.title }), {
+          turns: [{ role: "user", content: taskBrief({ goal, task, inputs }) }],
+          resume,
+          signal: AbortSignal.any([signal, timeout]),
+        }),
+        buffer,
+        (label) => {
+          steps.set(task.id, label);
+          if (Date.now() - lastBoardFlush < 800) return;
+          lastBoardFlush = Date.now();
+          showBoard();
+          void persist("progress");
+        },
+      );
+    } catch {
+      errored = true;
+    }
+    steps.delete(task.id);
+    // The run itself was stopped (the user wrote, or Pause): the task goes back in the queue next round.
+    if (signal.aborted) return;
+    const text = buffer.filter((p) => p.type === "text").map((p) => String(p.text)).join("\n").trim();
+    mergePayload(content, { cooper: { id: `speaker_${id}_task_${task.id}`, state: speakerCard(mate) } });
+    content.push(...buffer);
+    const [agent] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, agentRunId));
+    if (agent?.status.startsWith("waiting")) {
+      await setTask(task.id, { status: "waiting" });
+      setLocal(task.id, { status: "waiting" });
+    } else if (errored || timeout.aborted || !text) {
+      const attempts = task.attempts + 1;
+      const status = attempts >= LIMITS.attempts ? "failed" : "queued";
+      await setTask(task.id, { status, attempts, ...(status === "failed" ? { finishedAt: new Date() } : {}) });
+      setLocal(task.id, { status, attempts });
+    } else {
+      await saveNote(missionId, mate.id, task.title, text);
+      await setTask(task.id, { status: "review", finishedAt: new Date() });
+      setLocal(task.id, { status: "review" });
+    }
+    showBoard();
+    await persist("progress");
+  };
+
+  /** Resumes a task that stopped for the user, then the mission carries on from the board. */
+  const runTaskResume = async (task: BoardTask & { missionId: string }, resume: { resumeRunId?: string; choice?: string }) => {
+    const [mission] = await getDb().select().from(missions).where(eq(missions.id, task.missionId));
+    if (!mission) return;
+    board = await listTasks(mission.id);
+    boardRound = mission.round;
+    await runTask(mission.id, mission.goal, task, resume);
+  };
+
+  /**
+   * A mission round on the work board. The leader (no tools) reviews what came back and plans;
+   * every task that's ready then runs at once, each by its own teammate. Nothing here asks the
+   * user unless the leader decides to, the board is stuck, or a limit is reached.
+   */
+  const runMissionRound = async (missionId: string, round: number) => {
+    const [mission] = await getDb().select().from(missions).where(eq(missions.id, missionId));
+    if (!mission || mission.status !== "running") return;
+    const leader = leaderOf();
+    boardRound = round;
+    await requeueInterrupted(mission.id);
+    board = await listTasks(mission.id);
+    const orphans = orphanedTasks(board, persona.mates, leader.id);
+    for (const orphan of orphans) await setTask(orphan.id, { mateId: orphan.mateId });
+    if (orphans.length) board = await listTasks(mission.id);
+    if (round > LIMITS.rounds) return checkIn(mission.id, "We've been at this a long time. Should the team keep going, change course, or wrap up with what we have?");
+
+    const before = new Map(board.map((t) => [t.id, t.status]));
+    const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages });
+    if (decision) {
+      board = await applyDecision(mission.id, board, decision);
+      if (decision.handoff) say(leader, decision.handoff);
+    }
+    showBoard();
+    await persist("progress");
+    if (decision?.action === "checkin") return checkIn(mission.id, decision.question);
+    if (decision?.action === "finish") {
+      // The chief of staff compiles the team's results; it adds nothing of its own.
+      finishing = true;
+      const notes = await missionNotesOf(mission.id);
+      const results = notes.map((n) => `### ${n.title}${n.author ? ` (by ${n.author})` : ""}\n${n.content}`).join("\n\n").slice(0, 40_000);
+      mergePayload(content, { cooper: { id: `speaker_${id}_final`, state: speakerCard(leader) } });
+      const from = content.length;
+      await consume(await runMate(leader, randomUUID(), personaPreamble(leader, { members: persona.mates, coordinating: true }), { turns: [{ role: "user", content: `${decision.finalTask}\n\nMission: ${mission.goal}\n\nThe team's results:\n${results || "(none)"}` }], coordinator: true }));
+      const summary = content.slice(from).filter((p) => p.type === "text").map((p) => String(p.text)).join("\n").slice(0, 4_000);
+      await getDb().update(missions).set({ status: "done", summary, updatedAt: new Date() }).where(eq(missions.id, mission.id));
+      return;
+    }
+
+    const ready = readyTasks(board);
+    if (!ready.length) {
+      const waiting = board.find((t) => t.status === "waiting");
+      const owner = persona.mates.find((m) => m.id === waiting?.mateId);
+      if (waiting) return checkIn(mission.id, `${owner?.name ?? "A teammate"} needs you to continue “${waiting.title}”. Use the card above, then the team carries on.`);
+      const stuck = stuckTasks(board)[0];
+      const failed = board.find((t) => stuck?.dependsOn.includes(t.id) && t.status === "failed");
+      if (stuck && failed) return checkIn(mission.id, `“${failed.title}” didn't finish, and “${stuck.title}” needs it. Should the team try it another way, skip it, or change course?`);
+      if (!decision) return checkIn(mission.id, "I couldn't plan the next step just now. Reply to let the team continue.");
+    }
+    // Independent tasks run side by side; each reports as soon as it's done.
+    await Promise.allSettled(ready.map((task) => runTask(mission.id, mission.goal, task)));
+    if (signal.aborted) return;
+
+    // A round that moved nothing forward counts towards a check-in, so the team never loops.
+    const progressed = board.some((t) => before.get(t.id) !== t.status) || (decision?.newTasks.length ?? 0) > 0;
+    const [updated] = await getDb()
+      .update(missions)
+      .set({ idleRounds: progressed ? 0 : sql`${missions.idleRounds} + 1`, updatedAt: new Date() })
+      .where(eq(missions.id, mission.id))
+      .returning();
+    if (updated && updated.idleRounds >= IDLE_ROUNDS_BEFORE_CHECKIN && updated.status === "running")
+      await checkIn(mission.id, "The team hasn't made progress for a few rounds. What should we focus on next?");
+  };
+
   try {
     await persist("run.started");
     let agentRunId = run.agentRunId ?? id;
     const leader = persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
     if (persona.kind !== "group") {
-      await consume(await runMate(leader, agentRunId, personaPreamble(leader), request.messages, { resumeRunId: request.resumeRunId, choice: request.choice }));
+      await consume(await runMate(leader, agentRunId, personaPreamble(leader), { resume: { resumeRunId: request.resumeRunId, choice: request.choice } }));
     } else {
       const byId = new Map(persona.mates.map((m) => [m.id, m]));
       const textSince = (from: number) => content.slice(from).filter((p) => p.type === "text").map((p) => String(p.text)).join("\n").trim();
       let replies: { name: string; text: string }[] = [];
+      let mentioned: PersonaMate[] = [];
+      const hasTeam = persona.mates.some((m) => m.id !== leader.id);
       let steps: { assignment: Assignment; runId: string; resume?: { resumeRunId?: string; choice?: string } }[];
-      if (request.resumeRunId) {
+      const pausedTask = request.resumeRunId ? await taskByAgentRun(request.resumeRunId) : null;
+      if (pausedTask) {
+        // A mission task that stopped for the user (e.g. to connect an app) picks up where it was.
+        steps = [];
+        await runTaskResume(pausedTask, { resumeRunId: request.resumeRunId, choice: request.choice });
+      } else if (request.resumeRunId) {
         // A paused mate continues where it stopped, then the hand-offs queued behind it run.
         const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
         const queue = paused?.groupQueue;
@@ -243,29 +429,12 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           ...(queue?.assignments ?? []).map((assignment) => ({ assignment, runId: randomUUID() })),
         ];
       } else if (missionInfo) {
-        // A mission round: the leader hands work out, asks the user something key, or finishes.
-        const [mission] = await getDb().select().from(missions).where(eq(missions.id, missionInfo.id));
-        const step = mission?.status === "running" ? await planMissionRound({ mission, members: persona.mates, leaderId: leader.id, turns: request.messages }) : null;
+        // A mission round runs on the work board: the leader decides, mates work, results go to review.
         steps = [];
-        if (step?.action === "checkin") {
-          mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
-          mergePayload(content, { choices: [{ delta: { content: step.question } }] });
-          await getDb().update(missions).set({ status: "needs_input", question: step.question, updatedAt: new Date() }).where(eq(missions.id, missionInfo.id));
-          const [chat] = run.chatId ? await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, run.chatId)) : [];
-          await pushToUser(run.clerkUserId, { title: chat?.title ?? leader.name, body: `${leader.name}: ${step.question}`.slice(0, 200), data: { chatId: run.chatId } }).catch(() => false);
-        } else if (step) {
-          finishing = step.action === "finish";
-          if (step.action === "assign" && step.handoff) {
-            mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
-            mergePayload(content, { choices: [{ delta: { content: step.handoff } }] });
-          }
-          await persist("progress");
-          const assignments = step.action === "finish" ? [{ mateId: leader.id, task: step.task }] : step.assignments;
-          steps = assignments.map((assignment, i) => ({ assignment, runId: i === 0 ? agentRunId : randomUUID() }));
-        }
+        await runMissionRound(missionInfo.id, missionInfo.round);
       } else {
         // Tagged mates answer in the order they were tagged; otherwise the leader hands off.
-        const mentioned = parseMentions(request.messages.at(-1)?.content ?? "", persona.mates);
+        mentioned = parseMentions(request.messages.at(-1)?.content ?? "", persona.mates);
         const plan = mentioned.length
           ? { handoff: "", assignments: mentioned.map((mate) => ({ mateId: mate.id, task: "" })) }
           : await planGroupTurn({ members: persona.mates, leaderId: leader.id, turns: request.messages });
@@ -276,8 +445,6 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         }
         steps = plan.assignments.map((assignment, i) => ({ assignment, runId: i === 0 ? agentRunId : randomUUID() }));
       }
-      const roundStart = new Date();
-      let waitingOnUser = false;
       // The relay: who the leader handed to, in order, and each one's live status. A single mate
       // answering an ordinary message needs no card; missions always show it.
       const relay = steps.map((step) => ({ mate: byId.get(step.assignment.mateId) ?? leader, task: step.assignment.task, status: "queued" as HandoffStatus }));
@@ -302,12 +469,12 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         const turns = replies.length
           ? [...request.messages, { role: "assistant" as const, content: replies.map((r) => `${r.name}: ${r.text}`).join("\n\n").slice(0, 8_000) }]
           : request.messages;
-        await consume(await runMate(mate, agentRunId, personaPreamble(mate, { members: persona.mates, task: step.assignment.task || undefined }), turns, step.resume));
+        const coordinating = mate.id === leader.id && hasTeam && !mentioned.some((m) => m.id === leader.id) && !step.resume;
+        await consume(await runMate(mate, agentRunId, personaPreamble(mate, { members: persona.mates, task: step.assignment.task || undefined, coordinating }), { turns, resume: step.resume, coordinator: coordinating }));
         replies.push({ name: mate.name, text: textSince(from) });
         const [state] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, agentRunId));
         await setRelay(i, state?.status.startsWith("waiting") ? "waiting" : failure || state?.status === "failed" ? "failed" : "done");
         if (state?.status.startsWith("waiting")) {
-          waitingOnUser = true;
           // Waiting on the user (connect an app, sign in): keep the rest for when they resume.
           await getDb()
             .update(agentRuns)
@@ -316,24 +483,6 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           break;
         }
         if (failure) break;
-      }
-      if (missionInfo && steps.length && !failure && !waitingOnUser && !signal.aborted) {
-        if (finishing) {
-          await getDb().update(missions).set({ status: "done", summary: textSince(0).slice(0, 4_000), updatedAt: new Date() }).where(eq(missions.id, missionInfo.id));
-        } else {
-          // Progress means notes written; rounds that write nothing add up to a check-in, not a loop.
-          const touched = await notesTouchedSince(missionInfo.id, roundStart);
-          const [mission] = await getDb()
-            .update(missions)
-            .set({ idleRounds: touched ? 0 : sql`${missions.idleRounds} + 1`, updatedAt: new Date() })
-            .where(eq(missions.id, missionInfo.id))
-            .returning();
-          if (mission && mission.idleRounds >= IDLE_ROUNDS_BEFORE_CHECKIN && mission.status === "running")
-            await getDb()
-              .update(missions)
-              .set({ status: "needs_input", question: "The team hasn't made progress for a few rounds. What should we focus on next?", updatedAt: new Date() })
-              .where(eq(missions.id, missionInfo.id));
-        }
       }
     }
     const [agent] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, agentRunId));

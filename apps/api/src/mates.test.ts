@@ -53,6 +53,14 @@ describe("group routing", () => {
     expect(normalisePlan({ handoff: "ignored", assignments: [{ mate_id: "m1", task: "chat" }] }, members, "m1", "msg").handoff).toBe("");
     expect(normalisePlan({ handoff: "x", assignments: [{ mate_id: "ghost", task: "x" }] }, members, "m1", "msg")).toEqual({ handoff: "", assignments: [{ mateId: "m1", task: "msg" }] });
   });
+
+  it("never lets the leader take on work while it has teammates", () => {
+    const members = [scout, ama, amaLee];
+    const plan = normalisePlan({ needs_work: true, handoff: "On it", assignments: [{ mate_id: "m1", task: "price it" }] }, members, "m1", "Work out a careful money budget");
+    expect(plan.assignments).toEqual([{ mateId: "m3", task: "Work out a careful money budget" }]);
+    // Conversation stays with the leader.
+    expect(normalisePlan({ needs_work: false, handoff: "", assignments: [{ mate_id: "m1", task: "say thanks" }] }, members, "m1", "thanks!").assignments).toEqual([{ mateId: "m1", task: "say thanks" }]);
+  });
 });
 
 describe("handoff relay", () => {
