@@ -86,6 +86,21 @@ export function useCurrentChat() {
   return useMemo(() => chats.data?.find((chat) => chat.id === remoteId) ?? null, [chats.data, remoteId]);
 }
 
+/** The lead mate's name, for text that names the user's assistant; "Mates" until mates load. */
+export function useLeaderName() {
+  const mates = useMates();
+  return mates.data?.mates.find((mate) => mate.isDefault)?.name ?? "Mates";
+}
+
+/** Who the open chat is with: its mate, a group's leader, otherwise the lead mate. */
+export function useMateName() {
+  const chat = useCurrentChat();
+  const leader = useLeaderName();
+  if (chat?.kind === "mate") return chat.mate?.name ?? chat.title;
+  if (chat?.kind === "group") return chat.members.find((member) => member.id === chat.leaderMateId)?.name ?? chat.title;
+  return leader;
+}
+
 export function useMateActions() {
   const api = useApi();
   const client = useQueryClient();
