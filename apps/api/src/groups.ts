@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { WorkflowCard } from "./integrations.js";
 import { gradientOf, type PersonaMate } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
+import { bestMate } from "./workboard.js";
 
 export type Assignment = { mateId: string; task: string };
 export type GroupTurnPlan = { handoff: string; assignments: Assignment[] };
@@ -29,18 +30,28 @@ export function parseMentions(text: string, members: PersonaMate[]) {
 }
 
 const planSchema = z.object({
+  /** True when the message asks for work (research, apps, writing, code), which the leader never takes on. */
+  needs_work: z.boolean().default(false),
   handoff: z.string(),
   assignments: z.array(z.object({ mate_id: z.string(), task: z.string() })).min(1).max(MAX_ASSIGNED),
 });
 
-/** Keeps only real members, at most three, the leader alone when nothing valid remains. */
-export function normalisePlan(raw: z.infer<typeof planSchema>, members: PersonaMate[], leaderId: string, fallbackTask: string): GroupTurnPlan {
+/**
+ * Keeps only real members, at most three. Work goes to teammates, never the leader, while it has
+ * any: the leader keeps only conversation. With nothing valid left, the leader replies alone.
+ */
+export function normalisePlan(raw: z.input<typeof planSchema>, members: PersonaMate[], leaderId: string, fallbackTask: string): GroupTurnPlan {
   const ids = new Set(members.map((m) => m.id));
+  const hasTeam = members.some((m) => m.id !== leaderId);
   const seen = new Set<string>();
-  const assignments = raw.assignments
+  let assignments = raw.assignments
     .filter((a) => ids.has(a.mate_id) && !seen.has(a.mate_id) && seen.add(a.mate_id))
     .slice(0, MAX_ASSIGNED)
     .map((a) => ({ mateId: a.mate_id, task: a.task.trim().slice(0, 400) }));
+  if (raw.needs_work && hasTeam) {
+    assignments = assignments.filter((a) => a.mateId !== leaderId);
+    if (!assignments.length) assignments = [{ mateId: bestMate(fallbackTask, members, leaderId, new Map()), task: fallbackTask.slice(0, 400) }];
+  }
   if (!assignments.length) return { handoff: "", assignments: [{ mateId: leaderId, task: fallbackTask }] };
   // A handoff only makes sense when someone other than the leader is picked.
   const handsOff = assignments.some((a) => a.mateId !== leaderId);
@@ -67,7 +78,7 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
         messages: [
           {
             role: "system",
-            content: `You are ${leader.name}, leader of a group chat of AI mates helping the user. Decide who handles the user's latest message. Pick the fewest mates whose roles fit (1–3), each with one concrete task; pick yourself for simple chat or when you fit best. If you pick anyone other than yourself, write a one-line handoff in your own voice addressed to them by name (e.g. "Scout, can you check prices? Ledger, compare it with the budget."); otherwise leave handoff empty.\nMembers (id: name — role):\n${roster}`,
+            content: `You are ${leader.name}, chief of staff of a group chat of AI mates helping the user. Decide who handles the user's latest message. You never do the work yourself: anything that needs research, apps, writing, analysis or code goes to the fewest teammates whose roles fit (1–3), each with one concrete task, and needs_work is true. Answer yourself only quick conversation (greetings, thanks, a question about what the team is doing), with needs_work false. When you pick teammates, write a one-line handoff in your own voice addressed to them by name (e.g. "Scout, can you check prices? Ledger, compare it with the budget."); otherwise leave handoff empty.\nMembers (id: name — role):\n${roster}`,
           },
           { role: "user", content: `Recent conversation:\n${recent}\n\nLatest message to route:\n${latest.slice(0, 2_000)}` },
         ],
@@ -79,13 +90,14 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
             schema: {
               type: "object",
               properties: {
+                needs_work: { type: "boolean" },
                 handoff: { type: "string" },
                 assignments: {
                   type: "array",
                   items: { type: "object", properties: { mate_id: { type: "string" }, task: { type: "string" } }, required: ["mate_id", "task"], additionalProperties: false },
                 },
               },
-              required: ["handoff", "assignments"],
+              required: ["needs_work", "handoff", "assignments"],
               additionalProperties: false,
             },
           },

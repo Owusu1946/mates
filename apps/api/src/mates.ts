@@ -271,7 +271,7 @@ export async function resolvePersona(userId: string, chatId: string | null | und
 }
 
 /** Opens every system prompt: who this mate is. The rest of Cooper's rules follow unchanged. */
-export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMate[]; task?: string }) {
+export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMate[]; task?: string; coordinating?: boolean }) {
   const brief = mate.roleDescription.trim() || ROLE_PRESETS[(mate.role as MateRole) in ROLE_PRESETS ? (mate.role as MateRole) : "companion"].brief;
   const lines = [
     `You are ${mate.name}, ${brief}. You are one of the user's AI mates in the Mates app; stay in character as ${mate.name}, warm and clear.`,
@@ -281,6 +281,8 @@ export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMat
     lines.push(
       `You are in a group chat with the user${others.length ? ` and fellow mates ${others.join(", ")}` : ""}. Speak only as yourself; never write lines for other mates.`,
       group.task ? `Your part of this message: ${group.task}. Do only that part; other mates handle the rest.` : "",
+      // The leader as chief of staff: it has no tools here, so it can only coordinate and report.
+      group.coordinating ? "You lead this team as its chief of staff. You never do the team's work yourself: teammates research, write, build and act in apps; you coordinate, review and report. Answer only from what the team has produced and what the user said; if something needs doing, say which teammate will take it." : "",
     );
   }
   return lines.filter(Boolean).join(" ");
