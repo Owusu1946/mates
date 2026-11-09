@@ -74,6 +74,7 @@
   },
   "devDependencies": {
     "@react-native/metro-config": "0.86.3",
+    "@sentry/cli": "2.58.4",
     "@types/react": "~19.2.2",
     "expo-doctor": "1.21.6",
     "metro": "0.84.5",
