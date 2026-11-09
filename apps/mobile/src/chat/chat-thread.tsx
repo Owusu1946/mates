@@ -60,7 +60,7 @@ import { ScheduleCard } from "./schedule-card";
 import { MemoryCard } from "./memory-card";
 import { PlanCard } from "./plan-card";
 import { MatesList } from "./drawer-mates-list";
-import { DEFAULT_GRADIENT, useChats, useCurrentChat, useMates, type ChatSummary } from "../mates/data";
+import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateName, useMates, type ChatSummary } from "../mates/data";
 import { Glow } from "../onboarding/glow";
 import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MissionBanner, TeamCard } from "../mates/mission";
@@ -583,6 +583,11 @@ function UserText({ text }: { text: string }) {
   );
 }
 
+/** Named for whoever the chat is with; only mounted when a reply fails. */
+function ReplyFailed() {
+  return <>{useMateName()} couldn’t reply. Please try again.</>;
+}
+
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role);
   const running = useAuiState(
@@ -715,7 +720,7 @@ function ChatMessage() {
           selectable
           style={{ color: colors.destructive, fontSize: 15, lineHeight: 20 }}
         >
-          Cooper couldn’t reply. Please try again.
+          <ReplyFailed />
         </Text>
         <ActionBarPrimitive.Reload
           accessibilityLabel="Retry response"
@@ -810,7 +815,7 @@ function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
   }, [chat?.id, keyboardVisible, reducedMotion]);
 
   const title =
-    chat?.kind === "mate" && chat.mate && chat.mate.name !== "Cooper"
+    chat?.kind === "mate" && chat.mate
       ? `Hi, I'm ${chat.mate.name}. How can I help?`
       : chat?.kind === "group"
         ? `${chat.title}: ask anyone, or @mention a mate`
@@ -1068,12 +1073,13 @@ function ChatComposer() {
   const { getToken } = useAuth();
   const appsQuery = useConnectedMentionApps();
   const currentChat = useCurrentChat();
+  const leaderName = useLeaderName();
   const currentMateName =
     currentChat?.kind === "mate"
       ? currentChat.mate?.name ?? currentChat.title
       : currentChat?.kind === "group"
         ? currentChat.title
-        : "Cooper";
+        : leaderName;
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
@@ -1834,7 +1840,8 @@ function ChatTitle() {
   const colors = useChatColors();
   const router = useRouter();
   const chat = useCurrentChat();
-  const name = chat ? (chat.kind === "mate" ? chat.mate?.name ?? chat.title : chat.kind === "group" ? chat.title : "Cooper") : "Cooper";
+  const leaderName = useLeaderName();
+  const name = chat?.kind === "mate" ? chat.mate?.name ?? chat.title : chat?.kind === "group" ? chat.title : leaderName;
   const profile =
     chat?.kind === "mate" && chat.mate ? `/mate/${chat.mate.id}` : chat?.kind === "group" ? `/group/${chat.id}` : null;
   return (

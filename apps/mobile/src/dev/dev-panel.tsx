@@ -11,8 +11,8 @@ type SampleKind = "ready" | "attention" | "running" | "background";
 
 const sampleNotifications: Record<SampleKind, { title: string; body: string; kind: string }> = {
   ready: { title: "Your app is ready ✨", body: "The onboarding refresh is complete. Want me to make a PR?", kind: "result-ready" },
-  attention: { title: "Cooper needs one detail", body: "Which repo should I use: mates-mobile or mates-app?", kind: "needs-attention" },
-  running: { title: "Cooper is on it", body: "Onboarding is updated. I’m running the final checks now.", kind: "task-running" },
+  attention: { title: "Kojo needs one detail", body: "Which repo should I use: mates-mobile or mates-app?", kind: "needs-attention" },
+  running: { title: "Kojo is on it", body: "Onboarding is updated. I’m running the final checks now.", kind: "task-running" },
   background: { title: "Your task finished", body: "The app is ready to review. Want me to make a PR?", kind: "background-result" },
 };
 

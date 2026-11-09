@@ -15,7 +15,7 @@ export async function disableNotifications(getToken: () => Promise<string | null
 
 export async function requestNotificationPermission() {
   if (Platform.OS === "web" || Constants.executionEnvironment === "storeClient") throw new Error("Notifications are available in the installed app.");
-  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("default", { name: "Cooper", importance: Notifications.AndroidImportance.DEFAULT });
+  if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("default", { name: "Mates", importance: Notifications.AndroidImportance.DEFAULT });
   let permission = await Notifications.getPermissionsAsync();
   if (permission.status !== "granted") permission = await Notifications.requestPermissionsAsync();
   if (permission.status !== "granted") throw new Error("Notifications are off. You can enable them in your phone’s settings.");

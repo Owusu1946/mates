@@ -35,7 +35,7 @@ describe("plans", () => {
     const apps = new Map([["googlecalendar", { name: "Google Calendar", logo: "logo.png" }]]);
     const proposed = planCard(plan, apps);
     expect(proposed).toMatchObject({ kind: "plan", phase: "waiting", label: "Review the plan" });
-    expect(proposed.plan!.actions.map((a) => [a.app, a.status])).toEqual([["Google Calendar", "proposed"], ["Cooper reminder", "proposed"]]);
+    expect(proposed.plan!.actions.map((a) => [a.app, a.status])).toEqual([["Google Calendar", "proposed"], ["Reminder", "proposed"]]);
     const done = planCard(plan, apps, [{ id: "a1", status: "done", links: [{ label: "Join Meet", url: "https://meet.google.com/x" }] }, { id: "r1", status: "failed", error: "late" }]);
     expect(done.phase).toBe("error");
     expect(done.plan!.actions[0]!.links).toEqual([{ label: "Join Meet", url: "https://meet.google.com/x" }]);

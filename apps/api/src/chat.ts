@@ -30,7 +30,7 @@ export async function requestChatCompletion(
   userId?: string,
   resumeRunId?: string,
   choice?: string,
-  preamble = "You are Cooper, a clear and thoughtful personal assistant.",
+  preamble = "You are a clear and thoughtful personal assistant in the Mates app.",
 ): Promise<Response> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {

@@ -48,7 +48,7 @@ export default function FeedScreen() {
     catch { setError("Couldn’t open this chat. Please try again."); }
   };
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }} refreshControl={<RefreshControl refreshing={feed.isFetching} onRefresh={() => void feed.refetch()} />}>
-    <Text style={{ color: colors.text, fontSize: 30, fontWeight: "700" }}>From Cooper</Text>
+    <Text style={{ color: colors.text, fontSize: 30, fontWeight: "700" }}>From your mates</Text>
     <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Saved findings, routine results, and requests needing your attention.</Text>
     <Host matchContents colorScheme={isDark ? "dark" : "light"}><Button label={notifications ? "Turn off result notifications" : "Enable result notifications"} variant="outlined" disabled={busy || !userId} onPress={async () => {
       setBusy(true); setError(null);
@@ -61,7 +61,7 @@ export default function FeedScreen() {
       {result.isLoading ? <Text style={{ color: colors.textSecondary }}>Loading result…</Text> : result.data && <>
         <Text style={{ color: colors.textMuted }}>{result.data.run.status.toUpperCase()}</Text>
         {result.data.run.content.filter(part => part.type === "text").map((part, i) => <Markdown key={i} style={{ body: { color: colors.text, fontSize: 15, lineHeight: 23 } }}>{String(part.text)}</Markdown>)}
-        {!result.data.run.content.length && <Text style={{ color: colors.textSecondary }}>Cooper is preparing this task. You can leave the app.</Text>}
+        {!result.data.run.content.length && <Text style={{ color: colors.textSecondary }}>Preparing this task. You can leave the app.</Text>}
         {result.data.run.error && <Text style={{ color: colors.error }}>{result.data.run.error}</Text>}
         {result.data.run.chatId && <Host matchContents colorScheme={isDark ? "dark" : "light"}><Button label={result.data.run.status === "waiting" ? "Open chat to continue" : "Open full result"} onPress={() => void openChat(result.data!.run.chatId!)} /></Host>}
         {["queued", "running"].includes(result.data.run.status) && <Host matchContents colorScheme={isDark ? "dark" : "light"}><Button label="Stop task" variant="outlined" onPress={async () => {

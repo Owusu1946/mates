@@ -41,7 +41,7 @@ export function nextOccurrence(spec: RoutineSpec, after = new Date()): Date | nu
   throw new Error("The next occurrence could not be calculated");
 }
 
-export const scheduleInstructions = `For requests to do work later or repeatedly, call cooper_schedule_draft after clarifying missing date, local time, timezone or task details. The user's timezone is given below; use it unless they name another. Support once, daily and weekly. Weekdays are ISO Monday=1 through Sunday=7. onceAt must include a UTC offset. Show a draft, never claim a routine is active before explicit confirmation. Routines deliver results in Cooper; external email/Slack delivery still requires per-run approval and is not standing consent. Conditional monitoring (only notify on change or below a threshold) is not supported yet: explain that and ask whether unconditional checking is acceptable before drafting. Do not silently drop the requested condition. Never turn an ordinary question into a routine.`;
+export const scheduleInstructions = `For requests to do work later or repeatedly, call cooper_schedule_draft after clarifying missing date, local time, timezone or task details. The user's timezone is given below; use it unless they name another. Support once, daily and weekly. Weekdays are ISO Monday=1 through Sunday=7. onceAt must include a UTC offset. Show a draft, never claim a routine is active before explicit confirmation. Routines deliver results in this chat; external email/Slack delivery still requires per-run approval and is not standing consent. Conditional monitoring (only notify on change or below a threshold) is not supported yet: explain that and ask whether unconditional checking is acceptable before drafting. Do not silently drop the requested condition. Never turn an ordinary question into a routine.`;
 /** The phone's timezone when known; Accra is only the fallback for older clients. */
 export function scheduleContext(timezone?: string) {
   const zone = timezone && IANAZone.isValidZone(timezone) ? timezone : "Africa/Accra";
@@ -101,7 +101,7 @@ export async function runRoutineNow(userId: string, id: string, requestKey: stri
 }
 
 function scheduledPrompt(spec: RoutineSpec) {
-  return `Scheduled routine: ${spec.prompt}\nRun the task now. Deliver the findings here in Cooper. This routine does not grant permission for external writes. Pause and request approval for any external mutation.`;
+  return `Scheduled routine: ${spec.prompt}\nRun the task now. Deliver the findings here in this chat. This routine does not grant permission for external writes. Pause and request approval for any external mutation.`;
 }
 
 export async function dispatchDueRoutines() {

@@ -14,7 +14,7 @@ export async function recordExchange(input: { delegationId: string; userId: stri
   const user = input.userText.trim();
   const reply = input.assistantText.trim();
   if (!user || !reply) return;
-  const content = `User: ${user.slice(0, 800)}\nCooper: ${reply.slice(0, ENTRY_CHARS - 800)}`;
+  const content = `User: ${user.slice(0, 800)}\nMate: ${reply.slice(0, ENTRY_CHARS - 800)}`;
   const embedding = await embedOne(content);
   await getDb()
     .insert(recallEntries)

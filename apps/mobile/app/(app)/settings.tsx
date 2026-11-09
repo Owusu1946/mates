@@ -18,7 +18,7 @@ const THEMES: { label: string; value: ThemeMode }[] = [
   { label: "Dark", value: "dark" },
 ];
 type SFSymbol = NonNullable<React.ComponentProps<typeof Label>["systemImage"]>;
-const DELETE_NOTE = "Deleting your account removes everything Cooper stores for you and disconnects your apps.";
+const DELETE_NOTE = "Deleting your account removes everything Mates stores for you and disconnects your apps.";
 
 /** Everything the page shows and does, shared by the iOS and Android layouts. */
 function useSettings() {
@@ -110,7 +110,7 @@ function IosSettings({ s }: { s: Settings }) {
           </HStack>
         </Section>
 
-        <Section title="Cooper">
+        <Section title="Mates">
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
           <LinkRow title="Apps & connections" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
           <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" onPress={s.openNotifications} />
@@ -160,7 +160,7 @@ function AndroidSettings({ s }: { s: Settings }) {
             {s.email ? <UniversalText textStyle={muted}>{s.email}</UniversalText> : null}
           </Column>
         </FieldGroup.Section>
-        <FieldGroup.Section title="Cooper">
+        <FieldGroup.Section title="Mates">
           {row("Memory", s.openMemory)}
           {row("Apps & connections", s.openApps)}
           {row("Notifications", s.openNotifications)}

@@ -139,7 +139,7 @@ export async function resumeBrowser(id: string, userId: string, choice: string) 
   if (row.status === "approval" && choice === "approve" && row.pendingAction) {
     const { stagehand } = await handle(claimed[0]!);
     const page = await stagehand.browser.context.activePage();
-    if (!page || await page.url() !== row.pendingAction.pageUrl) throw new Error("The website changed since confirmation was requested. Start again so Cooper can check the new page.");
+    if (!page || await page.url() !== row.pendingAction.pageUrl) throw new Error("The website changed since confirmation was requested. Start again so the new page can be checked.");
     const action = row.pendingAction.action as Action;
     try { await stagehand.act(action); }
     catch { await closeBrowser(id, userId, "error"); throw new Error("The approved action could not be verified. Check the website before trying again."); }

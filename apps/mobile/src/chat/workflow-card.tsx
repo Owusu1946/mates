@@ -141,7 +141,7 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
             color: muted,
           }}
         >
-          Your request is saved. Cooper will pick up where it left off.
+          Your request is saved. Work picks up where it left off.
         </Text>
       </View>
     );

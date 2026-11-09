@@ -29,7 +29,7 @@ function ClerkSession({ children }: PropsWithChildren) {
 function ClerkMissingKeyNotice() {
   return (
     <View style={noticeStyles.container} testID="auth-screen">
-      <Text style={noticeStyles.eyebrow}>COOPER</Text>
+      <Text style={noticeStyles.eyebrow}>MATES</Text>
       <Text style={noticeStyles.title}>Clerk Key Required</Text>
       <Text style={noticeStyles.body}>
         Please set <Text style={noticeStyles.code}>EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY</Text> in your <Text style={noticeStyles.code}>.env</Text> file to enable authentication.

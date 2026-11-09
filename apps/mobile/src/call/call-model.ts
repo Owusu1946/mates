@@ -46,8 +46,8 @@ export function toCallMate(mate: { id: string; name: string; role: string; gradi
 }
 
 export type CallRoster = { lead: BotMate; others: BotMate[]; group: string[] };
-/** Until mates load, a call is with Cooper as he always looked. */
-const FALLBACK_ROSTER: CallRoster = { lead: toCallMate({ id: "cooper", name: "Cooper", role: "companion", gradient: DEFAULT_GRADIENT }), others: [], group: [] };
+/** Until mates load, a call is with the lead mate in its original look. */
+const FALLBACK_ROSTER: CallRoster = { lead: toCallMate({ id: "lead", name: "Your mate", role: "companion", gradient: DEFAULT_GRADIENT }), others: [], group: [] };
 
 export function avatarState(member: CallMember, listening: boolean): PolygonState {
   if (member.status === "joining") return "waking";

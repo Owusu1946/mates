@@ -24,7 +24,7 @@ export function ScheduleCard({ state }: { state: WorkflowCard }) {
     <Text style={{ color: colors.text, fontSize: 20, fontWeight: "600" }}>{state.label}</Text>
     <Text style={{ color: colors.textSecondary, fontSize: 15, lineHeight: 22 }}>{state.detail}</Text>
     <Text style={{ color: colors.text, fontSize: 14 }}>Next: {next} · {zone}</Text>
-    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Results arrive in Cooper. External changes still need your approval.</Text>
+    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Results arrive in this chat. External changes still need your approval.</Text>
     {error && <Text style={{ color: colors.error }}>{error}</Text>}
     {currentStatus === "draft" && <CardButton label={busy ? "Confirming…" : "Confirm routine"} disabled={busy || (routine && routine.version !== state.routineVersion)} onPress={async () => {
       if (!state.routineId || !state.routineVersion) return;

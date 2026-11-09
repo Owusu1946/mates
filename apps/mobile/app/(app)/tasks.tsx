@@ -1,3 +1,4 @@
+import { useLeaderName } from "../../src/mates/data";
 import { useAuth } from "@clerk/expo";
 import { Button, Host } from "@expo/ui";
 import { useQuery } from "@tanstack/react-query";
@@ -14,6 +15,7 @@ type Routine = { id: string; title: string; spec: RoutineSpec; version: number; 
 export default function TasksScreen() {
   const { getToken, userId } = useAuth();
   const { colors, isDark } = useTheme();
+  const leaderName = useLeaderName();
   const router = useRouter();
   const api = useMemo(() => createApiClient(getToken), [getToken]);
   const [editing, setEditing] = useState<Routine | "new" | null>(null);
@@ -41,7 +43,7 @@ export default function TasksScreen() {
   };
   return <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={schedules.isFetching} onRefresh={() => void schedules.refetch()} />}>
     <Text style={{ color: colors.text, fontSize: 30, fontWeight: "700" }}>Your routines</Text>
-    <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Give Cooper work to do later—even while you’re away.</Text>
+    <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Give your mates work to do later—even while you’re away.</Text>
     {!!reminders.data?.reminders.length && <View style={{ gap: 10 }}>
       <Text style={{ color: colors.text, fontSize: 20, fontWeight: "700" }}>Upcoming reminders</Text>
       {reminders.data.reminders.map(reminder => <View key={reminder.id} style={{ padding: 16, gap: 6, borderRadius: 18, borderWidth: 1, borderColor: colors.border }}>
@@ -65,7 +67,7 @@ export default function TasksScreen() {
       setEditing(null); await schedules.refetch();
     }} />}
     {schedules.isLoading && <Text style={{ color: colors.textSecondary }}>Loading routines…</Text>}
-    {schedules.data?.routines.length === 0 && <Text style={{ color: colors.textSecondary, paddingVertical: 32 }}>Nothing scheduled yet. Create a routine or ask Cooper to draft one in chat.</Text>}
+    {schedules.data?.routines.length === 0 && <Text style={{ color: colors.textSecondary, paddingVertical: 32 }}>Nothing scheduled yet. Create a routine or ask {leaderName} to draft one in chat.</Text>}
     {schedules.data?.routines.map(item => <View key={item.id} style={{ padding: 18, gap: 12, borderRadius: 20, borderWidth: 1, borderColor: colors.border }}>
       <Text style={{ color: colors.textMuted, fontSize: 12 }}>{item.status.toUpperCase()} · {item.spec.frequency}</Text>
       <Text style={{ color: colors.text, fontSize: 19, fontWeight: "600" }}>{item.title}</Text>

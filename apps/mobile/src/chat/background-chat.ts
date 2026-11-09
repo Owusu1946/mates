@@ -13,7 +13,7 @@ export async function runRequest<T>(getToken: () => Promise<string | null>, path
   const response = await fetch(`${base}/v1/${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal });
   if (!response.ok) {
     const value = await response.json().catch(() => null) as { error?: { message?: string } } | null;
-    throw new Error(value?.error?.message ?? "Couldn’t reach Cooper. Please try again.");
+    throw new Error(value?.error?.message ?? "Couldn’t reach your mate. Please try again.");
   }
   return response.json() as Promise<T>;
 }
@@ -58,14 +58,14 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
         }
         if (["completed", "waiting", "failed", "cancelled"].includes(run.status)) {
           if (run.status === "failed") {
-            yield { content: [...run.content, { type: "text", text: run.error ?? "Cooper couldn’t finish. Earlier findings are saved." }] as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "error" }, metadata: { custom: { delegationId: id } } };
+            yield { content: [...run.content, { type: "text", text: run.error ?? "This task couldn’t finish. Earlier findings are saved." }] as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "error" }, metadata: { custom: { delegationId: id } } };
           }
           return;
         }
       } catch (cause) {
         if (signal.aborted) return; // Detach transport; the server run continues.
         failures++;
-        if (failures > 8) throw new Error("Connection interrupted. Cooper can keep working; reopen this chat to recover the saved result.");
+        if (failures > 8) throw new Error("Connection interrupted. The work carries on; reopen this chat to recover the saved result.");
         await delay(Math.min(5000, failures * 700), signal);
       }
       await delay(600, signal);

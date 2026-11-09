@@ -13,7 +13,7 @@ export function BrandCard() {
           className="text-xs font-bold tracking-widest text-blue-600 dark:text-blue-400"
           style={{ color: colors.primary }}
         >
-          COOPER
+          MATES
         </Text>
       </View>
       <Text
@@ -26,7 +26,7 @@ export function BrandCard() {
         className="text-base text-slate-600 dark:text-slate-400"
         style={{ color: colors.textSecondary }}
       >
-        Your space to think, plan, and get things done with Cooper.
+        Your space to think, plan, and get things done with your mates.
       </Text>
     </GlassCard>
   );

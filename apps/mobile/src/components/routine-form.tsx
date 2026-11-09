@@ -20,12 +20,12 @@ export function RoutineForm({ initial, onSave, onCancel }: { initial?: RoutineSp
   const change = <K extends keyof RoutineSpec>(key: K, value: RoutineSpec[K]) => setSpec(previous => ({ ...previous, [key]: value }));
   return <View style={{ gap: 14, padding: 18, borderRadius: 20, backgroundColor: colors.surface }}>
     <NativeField label="Routine name" value={spec.title} onChange={value => change("title", value)} />
-    <NativeField label="What should Cooper do?" value={spec.prompt} multiline onChange={value => change("prompt", value)} />
+    <NativeField label="What should your mate do?" value={spec.prompt} multiline onChange={value => change("prompt", value)} />
     <Host matchContents colorScheme={isDark ? "dark" : "light"}><Picker selectedValue={spec.frequency} onValueChange={value => change("frequency", value as RoutineSpec["frequency"])}><Picker.Item label="One time" value="once" /><Picker.Item label="Daily" value="daily" /><Picker.Item label="Weekly" value="weekly" /></Picker></Host>
     <NativeField label="Timezone" value={spec.timezone} onChange={value => change("timezone", value)} />
     {spec.frequency === "once" ? <View style={{ gap: 8 }}><Text style={{ color: colors.textSecondary }}>Run at</Text><DateTimePicker mode="date" value={new Date(spec.onceAt!)} timeZoneName={spec.timezone} onValueChange={(_, date) => change("onceAt", date.toISOString())} /><DateTimePicker mode="time" value={new Date(spec.onceAt!)} timeZoneName={spec.timezone} onValueChange={(_, date) => change("onceAt", date.toISOString())} /></View> : <NativeField label="Local time (HH:MM)" value={spec.time} onChange={value => change("time", value)} />}
     {spec.frequency === "weekly" && <Host matchContents colorScheme={isDark ? "dark" : "light"}><Picker selectedValue={spec.weekday ?? 1} onValueChange={value => change("weekday", Number(value))}>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day, i) => <Picker.Item key={day} label={day} value={i + 1} />)}</Picker></Host>}
-    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Save a draft, check its next run, then confirm. Results appear in Cooper. External actions require approval.</Text>
+    <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Save a draft, check its next run, then confirm. Results appear in this chat. External actions require approval.</Text>
     {error && <Text style={{ color: colors.error }}>{error}</Text>}
     <Host matchContents colorScheme={isDark ? "dark" : "light"}><Button label={busy ? "Saving…" : "Save draft"} disabled={busy} onPress={async () => {
       setBusy(true); setError(null);

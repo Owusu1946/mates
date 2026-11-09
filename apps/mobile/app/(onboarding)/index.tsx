@@ -33,7 +33,7 @@ const ROSE: Gradient = ["#f6c1c7", "#e0607a", "#8f1d3a"];
 type Page = { title: string; body: string; glow: string; cast: { gradient: Gradient; state: PolygonState; size: number; x: number; y: number }[] };
 const PAGES: Page[] = [
   {
-    title: "Meet Cooper",
+    title: "Meet Mates",
     body: "The AI that remembers you, plans with you, and gets things done.",
     glow: DEFAULT_GRADIENT[1],
     cast: [{ gradient: DEFAULT_GRADIENT, state: "happy", size: 200, x: 0, y: 0 }],

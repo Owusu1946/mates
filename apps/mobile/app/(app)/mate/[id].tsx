@@ -55,7 +55,7 @@ export default function MateProfileScreen() {
           }}
         />
         {mate.isDefault ? (
-          <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: "center" }}>Cooper is your default mate and can’t be removed.</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: "center" }}>{mate.name} leads your team and can’t be removed.</Text>
         ) : (
           <Pressable accessibilityRole="button" onPress={remove} disabled={actions.deleteMate.isPending} style={{ alignSelf: "center", padding: 12 }}>
             <Text style={{ color: colors.error, fontFamily: "DMSans_600SemiBold", fontSize: 16 }}>Remove {mate.name}</Text>

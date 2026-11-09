@@ -62,7 +62,7 @@ export async function submitRun(userId: string, input: Submission) {
       getDb().insert(submissionOutbox).values({ delegationId: id }),
       getDb().insert(chatMessages).values({ chatId: input.chatId, id: input.parentId, message: { id: input.parentId, role: "user", createdAt: new Date().toISOString(), content: [{ type: "text", text: last.content }] } }).onConflictDoNothing(),
       // Database clock, like the user row above: a skewed API clock would sort the reply before its question.
-      getDb().insert(chatMessages).values({ chatId: input.chatId, id: input.assistantMessageId, parentId: input.parentId, createdAt: sql`now() + interval '1 millisecond'`, message: { id: input.assistantMessageId, role: "assistant", createdAt: new Date(Date.now() + 1).toISOString(), content: previousContent.length ? previousContent : [{ type: "tool-call", toolCallId: `queued_${id}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: { kind: "step", phase: "running", label: "Cooper is starting", detail: "Your task is saved. You can leave the app." } }], metadata: { custom: { delegationId: id, resumed: !!input.resumeRunId } } } }).onConflictDoNothing(),
+      getDb().insert(chatMessages).values({ chatId: input.chatId, id: input.assistantMessageId, parentId: input.parentId, createdAt: sql`now() + interval '1 millisecond'`, message: { id: input.assistantMessageId, role: "assistant", createdAt: new Date(Date.now() + 1).toISOString(), content: previousContent.length ? previousContent : [{ type: "tool-call", toolCallId: `queued_${id}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: { kind: "step", phase: "running", label: "Starting", detail: "Your task is saved. You can leave the app." } }], metadata: { custom: { delegationId: id, resumed: !!input.resumeRunId } } } }).onConflictDoNothing(),
       getDb().update(chats).set({ updatedAt: new Date(), title: sql`CASE WHEN ${chats.title} = 'New chat' THEN ${title} ELSE ${chats.title} END` }).where(and(eq(chats.id, input.chatId), eq(chats.clerkUserId, userId))),
     ]);
   } catch (error) {
@@ -197,7 +197,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           const data = event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n");
           if (data && data !== "[DONE]") {
             const payload = JSON.parse(data) as Record<string, unknown>;
-            if (payload.error) failure = "Cooper could not finish this request. Earlier findings have been saved.";
+            if (payload.error) failure = "This request couldn’t finish. Earlier findings have been saved.";
             mergePayload(content, payload);
             if (Date.now() - lastFlush > 350 || payload.cooper) await persist("progress");
           }
@@ -389,7 +389,7 @@ export async function saveFinding(id: string) {
   const [run] = await getDb().select().from(delegations).where(eq(delegations.id, id));
   if (!run || !terminalRun(run.status) || run.status === "cancelled") return;
   const request = run.request as { messages?: { content: string }[] };
-  const title = request.messages?.at(-1)?.content.slice(0, 100) ?? "Cooper result";
+  const title = request.messages?.at(-1)?.content.slice(0, 100) ?? "Mates result";
   const text = run.content.filter(p => p.type === "text").map(p => String(p.text)).join("\n").slice(0, 500);
   await getDb().insert(findings).values({ delegationId: id, clerkUserId: run.clerkUserId, title, summary: text || (run.status === "waiting" ? "Your attention is needed to continue." : run.error ?? "Your result is ready.") }).onConflictDoNothing();
 }
