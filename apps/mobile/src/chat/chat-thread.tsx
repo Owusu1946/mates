@@ -774,10 +774,14 @@ function GroupMissionBanner() {
 function SpeakerLabel({ state }: { state: WorkflowCard }) {
   const colors = useChatColors();
   if (!state.speaker) return null;
+  // Each mate's part of a team reply reads as its own message: a divider, then who's speaking.
   return (
-    <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 2 }}>
-      <MateAvatar gradient={state.speaker.gradient} shape={state.speaker.shape} size={24} still />
-      <Text style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 14 }}>{state.speaker.name}</Text>
+    <View
+      accessibilityRole="header"
+      style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 14, marginBottom: 4, paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }}
+    >
+      <MateAvatar gradient={state.speaker.gradient} shape={state.speaker.shape} size={28} still />
+      <Text style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 15 }}>{state.speaker.name}</Text>
     </View>
   );
 }
