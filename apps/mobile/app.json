@@ -59,7 +59,8 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos."
         }
       ],
-      "expo-image"
+      "expo-image",
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true

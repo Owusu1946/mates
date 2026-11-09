@@ -21,5 +21,14 @@
   "devDependencies": {
     "turbo": "^2.5.6",
     "typescript": "~6.0.3"
+  },
+  "pnpm": {
+    "packageExtensions": {
+      "@sentry/react-native": {
+        "dependencies": {
+          "@expo/config-plugins": "57.0.12"
+        }
+      }
+    }
   }
 }
