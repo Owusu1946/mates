@@ -126,7 +126,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -327,7 +327,9 @@ export async function createAgentResponse(
   const memory = await memoryContext(userId, query).catch(() => ({ enabled: false as const, context: null, settings: null }));
   const recallOn = memory.enabled && memory.settings.historyRecall;
   // A group on a mission shares its goal and notes with every mate who speaks in it.
-  const mission = await liveMission(userId, execution?.chatId).catch(() => null);
+  // A mate doing a board task already has its brief and inputs, and its reply is saved as the
+  // task's result, so it gets neither the notes digest nor the notes tool (no duplicate notes).
+  const mission = execution?.boardTask ? null : await liveMission(userId, execution?.chatId).catch(() => null);
   const tools = [
     ...(await session.tools()).filter(
       (tool) =>
