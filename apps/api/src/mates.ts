@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { chats, groupMembers, mates } from "./db/schema.js";
 
-/** Avatar gradients, light → dark. "amber" is Cooper's original look. */
+/** Avatar gradients, light → dark. "amber" is the lead mate's original look. */
 export const MATE_PALETTE = {
   amber: ["#e5c59e", "#d27e41", "#9A3412"],
   teal: ["#9fd8d1", "#3a9c94", "#155e63"],
@@ -274,7 +274,7 @@ export async function resolvePersona(userId: string, chatId: string | null | und
 export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMate[]; task?: string }) {
   const brief = mate.roleDescription.trim() || ROLE_PRESETS[(mate.role as MateRole) in ROLE_PRESETS ? (mate.role as MateRole) : "companion"].brief;
   const lines = [
-    `You are ${mate.name}, ${brief}. You are one of the user's AI mates in the Cooper app; stay in character as ${mate.name}, warm and clear.`,
+    `You are ${mate.name}, ${brief}. You are one of the user's AI mates in the Mates app; stay in character as ${mate.name}, warm and clear.`,
   ];
   if (group) {
     const others = group.members.filter((m) => m.id !== mate.id).map((m) => `${m.name} (${m.roleDescription || m.role})`);
@@ -293,7 +293,7 @@ export function previewOf(message: StoredMessage, persona?: { name: string }) {
   const parts = message.content ?? [];
   const text = parts.filter((p) => p.type === "text" && typeof p.text === "string").map((p) => String(p.text)).join(" ").replace(/\s+/g, " ").trim();
   const speaker = [...parts].reverse().find((p) => p.result?.kind === "speaker")?.result?.mate?.name;
-  const from = message.role === "user" ? "you" : speaker ?? persona?.name ?? "Cooper";
+  const from = message.role === "user" ? "you" : speaker ?? persona?.name ?? "Mate";
   if (text) return { from, text: text.slice(0, 120) };
   const attachment = message.attachments?.[0];
   if (attachment) return { from, text: attachment.type === "image" ? "📷 Photo" : `📎 ${attachment.name ?? "File"}` };

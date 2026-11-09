@@ -74,7 +74,7 @@ export const reminderTool = {
   function: {
     name: "cooper_set_reminder",
     description:
-      "Set a Cooper reminder: a push notification to the user at a set time. For meetings, set it 10 minutes before the start and pass the event's Meet link. Runs immediately; the user can undo it.",
+      "Set a reminder: a push notification to the user at a set time. For meetings, set it 10 minutes before the start and pass the event's Meet link. Runs immediately; the user can undo it.",
     parameters: {
       type: "object",
       properties: {

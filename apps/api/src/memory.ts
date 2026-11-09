@@ -240,7 +240,7 @@ export async function runMemoryTool(userId: string, chatId: string | undefined, 
   return { result: { ok: true, ...change }, change };
 }
 
-const EXTRACTION_PROMPT = `You maintain the long-term memory of Cooper, a personal assistant. Given the user's existing memories and the latest exchange, decide whether anything should be remembered for future conversations. Most exchanges need nothing; return an empty list then.
+const EXTRACTION_PROMPT = `You maintain the long-term memory of the user's AI mates in the Mates app. Given the user's existing memories and the latest exchange, decide whether anything should be remembered for future conversations. Most exchanges need nothing; return an empty list then.
 
 Remember only durable, useful facts about the user: stable preferences (style, tone, food, brands), identity and work, relationships and important people, goals and ongoing projects, recurring constraints (budget, timezone, schedule, dietary needs).
 Never remember: one-off or momentary details, things only about the current task, facts about other people that the user did not present as lasting, anything already captured, or secrets (passwords, card or account numbers, one-time codes, ID numbers).

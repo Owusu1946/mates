@@ -372,9 +372,9 @@ async function requesterName(userId: string) {
   try {
     const { createClerkClient } = await import("@clerk/backend");
     const user = await createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! }).users.getUser(userId);
-    return user.fullName || user.username || "a Cooper user";
+    return user.fullName || user.username || "a Mates user";
   } catch {
-    return "a Cooper user";
+    return "a Mates user";
   }
 }
 
@@ -415,7 +415,7 @@ async function announce(id: string) {
   }
   await pushToUser(run.clerkUserId, {
     title: run.status === "done" ? `PR #${run.prNumber} is ready` : `Couldn’t finish in ${repoName}`,
-    body: run.status === "done" ? `The mates opened a pull request in ${run.repo}.` : run.error ?? "Open Cooper for details.",
+    body: run.status === "done" ? `The mates opened a pull request in ${run.repo}.` : run.error ?? "Open Mates for details.",
     data: { url: run.prUrl ?? undefined, chatId: run.chatId ?? undefined, codeRunId: run.id },
   }).catch(() => undefined);
 }

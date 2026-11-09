@@ -600,7 +600,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         return c.json(
           failure(
             "CHAT_UNAVAILABLE",
-            "Cooper could not respond right now. Please try again.",
+            "Your mate couldn’t respond right now. Please try again.",
             c.get("requestId"),
           ),
           upstream.status === 503 ? 503 : 502,
@@ -702,7 +702,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         const answers = {
           NAME_TAKEN: [409, "You already have a mate with that name"],
           LIMIT: [409, "You can have up to 20 mates"],
-          DEFAULT_MATE: [409, "Cooper can't be removed"],
+          DEFAULT_MATE: [409, "Your lead mate can't be removed"],
           NOT_FOUND: [404, "Mate or group not found"],
           INVALID_MEMBERS: [400, "Pick 2 to 8 of your mates"],
         } as const;
