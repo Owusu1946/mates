@@ -55,7 +55,9 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         else router.push("/(app)");
         return;
       }
-      if (typeof chatId === "string" && typeof data?.delegationId !== "string") {
+      // A mate's or group's result (a routine, a background task) opens in their chat.
+      const inMateChat = data?.chatKind === "mate" || data?.chatKind === "group";
+      if (typeof chatId === "string" && (inMateChat || typeof data?.delegationId !== "string")) {
         router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
         return;
       }
