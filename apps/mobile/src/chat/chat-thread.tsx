@@ -27,12 +27,23 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type GestureResponderEvent,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Drawer, useDrawerProgress } from "react-native-drawer-layout";
-import Animated, { interpolate, useAnimatedStyle } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import { CooperMark } from "../components/auth/cooper-mark";
 import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar";
 import { useTheme } from "../theme/provider";
@@ -48,7 +59,8 @@ import { ScheduleCard } from "./schedule-card";
 import { MemoryCard } from "./memory-card";
 import { PlanCard } from "./plan-card";
 import { MatesList } from "./drawer-mates-list";
-import { useChats, useCurrentChat, useMates } from "../mates/data";
+import { DEFAULT_GRADIENT, useChats, useCurrentChat, useMates, type ChatSummary } from "../mates/data";
+import { Glow } from "../onboarding/glow";
 import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MissionBanner, TeamCard } from "../mates/mission";
 import { HandoffCard, NoteChip } from "../mates/relay";
@@ -108,12 +120,149 @@ function useChatColors() {
   return isDark ? palettes.dark : palettes.light;
 }
 
-const suggestions = [
-  "Help me plan my week",
-  "Help me explore an idea",
-  "Help me draft something",
-  "Help me think this through",
+type ChatIconName = React.ComponentProps<typeof ChatIcon>["name"];
+type ChatPalette = (typeof palettes)["light"];
+
+const EMPTY_CHAT_WIDTH = 340;
+const EMPTY_CHAT_AVATAR_SIZE = 104;
+
+const EMPTY_SUGGESTION_INTERVAL_MS = 4_000;
+const EMPTY_PROMPT_BLOCK_HEIGHT = 120;
+const EMPTY_PROMPT_OUT_MS = 160;
+const EMPTY_PROMPT_IN_MS = 240;
+const EMPTY_PROMPT_VERTICAL_PADDING = 18;
+const EMPTY_SCREEN_TAP_GLOW_SIZE = 360;
+
+const suggestionSpots: { prompt: string; chip: string; icon: ChatIconName }[] = [
+  { prompt: "Help me plan my week", chip: "Plan", icon: "tasks" },
+  { prompt: "Help me explore an idea", chip: "Explore", icon: "ideas" },
+  { prompt: "Help me draft something", chip: "Draft", icon: "compose" },
+  { prompt: "Help me think this through", chip: "Think", icon: "feed" },
 ];
+
+function glowColorForChat(chat: ChatSummary | null): string {
+  if (chat?.kind === "group" && chat.members[0]) return chat.members[0].gradient[1];
+  if (chat?.mate) return chat.mate.gradient[1];
+  return DEFAULT_GRADIENT[1];
+}
+
+function EmptyChatRotatingPrompt({
+  index,
+  colors,
+  accent,
+  reducedMotion,
+}: {
+  index: number;
+  colors: ChatPalette;
+  accent: string;
+  reducedMotion: boolean;
+}) {
+  const [displayed, setDisplayed] = useState(index);
+  const spot = suggestionSpots[displayed]!;
+  const opacity = useSharedValue(1);
+  const translateY = useSharedValue(0);
+  const scale = useSharedValue(1);
+  const settledIndex = useRef(index);
+
+  useEffect(() => {
+    if (reducedMotion) {
+      setDisplayed(index);
+      settledIndex.current = index;
+      opacity.value = 1;
+      translateY.value = 0;
+      scale.value = 1;
+      return;
+    }
+    if (settledIndex.current === index) return;
+    settledIndex.current = index;
+
+    const arrive = (next: number) => {
+      setDisplayed(next);
+      translateY.value = 4;
+      scale.value = 0.99;
+      const easeOut = Easing.bezier(0.22, 1, 0.36, 1);
+      opacity.value = withTiming(1, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
+      translateY.value = withTiming(0, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
+      scale.value = withTiming(1, { duration: EMPTY_PROMPT_IN_MS, easing: easeOut });
+    };
+    opacity.value = withTiming(0, { duration: EMPTY_PROMPT_OUT_MS, easing: Easing.inOut(Easing.quad) }, (done) => {
+      if (done) runOnJS(arrive)(index);
+    });
+  }, [index, reducedMotion, opacity, scale, translateY]);
+
+  const motion = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
+  return (
+    <ThreadPrimitive.Suggestion
+      prompt={spot.prompt}
+      send
+      accessibilityLabel={`Send suggestion: ${spot.prompt}`}
+      style={({ pressed }: { pressed: boolean }) => ({
+        width: "100%",
+        opacity: pressed ? 0.9 : 1,
+      })}
+    >
+      <Animated.View style={[{ width: "100%", alignItems: "center" }, motion]}>
+        <View style={{ width: "100%", paddingVertical: EMPTY_PROMPT_VERTICAL_PADDING }}>
+          <View
+            style={{
+              width: "100%",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 14,
+              backgroundColor: colors.composer,
+              borderRadius: 26,
+              borderCurve: "continuous",
+              borderWidth: StyleSheet.hairlineWidth,
+              borderColor: colors.border,
+              paddingHorizontal: 16,
+              paddingVertical: 16,
+            }}
+          >
+            <View
+              style={{
+                width: 46,
+                height: 46,
+                borderRadius: 16,
+                alignItems: "center",
+                justifyContent: "center",
+                overflow: "hidden",
+              }}
+            >
+              <View style={{ ...StyleSheet.absoluteFill, backgroundColor: accent, opacity: 0.16 }} />
+              <ChatIcon name={spot.icon} color={accent} size={22} />
+            </View>
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text
+                style={{
+                  color: accent,
+                  fontFamily: "DMSans_600SemiBold",
+                  fontSize: 12,
+                  letterSpacing: 0.4,
+                }}
+              >
+                {spot.chip}
+              </Text>
+              <Text
+                style={{
+                  color: colors.foreground,
+                  fontFamily: "DMSans_600SemiBold",
+                  fontSize: 16,
+                  lineHeight: 21,
+                  letterSpacing: -0.3,
+                }}
+              >
+                {spot.prompt}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
+    </ThreadPrimitive.Suggestion>
+  );
+}
 
 function MessageActions({ user }: { user: boolean }) {
   const colors = useChatColors();
@@ -605,95 +754,205 @@ function SpeakerLabel({ state }: { state: WorkflowCard }) {
   );
 }
 
-function EmptyChat() {
+function EmptyChat({ keyboardVisible }: { keyboardVisible: boolean }) {
   const colors = useChatColors();
   const chat = useCurrentChat();
+  const reducedMotion = useReducedMotion();
+  const [activeSpot, setActiveSpot] = useState(0);
+  const accent = glowColorForChat(chat);
+  const compact = keyboardVisible;
+  const avatarSize = compact ? 80 : EMPTY_CHAT_AVATAR_SIZE;
+  const screenRef = useRef<View>(null);
+  const screenTapX = useSharedValue(-EMPTY_SCREEN_TAP_GLOW_SIZE / 2);
+  const screenTapY = useSharedValue(-EMPTY_SCREEN_TAP_GLOW_SIZE / 2);
+  const screenTapOpacity = useSharedValue(0);
+  const screenTapScale = useSharedValue(0.7);
+
+  const screenTapGlowMotion = useAnimatedStyle(() => ({
+    opacity: screenTapOpacity.value,
+    transform: [
+      { translateX: screenTapX.value },
+      { translateY: screenTapY.value },
+      { scale: screenTapScale.value },
+    ],
+  }));
+
+  const showScreenTapGlow = (event: GestureResponderEvent) => {
+    if (reducedMotion) return;
+    const { pageX, pageY } = event.nativeEvent;
+    screenRef.current?.measureInWindow((left, top) => {
+      screenTapX.value = pageX - left - EMPTY_SCREEN_TAP_GLOW_SIZE / 2;
+      screenTapY.value = pageY - top - EMPTY_SCREEN_TAP_GLOW_SIZE / 2;
+      screenTapScale.value = 0.7;
+      screenTapOpacity.value = withSequence(
+        withTiming(0.38, { duration: 100 }),
+        withDelay(160, withTiming(0, { duration: 390 })),
+      );
+      screenTapScale.value = withTiming(1, {
+        duration: 520,
+        easing: Easing.bezier(0.22, 1, 0.36, 1),
+      });
+    });
+  };
+
+  useEffect(() => {
+    setActiveSpot(0);
+  }, [chat?.id]);
+
+  useEffect(() => {
+    if (keyboardVisible || reducedMotion) return;
+    const timer = setInterval(() => {
+      setActiveSpot((index) => (index + 1) % suggestionSpots.length);
+      Haptics.selectionAsync().catch(() => {});
+    }, EMPTY_SUGGESTION_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [chat?.id, keyboardVisible, reducedMotion]);
+
+  const title =
+    chat?.kind === "mate" && chat.mate && chat.mate.name !== "Cooper"
+      ? `Hi, I'm ${chat.mate.name}. How can I help?`
+      : chat?.kind === "group"
+        ? `${chat.title}: ask anyone, or @mention a mate`
+        : "How can I help you today?";
+
   return (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentInsetAdjustmentBehavior="never"
-      contentContainerStyle={{
-        flexGrow: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        paddingHorizontal: 24,
-        paddingVertical: 24,
-      }}
-      keyboardShouldPersistTaps="handled"
-    >
-      <View style={{ marginBottom: 8, alignItems: "center" }}>
-        {chat?.kind === "group" ? <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={120} /> : <EmptyChatAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} />}
-      </View>
-      <Text
-        accessibilityRole="header"
-        style={{
-          color: colors.foreground,
-          fontSize: 25,
-          fontFamily: "DMSans_600SemiBold",
-          letterSpacing: -0.4,
-          textAlign: "center",
-          marginBottom: 18,
-        }}
-      >
-        {chat?.kind === "mate" && chat.mate && chat.mate.name !== "Cooper"
-          ? `Hi, I'm ${chat.mate.name}. How can I help?`
-          : chat?.kind === "group"
-            ? `${chat.title}: ask anyone, or @mention a mate`
-            : "How can I help you today?"}
-      </Text>
+    <View ref={screenRef} style={{ flex: 1 }} onTouchStart={showScreenTapGlow}>
       <View
-        style={{
-          flexDirection: "row",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: 10,
-          width: "100%",
-          maxWidth: 380,
-        }}
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { alignItems: "center", justifyContent: "center" }]}
       >
-        {suggestions.map((prompt) => (
-          <ThreadPrimitive.Suggestion
-            key={prompt}
-            prompt={prompt}
-            send
-            style={({ pressed }: { pressed: boolean }) => ({
-              width: "47%",
-              minHeight: 60,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: StyleSheet.hairlineWidth,
-              borderColor: colors.border,
-              borderRadius: 20,
-              backgroundColor: pressed ? colors.muted : colors.composer,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-            })}
-          >
-            <Text
+        <Glow
+          color={accent}
+          size={520}
+          opacity={0.32}
+          style={{
+            left: "50%",
+            top: "50%",
+            transform: [{ translateX: -260 }, { translateY: -260 }],
+          }}
+        />
+      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: compact ? "flex-end" : "center",
+          alignItems: "center",
+          paddingHorizontal: 20,
+          paddingVertical: compact ? 12 : 28,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+      <View style={{ width: "100%", maxWidth: EMPTY_CHAT_WIDTH, gap: compact ? 12 : 16 }}>
+        {!compact ? (
+          <View style={{ alignItems: "center", gap: 12 }}>
+            <View
               style={{
-                color: colors.foreground,
-                fontFamily: "DMSans_400Regular",
-                fontSize: 14,
-                lineHeight: 19,
-                letterSpacing: -0.2,
-                textAlign: "center",
+                width: avatarSize,
+                height: avatarSize,
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              {prompt}
+              {chat?.kind === "group" ? (
+                <GroupAvatar
+                  gradients={chat.members.map((m) => m.gradient)}
+                  shapes={chat.members.map((m) => m.shape)}
+                  size={avatarSize}
+                />
+              ) : (
+                <EmptyChatAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} />
+              )}
+            </View>
+            <Text
+              accessibilityRole="header"
+              style={{
+                color: colors.foreground,
+                fontSize: 26,
+                fontFamily: "DMSans_600SemiBold",
+                letterSpacing: -0.5,
+                textAlign: "center",
+                maxWidth: 300,
+              }}
+            >
+              {title}
             </Text>
-          </ThreadPrimitive.Suggestion>
-        ))}
+          </View>
+        ) : (
+          <View
+            style={{
+              width: "100%",
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            {chat?.kind === "group" ? (
+              <GroupAvatar
+                gradients={chat.members.map((m) => m.gradient)}
+                shapes={chat.members.map((m) => m.shape)}
+                size={32}
+              />
+            ) : (
+              <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={32} />
+            )}
+            <Text
+              accessibilityRole="header"
+              numberOfLines={2}
+              style={{
+                flexShrink: 1,
+                color: colors.foreground,
+                fontSize: 20,
+                fontFamily: "DMSans_600SemiBold",
+                letterSpacing: -0.4,
+                textAlign: "left",
+                maxWidth: 300,
+              }}
+            >
+              {title}
+            </Text>
+          </View>
+        )}
+
+        {!compact && (
+          <View style={{ minHeight: EMPTY_PROMPT_BLOCK_HEIGHT, justifyContent: "center" }}>
+            <EmptyChatRotatingPrompt
+              key={chat?.id ?? "chat"}
+              index={activeSpot}
+              colors={colors}
+              accent={accent}
+              reducedMotion={!!reducedMotion}
+            />
+          </View>
+        )}
       </View>
-    </ScrollView>
+      </ScrollView>
+      <Animated.View pointerEvents="none" style={StyleSheet.absoluteFill}>
+        <Animated.View
+          style={[
+            {
+              position: "absolute",
+              width: EMPTY_SCREEN_TAP_GLOW_SIZE,
+              height: EMPTY_SCREEN_TAP_GLOW_SIZE,
+            },
+            screenTapGlowMotion,
+          ]}
+        >
+          <Glow color={accent} size={EMPTY_SCREEN_TAP_GLOW_SIZE} opacity={0.6} />
+        </Animated.View>
+      </Animated.View>
+    </View>
   );
 }
 
-function ChatBody() {
+function ChatBody({ keyboardVisible }: { keyboardVisible: boolean }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   return (
     <View style={{ flex: 1, minHeight: 0 }}>
       {isEmpty ? (
-        <EmptyChat />
+        <EmptyChat keyboardVisible={keyboardVisible} />
       ) : (
         <ThreadPrimitive.MessagesFlatList
           autoScroll
@@ -778,6 +1037,12 @@ function ChatComposer() {
   const { getToken } = useAuth();
   const appsQuery = useConnectedMentionApps();
   const currentChat = useCurrentChat();
+  const currentMateName =
+    currentChat?.kind === "mate"
+      ? currentChat.mate?.name ?? currentChat.title
+      : currentChat?.kind === "group"
+        ? currentChat.title
+        : "Cooper";
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
@@ -1279,7 +1544,7 @@ function ChatComposer() {
                 multiline
                 blurOnSubmit={false}
                 onSubmitWeb={sendMessage}
-                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : "Ask Cooper…"}
+                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : `Ask ${currentMateName}…`}
                 placeholderTextColor={colors.mutedForeground}
                 style={{
                   flex: 1,
@@ -1417,7 +1682,7 @@ function ChatDrawer({
               letterSpacing: -0.5,
             }}
           >
-            Cooper
+            Mate
           </Text>
         )}
         <LiquidGlassButton
@@ -1553,7 +1818,7 @@ function ChatTitle() {
       {chat?.kind === "group" ? (
         <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={30} />
       ) : (
-        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} still />
+        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} />
       )}
       <View style={{ flexShrink: 1 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 17 }}>{name}</Text>
@@ -1746,7 +2011,7 @@ function ChatScreen({ onOpenMenu }: { onOpenMenu: () => void }) {
         <ChatHeader onOpenMenu={onOpenMenu} />
         <GroupMissionBanner />
         <ChatSyncNotice />
-        <ChatBody />
+        <ChatBody keyboardVisible={keyboardVisible} />
         <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
           <ChatComposer />
         </View>
