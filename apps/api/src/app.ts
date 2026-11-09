@@ -243,6 +243,14 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.json({ deliveries: await getDb().select({ id: deliveries.id, status: deliveries.status, error: deliveries.error }).from(deliveries).where(eq(deliveries.delegationId, c.req.param("id"))) });
     })
     .post("/v1/runs/:id/deliveries/retry", auth, async c => (await retryDelivery(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
+    .post("/v1/devices/status", auth, validator("json", (value, c) => {
+      const parsed = z.object({ token: z.string().regex(/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_DEVICE", "Invalid device", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => {
+      const [device] = await getDb().select({ enabled: deviceTokens.enabled }).from(deviceTokens).where(and(eq(deviceTokens.token, c.req.valid("json").token), eq(deviceTokens.clerkUserId, c.get("userId"))));
+      return c.json({ enabled: device?.enabled === true });
+    })
     .post("/v1/devices/disable", auth, validator("json", (value, c) => {
       const parsed = z.object({ token: z.string().min(1).max(300) }).safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_DEVICE", "Invalid device", c.get("requestId")), 400);
