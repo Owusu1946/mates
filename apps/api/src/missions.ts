@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chatMessages, chats, delegations, mates, missionNotes, missions, submissionOutbox } from "./db/schema.js";
+import { chatMessages, chats, delegations, mates, missionNotes, missions, missionTasks, submissionOutbox } from "./db/schema.js";
+import { boardView } from "./workboard.js";
 import type { WorkflowCard } from "./integrations.js";
 import { createGroup, createMate, gradientOf, MateError, MATE_PALETTE, ROLE_PRESETS, type MateColor, type MateRole, type PersonaMate } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
@@ -303,7 +304,18 @@ export async function missionForChat(userId: string, chatId: string) {
   // The task of whoever is working right now, from the round's relay card.
   const relay = [...(working?.content ?? [])].reverse().find((p) => (p as { result?: { kind?: string } }).result?.kind === "handoff") as { result?: WorkflowCard } | undefined;
   const current = relay?.result?.handoff?.items.find((item) => item.status === "working");
-  return { ...mission, working: working ? current?.mate.name ?? speaker?.result?.speaker?.name ?? "The team" : null, workingTask: current?.task || null, notes: notes.map((n) => ({ id: n.id, title: n.title, version: n.version, author: n.author, updatedAt: n.updatedAt, content: n.content })) };
+  // The board, with each working mate's live step from the round in progress.
+  const steps = new Map((relay?.result?.handoff?.items ?? []).flatMap((item) => (item.id && item.step ? [[item.id, item.step] as const] : [])));
+  const tasks = await getDb().select().from(missionTasks).where(eq(missionTasks.missionId, mission.id)).orderBy(asc(missionTasks.position));
+  const owners = [...new Set(tasks.map((t) => t.mateId).filter((id): id is string => !!id))];
+  const people = owners.length ? await getDb().select({ id: mates.id, name: mates.name, color: mates.color, shape: mates.shape }).from(mates).where(inArray(mates.id, owners)) : [];
+  return {
+    ...mission,
+    working: working ? current?.mate.name ?? speaker?.result?.speaker?.name ?? "The team" : null,
+    workingTask: current?.task || null,
+    tasks: boardView(tasks, new Map(people.map((p) => [p.id, p])), steps),
+    notes: notes.map((n) => ({ id: n.id, title: n.title, version: n.version, author: n.author, updatedAt: n.updatedAt, content: n.content })),
+  };
 }
 
 /**

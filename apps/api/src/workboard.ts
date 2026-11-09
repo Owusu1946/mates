@@ -371,6 +371,33 @@ const STATUS_FOR_CARD: Record<TaskStatus, NonNullable<WorkflowCard["handoff"]>["
   cancelled: "failed",
 };
 
+/** A task's status as the app shows it: a queued task that was sent back reads "changes". */
+export const cardStatus = (t: Pick<BoardTask, "status" | "revisions">) => (t.status === "queued" && t.revisions > 0 ? "changes" : STATUS_FOR_CARD[t.status]);
+
+type MateSummary = { id: string; name: string; color: string; shape: string };
+
+/**
+ * The pinned board in the app: every live task with its owner, status, current step and timing.
+ * Steps come from the round in progress; cancelled tasks are left out.
+ */
+export function boardView(tasks: (BoardTask & { startedAt: Date | null; finishedAt: Date | null })[], mates: Map<string, MateSummary>, steps: Map<string, string>) {
+  return tasks
+    .filter((t) => t.status !== "cancelled")
+    .map((t) => {
+      const mate = t.mateId ? mates.get(t.mateId) : undefined;
+      return {
+        id: t.id,
+        title: t.title,
+        status: cardStatus(t),
+        mate: mate ? { ...mate, gradient: gradientOf(mate.color) } : null,
+        step: t.status === "working" ? steps.get(t.id) ?? null : null,
+        startedAt: t.startedAt?.toISOString() ?? null,
+        finishedAt: t.finishedAt?.toISOString() ?? null,
+        revisions: t.revisions,
+      };
+    });
+}
+
 /** The board as a card: every task with its owner, live status and current step. */
 export function boardCard(leader: PersonaMate, members: PersonaMate[], tasks: BoardTask[], round: number, steps: Map<string, string> = new Map()): WorkflowCard {
   const summary = (m: PersonaMate) => ({ id: m.id, name: m.name, color: m.color, shape: m.shape, gradient: gradientOf(m.color) });
@@ -383,9 +410,10 @@ export function boardCard(leader: PersonaMate, members: PersonaMate[], tasks: Bo
       round,
       from: summary(leader),
       items: shown.map((t) => ({
+        id: t.id,
         mate: summary(members.find((m) => m.id === t.mateId) ?? leader),
         task: t.title,
-        status: t.status === "queued" && t.revisions > 0 ? "changes" : STATUS_FOR_CARD[t.status],
+        status: cardStatus(t),
         ...(steps.get(t.id) ? { step: steps.get(t.id) } : {}),
       })),
     },
