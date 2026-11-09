@@ -4,6 +4,7 @@ import type {
 } from "@assistant-ui/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createApiClient } from "../data/api";
+import { readCache, readHistoryCache, writeCache, writeHistoryCache } from "../data/offline-cache";
 
 type HistoryItem = Awaited<
   ReturnType<ThreadHistoryAdapter["load"]>
@@ -19,6 +20,56 @@ type TitleStream = Awaited<
 >;
 type TitleChunk =
   TitleStream extends ReadableStream<infer Chunk> ? Chunk : never;
+type Repository = Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
+export type ChatHistory = ThreadHistoryAdapter & { loadFresh(): Promise<Repository> };
+
+/** Cache key for the chat list the runtime opens chats from. */
+const THREADS = "threads";
+/** Messages kept per chat on the device: the newest branch only, enough to fill a screen or two. */
+const CACHED_MESSAGES = 40;
+
+/** The newest leaf, not the newest row: rows saved with a skewed clock can sort a reply before its question. */
+function headOf(items: HistoryItem[]) {
+  const parents = new Set(items.map((item) => item.parentId));
+  const leaves = items.filter((item) => !parents.has(item.message.id));
+  return (leaves.at(-1) ?? items.at(-1))?.message.id;
+}
+
+/** The last messages on the current branch, re-rooted so the shortened chain stays valid. */
+function recentBranch(items: HistoryItem[]): HistoryItem[] {
+  const byId = new Map(items.map((item) => [item.message.id, item]));
+  const chain: HistoryItem[] = [];
+  for (let id = headOf(items); id && chain.length < CACHED_MESSAGES; ) {
+    const item = byId.get(id);
+    if (!item) break;
+    chain.push(item);
+    id = item.parentId ?? undefined;
+  }
+  chain.reverse();
+  if (chain[0]) chain[0] = { ...chain[0], parentId: null };
+  return chain;
+}
+
+/** Server or cached rows as a repository the runtime can import. */
+function toRepository(items: HistoryItem[]): Repository {
+  return {
+    messages: items.map((item) => {
+      // Older rows may lack a status or hold malformed parts; one must not break the chat.
+      const raw = item.message as unknown as { role: string; content?: unknown; status?: unknown };
+      const content = Array.isArray(raw.content) ? raw.content.filter((part) => typeof (part as { type?: unknown })?.type === "string") : [];
+      return {
+        ...item,
+        message: {
+          ...item.message,
+          content: content.length || raw.role !== "assistant" ? content : [{ type: "text", text: "" }],
+          ...(raw.role === "assistant" && !raw.status ? { status: { type: "complete", reason: "unknown" } } : {}),
+          createdAt: new Date(item.message.createdAt),
+        } as typeof item.message,
+      };
+    }),
+    headId: headOf(items),
+  };
+}
 
 export function createRemoteChats(
   userId: string,
@@ -133,15 +184,43 @@ export function createRemoteChats(
     await AsyncStorage.setItem(`${key}:imported`, "true");
   }
 
+  async function freshList() {
+    await serialized(flush);
+    await importLocal();
+    const data = await (await checked(client.v1.chats.$get())).json();
+    const chats: ChatMetadata[] = data.chats.map(({ id, title, status, updatedAt }) => ({ id, title, status, updatedAt }));
+    writeCache(THREADS, chats);
+    return chats;
+  }
+
+  // Chats refreshed from the server while a cached copy was on screen, for the open thread to pick
+  // up. `shownHeadId` is the cached copy's newest message, so a thread that moved on is left alone.
+  type FreshListener = (id: string, repository: Repository, shownHeadId: string | undefined) => void;
+  const freshListeners = new Set<FreshListener>();
+  async function fetchHistory(id: string) {
+    const data = await (await checked(endpoint(id).messages.$get({ param: { id } }))).json();
+    if (!("messages" in data)) throw new Error("Chat not found");
+    const items = data.messages as unknown as HistoryItem[];
+    return { items, changed: writeHistoryCache(id, recentBranch(items)) };
+  }
+  async function revalidate(id: string, shownHeadId: string | undefined) {
+    const { items, changed } = await fetchHistory(id);
+    if (changed) freshListeners.forEach((listener) => listener(id, toRepository(items), shownHeadId));
+  }
+
   const list: RemoteThreadListAdapter = {
+    // The cached list opens chats on the first frame; the server copy replaces it for next time.
+    // The sidebar keeps its own live query, so nothing waits on this refresh.
     async list() {
-      await serialized(flush);
-      await importLocal();
-      const data = await (await checked(client.v1.chats.$get())).json();
-      return { threads: data.chats.map(metadata) };
+      const cached = readCache<ChatMetadata[]>(THREADS)?.data;
+      if (!cached) return { threads: (await freshList()).map(metadata) };
+      void freshList().catch(() => undefined);
+      return { threads: cached.map(metadata) };
     },
     initialize,
     async fetch(id) {
+      const cached = readCache<ChatMetadata[]>(THREADS)?.data.find((chat) => chat.id === id);
+      if (cached) return metadata(cached);
       const data = await (
         await checked(endpoint(id).$get({ param: { id } }))
       ).json();
@@ -189,37 +268,26 @@ export function createRemoteChats(
     getRemoteId: () => string | undefined,
     initializeThread: () => Promise<{ remoteId: string }>,
     getLocalId: () => string,
-  ): ThreadHistoryAdapter {
+  ): ChatHistory {
     return {
+      // Cached messages first so the chat draws at once; the server copy follows and, if it
+      // differs, reaches the open thread through onFreshHistory.
       async load() {
         const id = getRemoteId();
         if (!id) return { messages: [] };
-        const data = await (
-          await checked(endpoint(id).messages.$get({ param: { id } }))
-        ).json();
-        if (!("messages" in data)) throw new Error("Chat not found");
-        const messages = data.messages as unknown as HistoryItem[];
-        // The head is the newest leaf, not the newest row: rows saved with a skewed clock
-        // can sort a reply before its question, which would hide the reply's branch.
-        const parents = new Set(messages.map((item) => item.parentId));
-        const leaves = messages.filter((item) => !parents.has(item.message.id));
-        return {
-          messages: messages.map((item) => {
-            // Older rows may lack a status or hold malformed parts; one must not break the chat.
-            const raw = item.message as unknown as { role: string; content?: unknown; status?: unknown };
-            const content = Array.isArray(raw.content) ? raw.content.filter((part) => typeof (part as { type?: unknown })?.type === "string") : [];
-            return {
-              ...item,
-              message: {
-                ...item.message,
-                content: content.length || raw.role !== "assistant" ? content : [{ type: "text", text: "" }],
-                ...(raw.role === "assistant" && !raw.status ? { status: { type: "complete", reason: "unknown" } } : {}),
-                createdAt: new Date(item.message.createdAt),
-              } as typeof item.message,
-            };
-          }),
-          headId: (leaves.at(-1) ?? messages.at(-1))?.message.id,
-        };
+        const cached = readHistoryCache<HistoryItem[]>(id);
+        if (cached?.length) {
+          const shown = toRepository(cached);
+          void revalidate(id, shown.headId ?? undefined).catch(() => undefined);
+          return shown;
+        }
+        return toRepository((await fetchHistory(id)).items);
+      },
+      /** Always from the server, for recovering a run that finished elsewhere. */
+      async loadFresh() {
+        const id = getRemoteId();
+        if (!id) return { messages: [] };
+        return toRepository((await fetchHistory(id)).items);
       },
       async append(item) {
         await enqueue(getRemoteId() ?? getLocalId(), item);
@@ -244,6 +312,12 @@ export function createRemoteChats(
   return {
     list,
     history,
+    onFreshHistory(listener: FreshListener) {
+      freshListeners.add(listener);
+      return () => {
+        freshListeners.delete(listener);
+      };
+    },
     sync: {
       subscribe(listener: () => void) {
         listeners.add(listener);
