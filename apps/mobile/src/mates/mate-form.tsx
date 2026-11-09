@@ -11,6 +11,12 @@ const SHAPES = [
   { key: "hexagon", label: "Hexagon" },
   { key: "circle", label: "Circle" },
   { key: "triangle", label: "Triangle" },
+  { key: "oval", label: "Oval" },
+  { key: "squircle", label: "Rounded square" },
+  { key: "pill", label: "Pill" },
+  { key: "cloud", label: "Cloud" },
+  { key: "teardrop", label: "Teardrop" },
+  { key: "pebble", label: "Pebble" },
 ];
 const SURPRISE = "surprise";
 
