@@ -5,6 +5,7 @@ import { runRequest } from "../chat/background-chat";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export const notificationDeviceKey = (userId: string) => `cooper:push-device:${userId}`;
+const registrationRefreshes = new Map<string, Promise<boolean>>();
 
 export async function disableNotifications(getToken: () => Promise<string | null>, userId: string) {
   const token = await AsyncStorage.getItem(notificationDeviceKey(userId));
@@ -12,16 +13,65 @@ export async function disableNotifications(getToken: () => Promise<string | null
   await AsyncStorage.removeItem(notificationDeviceKey(userId));
 }
 
-export async function enableNotifications(getToken: () => Promise<string | null>, userId: string) {
+export async function requestNotificationPermission() {
   if (Platform.OS === "web" || Constants.executionEnvironment === "storeClient") throw new Error("Notifications are available in the installed app.");
-  const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
-  if (!projectId) throw new Error("Notifications aren’t available in this build yet.");
   if (Platform.OS === "android") await Notifications.setNotificationChannelAsync("default", { name: "Cooper", importance: Notifications.AndroidImportance.DEFAULT });
   let permission = await Notifications.getPermissionsAsync();
   if (permission.status !== "granted") permission = await Notifications.requestPermissionsAsync();
   if (permission.status !== "granted") throw new Error("Notifications are off. You can enable them in your phone’s settings.");
-  const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
-  await runRequest(getToken, "devices", { token, enabled: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Accra", quietStart: 22, quietEnd: 8 });
+}
+
+export async function getDevicePushToken() {
+  await requestNotificationPermission();
+  return readDevicePushToken();
+}
+
+async function readDevicePushToken() {
+  const projectId = Constants.easConfig?.projectId ?? Constants.expoConfig?.extra?.eas?.projectId;
+  if (!projectId) throw new Error("Notifications aren’t available in this build yet.");
+  return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+}
+
+function deviceSettings(token: string) {
+  return { token, enabled: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Accra", quietStart: 22, quietEnd: 8 };
+}
+
+export async function enableNotifications(getToken: () => Promise<string | null>, userId: string) {
+  const token = await getDevicePushToken();
+  await runRequest(getToken, "devices", deviceSettings(token));
   await AsyncStorage.setItem(notificationDeviceKey(userId), token);
   return token;
+}
+
+/** Reconciles an opted-in device with the current Expo token and server-side enabled state. */
+export function refreshNotificationRegistration(getToken: () => Promise<string | null>, userId: string) {
+  const pending = registrationRefreshes.get(userId);
+  if (pending) return pending;
+  const refresh = refreshDeviceRegistration(getToken, userId);
+  const tracked = refresh.finally(() => {
+    if (registrationRefreshes.get(userId) === tracked) registrationRefreshes.delete(userId);
+  });
+  registrationRefreshes.set(userId, tracked);
+  return tracked;
+}
+
+async function refreshDeviceRegistration(getToken: () => Promise<string | null>, userId: string) {
+  const key = notificationDeviceKey(userId);
+  const storedToken = await AsyncStorage.getItem(key);
+  if (!storedToken) return false;
+
+  const permission = await Notifications.getPermissionsAsync();
+  if (permission.status !== "granted") return false;
+
+  const currentToken = await readDevicePushToken();
+  if (currentToken !== storedToken) {
+    await runRequest(getToken, "devices", deviceSettings(currentToken));
+    await runRequest(getToken, "devices/disable", { token: storedToken });
+    await AsyncStorage.setItem(key, currentToken);
+    return true;
+  }
+
+  const status = await runRequest<{ enabled: boolean }>(getToken, "devices/status", { token: storedToken });
+  if (!status.enabled) await AsyncStorage.removeItem(key);
+  return status.enabled;
 }

@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import Markdown from "react-native-markdown-display";
 import { runRequest, type RunView } from "../../src/chat/background-chat";
-import { disableNotifications, enableNotifications, notificationDeviceKey } from "../../src/data/notifications";
+import { disableNotifications, enableNotifications, notificationDeviceKey, refreshNotificationRegistration } from "../../src/data/notifications";
 import { useTheme } from "../../src/theme/provider";
 
 type Finding = { id: string; title: string; summary: string; readAt: string | null; createdAt: string; status: string; chatId: string | null };
@@ -22,7 +22,21 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notifications, setNotifications] = useState(false);
-  useEffect(() => { let active = true; if (userId) void AsyncStorage.getItem(notificationDeviceKey(userId)).then(token => { if (active) setNotifications(!!token); }); return () => { active = false; }; }, [userId]);
+  useEffect(() => {
+    let active = true;
+    const refresh = async () => {
+      if (!userId) { setNotifications(false); return; }
+      const token = await AsyncStorage.getItem(notificationDeviceKey(userId));
+      if (active) setNotifications(!!token);
+      if (!token) return;
+      try {
+        const enabled = await refreshNotificationRegistration(getToken, userId);
+        if (active) setNotifications(enabled);
+      } catch { /* Keep the last saved preference when status cannot be checked. */ }
+    };
+    void refresh();
+    return () => { active = false; };
+  }, [userId, getToken]);
   const id = selected ?? params.runId;
   const feed = useQuery({ queryKey: ["findings", userId], queryFn: () => runRequest<{ items: Finding[] }>(getToken, "feed"), refetchInterval: 5000 });
   const result = useQuery({ queryKey: ["finding-result", userId, id], queryFn: () => runRequest<{ run: RunView }>(getToken, `runs/${id}`), enabled: !!id, refetchInterval: 2500 });
@@ -60,7 +74,7 @@ export default function FeedScreen() {
       </>}
     </View>}
     {feed.isLoading && <Text style={{ color: colors.textSecondary }}>Loading findings…</Text>}
-    {feed.data?.items.length === 0 && <Text style={{ color: colors.textSecondary, paddingVertical: 30 }}>Your completed tasks and routine results will appear here.</Text>}
+    {feed.data?.items.length === 0 && !feed.isLoading && <Text style={{ color: colors.textSecondary, paddingVertical: 30 }}>Your completed tasks and routine results will appear here.</Text>}
     {feed.data?.items.map(item => <Pressable key={item.id} accessibilityRole="button" onPress={() => {
       setSelected(item.id);
       void runRequest(getToken, `feed/${item.id}/read`, {}).then(() => feed.refetch()).catch(() => setError("Couldn’t mark this result as read."));

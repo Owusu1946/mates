@@ -10,7 +10,7 @@ import {
   useAuiState,
 } from "@assistant-ui/react-native";
 import * as Clipboard from "expo-clipboard";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import Markdown from "react-native-markdown-display";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -1924,6 +1924,8 @@ function DrawerPushedContent({ children }: { children: React.ReactNode }) {
 /** Keeps the open chat a real mate conversation: the last one opened, else Cooper. */
 function useStartingChat() {
   const aui = useAui();
+  const router = useRouter();
+  const { notificationChatId } = useLocalSearchParams<{ notificationChatId?: string }>();
   const { userId } = useAuth();
   const remoteId = useAuiState((state) => state.threadListItem.remoteId);
   const chats = useChats();
@@ -1933,6 +1935,18 @@ function useStartingChat() {
     if (remoteId) void AsyncStorage.setItem(key, remoteId).catch(() => {});
   }, [key, remoteId]);
   useEffect(() => {
+    if (notificationChatId && chats.data?.some((chat) => chat.id === notificationChatId)) {
+      let cancelled = false;
+      void (async () => {
+        try {
+          if (remoteId !== notificationChatId) await aui.threads.switchToThread(notificationChatId);
+          if (!cancelled) router.setParams({ notificationChatId: undefined });
+        } catch {
+          if (!cancelled) Alert.alert("Couldn’t open chat", "Tap the notification again to retry.");
+        }
+      })();
+      return () => { cancelled = true; };
+    }
     if (remoteId || !chats.data || !mates.data) return;
     let cancelled = false;
     void AsyncStorage.getItem(key)
@@ -1945,7 +1959,7 @@ function useStartingChat() {
     return () => {
       cancelled = true;
     };
-  }, [aui, chats.data, key, mates.data, remoteId]);
+  }, [aui, chats.data, key, mates.data, notificationChatId, remoteId, router]);
 }
 
 export function ChatThread() {
