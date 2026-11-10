@@ -6,7 +6,8 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import Markdown from "react-native-markdown-display";
+import { plainPreview } from "../../src/components/rich-text/markdown-text";
+import { RichText } from "../../src/components/rich-text/rich-text";
 import { runRequest, type RunView } from "../../src/chat/background-chat";
 import { disableNotifications, enableNotifications, notificationDeviceKey, refreshNotificationRegistration } from "../../src/data/notifications";
 import { useTheme } from "../../src/theme/provider";
@@ -60,7 +61,7 @@ export default function FeedScreen() {
     {id && <View style={{ padding: 18, gap: 12, borderRadius: 20, backgroundColor: colors.surface }}>
       {result.isLoading ? <Text style={{ color: colors.textSecondary }}>Loading result…</Text> : result.data && <>
         <Text style={{ color: colors.textMuted }}>{result.data.run.status.toUpperCase()}</Text>
-        {result.data.run.content.filter(part => part.type === "text").map((part, i) => <Markdown key={i} style={{ body: { color: colors.text, fontSize: 15, lineHeight: 23 } }}>{String(part.text)}</Markdown>)}
+        {result.data.run.content.filter(part => part.type === "text").map((part, i) => <RichText key={i} colors={{ text: colors.text, muted: colors.textMuted, surface: colors.surfaceElevated, border: colors.border }} size="compact">{String(part.text)}</RichText>)}
         {!result.data.run.content.length && <Text style={{ color: colors.textSecondary }}>Preparing this task. You can leave the app.</Text>}
         {result.data.run.error && <Text style={{ color: colors.error }}>{result.data.run.error}</Text>}
         {result.data.run.chatId && <Host matchContents colorScheme={isDark ? "dark" : "light"}><Button label={result.data.run.status === "waiting" ? "Open chat to continue" : "Open full result"} onPress={() => void openChat(result.data!.run.chatId!)} /></Host>}
@@ -81,7 +82,7 @@ export default function FeedScreen() {
     }} style={({ pressed }) => ({ padding: 18, borderRadius: 20, gap: 8, borderWidth: 1, borderColor: colors.border, backgroundColor: pressed ? colors.surfaceElevated : colors.surface })}>
       <Text style={{ color: colors.textMuted, fontSize: 12 }}>{!item.readAt ? "NEW · " : ""}{item.status === "waiting" ? "Needs attention" : item.status} · {new Date(item.createdAt).toLocaleDateString()}</Text>
       <Text style={{ color: colors.text, fontSize: 18, fontWeight: "600" }}>{item.title}</Text>
-      <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 21 }}>{item.summary}</Text>
+      <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 21 }}>{plainPreview(item.summary)}</Text>
     </Pressable>)}
   </ScrollView>;
 }

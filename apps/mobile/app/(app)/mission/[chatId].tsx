@@ -1,8 +1,9 @@
 import { useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import Markdown from "react-native-markdown-display";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { plainPreview } from "../../../src/components/rich-text/markdown-text";
+import { RichText } from "../../../src/components/rich-text/rich-text";
 import { useMission } from "../../../src/mates/mission";
 import { useTheme } from "../../../src/theme/provider";
 
@@ -14,6 +15,7 @@ export default function MissionNotesScreen() {
   const mission = useMission(chatId);
   const [open, setOpen] = useState<string | null>(null);
   const data = mission.data;
+  const richColors = { text: colors.text, muted: colors.textMuted, surface: colors.surface, border: colors.border };
 
   if (!data)
     return (
@@ -32,7 +34,7 @@ export default function MissionNotesScreen() {
       <Text style={{ color: colors.text, fontSize: 17, lineHeight: 24, fontFamily: "DMSans_500Medium" }}>{data.goal}</Text>
       {data.summary && (
         <View style={{ padding: 14, borderRadius: 16, backgroundColor: colors.surface }}>
-          <Markdown style={{ body: { color: colors.text, fontSize: 15, lineHeight: 22 } }}>{data.summary}</Markdown>
+          <RichText colors={{ ...richColors, surface: colors.surfaceElevated }} size="compact">{data.summary}</RichText>
         </View>
       )}
       {data.notes.length === 0 && <Text style={{ color: colors.textSecondary }}>The team hasn’t written any notes yet.</Text>}
@@ -52,9 +54,9 @@ export default function MissionNotesScreen() {
               {note.author ? ` · ${note.author}` : ""} · {new Date(note.updatedAt).toLocaleString()}
             </Text>
             {expanded ? (
-              <Markdown style={{ body: { color: colors.text, fontSize: 15, lineHeight: 22 } }}>{note.content}</Markdown>
+              <RichText colors={richColors} size="compact">{note.content}</RichText>
             ) : (
-              <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 20 }}>{note.content}</Text>
+              <Text numberOfLines={3} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 20 }}>{plainPreview(note.content.slice(0, 600))}</Text>
             )}
           </Pressable>
         );

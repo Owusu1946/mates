@@ -11,7 +11,6 @@ import {
 } from "@assistant-ui/react-native";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import Markdown from "react-native-markdown-display";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -47,6 +46,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { CooperMark } from "../components/auth/cooper-mark";
 import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar";
+import { RichText } from "../components/rich-text/rich-text";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
@@ -67,7 +67,6 @@ import { MissionBanner, TeamCard } from "../mates/mission";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CodeCard } from "./code-card";
 import { SourcesCard } from "./sources-card";
-import * as WebBrowser from "expo-web-browser";
 import { readCache, writeCache } from "../data/offline-cache";
 import { ComposerTextInput } from "./composer-input";
 import { ActionApproval } from "./action-approval";
@@ -615,6 +614,7 @@ function ChatMessage() {
     state.message.content.some((part) => part.type !== "text" || part.text.trim().length > 0),
   );
   const colors = useChatColors();
+  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
   if (user && routineTitle) return <RoutineMarker title={routineTitle} at={createdAt} />;
   return (
@@ -659,64 +659,7 @@ function ChatMessage() {
               user ? (
                 <UserText text={part.text} />
               ) : (
-                <Markdown
-                  // Links, including source citations, open in the in-app browser.
-                  onLinkPress={(url) => {
-                    if (url.startsWith("https://") || url.startsWith("http://")) void WebBrowser.openBrowserAsync(url);
-                    return false;
-                  }}
-                  style={{
-                    // Citations arrive as [site](url) links: quiet, like source chips.
-                    link: {
-                      color: colors.mutedForeground,
-                      fontFamily: "DMSans_500Medium",
-                      fontSize: 14,
-                      textDecorationLine: "none",
-                    },
-                    body: {
-                      color: colors.foreground,
-                      fontFamily: "DMSans_400Regular",
-                      fontSize: 17,
-                      lineHeight: 25,
-                      letterSpacing: -0.2,
-                    },
-                    paragraph: {
-                      color: colors.foreground,
-                      fontFamily: "DMSans_400Regular",
-                      fontSize: 17,
-                      lineHeight: 25,
-                      marginTop: 0,
-                      marginBottom: 10,
-                    },
-                    strong: {
-                      color: colors.foreground,
-                      fontFamily: "DMSans_700Bold",
-                    },
-                    code_inline: {
-                      color: colors.foreground,
-                      backgroundColor: colors.muted,
-                      fontFamily: "monospace",
-                      fontSize: 15,
-                    },
-                    fence: {
-                      color: colors.foreground,
-                      backgroundColor: colors.muted,
-                      fontFamily: "monospace",
-                      fontSize: 14,
-                      borderRadius: 18,
-                      padding: 12,
-                    },
-                    blockquote: {
-                      color: colors.foreground,
-                      backgroundColor: colors.muted,
-                      borderColor: colors.border,
-                      borderLeftWidth: 3,
-                      padding: 12,
-                    },
-                  }}
-                >
-                  {part.text}
-                </Markdown>
+                <RichText colors={richColors}>{part.text}</RichText>
               )
             }
           />
