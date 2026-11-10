@@ -2,6 +2,7 @@ import { useAui, useAuiState } from "@assistant-ui/react-native";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useEffect, useRef, useState } from "react";
 import { Text, View } from "react-native";
+import { CallCard } from "../call/call-card";
 import { AppLogo, ConnectionButton } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
@@ -149,6 +150,7 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     );
   if (state.kind === "step" && state.activity?.length)
     return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} />;
+  if (state.kind === "call" && state.call) return <CallCard call={state.call} />;
   if (hasAction || state.phase === "done") return null;
   const interrupted = state.phase === "running" && !messageRunning;
   const failed = interrupted || state.phase === "error";

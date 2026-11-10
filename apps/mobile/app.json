@@ -73,7 +73,9 @@
         }
       ],
       "expo-image",
-      "expo-asset"
+      "expo-asset",
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc"
     ],
     "experiments": {
       "typedRoutes": true
@@ -82,7 +84,8 @@
       "bundleIdentifier": "app.askorin.mates",
       "deploymentTarget": "17.0",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
       }
     },
     "runtimeVersion": {

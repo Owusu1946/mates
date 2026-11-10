@@ -39,6 +39,7 @@ import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
 import { keytermsFor, transcribe, transcriptionConfigured } from "./transcription.js";
+import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
 import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
@@ -199,6 +200,49 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_SCHEDULE", "Check the time, timezone and task details", c.get("requestId")), 400);
       return parsed.data;
     }), async c => c.json({ routine: await draftRoutine(c.get("userId"), c.req.valid("json")) }, 201))
+    // Voice calls. The phone starts one; the voice agent, holding only the call's signed token,
+    // reads its context, hands work off to the chat and reports the transcript.
+    .post("/v1/calls", auth, validator("json", (value, c) => {
+      const parsed = startCallSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_CALL", "Check who's on the call", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      if (!callsConfigured()) return c.json(failure("CALLS_UNAVAILABLE", "Calls aren’t set up on this server yet", c.get("requestId")), 503);
+      return c.json(await startCall(c.get("userId"), c.req.valid("json")), 201);
+    })
+    .get("/v1/calls/:id", auth, async (c) => c.json({ call: await getCall(c.get("userId"), c.req.param("id")) }))
+    .get("/v1/calls/:id/agent/context", async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await callContext(userId, c.req.param("id")));
+    })
+    .post("/v1/calls/:id/agent/tasks", validator("json", (value, c) => {
+      const parsed = callTaskSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_TASK", "Describe the task", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await startCallTask(userId, c.req.param("id"), c.req.valid("json")), 202);
+    })
+    .post("/v1/calls/:id/agent/mates", validator("json", (value, c) => {
+      const parsed = inviteMateSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_MATES", "Choose a mate to add", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await inviteCallMate(userId, c.req.param("id"), c.req.valid("json")));
+    })
+    .post("/v1/calls/:id/agent/end", validator("json", (value, c) => {
+      const parsed = endCallSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_TRANSCRIPT", "Invalid transcript", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await endCall(userId, c.req.param("id"), c.req.valid("json")));
+    })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
     .use("/v1/schedules/:id/*", async (c, next) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid schedule", c.get("requestId")), 400);
@@ -698,6 +742,11 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     )
     .onError((error, c) => {
       if (["IDEMPOTENCY_CONFLICT", "RUN_ALREADY_ACTIVE", "RESUME_CONFLICT", "ROUTINE_CONFLICT"].includes(error.message)) return c.json(failure("CONFLICT", "This task changed or is already running. Refresh before trying again.", c.get("requestId")), 409);
+      if (error instanceof CallError) {
+        const answers = { NOT_FOUND: [404, "Call or chat not found"], INVALID_MATES: [400, "Pick mates you have, up to four on a call"], ENDED: [409, "This call has ended"] } as const;
+        const [status, message] = answers[error.code];
+        return c.json(failure(error.code, message, c.get("requestId")), status);
+      }
       if (error instanceof MateError) {
         const answers = {
           NAME_TAKEN: [409, "You already have a mate with that name"],
