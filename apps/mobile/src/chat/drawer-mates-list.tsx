@@ -1,3 +1,4 @@
+import { plainPreview } from "../components/rich-text/markdown-text";
 import { useAui, useAuiState } from "@assistant-ui/react-native";
 import { useEffect, useState } from "react";
 import { useRouter } from "expo-router";
@@ -27,7 +28,8 @@ export function shortTime(iso: string) {
 
 function previewLine(chat: ChatSummary) {
   if (!chat.preview) return chat.kind === "group" ? `${chat.members.length} mates` : "Say hello";
-  const { from, text } = chat.preview;
+  const { from } = chat.preview;
+  const text = plainPreview(chat.preview.text);
   if (from === "you") return `You: ${text}`;
   return chat.kind === "group" ? `${from}: ${text}` : text;
 }
