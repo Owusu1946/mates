@@ -1,0 +1,28 @@
+{
+  "name": "mates-voice-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The voice agent behind Mates calls: speaks for each mate in its own voice, deployed to LiveKit Cloud.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest --run",
+    "dev": "lk agent dev",
+    "start": "node src/main.ts start"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "dependencies": {
+    "@livekit/agents": "1.9.5",
+    "@livekit/rtc-node": "^0.13.35",
+    "dotenv": "^17.4.2",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

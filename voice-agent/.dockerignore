@@ -1,0 +1,9 @@
+**/*.test.ts
+node_modules
+coverage/
+*.log
+.env
+.env.*
+.git
+.gitignore
+README.md
