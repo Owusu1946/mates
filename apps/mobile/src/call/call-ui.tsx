@@ -117,7 +117,7 @@ export function ParticipantTile({
         alignItems: "center", justifyContent: "center", opacity: joining ? 0.6 : 1,
       }}
     >
-      <MateAvatar size={avatarSize} state={state} gradient={gradient} shape={shape} />
+      <MateAvatar size={avatarSize} state={state} gradient={gradient} shape={shape} still={joining} />
       <View style={{ position: "absolute", left: 14, bottom: 12, right: 14, flexDirection: "row", alignItems: "center", gap: 6 }}>
         <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 14 }}>{name}</Text>
         <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 12, flexShrink: 1 }}>
