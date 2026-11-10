@@ -373,6 +373,28 @@ export const missionNotes = pgTable("mission_notes", {
 }, (t) => [uniqueIndex("mission_notes_title_idx").on(t.missionId, sql`lower(${t.title})`)]);
 
 /**
+ * A voice call with one or more mates. The phone joins a LiveKit room; the voice agent speaks
+ * for the mates and reports the transcript here when the call ends.
+ */
+export const calls = pgTable("calls", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  /** The chat the call was started from; its card lands here. */
+  chatId: text("chat_id").notNull().references(() => chats.id, { onDelete: "cascade" }),
+  leadMateId: uuid("lead_mate_id").references(() => mates.id, { onDelete: "set null" }),
+  mateIds: jsonb("mate_ids").$type<string[]>().notNull().default([]),
+  roomName: text("room_name").notNull(),
+  status: text("status").$type<"ringing" | "live" | "ended" | "failed">().notNull().default("ringing"),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+  durationSec: integer("duration_sec"),
+  summary: text("summary"),
+  actionItems: jsonb("action_items").$type<string[]>(),
+  transcript: jsonb("transcript").$type<{ speaker: string; text: string; at: string }[]>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("calls_owner_idx").on(t.clerkUserId, t.createdAt), uniqueIndex("calls_room_idx").on(t.roomName)]);
+
+/**
  * The mission's work board: one task per row, owned by a mate, with what "done" means and what it
  * waits on. The leader plans and reviews tasks; mates do them, in parallel when they're independent.
  */
