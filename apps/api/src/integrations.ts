@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -51,6 +51,8 @@ export type WorkflowCard = {
   };
   /** The web pages an answer drew on, cited ones first: shown as a Sources pill under the answer. */
   sources?: { id: string; url: string; title: string; domain: string; publishedAt: string | null; favicon: string }[];
+  /** A finished voice call: who was on it, how long, the summary and action items. */
+  call?: { callId: string; durationSec: number; summary: string; actionItems: string[]; mates: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }[]; lines: number };
   /** A mission note a mate just wrote. */
   note?: { title: string; version: number; author: string; chatId: string };
   /** A team the leader assembled for a mission. */

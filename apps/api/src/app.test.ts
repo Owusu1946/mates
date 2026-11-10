@@ -82,6 +82,28 @@ describe("API contract", () => {
     expect(response.status).toBe(401);
   });
 
+  it("guards voice calls: sign-in to start one, a configured server, and the call token for the agent", async () => {
+    const app = createApp(deps);
+    const body = JSON.stringify({ chatId: "mate_x", leadMateId: "00000000-0000-4000-8000-000000000001" });
+    const json = { "content-type": "application/json" };
+    expect((await app.request("/v1/calls", { method: "POST", headers: json, body })).status).toBe(401);
+
+    const saved = process.env.LIVEKIT_URL;
+    delete process.env.LIVEKIT_URL;
+    const unconfigured = await app.request("/v1/calls", { method: "POST", headers: { ...json, authorization: "Bearer test" }, body });
+    expect(unconfigured.status).toBe(503);
+    expect(await unconfigured.json()).toMatchObject({ error: { code: "CALLS_UNAVAILABLE" } });
+    if (saved !== undefined) process.env.LIVEKIT_URL = saved;
+
+    const callId = "00000000-0000-4000-8000-000000000002";
+    expect((await app.request(`/v1/calls/${callId}/agent/context`)).status).toBe(401);
+    expect((await app.request(`/v1/calls/${callId}/agent/context`, { headers: { "x-call-token": "forged.token" } })).status).toBe(401);
+    const end = await app.request(`/v1/calls/${callId}/agent/end`, { method: "POST", headers: { ...json, "x-call-token": "forged.token" }, body: JSON.stringify({ durationSec: 30, transcript: [] }) });
+    expect(end.status).toBe(401);
+    const invite = await app.request(`/v1/calls/${callId}/agent/mates`, { method: "POST", headers: { ...json, "x-call-token": "forged.token" }, body: JSON.stringify({ mateId: callId }) });
+    expect(invite.status).toBe(401);
+  });
+
   it("treats a trailing slash as the same route", async () => {
     const response = await createApp(deps).request("/health/");
     expect(response.status).toBe(301);
