@@ -112,6 +112,8 @@ Each app has a commented `.env.example`. The rule that matters most:
 | `GITHUB_STATE_SECRET` | No | Any long random string |
 | `EXPO_ACCESS_TOKEN` | No | expo.dev, only if push security is enabled |
 | `SITE_ORIGINS`, `VISIT_SALT` | No | Landing-page visit counts and waitlist |
+| `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | For voice calls | cloud.livekit.io → Settings → API keys. See [docs/voice-calls.md](docs/voice-calls.md) |
+| `CALL_TOKEN_SECRET`, `LIVEKIT_AGENT_NAME` | No | Signs the voice agent's per-call token (falls back to `CLERK_SECRET_KEY`); agent name defaults to `mates-voice` |
 
 Features whose keys are missing switch themselves off. For example, without `DEEPGRAM_API_KEY` voice typing returns a friendly "not set up" error. You can start with just the core keys and add the rest as you need them.
 
@@ -178,6 +180,7 @@ Commit the generated SQL together with the schema change. Never edit a migration
 | API | Railway (Docker, `apps/api/Dockerfile`, config in `railway.json`) | Deploys on merge to `main`. Set the variables in Railway → Variables. Health check: `/health`. See [docs/deploy-railway.md](docs/deploy-railway.md) |
 | Worker | Trigger.dev | `pnpm --filter @expojet/api worker:deploy`. It syncs the server variables listed in `apps/api/trigger.config.ts` |
 | Migrations | From any machine with the production URL | `pnpm db:migrate`. Run them **before** the API that needs them goes live |
+| Voice agent | LiveKit Cloud (`voice-agent/Dockerfile`) | `lk agent deploy voice-agent`. Setup and testing: [docs/voice-calls.md](docs/voice-calls.md) |
 | Landing page | Vercel (root `apps/web`) | Deploys on merge to `main` |
 | Mobile app | EAS Build | Point `EXPO_PUBLIC_API_URL` at the production API first |
 
