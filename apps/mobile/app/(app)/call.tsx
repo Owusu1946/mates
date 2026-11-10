@@ -81,7 +81,15 @@ function Lobby({ call, onClose }: { call: Call; onClose: () => void }) {
           </View>
         </View>
       </ScrollView>
-      <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 12, gap: 12 }}>
+        {call.error && (
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.foreground, fontFamily: font.medium, fontSize: 14, textAlign: "center" }}>{call.error}</Text>
+        )}
+        {call.preview && (
+          <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 13, textAlign: "center" }}>
+            Preview: real calls need the Mates app build.
+          </Text>
+        )}
         <GlassPillButton
           prominent
           icon="call"
@@ -136,8 +144,8 @@ function Live({ call, initials, onMinimize }: { call: Call; initials: string; on
           <Text style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 16 }}>
             {count > 1 ? `${call.lead.name} + ${count - 1}` : call.lead.name}
           </Text>
-          <Text style={{ color: colors.mutedForeground, fontFamily: font.medium, fontSize: 12, fontVariant: ["tabular-nums"] }}>
-            {formatDuration(call.elapsed)}
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.mutedForeground, fontFamily: font.medium, fontSize: 12, fontVariant: ["tabular-nums"] }}>
+            {call.reconnecting ? "Reconnecting…" : formatDuration(call.elapsed)}
           </Text>
         </View>
         <GlassIconButton icon="addUser" label="Add bot mates" onPress={() => setSheetOpen(true)} />
@@ -215,10 +223,15 @@ function Ended({ call, onDone }: { call: Call; onDone: () => void }) {
           </View>
         ))}
       </View>
-      <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: font.bold, fontSize: 26 }}>Call ended</Text>
+      <Text accessibilityRole="header" style={{ color: colors.foreground, fontFamily: font.bold, fontSize: 26 }}>{call.summary?.dropped ? "Call dropped" : "Call ended"}</Text>
       <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 15, textAlign: "center" }}>
         {formatDuration(call.summary?.duration ?? 0)} · with {members.map(m => m.name).join(", ") || call.lead.name}
       </Text>
+      {!call.preview && (
+        <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 14, textAlign: "center", maxWidth: 300, lineHeight: 20 }}>
+          {call.summary?.dropped ? "The connection was lost. A summary of what you said will still land in the chat." : "A summary and the transcript will be in the chat in a moment."}
+        </Text>
+      )}
       <View style={{ position: "absolute", left: 20, right: 20, bottom: 12, gap: 10 }}>
         <GlassPillButton prominent icon="call" height={54} fontSize={16} label="Call again" onPress={call.reset} />
         <GlassPillButton height={54} fontSize={16} label="Back to chat" onPress={onDone} />
