@@ -288,10 +288,11 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     if (!id || startedAtMs === null) return;
 
     const joined = members.filter((member) => member.status === "joined");
+    if (!joined.length) return; // Agent hasn't reported anyone yet — wait for the roster.
     const state = {
       callId: id,
       leadId: rosterRef.current.lead.id,
-      mates: joined.map(({ id, name, gradient, shape }) => ({ id, name, gradient, ...(shape ? { shape } : {}) })),
+      mates: joined.map(({ id, name, gradient, shape }) => ({ id, name, gradient, shape })),
       speakerId: joined.find((member) => member.speaking)?.id ?? null,
       startedAtMs,
       isMuted: muted,

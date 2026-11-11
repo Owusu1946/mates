@@ -27,7 +27,9 @@ export type CallArtworkMate = {
 
 // Native SwiftUI cannot run the mascot's React renderer. Render its exact scene and face
 // engine once per appearance/state, then share transparent PNGs with the widget process.
-const ARTWORK_SIZE = 192;
+// 320px covers 80pt hero @3x retina with room for the glow ring.
+const ARTWORK_SIZE = 320;
+const MAX_CACHE_ENTRIES = 24;
 const renders = new Map<string, Promise<string>>();
 
 const escapeAttribute = (value: string) => value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
@@ -100,6 +102,11 @@ function getArtwork(mate: CallArtworkMate, speaking: boolean): Promise<string> {
   const key = JSON.stringify([mate.shape ?? "hexagon", mate.gradient, speaking]);
   let pending = renders.get(key);
   if (!pending) {
+    // Evict oldest entries when the cache grows beyond the limit.
+    if (renders.size >= MAX_CACHE_ENTRIES) {
+      const oldest = renders.keys().next().value;
+      if (oldest !== undefined) renders.delete(oldest);
+    }
     pending = renderArtwork(mate, speaking).catch((error: unknown) => {
       renders.delete(key);
       throw error;

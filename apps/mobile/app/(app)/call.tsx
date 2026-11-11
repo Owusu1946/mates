@@ -23,11 +23,15 @@ export default function CallScreen() {
   // A card from a previous process/call must never open a fresh call lobby for another mate.
   // Once accepted, preserve the normal ended-call screen when this call finishes.
   const acceptedActivityCallId = useRef<string | null>(null);
-  if (typeof activityCallId === "string" && call.phase === "live" && activityCallId === getCurrentCallActivityCallId()) {
+  if (typeof activityCallId === "string" && activityCallId === getCurrentCallActivityCallId()) {
     acceptedActivityCallId.current = activityCallId;
   }
+  // During an active call (connecting/live), never redirect on a stale activity link —
+  // the user should see their current call. Orphan cleanup handles the old activity.
+  const hasActiveCall = call.phase === "connecting" || call.phase === "live";
   const staleActivityLink = activityCallId !== undefined && (
-    typeof activityCallId !== "string" || acceptedActivityCallId.current !== activityCallId
+    typeof activityCallId !== "string"
+    || (acceptedActivityCallId.current !== activityCallId && !hasActiveCall)
   );
   useEffect(() => {
     if (staleActivityLink) void clearOrphanedCallActivities();
