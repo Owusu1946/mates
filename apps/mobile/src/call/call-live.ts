@@ -154,6 +154,12 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
 
       const next = new LiveRoom({ adaptiveStream: false, dynacast: false });
       room.current = next;
+      const finishFromAgent = (dropped: boolean) => {
+        if (leaving.current) return;
+        leaving.current = true;
+        finish(dropped);
+        void cleanup();
+      };
       next
         .on(RoomEvent.ParticipantConnected, (participant) => {
           if (!participant.isAgent) return;
@@ -161,7 +167,15 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
           applyAgentState(participant);
         })
         .on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => {
-          if (participant.isAgent) applyAgentState(participant);
+          if (!participant.isAgent) return;
+          if (participant.attributes?.["mates.ending"] === "true") {
+            finishFromAgent(false);
+            return;
+          }
+          applyAgentState(participant);
+        })
+        .on(RoomEvent.ParticipantDisconnected, (participant) => {
+          if (participant.isAgent) finishFromAgent(participant.attributes?.["mates.ending"] !== "true");
         })
         .on(RoomEvent.Reconnecting, () => setReconnecting(true))
         .on(RoomEvent.Reconnected, () => setReconnecting(false))

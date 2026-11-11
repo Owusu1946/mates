@@ -22,6 +22,7 @@ export type CallState = {
   previous?: MateAgent;
   /** Tells the app who's speaking and who's present (room attributes); a no-op in tests. */
   publish: (attributes: Record<string, string>) => void;
+  publishEnding?: () => Promise<void>;
 };
 
 export const presentAttributes = (state: CallState) => ({ 'mates.present': JSON.stringify(state.present) });
@@ -33,7 +34,15 @@ export class MateAgent extends voice.Agent<CallState> {
     super({
       instructions: instructionsFor(mate, state),
       tts: new inference.TTS({ model: 'deepgram/aura-2', voice: mate.voice, language: 'en' }),
-      tools: [passTo, startTask, beta.createEndCallTool({ deleteRoom: true, ignoreOnEnter: true })],
+      tools: [
+        passTo,
+        startTask,
+        beta.createEndCallTool({
+          deleteRoom: false,
+          ignoreOnEnter: true,
+          onToolCompleted: async () => { await state.publishEnding?.(); },
+        }),
+      ],
     });
     this.mate = mate;
   }
