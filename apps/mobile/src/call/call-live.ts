@@ -6,7 +6,8 @@ import type { Participant, RemoteParticipant, Room } from "livekit-client";
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
 import { useSession } from "../session/provider";
-import { endCallActivity, startCallActivity, updateCallActivity } from "./call-activity";
+import { useTheme } from "../theme/provider";
+import { clearOrphanedCallActivities, endCallActivity, startCallActivity, updateCallActivity } from "./call-activity";
 import { asMember, type BotMate, type CallMember, type CallPhase, type CallRoster, type CallSession, type CallSummary, type Caption } from "./call-types";
 
 // A real call: the API creates it and signs a LiveKit token that dispatches the voice agent, which
@@ -48,6 +49,8 @@ const outputFor =(speaker: boolean) => (Platform.OS === "ios" ? (speaker ? "forc
 export function useLiveCallSession(roster: CallRoster): CallSession {
   const { getToken } = useAuth();
   const session = useSession();
+  const { isDark } = useTheme();
+  useEffect(() => { void clearOrphanedCallActivities(); }, []);
   const [phase, setPhase] = useState<CallPhase>("lobby");
   const rosterRef = useRef(roster);
   if (phase === "lobby") rosterRef.current = roster;
@@ -287,12 +290,14 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     const joined = members.filter((member) => member.status === "joined");
     const state = {
       callId: id,
-      leadName: rosterRef.current.lead.name,
-      participantNames: joined.map((member) => member.name),
+      leadId: rosterRef.current.lead.id,
+      mates: joined.map(({ id, name, gradient, shape }) => ({ id, name, gradient, ...(shape ? { shape } : {}) })),
+      speakerId: joined.find((member) => member.speaking)?.id ?? null,
       startedAtMs,
       isMuted: muted,
       speakerOn,
-      speakerName: joined.find((member) => member.speaking)?.name ?? null,
+      reconnecting,
+      isDark,
     };
     const signature = JSON.stringify(state);
     if (!callActivityStarted.current) {
@@ -303,7 +308,7 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
       lastActivityState.current = signature;
       void updateCallActivity(state);
     }
-  }, [phase, members, muted, speakerOn]);
+  }, [phase, members, muted, speakerOn, reconnecting, isDark]);
 
   return {
     lead: rosterRef.current.lead,

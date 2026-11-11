@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeIn, FadeInDown, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ChatIcon } from "../../src/chat/chat-icon";
@@ -9,6 +9,7 @@ import { avatarState, formatDuration, useCall } from "../../src/call/call-model"
 import { CallControl, font, GlassIconButton, GlassPillButton, MateAvatar, ParticipantTile, SelfTile, SpeakingRing, useCallColors } from "../../src/call/call-ui";
 import { GlassContainer } from "expo-glass-effect";
 import { useSession } from "../../src/session/provider";
+import { clearOrphanedCallActivities, getCurrentCallActivityCallId } from "../../src/call/call-activity";
 
 const GAP = 10;
 
@@ -17,9 +18,24 @@ export default function CallScreen() {
   const colors = useCallColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { activityCallId } = useLocalSearchParams<{ activityCallId?: string | string[] }>();
   const session = useSession();
+  // A card from a previous process/call must never open a fresh call lobby for another mate.
+  // Once accepted, preserve the normal ended-call screen when this call finishes.
+  const acceptedActivityCallId = useRef<string | null>(null);
+  if (typeof activityCallId === "string" && call.phase === "live" && activityCallId === getCurrentCallActivityCallId()) {
+    acceptedActivityCallId.current = activityCallId;
+  }
+  const staleActivityLink = activityCallId !== undefined && (
+    typeof activityCallId !== "string" || acceptedActivityCallId.current !== activityCallId
+  );
+  useEffect(() => {
+    if (staleActivityLink) void clearOrphanedCallActivities();
+  }, [staleActivityLink]);
   const leave = () => (router.canGoBack() ? router.back() : router.replace("/"));
   const initials = (session.user?.displayName ?? "You").split(/\s+/).map(w => w[0]).join("").slice(0, 2).toUpperCase();
+
+  if (staleActivityLink) return <Redirect href="/" />;
 
   return (
     <View testID="call-screen" style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom }}>
