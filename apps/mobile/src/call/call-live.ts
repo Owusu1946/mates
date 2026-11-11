@@ -1,8 +1,15 @@
 import { useAuth } from "@clerk/expo";
 import { AudioModule } from "expo-audio";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Linking, Platform } from "react-native";
+import { Alert, Linking, LogBox, Platform } from "react-native";
 import type { Participant, RemoteParticipant, Room } from "livekit-client";
+
+// LiveKit's internal transport (signal stream, data channels) logs WebSocket/WebRTC closes
+// as console.errors when the room disconnects intentionally. Benign — the call is already ended.
+LogBox.ignoreLogs([
+  "error reading from signal stream",
+  "closed unexpectedly",
+]);
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
 import { useSession } from "../session/provider";
@@ -116,6 +123,9 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     const current = room.current;
     room.current = null;
     agent.current = null;
+    // Detach our listeners before disconnecting so the WebSocket close doesn't
+    // trigger our handlers and the disconnect sequence runs without side-effects.
+    current?.removeAllListeners();
     await current?.disconnect().catch(() => {});
     if (loaded) await loaded.AudioSession.stopAudioSession().catch(() => {});
   }, []);
