@@ -6,6 +6,7 @@ import type { Participant, RemoteParticipant, Room } from "livekit-client";
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
 import { useSession } from "../session/provider";
+import { endCallActivity, startCallActivity, updateCallActivity } from "./call-activity";
 import { asMember, type BotMate, type CallMember, type CallPhase, type CallRoster, type CallSession, type CallSummary, type Caption } from "./call-types";
 
 // A real call: the API creates it and signs a LiveKit token that dispatches the voice agent, which
@@ -64,6 +65,10 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   const room = useRef<Room | null>(null);
   const agent = useRef<RemoteParticipant | null>(null);
   const pickup = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const callId = useRef<string | null>(null);
+  const callStartedAt = useRef<number | null>(null);
+  const callActivityStarted = useRef(false);
+  const lastActivityState = useRef("");
   /** Set when we hang up ourselves, so the disconnect isn't read as a dropped call. */
   const leaving = useRef(false);
   const elapsedRef = useRef(0);
@@ -85,6 +90,7 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     } catch {}
     const talking = attributes["lk.agent.state"] === "speaking" ? attributes["mates.speaker"] : undefined;
     if (!present.length) return;
+    if (callStartedAt.current === null) callStartedAt.current = Date.now();
     if (pickup.current) clearTimeout(pickup.current);
     pickup.current = null;
     setPhase((current) => (current === "connecting" ? "live" : current));
@@ -99,6 +105,11 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   const cleanup = useCallback(async () => {
     if (pickup.current) clearTimeout(pickup.current);
     pickup.current = null;
+    void endCallActivity();
+    callActivityStarted.current = false;
+    lastActivityState.current = "";
+    callId.current = null;
+    callStartedAt.current = null;
     const current = room.current;
     room.current = null;
     agent.current = null;
@@ -133,6 +144,10 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     leaving.current = false;
     setPhase("connecting");
     setMembers([asMember(lead, "joining")]);
+    callId.current = null;
+    callStartedAt.current = null;
+    callActivityStarted.current = false;
+    lastActivityState.current = "";
     setCaptions([]);
     setElapsed(0);
     setMuted(false);
@@ -148,6 +163,7 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
         userName: firstName(session.user?.displayName),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
+      callId.current = call.callId;
 
       await lk.AudioSession.configureAudio({ ios: { defaultOutput: "earpiece" }, android: { audioTypeOptions: lk.AndroidAudioTypePresets.communication } });
       await lk.AudioSession.startAudioSession();
@@ -253,6 +269,41 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
     const clock = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(clock);
   }, [phase]);
+
+  useEffect(() => {
+    if (phase !== "live") {
+      if (callActivityStarted.current) {
+        callActivityStarted.current = false;
+        lastActivityState.current = "";
+        void endCallActivity();
+      }
+      return;
+    }
+
+    const id = callId.current;
+    const startedAtMs = callStartedAt.current;
+    if (!id || startedAtMs === null) return;
+
+    const joined = members.filter((member) => member.status === "joined");
+    const state = {
+      callId: id,
+      leadName: rosterRef.current.lead.name,
+      participantNames: joined.map((member) => member.name),
+      startedAtMs,
+      isMuted: muted,
+      speakerOn,
+      speakerName: joined.find((member) => member.speaking)?.name ?? null,
+    };
+    const signature = JSON.stringify(state);
+    if (!callActivityStarted.current) {
+      callActivityStarted.current = true;
+      lastActivityState.current = signature;
+      void startCallActivity(state);
+    } else if (signature !== lastActivityState.current) {
+      lastActivityState.current = signature;
+      void updateCallActivity(state);
+    }
+  }, [phase, members, muted, speakerOn]);
 
   return {
     lead: rosterRef.current.lead,
