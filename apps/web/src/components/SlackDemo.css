@@ -125,6 +125,9 @@
 .sd-text {
   margin-top: 1px;
 }
+.sd-text b {
+  font-weight: 700;
+}
 .sd-text p {
   margin: 0;
 }

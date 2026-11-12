@@ -6,10 +6,12 @@ import Mascot from "./Mascot";
 import "./SlackDemo.css";
 
 /**
- * Mates in a Slack channel, laid out like Slack's phone app so it reads at a glance: you mention a
- * mate, it checks in, asks before sending, then hands the next part to another mate. Each mate
- * posts under its own name with its mascot as the profile picture. Approve and Change both work;
- * a visitor who just watches sees it approved after a moment.
+ * Mates in a Slack channel, laid out like Slack's phone app so it reads at a glance: you mention
+ * @Mates and name a mate, it checks in, asks before sending, then hands the next part to another
+ * mate. True to how Slack works: there is one app to mention, and each mate posts through it under
+ * its own name with its mascot as the picture (chat:write.customize); mates aren't Slack users, so
+ * a handoff names the mate in bold rather than as a mention. Approve and Change both work; a
+ * visitor who just watches sees it approved after a moment.
  */
 
 type BotMate = { name: string; gradient: Gradient; shape?: ShapeName };
@@ -103,7 +105,7 @@ export default function SlackDemo() {
 
         {at("you") && (
           <Message author="Kenneth" avatar={<span className="sd-you">K</span>} time="9:41">
-            <span className="sd-mention">@Nova</span> find a time with <span className="sd-mention">@Ivy</span> next week and send the invite
+            <span className="sd-mention">@Mates</span> Nova, find a time with Ivy next week and send the invite
           </Message>
         )}
 
@@ -147,7 +149,7 @@ export default function SlackDemo() {
             )}
             {at("sent") && (
               <p>
-                Invite sent. <span className="sd-mention">@Ivy</span> can you draft the agenda?
+                Invite sent. <b>Ivy</b>, can you draft the agenda?
               </p>
             )}
           </Message>
