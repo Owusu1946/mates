@@ -71,6 +71,9 @@ export default defineAgent({
       turnHandling: { turnDetection: new inference.TurnDetector(), preemptiveGeneration: { enabled: true } },
       // In a meeting, long quiet stretches are normal; the mate leaves when the meeting does.
       userAwayTimeout: meeting ? MAX_MEETING_MS / 1000 : 20,
+      // The LLM marks up tone, pauses, breaths and the odd laugh, so mates sound like people; the
+      // marks are stripped from captions and the transcript. Nothing a colleague wouldn't do on a call.
+      expressive: { speechSteering: { nonverbalSounds: { crying: false, vocalizing: false, reflexSounds: false } } },
       userData: state,
     });
 
