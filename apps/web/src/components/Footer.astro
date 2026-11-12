@@ -57,6 +57,7 @@ const columns: Column[] = [
         <span>mates</span>
       </a>
       <div class="copy">© {new Date().getFullYear()} Mates</div>
+      <div class="maker">Mates is a product of Orin.</div>
     </div>
     <div class="built">
       <Mascot client:visible size={18} state="playful" />
@@ -108,6 +109,11 @@ const columns: Column[] = [
   }
   .copy {
     margin-top: 14px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  .maker {
+    margin-top: 4px;
     color: var(--muted);
     font-size: 14px;
   }
