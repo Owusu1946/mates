@@ -10,6 +10,8 @@ export const dispatchSchema = z.object({
   callToken: z.string().min(10),
   userName: z.string().optional(),
   timezone: z.string().optional(),
+  /** "meeting": the mate is sitting in on someone's meeting (Google Meet, Zoom, Teams), not a call with the user. */
+  mode: z.enum(['call', 'meeting']).optional(),
 });
 export type Dispatch = z.infer<typeof dispatchSchema>;
 
