@@ -58,3 +58,12 @@ describe("Slack's calls to /v1/slack/events", () => {
     expect((await app().request("/v1/slack/connect?team=T1&user=<script>")).status).toBe(400);
   });
 });
+
+describe("Slack's link markup", () => {
+  it("becomes the plain link a mate can use", async () => {
+    const { plainSlackText } = await import("./slack-events.js");
+    expect(plainSlackText("Ama, join <https://meet.google.com/abc-defg-hij>")).toBe("Ama, join https://meet.google.com/abc-defg-hij");
+    expect(plainSlackText("call <https://us02web.zoom.us/j/812?pwd=x|zoom.us/j/812>")).toBe("call https://us02web.zoom.us/j/812?pwd=x");
+    expect(plainSlackText("<@U0BOT> Kojo, hi")).toBe("<@U0BOT> Kojo, hi");
+  });
+});
