@@ -42,6 +42,7 @@ import { keytermsFor, transcribe, transcriptionConfigured } from "./transcriptio
 import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
 import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
+import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -394,6 +395,45 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         console.warn("github_connect_failed", { reason, message: error instanceof Error ? error.message : String(error) });
         return back("failed", reason);
       }
+    })
+    .get("/v1/slack", auth, async (c) => {
+      if (!slackConfigured()) return c.json({ configured: false as const, workspaces: [] });
+      const links = await listLinks(c.get("userId"));
+      return c.json({ configured: true as const, workspaces: links.map((link) => ({ id: link.teamId, name: link.teamName })) });
+    })
+    .get("/v1/slack/install", auth, (c) =>
+      slackConfigured() ? c.json({ url: slackInstallUrl(c.get("userId"), safeReturn(c.req.query("returnTo"))) }) : c.json(failure("NOT_CONFIGURED", "Slack isn’t set up on this server yet.", c.get("requestId")), 503),
+    )
+    // Slack sends the browser here after "Allow"; the signed state says which Mates account started it.
+    .get("/v1/slack/callback", async (c) => {
+      const state = verifyInstallState(c.req.query("state") ?? "");
+      const returnTo = safeReturn(state?.returnTo);
+      const back = (status: string, reason?: string) => c.redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}slack=${status}${reason ? `&reason=${reason}` : ""}`);
+      if (!state) return back("failed", "expired");
+      const code = c.req.query("code");
+      if (!code) return back("failed", c.req.query("error") === "access_denied" ? "cancelled" : "oauth");
+      try {
+        await completeSlackInstall(state.userId, code);
+        return back("connected");
+      } catch (error) {
+        console.warn("slack_install_failed", { message: error instanceof Error ? error.message : String(error) });
+        return back("failed", "oauth");
+      }
+    })
+    .post("/v1/slack/link", auth, validator("json", (value, c) => {
+      const parsed = z.object({ token: z.string().min(10).max(1000) }).safeParse(value);
+      return parsed.success ? parsed.data : c.json(failure("INVALID_LINK", "That link isn’t valid", c.get("requestId")), 400);
+    }), async (c) => {
+      try {
+        return c.json(await completeLink(c.get("userId"), c.req.valid("json").token));
+      } catch (error) {
+        if (error instanceof LinkError) return c.json(failure("LINK_FAILED", error.message, c.get("requestId")), 400);
+        throw error;
+      }
+    })
+    .delete("/v1/slack/link/:teamId", auth, async (c) => {
+      await unlink(c.get("userId"), c.req.param("teamId"));
+      return c.json({ ok: true });
     })
     .get("/v1/code-runs/:id", auth, async (c) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
