@@ -103,6 +103,12 @@ export function deckCard(row: DeckRow): WorkflowCard {
   };
 }
 
+/** A download header that keeps the deck's title as its file name, safely, in any language. */
+export function deckFilename(title: string) {
+  const name = title.replace(/[^\p{L}\p{N} ._-]+/gu, "").replace(/\s+/g, " ").trim().slice(0, 60) || "Deck";
+  return `attachment; filename="deck.pptx"; filename*=UTF-8''${encodeURIComponent(`${name}.pptx`)}`;
+}
+
 /** The deck as the app needs it: the document plus the card. */
 export const deckView = (row: DeckRow) => ({
   deck: { id: row.id, title: row.title, theme: row.theme, slides: row.slides, sources: row.sources, version: row.version, status: row.status, built: row.built, total: row.total, error: row.error },

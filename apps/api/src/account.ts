@@ -8,6 +8,7 @@ import {
   calls,
   chats,
   codeRuns,
+  decks,
   delegations,
   deviceTokens,
   findings,
@@ -32,10 +33,12 @@ import { getComposio } from "./integrations.js";
 /**
  * Every table holding a user's rows, in a delete order that satisfies foreign keys: routines
  * before the delegations their occurrences point at; chats before mates. Rows in tables without
- * an owner column (messages, outbox, events, deliveries, members, notes) cascade from these.
+ * an owner column (messages, outbox, events, deliveries, members, notes, deck versions) cascade from these.
  */
 export const ACCOUNT_TABLES = [
   codeRuns,
+  // Their versions cascade.
+  decks,
   routines,
   // Slack: their runs and links go; the workspace's install stays for its other members.
   slackRuns,
