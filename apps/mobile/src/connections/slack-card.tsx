@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { runRequest } from "../chat/background-chat";
+import { resolveApiUrl } from "../chat/chat-model";
 import { haptic } from "../haptics";
 
 /** What went wrong, in words that say what to do next. Keyed by the API's failure reason. */
@@ -41,6 +42,28 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
   const foreground = isDark ? "#fafafa" : "#18181b";
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const connected = slack.data.workspaces.length > 0;
+
+  /** Unlinks this person from one workspace; the workspace's install stays for its other members. */
+  const disconnect = (workspace: { id: string; name: string }) =>
+    Alert.alert(`Disconnect ${workspace.name}?`, "Your mates will stop answering you in this Slack workspace.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Disconnect",
+        style: "destructive",
+        onPress: async () => {
+          setError(null);
+          try {
+            const [base, token] = [resolveApiUrl(), await getToken()];
+            const response = base && token ? await fetch(`${base}/v1/slack/link/${encodeURIComponent(workspace.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } }) : null;
+            if (!response?.ok) throw new Error("Couldn’t disconnect Slack. Try again.");
+            haptic.light();
+            await slack.refetch();
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : "Couldn’t disconnect Slack.");
+          }
+        },
+      },
+    ]);
 
   const open = async () => {
     setBusy(true);
@@ -86,6 +109,14 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
           <Text style={{ color: connected ? foreground : isDark ? "#18181b" : "#fafafa", fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>{connected ? "Add to another workspace" : "Add to Slack"}</Text>
         )}
       </Pressable>
+      {slack.data.workspaces.map((workspace) => (
+        <View key={workspace.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+          <Text style={{ color: foreground, fontSize: 14, fontFamily: "DMSans_400Regular" }}>{workspace.name}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Disconnect ${workspace.name}`} hitSlop={8} onPress={() => disconnect(workspace)}>
+            <Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 14, fontFamily: "DMSans_600SemiBold" }}>Disconnect</Text>
+          </Pressable>
+        </View>
+      ))}
       {error && <Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 13 }}>{error}</Text>}
     </View>
   );
