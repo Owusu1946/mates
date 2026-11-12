@@ -14,6 +14,11 @@ import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
 import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
+import Slack from "../components/Slack.astro";
+// Coming soon, hidden until built: import PhoneCalls from "../components/PhoneCalls.astro";
+// Coming soon, hidden until built: import Meet from "../components/Meet.astro";
+// Coming soon, hidden until built: import Decks from "../components/Decks.astro";
+// Coming soon, hidden until built: import More from "../components/More.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
@@ -52,7 +57,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       <h1>
         Meet
         <span class="inline-mascot"><Mascot client:idle size={96} /></span>
-        Your Mate Bots
+        Your Orin Mate
       </h1>
 
       <p class="lede">
@@ -85,9 +90,19 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Calls />
 
+    {/* Coming soon, hidden until built: <PhoneCalls /> */}
+
+    {/* Coming soon, hidden until built: <Meet /> */}
+
+    <Slack />
+
+    {/* Coming soon, hidden until built: <Decks /> */}
+
     <Computer />
 
     <Apps />
+
+    {/* Coming soon, hidden until built: <More /> */}
 
     <Pricing />
 

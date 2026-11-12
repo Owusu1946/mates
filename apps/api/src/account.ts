@@ -20,6 +20,9 @@ import {
   recallEntries,
   reminders,
   routines,
+  slackLinks,
+  slackQueue,
+  slackRuns,
   undoActions,
 } from "./db/schema.js";
 import { getEnv } from "./env.js";
@@ -34,6 +37,10 @@ import { getComposio } from "./integrations.js";
 export const ACCOUNT_TABLES = [
   codeRuns,
   routines,
+  // Slack: their runs and links go; the workspace's install stays for its other members.
+  slackRuns,
+  slackQueue,
+  slackLinks,
   delegations,
   findings,
   browserSessions,

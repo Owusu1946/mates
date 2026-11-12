@@ -1,0 +1,307 @@
+/* The Mates app on the phone: a chat with the mate, an approval card, then the call screen. */
+.phone-demo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.pd-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 14px 10px;
+  flex: none;
+}
+.pd-round {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+}
+.pd-ghost {
+  visibility: hidden;
+}
+.pd-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px 0 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+  font-weight: 600;
+}
+
+.pd-thread {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 8px 14px 12px;
+  overflow: hidden;
+}
+.pd-me {
+  align-self: flex-end;
+  max-width: 80%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 20px;
+  border-bottom-right-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  animation: pd-in 0.35s ease both;
+}
+.pd-mate {
+  display: grid;
+  gap: 8px;
+  animation: pd-in 0.35s ease both;
+}
+.pd-mate > p {
+  margin: 0;
+}
+.pd-card,
+.pd-result {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
+  background: var(--panel);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.pd-card-head,
+.pd-result {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pd-result {
+  display: flex;
+}
+.pd-card-head b,
+.pd-result b {
+  display: block;
+  font-size: 15px;
+}
+.pd-card-head small,
+.pd-result small {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.pd-phone,
+.pd-tick {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+}
+.pd-tick {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.pd-ask {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 13.5px;
+}
+.pd-actions {
+  display: flex;
+  gap: 8px;
+}
+.pd-actions button {
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pd-actions .pd-approve {
+  flex: 1;
+  border-color: var(--text);
+  background: var(--text);
+  color: var(--bg);
+}
+.pd-actions button:focus-visible,
+.pd-replay:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.pd-ok {
+  color: var(--success);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.pd-chips {
+  display: flex;
+  gap: 6px;
+}
+.pd-chips span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--soft);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.pd-replay {
+  justify-self: center;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pd-composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+  color: var(--muted);
+  flex: none;
+}
+.pd-plus {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--text);
+  font-size: 18px;
+}
+
+/* The call screen, over the chat while the mate is on the phone. */
+.pd-call {
+  position: absolute;
+  inset: 0 0 -22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 36px 18px 40px;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--bg) 55%);
+  animation: pd-fade 0.35s ease both;
+}
+.pd-call-top {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.pd-halo {
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+}
+.pd-halo.live {
+  animation: pd-halo 1.8s ease-out infinite;
+}
+.pd-call-top b {
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+.pd-call-top small {
+  color: var(--muted);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+.pd-lines {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 1;
+  width: 100%;
+  margin-top: 16px;
+  overflow: hidden;
+}
+.pd-lines p {
+  display: grid;
+  gap: 2px;
+  max-width: 86%;
+  margin: 0;
+  padding: 9px 13px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.35;
+  animation: pd-in 0.35s ease both;
+}
+.pd-lines small {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.6;
+}
+.pd-nova {
+  align-self: flex-start;
+  border-bottom-left-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.pd-them {
+  align-self: flex-end;
+  border-bottom-right-radius: 6px;
+  background: var(--soft);
+}
+.pd-hang {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  margin-top: 18px;
+  border-radius: 50%;
+  background: var(--pd-end);
+  color: var(--bg);
+  flex: none;
+}
+
+@keyframes pd-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes pd-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pd-halo {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 26px transparent;
+  }
+}

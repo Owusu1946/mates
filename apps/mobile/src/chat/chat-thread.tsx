@@ -44,13 +44,13 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import { CooperMark } from "../components/auth/cooper-mark";
 import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar";
 import { RichText } from "../components/rich-text/rich-text";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
+import { WorkingDots } from "./activity-line";
 import { AppResponseCard } from "./app-results";
 import { BrowserCard } from "./browser-card";
 import type { WorkflowCard } from "@expojet/api-contract";
@@ -384,18 +384,6 @@ function ThinkingIndicator() {
       accessibilityLabel={label}
       accessibilityLiveRegion="polite"
     >
-      <View
-        style={{
-          width: 20,
-          height: 20,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <View style={{ width: 50, height: 50, transform: [{ scale: 0.4 }] }}>
-          <CooperMark compact />
-        </View>
-      </View>
       <Text
         style={{
           color: colors.mutedForeground,
@@ -406,6 +394,7 @@ function ThinkingIndicator() {
       >
         {label}
       </Text>
+      <WorkingDots color={colors.mutedForeground} />
     </View>
   );
 }

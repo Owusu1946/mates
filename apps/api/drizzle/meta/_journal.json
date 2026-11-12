@@ -162,6 +162,20 @@
       "when": 1794286469001,
       "tag": "0022_complex_blink",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794472648129,
+      "tag": "0023_bouncy_tigra",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794477340489,
+      "tag": "0024_neat_gabe_jones",
+      "breakpoints": true
     }
   ]
 }

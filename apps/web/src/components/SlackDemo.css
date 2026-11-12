@@ -1,0 +1,324 @@
+/* Slack's phone app, drawn in the page palette. The Home tab and mentions borrow mate colours
+   (set inline by the component), close enough to Slack's own to feel familiar. */
+.slack-demo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.sd-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 10px;
+  flex: none;
+}
+.sd-round {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+}
+.sd-channel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+}
+.sd-channel b {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.sd-hash {
+  font-weight: 500;
+}
+.sd-channel > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.sd-thread {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 16px 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+.sd-thread::-webkit-scrollbar {
+  display: none;
+}
+/* Messages collect at the bottom while the thread is short, as in the app. */
+.sd-day {
+  margin-top: auto;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.sd-msg {
+  display: flex;
+  gap: 10px;
+  animation: sd-in 0.35s ease both;
+}
+.sd-avatar {
+  flex: none;
+  width: 38px;
+  height: 38px;
+}
+.sd-you {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-weight: 700;
+}
+.sd-body {
+  min-width: 0;
+  flex: 1;
+}
+.sd-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.sd-head b {
+  font-size: 15px;
+  font-weight: 800;
+}
+.sd-head time {
+  color: var(--muted);
+  font-size: 12px;
+}
+.sd-app {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+}
+.sd-text {
+  margin-top: 1px;
+}
+.sd-text b {
+  font-weight: 700;
+}
+.sd-text p {
+  margin: 0;
+}
+.sd-text p + p,
+.sd-text p + .sd-card,
+.sd-card + p {
+  margin-top: 8px;
+}
+.sd-text ol {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+.sd-mention {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--sd-mention) 45%, transparent);
+  color: var(--sd-mention-ink);
+}
+.sd-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+.sd-spinner {
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--line);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: sd-spin 0.8s linear infinite;
+}
+
+/* The approval card: Slack's message buttons, under the mate's message. */
+.sd-card {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px 10px 14px;
+  border-left: 4px solid var(--accent);
+  border-radius: 4px 10px 10px 4px;
+  background: var(--panel);
+  animation: sd-in 0.35s ease both;
+}
+.sd-card.done {
+  border-left-color: var(--success);
+}
+.sd-card b {
+  font-size: 14.5px;
+}
+.sd-card > span {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.sd-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sd-actions button {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.sd-actions button:active {
+  transform: scale(0.96);
+}
+.sd-actions .sd-approve {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--bg);
+}
+.sd-actions button:focus-visible,
+.sd-replay:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.sd-card small {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sd-card .sd-approved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.sd-replay {
+  align-self: center;
+  flex: none;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  animation: sd-in 0.35s ease both;
+}
+
+.sd-composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 12px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+  color: var(--muted);
+  flex: none;
+}
+.sd-plus {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--text);
+}
+.sd-field {
+  flex: 1;
+  font-size: 15px;
+}
+
+.sd-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 0;
+  flex: none;
+}
+.sd-tabset {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+}
+.sd-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+  padding: 5px 8px 4px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.sd-tab.on {
+  background: var(--soft);
+  color: var(--sd-home);
+  font-weight: 700;
+}
+.sd-search {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 0 0 0.5px var(--line), 0 6px 16px -8px rgba(15, 23, 42, 0.25);
+}
+
+@keyframes sd-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes sd-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

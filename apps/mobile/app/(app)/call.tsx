@@ -179,7 +179,7 @@ function Live({ call, initials, onMinimize }: { call: Call; initials: string; on
           const spansRow = cols === 1 || (count % 2 === 1 && index === count - 1);
           const width = spansRow ? stage.width : halfWidth;
           return (
-            <Animated.View key={member.id} entering={FadeInDown.springify().damping(18)} exiting={FadeOut} layout={LinearTransition.springify().damping(20)}>
+            <Animated.View key={member.id} entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} layout={LinearTransition.duration(180)}>
               <ParticipantTile
                 name={member.name}
                 role={member.role}

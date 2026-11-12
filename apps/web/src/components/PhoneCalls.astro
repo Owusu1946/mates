@@ -1,0 +1,145 @@
+---
+// "They'll make the call": a mate phoning a restaurant for you, played on the phone: the ask, the
+// approval card, the call itself, the booking. Phone first, so it mirrors the Calls section above.
+import Device from "./Device.astro";
+import PhoneDemo from "./PhoneDemo";
+
+const facts = [
+  { title: "Asks you first", body: "You see who it will call and what it will say before it dials." },
+  { title: "Says it’s an AI", body: "Every call opens with who it is and who it’s calling for." },
+  { title: "Tells you how it went", body: "The booking, the details and the transcript, back in your chat." },
+];
+---
+
+<section class="phone-calls" id="phone-calls">
+  <div class="stage">
+    <Device screen="full">
+      <PhoneDemo client:visible />
+    </Device>
+  </div>
+
+  <div class="copy">
+    <div class="eyebrow">Phone calls <span class="soon">Coming soon</span></div>
+    <h2>They’ll make the call.</h2>
+    <p class="lede">
+      Booking a table, moving an appointment, checking if something’s in stock. Ask a mate, and it picks up the phone
+      for you.
+    </p>
+    <div class="facts">
+      {
+        facts.map((fact) => (
+          <div class="fact">
+            <b>{fact.title}</b>
+            <span>{fact.body}</span>
+          </div>
+        ))
+      }
+    </div>
+    <p class="try">Try it on the phone: tap Approve call.</p>
+  </div>
+</section>
+
+<style>
+  .phone-calls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .copy {
+    padding-right: 56px;
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .soon {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .facts {
+    display: grid;
+    gap: 22px;
+    margin-top: 36px;
+    max-width: 440px;
+  }
+  .fact {
+    display: grid;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .try {
+    margin: 32px 0 0;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  /* The phone at 82%, as in Calls. */
+  .stage {
+    display: flex;
+    justify-content: center;
+    height: 630px;
+  }
+  .stage > :global(*) {
+    transform: scale(0.82);
+    transform-origin: top center;
+  }
+
+  @media (max-width: 860px) {
+    .phone-calls {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 96px;
+    }
+    .copy {
+      order: -1;
+      padding: 0 8px;
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 600px;
+    }
+    .stage > :global(*) {
+      transform: scale(0.78);
+      transform-origin: top center;
+    }
+  }
+</style>

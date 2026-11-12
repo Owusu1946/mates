@@ -1,38 +1,77 @@
 ---
-// Pricing for individuals: three plans, monthly or yearly at a discount. The billing switch is
+// Pricing for individuals: four plans, monthly or yearly at a discount. The billing switch is
 // two radio buttons and sibling selectors, so it works without script and on older Safari
 // (no :has, which iOS 15.0-15.3 lacks). The radios sit before the switch and the plans.
-const YEARLY_DISCOUNT = 0.2;
+// Yearly is ten months for twelve.
+const FREE_MONTHS = 2;
 
-type Plan = { name: string; monthly: number; intro: string; features: string[] };
+type Plan = {
+  name: string;
+  monthly: number;
+  tagline: string;
+  intro: string;
+  features: string[];
+};
 const plans: Plan[] = [
+  {
+    name: "Starter",
+    monthly: 8,
+    tagline: "For handing off the everyday.",
+    intro: "Includes:",
+    features: [
+      "Up to 5 mates, each with their own role and memory",
+      "One mission at a time, with handoffs and shared notes",
+      "Sign in to hundreds of apps",
+      "3 routines on a schedule",
+      "Voice calls with up to 2 mates",
+      "Quick coding runs on the fast model",
+    ],
+  },
   {
     name: "Plus",
     monthly: 15,
-    intro: "Includes:",
+    tagline: "For real projects with a team.",
+    intro: "Everything in Starter, plus:",
     features: [
-      "Your own team of mates",
-      "Missions with handoffs and shared notes",
-      "Sign in to hundreds of apps",
-      "Routines on a schedule",
-      "The mates’ computer: ship code as pull requests",
-      "Weekly usage included",
+      "2x Starter usage",
+      "Up to 10 mates",
+      "2 missions running at the same time",
+      "10 routines on a schedule",
+      "Group calls with up to 4 mates",
+      "The mates’ computer on the flagship model: ship code as pull requests",
     ],
   },
   {
     name: "Pro",
     monthly: 40,
+    tagline: "For mates who work all day.",
     intro: "Everything in Plus, plus:",
-    features: ["4x Plus usage", "More mates working at the same time", "Longer coding runs", "Priority model access at peak times"],
+    features: [
+      "3x Plus usage",
+      "Up to 20 mates",
+      "5 missions running at the same time",
+      "Unlimited routines",
+      "Coding runs that go more than twice as long",
+    ],
   },
   {
     name: "Max",
     monthly: 80,
+    tagline: "For a team that never clocks off.",
     intro: "Everything in Pro, plus:",
-    features: ["10x Plus usage", "The most capable models for every mate", "Earliest access to new features and models"],
+    features: [
+      "6x Plus usage",
+      "10 missions running at the same time",
+      "Choose the most capable model for any mate",
+      "Earliest access to new features and models",
+    ],
   },
 ];
-const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DISCOUNT));
+const yearlyTotal = (plan: Plan) => plan.monthly * (12 - FREE_MONTHS);
+const yearlyPerMonth = (plan: Plan) => {
+  const perMonth = yearlyTotal(plan) / 12;
+  return Number.isInteger(perMonth) ? String(perMonth) : perMonth.toFixed(2);
+};
 ---
 
 <section class="pricing" id="pricing">
@@ -43,7 +82,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   <input class="billing" type="radio" name="billing" id="billing-yearly" value="yearly" aria-label="Yearly billing" />
   <div class="switch" aria-hidden="true">
     <label for="billing-monthly">Monthly</label>
-    <label for="billing-yearly">Yearly <span class="save">Save {YEARLY_DISCOUNT * 100}%</span></label>
+    <label for="billing-yearly">Yearly <span class="save">{FREE_MONTHS} months free</span></label>
   </div>
 
   <div class="plans">
@@ -51,6 +90,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
       plans.map((plan) => (
         <article class="plan">
           <h3>{plan.name}</h3>
+          <p class="tagline">{plan.tagline}</p>
           <div class="price monthly">
             <span class="amount">${plan.monthly}</span>
             <span class="per">/ month</span>
@@ -60,7 +100,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
             <span class="per">/ month</span>
           </div>
           <div class="billed monthly">Billed monthly</div>
-          <div class="billed yearly">Billed yearly at ${yearlyPerMonth(plan) * 12}</div>
+          <div class="billed yearly">Billed yearly at ${yearlyTotal(plan)}</div>
 
           <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
 
@@ -147,7 +187,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
 
   .plans {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
     margin-top: 32px;
     text-align: left;
@@ -155,7 +195,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   .plan {
     display: flex;
     flex-direction: column;
-    padding: 40px 36px;
+    padding: 36px 28px;
     border-radius: 32px;
     background: var(--panel);
   }
@@ -164,6 +204,11 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     color: var(--muted);
     font-size: 17px;
     font-weight: 500;
+  }
+  .tagline {
+    margin: 8px 0 0;
+    font-size: 15.5px;
+    line-height: 1.4;
   }
   .price {
     display: flex;
@@ -228,7 +273,14 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     margin-top: 3px;
   }
 
-  @media (max-width: 960px) {
+  @media (max-width: 1180px) {
+    .plans {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 860px;
+      margin-inline: auto;
+    }
+  }
+  @media (max-width: 720px) {
     .plans {
       grid-template-columns: 1fr;
       max-width: 520px;

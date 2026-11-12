@@ -1,0 +1,429 @@
+/* A slides app in the page palette. Slides size their type to their own width (container units),
+   so the same slide reads as a thumbnail and as the big one. */
+.deck-demo {
+  width: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  text-align: left;
+}
+
+.dk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.dk-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.dk-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--accent);
+  box-shadow: inset 0 -10px 0 var(--accent-deep);
+}
+.dk-file b {
+  display: block;
+  font-size: 15px;
+}
+.dk-file small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.dk-export {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.dk-export.on {
+  opacity: 1;
+  transform: none;
+}
+.dk-export span {
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.dk-body {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+.dk-rail {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dk-thumb {
+  position: relative;
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.dk-thumb:disabled {
+  cursor: default;
+}
+.dk-num {
+  width: 12px;
+  padding-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.dk-mini {
+  flex: 1;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--soft);
+  box-shadow: 0 0 0 1px var(--line);
+  container-type: inline-size;
+  transition: box-shadow 0.2s ease;
+}
+.dk-thumb.built .dk-mini {
+  background: var(--bg);
+  animation: dk-in 0.4s ease both;
+}
+.dk-thumb.making .dk-mini {
+  background: linear-gradient(90deg, var(--soft) 0%, var(--bg) 50%, var(--soft) 100%);
+  background-size: 200% 100%;
+  animation: dk-shimmer 1.1s linear infinite;
+}
+.dk-thumb.on .dk-mini {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.dk-thumb:focus-visible .dk-mini {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.dk-check {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--bg);
+  box-shadow: 0 0 0 2px var(--panel);
+  animation: dk-pop 0.35s cubic-bezier(0.2, 0.8, 0.2, 1.4) 0.3s both;
+}
+
+.dk-stage {
+  position: relative;
+}
+.dk-main {
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), 0 30px 60px -30px rgba(15, 23, 42, 0.35);
+  container-type: inline-size;
+  animation: dk-in 0.35s ease both;
+}
+.dk-notes {
+  margin-top: 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.dk-notes small {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dk-notes p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  animation: dk-in 0.35s ease both;
+}
+.dk-skeleton {
+  display: grid;
+  align-content: center;
+  gap: 3cqw;
+  height: 100%;
+  padding: 8cqw;
+}
+.dk-skeleton i {
+  height: 3cqw;
+  border-radius: 1.5cqw;
+  background: linear-gradient(90deg, var(--soft) 0%, var(--panel) 50%, var(--soft) 100%);
+  background-size: 200% 100%;
+  animation: dk-shimmer 1.1s linear infinite;
+}
+.dk-skeleton i:first-child {
+  width: 55%;
+  height: 5cqw;
+}
+.dk-skeleton i:last-child {
+  width: 70%;
+}
+
+/* The slides themselves. */
+.sl {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 7cqw 8cqw;
+}
+.sl h6 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 2.6cqw;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sl h5 {
+  margin: 1.6cqw 0 0;
+  font-size: 5.4cqw;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.sl p {
+  margin: 1.6cqw 0 0;
+  color: var(--muted);
+  font-size: 3cqw;
+}
+.sl ul {
+  display: grid;
+  gap: 2cqw;
+  margin: auto 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 3.2cqw;
+}
+.sl li::before {
+  content: "";
+  display: inline-block;
+  width: 1.4cqw;
+  height: 1.4cqw;
+  margin-right: 2cqw;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: middle;
+}
+.sl-title {
+  justify-content: flex-end;
+  background: linear-gradient(135deg, var(--accent-soft), var(--bg) 70%);
+}
+.sl-title h5 {
+  font-size: 8.4cqw;
+}
+.sl-title small {
+  margin-top: 3cqw;
+  color: var(--muted);
+  font-size: 2.4cqw;
+}
+.sl-rule {
+  width: 8cqw;
+  height: 1.2cqw;
+  border-radius: 1cqw;
+  background: var(--accent);
+}
+.sl-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.4cqw;
+  margin-top: auto;
+}
+.sl-steps span {
+  display: grid;
+  gap: 1.4cqw;
+  padding: 2.4cqw;
+  border-radius: 2cqw;
+  background: var(--panel);
+  font-size: 2.8cqw;
+  line-height: 1.3;
+}
+.sl-steps b {
+  color: var(--accent);
+  font-size: 4cqw;
+}
+.sl-market {
+  justify-content: center;
+}
+.sl-big {
+  color: var(--accent);
+  font-size: 22cqw;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+.sl-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3cqw;
+  flex: 1;
+  margin-top: 3cqw;
+  padding-bottom: 1cqw;
+  border-bottom: 0.3cqw solid var(--line);
+}
+.sl-bars i {
+  flex: 1;
+  border-radius: 1cqw 1cqw 0 0;
+  background: var(--accent);
+  transform-origin: bottom;
+  animation: dk-grow 0.6s ease both;
+}
+.sl-bars i:last-child {
+  background: var(--accent-deep);
+}
+.sl-split {
+  display: flex;
+  gap: 1cqw;
+  margin-top: auto;
+}
+.sl-split span {
+  padding: 3cqw 2cqw;
+  border-radius: 1.6cqw;
+  background: var(--accent);
+  color: var(--bg);
+  font-size: 2.8cqw;
+  font-weight: 600;
+}
+.sl-split span:nth-child(2) {
+  background: color-mix(in srgb, var(--accent) 70%, var(--bg));
+}
+.sl-split span:nth-child(3) {
+  background: color-mix(in srgb, var(--accent) 45%, var(--bg));
+  color: var(--accent-deep);
+}
+
+/* Pitch practice: the mate pops up over the corner of the slide. */
+.dk-pitch {
+  position: absolute;
+  right: -12px;
+  bottom: -20px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  max-width: min(360px, 80%);
+  animation: dk-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.dk-bubble {
+  display: grid;
+  gap: 8px;
+  padding: 12px 16px;
+  border-radius: 18px;
+  border-bottom-left-radius: 6px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), 0 20px 40px -20px rgba(15, 23, 42, 0.4);
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.dk-bubble small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.dk-go,
+.dk-link {
+  justify-self: start;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dk-link {
+  background: var(--soft);
+  color: var(--text);
+}
+.dk-go:focus-visible,
+.dk-link:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+@keyframes dk-in {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+@keyframes dk-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@keyframes dk-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+}
+@keyframes dk-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes dk-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@media (max-width: 720px) {
+  /* Phones: the thumbnails become a strip under the big slide. */
+  .dk-body {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .dk-rail {
+    order: 2;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+  }
+  .dk-num {
+    display: none;
+  }
+  .dk-check {
+    width: 13px;
+    height: 13px;
+    right: -3px;
+    bottom: -3px;
+  }
+  .dk-notes {
+    display: none;
+  }
+  .dk-pitch {
+    position: static;
+    max-width: none;
+    margin-top: 12px;
+  }
+  .dk-export span {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+}

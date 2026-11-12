@@ -79,6 +79,9 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   const callStartedAt = useRef<number | null>(null);
   const callActivityStarted = useRef(false);
   const lastActivityState = useRef("");
+  const startAttempt = useRef(0);
+  const startInFlight = useRef(false);
+  const startRequest = useRef<AbortController | null>(null);
   /** Set when we hang up ourselves, so the disconnect isn't read as a dropped call. */
   const leaving = useRef(false);
   const elapsedRef = useRef(0);
@@ -140,6 +143,9 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   }, []);
 
   const fail = useCallback(async (message: string) => {
+    startAttempt.current += 1;
+    startRequest.current?.abort();
+    startRequest.current = null;
     leaving.current = true;
     await cleanup();
     setMembers([]);
@@ -149,23 +155,29 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   }, [cleanup]);
 
   const start = async () => {
+    if (startInFlight.current) return;
     const { lead, others, chatId } = rosterRef.current;
     setError(null);
     if (!chatId) return setError("Open a chat with your mate first, then call.");
-    if (!(await microphoneAllowed())) return;
-    haptic.medium();
-    leaving.current = false;
-    setPhase("connecting");
-    setMembers([asMember(lead, "joining")]);
-    callId.current = null;
-    callStartedAt.current = null;
-    callActivityStarted.current = false;
-    lastActivityState.current = "";
-    setCaptions([]);
-    setElapsed(0);
-    setMuted(false);
-    setSpeakerOn(true);
+    startInFlight.current = true;
+    const attempt = ++startAttempt.current;
+    const isCurrent = () => startAttempt.current === attempt;
+    const controller = new AbortController();
+    startRequest.current = controller;
     try {
+      if (!(await microphoneAllowed()) || !isCurrent()) return;
+      haptic.medium();
+      leaving.current = false;
+      setPhase("connecting");
+      setMembers([asMember(lead, "joining")]);
+      callId.current = null;
+      callStartedAt.current = null;
+      callActivityStarted.current = false;
+      lastActivityState.current = "";
+      setCaptions([]);
+      setElapsed(0);
+      setMuted(false);
+      setSpeakerOn(true);
       const lk = liveKit();
       const { Room: LiveRoom, RoomEvent, DisconnectReason } = lk.client;
       const mateIds = others.filter((m) => invited.includes(m.id)).map((m) => m.id).slice(0, MAX_CALL_MATES - 1);
@@ -175,14 +187,29 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
         mateIds,
         userName: firstName(session.user?.displayName),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
+      }, controller.signal);
+      if (!isCurrent()) return;
       callId.current = call.callId;
 
       await lk.AudioSession.configureAudio({ ios: { defaultOutput: "earpiece" }, android: { audioTypeOptions: lk.AndroidAudioTypePresets.communication } });
+      if (!isCurrent()) return;
       await lk.AudioSession.startAudioSession();
+      if (!isCurrent()) {
+        await lk.AudioSession.stopAudioSession().catch(() => {});
+        return;
+      }
 
       const next = new LiveRoom({ adaptiveStream: false, dynacast: false });
       room.current = next;
+      const finishFromAgent = (dropped: boolean) => {
+        if (leaving.current) return;
+        startAttempt.current += 1;
+        startRequest.current?.abort();
+        startRequest.current = null;
+        leaving.current = true;
+        finish(dropped);
+        void cleanup();
+      };
       next
         .on(RoomEvent.ParticipantConnected, (participant) => {
           if (!participant.isAgent) return;
@@ -190,7 +217,15 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
           applyAgentState(participant);
         })
         .on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => {
-          if (participant.isAgent) applyAgentState(participant);
+          if (!participant.isAgent) return;
+          if (participant.attributes?.["mates.ending"] === "true") {
+            finishFromAgent(false);
+            return;
+          }
+          applyAgentState(participant);
+        })
+        .on(RoomEvent.ParticipantDisconnected, (participant) => {
+          if (participant.isAgent) finishFromAgent(participant.attributes?.["mates.ending"] !== "true");
         })
         .on(RoomEvent.Reconnecting, () => setReconnecting(true))
         .on(RoomEvent.Reconnected, () => setReconnecting(false))
@@ -198,7 +233,7 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
           if (leaving.current) return;
           leaving.current = true;
           void cleanup();
-          // The agent closes the room when a mate says goodbye; anything else is a dropped call.
+          // Intentional agent hangups are handled above; other unexpected room closes count as dropped.
           finish(reason !== DisconnectReason.ROOM_DELETED && reason !== DisconnectReason.CLIENT_INITIATED);
         });
       next.registerTextStreamHandler("lk.transcription", async (reader, from) => {
@@ -215,8 +250,22 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
 
       pickup.current = setTimeout(() => void fail("Your mate couldn’t pick up. Try again in a moment."), PICKUP_MS);
       await next.connect(call.serverUrl, call.token);
+      if (!isCurrent()) {
+        await next.disconnect().catch(() => {});
+        return;
+      }
       await next.localParticipant.setMicrophoneEnabled(true);
+      if (!isCurrent()) {
+        await next.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+        await next.disconnect().catch(() => {});
+        return;
+      }
       await lk.AudioSession.selectAudioOutput(outputFor(true)).catch(() => {});
+      if (!isCurrent()) {
+        await next.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+        await next.disconnect().catch(() => {});
+        return;
+      }
       // The agent may have joined before our listeners saw it.
       const already = [...next.remoteParticipants.values()].find((p) => p.isAgent);
       if (already) {
@@ -225,17 +274,26 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
       }
       haptic.success();
     } catch (cause) {
-      await fail(cause instanceof Error ? cause.message : "Couldn’t start the call. Check your connection and try again.");
+      if (isCurrent()) await fail(cause instanceof Error ? cause.message : "Couldn’t start the call. Check your connection and try again.");
+    } finally {
+      if (startRequest.current === controller) startRequest.current = null;
+      startInFlight.current = false;
     }
   };
 
   const end = () => {
     haptic.heavy();
+    startAttempt.current += 1;
+    startRequest.current?.abort();
+    startRequest.current = null;
     leaving.current = true;
     finish(false);
     void cleanup();
   };
   const cancel = () => {
+    startAttempt.current += 1;
+    startRequest.current?.abort();
+    startRequest.current = null;
     leaving.current = true;
     void cleanup();
     setMembers([]);
@@ -252,7 +310,7 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
       const reply = JSON.parse(await current.localParticipant.performRpc({ destinationIdentity: target.identity, method, payload: JSON.stringify({ mateId }) })) as { ok: boolean; error?: string };
       if (!reply.ok) throw new Error(reply.error);
     } catch (cause) {
-      setMembers((list) => list.filter((m) => m.status === "joined"));
+      if (method === "mates.invite") setMembers((list) => list.filter((m) => m.id !== mateId));
       Alert.alert(method === "mates.invite" ? "Couldn’t add that mate" : "Couldn’t remove that mate", cause instanceof Error && cause.message ? cause.message : "Try again in a moment.");
     }
   };

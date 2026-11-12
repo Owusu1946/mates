@@ -55,6 +55,9 @@ export default defineAgent({
       leadId,
       agents: new Map(),
       publish: (attributes) => void ctx.room.localParticipant?.setAttributes(attributes).catch(() => {}),
+      publishEnding: async () => {
+        await ctx.room.localParticipant?.setAttributes({ "mates.ending": "true" });
+      },
     };
 
     const session = new voice.AgentSession<CallState>({
@@ -99,10 +102,9 @@ export default defineAgent({
     }, MAX_CALL_MS);
     cap.unref();
 
-    // However the session closes, close the room so the app shows the call as ended.
+    // Let the app disconnect after the agent leaves; LiveKit closes the room once it is empty.
     session.on(voice.AgentSessionEventTypes.Close, (event) => {
       clearTimeout(cap);
-      ctx.addShutdownCallback(() => ctx.deleteRoom().catch(() => {}));
       ctx.shutdown(String(event.reason));
     });
 

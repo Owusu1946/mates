@@ -1,6 +1,6 @@
 import { useAui, useAuiState } from "@assistant-ui/react-native";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, TextInput, type TextInputProps } from "react-native";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Platform, StyleSheet, TextInput, type TextInputProps } from "react-native";
 
 /**
  * The composer's text field, holding its own text so a keystroke is never overwritten.
@@ -17,6 +17,14 @@ export function ComposerTextInput({ onSubmitWeb, ...props }: Omit<TextInputProps
   // Values typed here that the store has not echoed back yet, oldest first.
   const pending = useRef<string[]>([]);
 
+  // Derive sizing bounds from the caller's style so we can manage height explicitly.
+  // React Native's multiline TextInput does not shrink its native height when value is
+  // cleared programmatically, so we track content size and reset on send.
+  const flatStyle = useMemo(() => StyleSheet.flatten(props.style) ?? {}, [props.style]);
+  const minHeight = (flatStyle.minHeight as number) ?? 0;
+  const maxHeight = (flatStyle.maxHeight as number) ?? Infinity;
+  const [contentHeight, setContentHeight] = useState(minHeight);
+
   useEffect(() => {
     const echo = pending.current.indexOf(storeText);
     if (echo >= 0) {
@@ -26,7 +34,9 @@ export function ComposerTextInput({ onSubmitWeb, ...props }: Omit<TextInputProps
     }
     pending.current = [];
     setText(storeText);
-  }, [storeText]);
+    // Store was cleared externally (e.g. after send) — reset height so the field collapses.
+    if (!storeText) setContentHeight(minHeight);
+  }, [storeText, minHeight]);
 
   const onChangeText = useCallback(
     (value: string) => {
@@ -42,6 +52,12 @@ export function ComposerTextInput({ onSubmitWeb, ...props }: Omit<TextInputProps
       {...props}
       value={text}
       onChangeText={onChangeText}
+      onContentSizeChange={(e) => {
+        props.onContentSizeChange?.(e);
+        const h = Math.min(Math.max(e.nativeEvent.contentSize.height, minHeight), maxHeight);
+        setContentHeight(h);
+      }}
+      style={[props.style, { height: Math.max(contentHeight, minHeight) }]}
       onKeyPress={(event) => {
         props.onKeyPress?.(event);
         // Web keeps Enter-to-send; on phones Enter is a newline and the send button sends.

@@ -42,6 +42,10 @@ import { keytermsFor, transcribe, transcriptionConfigured } from "./transcriptio
 import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
 import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
+import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, linkUrl as slackLinkUrl, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
+import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
+import { handleInteraction } from "./slack-delivery.js";
+import { verifySlackSignature } from "./slack-security.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -395,6 +399,84 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         return back("failed", reason);
       }
     })
+    .get("/v1/slack", auth, async (c) => {
+      if (!slackConfigured()) return c.json({ configured: false as const, workspaces: [] });
+      const links = await listLinks(c.get("userId"));
+      return c.json({ configured: true as const, workspaces: links.map((link) => ({ id: link.teamId, name: link.teamName })) });
+    })
+    .get("/v1/slack/install", auth, (c) =>
+      slackConfigured() ? c.json({ url: slackInstallUrl(c.get("userId"), safeReturn(c.req.query("returnTo"))) }) : c.json(failure("NOT_CONFIGURED", "Slack isn’t set up on this server yet.", c.get("requestId")), 503),
+    )
+    // Slack sends the browser here after "Allow"; the signed state says which Mates account started it.
+    .get("/v1/slack/callback", async (c) => {
+      const state = verifyInstallState(c.req.query("state") ?? "");
+      const returnTo = safeReturn(state?.returnTo);
+      const back = (status: string, reason?: string) => c.redirect(`${returnTo}${returnTo.includes("?") ? "&" : "?"}slack=${status}${reason ? `&reason=${reason}` : ""}`);
+      if (!state) return back("failed", "expired");
+      const code = c.req.query("code");
+      if (!code) return back("failed", c.req.query("error") === "access_denied" ? "cancelled" : "oauth");
+      try {
+        await completeSlackInstall(state.userId, code);
+        return back("connected");
+      } catch (error) {
+        console.warn("slack_install_failed", { message: error instanceof Error ? error.message : String(error) });
+        return back("failed", "oauth");
+      }
+    })
+    .post("/v1/slack/link", auth, validator("json", (value, c) => {
+      const parsed = z.object({ token: z.string().min(10).max(1000) }).safeParse(value);
+      return parsed.success ? parsed.data : c.json(failure("INVALID_LINK", "That link isn’t valid", c.get("requestId")), 400);
+    }), async (c) => {
+      try {
+        return c.json(await completeLink(c.get("userId"), c.req.valid("json").token));
+      } catch (error) {
+        if (error instanceof LinkError) return c.json(failure("LINK_FAILED", error.message, c.get("requestId")), 400);
+        throw error;
+      }
+    })
+    .delete("/v1/slack/link/:teamId", auth, async (c) => {
+      await unlink(c.get("userId"), c.req.param("teamId"));
+      return c.json({ ok: true });
+    })
+    // Slack's own calls (events, /mates, buttons) carry no Clerk token: each is checked against the signing secret instead.
+    .post("/v1/slack/events", async (c) => {
+      const raw = await c.req.text();
+      if (!verifySlackSignature(raw, c.req.header("x-slack-request-timestamp"), c.req.header("x-slack-signature"))) return c.json(failure("BAD_SIGNATURE", "Not from Slack", c.get("requestId")), 401);
+      const body = JSON.parse(raw) as { type: string; challenge?: string };
+      if (body.type === "url_verification") return c.json({ challenge: body.challenge });
+      // Slack wants an answer within three seconds; the work carries on after it.
+      void handleSlackEvent(body).catch((error) => console.warn("slack_event_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
+    })
+    .post("/v1/slack/commands", async (c) => {
+      const raw = await c.req.text();
+      if (!verifySlackSignature(raw, c.req.header("x-slack-request-timestamp"), c.req.header("x-slack-signature"))) return c.json(failure("BAD_SIGNATURE", "Not from Slack", c.get("requestId")), 401);
+      const form = new URLSearchParams(raw);
+      if (!form.get("text")?.trim()) return c.json({ response_type: "ephemeral", text: "Tell me what you need, like `/mates ask Ama to find a venue for Saturday`." });
+      void handleSlashCommand(form).catch((error) => console.warn("slack_command_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.json({ response_type: "ephemeral", text: "Got it. Your mate will reply here." });
+    })
+    .post("/v1/slack/interactions", async (c) => {
+      const raw = await c.req.text();
+      if (!verifySlackSignature(raw, c.req.header("x-slack-request-timestamp"), c.req.header("x-slack-signature"))) return c.json(failure("BAD_SIGNATURE", "Not from Slack", c.get("requestId")), 401);
+      const payload = JSON.parse(new URLSearchParams(raw).get("payload") ?? "{}");
+      void handleInteraction(payload).catch((error) => console.warn("slack_interaction_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
+    })
+    // "Open Mates" buttons: Slack buttons need http links, so this page hands over to the app.
+    .get("/v1/slack/open", (c) => {
+      const to = c.req.query("to") === "connections" ? "connections" : "";
+      const target = `mates://${to}`;
+      return c.html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${target}"><title>Open Mates</title><body style="font-family:system-ui;padding:32px;line-height:1.5"><h1 style="font-size:22px">Opening Mates…</h1><p>If nothing happens, open Mates on your phone, or <a href="${target}">tap here</a>.</p></body>`);
+    })
+    // The "Connect Mates" button in Slack lands here and opens the app with a signed, short-lived link token.
+    .get("/v1/slack/connect", (c) => {
+      const team = c.req.query("team") ?? "";
+      const user = c.req.query("user") ?? "";
+      if (!/^[A-Z0-9]{2,32}$/.test(team) || !/^[A-Z0-9]{2,32}$/.test(user)) return c.text("This link isn’t valid. Ask Mates in Slack for a new one.", 400);
+      const target = slackLinkUrl(team, user);
+      return c.html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${target}"><title>Connect Mates</title><body style="font-family:system-ui;padding:32px;line-height:1.5"><h1 style="font-size:22px">Opening Mates…</h1><p>If nothing happens, open this page on your phone with Mates installed, or <a href="${target}">tap here</a>.</p></body>`);
+    })
     .get("/v1/code-runs/:id", auth, async (c) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
       const run = await ownedCodeRun(c.get("userId"), c.req.param("id"));
@@ -683,7 +765,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
           callbackUrl: z
             .string()
             .max(500)
-            .refine((value) => /^(exp|exps|muse-clone):\/\//.test(value)),
+            .refine((value) => /^(exp|exps|muse-clone|mates):\/\//.test(value)),
         })
         .safeParse(await c.req.json().catch(() => null));
       if (!body.success)

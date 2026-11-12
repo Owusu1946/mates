@@ -1,0 +1,363 @@
+/* Google Meet's layout in the page palette: camera-off tiles tinted by each person's colour, the
+   mate's tile with its mascot, captions over the grid, and Meet's pill of round controls. */
+.meet-demo {
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+  font-family: var(--font);
+  color: var(--text);
+  text-align: left;
+}
+
+.md-screen {
+  position: relative;
+}
+.md-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.md-tile {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  /* Camera off, as in Meet: a quiet tile, the person's colour only in a hint and their avatar. */
+  background: color-mix(in srgb, var(--tint) 18%, var(--soft));
+  box-shadow: inset 0 0 0 0 var(--accent);
+  transition: box-shadow 0.25s ease, opacity 0.4s ease;
+}
+.md-tile.talking {
+  box-shadow: inset 0 0 0 3px var(--ink, var(--accent));
+}
+.md-face {
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 30px;
+  font-weight: 600;
+}
+.md-tile.talking .md-face {
+  animation: md-talk 1.2s ease-in-out infinite;
+}
+.md-mascot {
+  display: flex;
+}
+.md-name {
+  position: absolute;
+  left: 14px;
+  bottom: 10px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.md-bot {
+  --ink: var(--md-blue-ink);
+  background: color-mix(in srgb, var(--md-blue) 30%, var(--bg));
+}
+.md-bot .md-name {
+  color: var(--muted);
+}
+.md-notes-pill {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+}
+.md-notes-pill i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--md-end);
+  animation: md-blink 1.6s ease-in-out infinite;
+}
+
+/* Meet's speaking indicator: three bars that bounce while someone talks. */
+.md-bars {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 50%;
+  background: var(--ink, var(--accent));
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.md-bars.on {
+  opacity: 1;
+}
+.md-bars i {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg);
+}
+.md-bars.on i {
+  animation: md-bar 0.8s ease-in-out infinite;
+}
+.md-bars.on i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.md-bars.on i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.md-caption {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  display: flex;
+  gap: 10px;
+  width: min(640px, calc(100% - 28px));
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text) 84%, transparent);
+  color: var(--bg);
+  font-size: 15px;
+  line-height: 1.4;
+  transform: translateX(-50%);
+  animation: md-in 0.35s ease both;
+}
+.md-caption b {
+  flex: none;
+  opacity: 0.65;
+}
+
+/* After the call: the tiles dim and Nova's notes slide in over them. */
+.md-screen.ended .md-tile {
+  opacity: 0.45;
+}
+.md-summary {
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: min(360px, calc(100% - 32px));
+  padding: 18px 20px 16px;
+  border-radius: 20px;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--line), 0 30px 60px -24px rgba(15, 23, 42, 0.4);
+  transform: translateY(-50%);
+  animation: md-slide 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.md-summary-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.md-summary-head b {
+  display: block;
+  font-size: 15px;
+}
+.md-summary-head small {
+  color: var(--muted);
+  font-size: 12px;
+}
+.md-summary h4 {
+  margin: 14px 0 4px;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.md-summary p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.md-summary ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+}
+.md-summary li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.md-summary li i {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+}
+.md-summary li i.done {
+  border-color: var(--success);
+  background: var(--success);
+  box-shadow: inset 0 0 0 2px var(--bg);
+}
+.md-replay {
+  margin-top: 14px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.md-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+}
+.md-title {
+  margin-right: auto;
+  font-size: 15px;
+  font-weight: 500;
+}
+.md-title span {
+  color: var(--muted);
+  font-weight: 400;
+}
+.md-controls {
+  display: flex;
+  gap: 10px;
+}
+.md-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--text);
+}
+button.md-btn {
+  cursor: pointer;
+}
+.md-cc.on {
+  background: color-mix(in srgb, var(--md-blue) 55%, var(--bg));
+  color: var(--md-blue-ink);
+}
+.md-btn:focus-visible,
+.md-replay:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+.md-end {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 44px;
+  margin-right: auto;
+  border-radius: 999px;
+  background: var(--md-end);
+  color: var(--bg);
+}
+
+@keyframes md-talk {
+  50% {
+    transform: scale(1.06);
+  }
+}
+@keyframes md-bar {
+  50% {
+    height: 13px;
+  }
+}
+@keyframes md-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes md-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 6px);
+  }
+}
+@keyframes md-slide {
+  from {
+    opacity: 0;
+    transform: translate(24px, -50%);
+  }
+}
+
+@media (max-width: 720px) {
+  .md-grid {
+    gap: 6px;
+  }
+  .md-tile {
+    border-radius: 12px;
+  }
+  .md-face {
+    width: 48px;
+    height: 48px;
+    font-size: 20px;
+  }
+  .md-mascot {
+    transform: scale(0.6);
+  }
+  .md-name {
+    left: 10px;
+    bottom: 6px;
+    font-size: 12px;
+  }
+  .md-notes-pill {
+    top: 6px;
+    left: 8px;
+    font-size: 10.5px;
+  }
+  .md-bars {
+    top: 6px;
+    right: 6px;
+    transform: scale(0.8);
+  }
+  /* On phones the captions and notes sit under the grid instead of over it. */
+  .md-caption {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    font-size: 13.5px;
+    transform: none;
+    animation-name: md-in-flat;
+  }
+  .md-summary {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    transform: none;
+    animation-name: md-in-flat;
+  }
+  .md-title,
+  .hide-sm {
+    display: none;
+  }
+  .md-end {
+    margin-right: 0;
+  }
+}
+@keyframes md-in-flat {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}

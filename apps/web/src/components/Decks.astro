@@ -1,0 +1,128 @@
+---
+// "Decks, done for you": a mate builds a pitch deck slide by slide, checks each one, exports it,
+// then offers to play the investor. Copy beside the deck, which takes the wider column.
+import DeckDemo from "./DeckDemo";
+
+const facts = [
+  { title: "Checked slide by slide", body: "Your mate looks over every slide it makes and fixes anything that spills or breaks." },
+  { title: "PowerPoint, PDF or Google Slides", body: "Ready to send, or straight into your Drive to keep editing." },
+  { title: "Pitch it to me", body: "Practise on a call. The mate that made the deck plays the investor." },
+];
+---
+
+<section class="decks" id="decks">
+  <div class="copy">
+    <div class="eyebrow">Decks and docs <span class="soon">Coming soon</span></div>
+    <h2>Decks, done for you.</h2>
+    <p class="lede">
+      Tell a mate what it’s for. It writes the story, lays out every slide, and hands you a deck you’d be happy to present.
+      Docs and spreadsheets work the same way.
+    </p>
+    <div class="facts">
+      {
+        facts.map((fact) => (
+          <div class="fact">
+            <b>{fact.title}</b>
+            <span>{fact.body}</span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <div class="stage">
+    <DeckDemo client:visible />
+  </div>
+</section>
+
+<style>
+  .decks {
+    display: grid;
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.5fr);
+    gap: 56px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .copy {
+    padding-left: 24px;
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .soon {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+    text-wrap: balance;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .facts {
+    display: grid;
+    gap: 22px;
+    margin-top: 36px;
+  }
+  .fact {
+    display: grid;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .stage {
+    padding: 32px 36px 44px;
+    border-radius: 32px;
+    background: var(--panel);
+  }
+
+  @media (max-width: 1024px) {
+    .decks {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+    .copy {
+      padding: 0 8px;
+    }
+  }
+  @media (max-width: 860px) {
+    .decks {
+      margin-top: 96px;
+    }
+    .stage {
+      padding: 16px 14px 18px;
+      border-radius: 24px;
+    }
+  }
+</style>

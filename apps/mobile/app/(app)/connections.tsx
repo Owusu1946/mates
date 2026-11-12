@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, FlatList, Pressable, Text, TextInput, View } from "react-native";
 import { AppLogo, ConnectionButton } from "../../src/connections/app-connection";
 import { GitHubCard } from "../../src/connections/github-card";
+import { SlackCard } from "../../src/connections/slack-card";
 import { createApiClient } from "../../src/data/api";
 import { useTheme } from "../../src/theme/provider";
 import { ChatIcon } from "../../src/chat/chat-icon";
@@ -65,6 +66,7 @@ export default function ConnectionsScreen() {
       <Text style={{ fontFamily: "DMSans_600SemiBold", fontSize: 27, letterSpacing: -.7, color: foreground }}>Your apps, with your mates.</Text>
       <Text style={{ fontFamily: "DMSans_400Regular", fontSize: 15, lineHeight: 22, color: muted }}>Connect once. Let your mates bring your work together.</Text>
       <GitHubCard isDark={isDark} />
+      <SlackCard isDark={isDark} />
       <View style={{ flexDirection: "row", gap: 9, alignItems: "center", borderRadius: 18, paddingHorizontal: 14, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
         <ChatIcon name="search" color={muted} size={19} />
         <TextInput value={query} onChangeText={setQuery} autoCorrect={false} placeholder="Search all apps" placeholderTextColor={muted} style={{ flex: 1, minHeight: 48, fontSize: 16, color: foreground, fontFamily: "DMSans_400Regular" }} />
