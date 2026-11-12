@@ -5,6 +5,13 @@ const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");
 const TARGET_NAME = "ExpoWidgetsTarget";
 const CATALOG_NAME = "Assets.xcassets";
 const IMAGE_SET_NAME = "MatesMascot.imageset";
+const MATE_MASCOTS = [
+  { name: "kwame", imageSet: "KwameMascot.imageset", source: "kwame.png" },
+  { name: "kofi", imageSet: "KofiMascot.imageset", source: "kofi.png" },
+  { name: "ama", imageSet: "AmaMascot.imageset", source: "ama.png" },
+  { name: "kojo", imageSet: "KojoMascot.imageset", source: "kojo.png" },
+  { name: "kwesi", imageSet: "KwesiMascot.imageset", source: "kwesi.png" },
+];
 
 function withMatesWidgetMascot(config) {
   config = withDangerousMod(config, ["ios", async (modConfig) => {
@@ -23,6 +30,20 @@ function withMatesWidgetMascot(config) {
       info: { author: "xcode", version: 1 },
       properties: { "template-rendering-intent": "original" },
     }, null, 2));
+
+    for (const mascot of MATE_MASCOTS) {
+      const mateImageSet = path.join(catalog, mascot.imageSet);
+      fs.mkdirSync(mateImageSet, { recursive: true });
+      fs.copyFileSync(
+        path.join(modConfig.modRequest.projectRoot, "assets/macosts", mascot.source),
+        path.join(mateImageSet, "mascot.png"),
+      );
+      fs.writeFileSync(path.join(mateImageSet, "Contents.json"), JSON.stringify({
+        images: [{ filename: "mascot.png", idiom: "universal", scale: "3x" }],
+        info: { author: "xcode", version: 1 },
+        properties: { "template-rendering-intent": "original" },
+      }, null, 2));
+    }
 
     return modConfig;
   }]);

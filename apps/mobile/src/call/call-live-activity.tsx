@@ -58,7 +58,15 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
       ? "mic.slash.fill"
       : speaker
         ? "waveform"
-        : "mic.fill";
+        : "waveform.circle";
+  const mateMascotAssets: Record<string, string> = {
+    kwame: "KwameMascot",
+    kofi: "KofiMascot",
+    ama: "AmaMascot",
+    kojo: "KojoMascot",
+    kwesi: "KwesiMascot",
+  };
+  const portraitAsset = mateMascotAssets[lead?.name.trim().toLowerCase() ?? ""] ?? "MatesMascot";
   const statusColor = reconnecting ? secondary : props.isMuted ? (dark ? mutedRed : "#B44939") : accent;
   const islandStatusColor = reconnecting ? "#A1A1AA" : props.isMuted ? mutedRed : islandAccent;
   const timer = new Date(props.startedAtMs);
@@ -68,7 +76,7 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
   /** Bundled in the WidgetKit extension so both surfaces can load it reliably. */
   const portrait = (size: number) => {
     return (
-      <Image assetName="MatesMascot" modifiers={[
+      <Image assetName={portraitAsset} modifiers={[
         resizable(), aspectRatio({ contentMode: "fit" }), frame({ width: size, height: size }),
         widgetAccentedRenderingMode("fullColor"),
         contentTransition("opacity"),
@@ -90,9 +98,9 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
   );
 
   /** Status line: SF Symbol + descriptive text. */
-  const statusLine = (iconSize: number, textSize: number, textColor: string) => (
+  const statusLine = (iconSize: number, textSize: number, textColor: string, icon: typeof statusSymbol = statusSymbol) => (
     <HStack spacing={5}>
-      <Image systemName={statusSymbol} size={iconSize} color={statusColor}
+      <Image systemName={icon} size={iconSize} color={statusColor}
         modifiers={[contentTransition("opacity")]} />
       <Text modifiers={[
         font({ size: textSize, weight: "medium" }),
@@ -128,7 +136,7 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
                 foregroundStyle(ink),
                 lineLimit(1),
               ]}>{title}</Text>
-              {statusLine(12, 14, secondary)}
+              {statusLine(14, 14, secondary)}
             </VStack>
             <Spacer minLength={0} />
           </HStack>
@@ -179,11 +187,6 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
     minimal: portrait(22),
 
     // Expanded: long-press reveals full call details.
-    expandedLeading: (
-      <Image systemName={statusSymbol} color={islandStatusColor} size={13}
-        modifiers={[padding({ leading: 6, top: 4 }), contentTransition("opacity")]} />
-    ),
-
     expandedTrailing: (
       <Image systemName={props.speakerOn ? "speaker.wave.2.fill" : "ear"}
         color={islandStatusColor} size={14}
@@ -202,14 +205,7 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
               lineLimit(1),
             ]}>{title}</Text>
             <HStack spacing={5}>
-              <Image systemName={statusSymbol} size={11} color={islandStatusColor}
-                modifiers={[contentTransition("opacity")]} />
-              <Text modifiers={[
-                font({ size: 13, weight: "medium" }),
-                foregroundStyle("#A1A1AA"),
-                lineLimit(1),
-                contentTransition("opacity"),
-              ]}>{status}</Text>
+              {statusLine(11, 13, "#A1A1AA")}
             </HStack>
           </VStack>
           <Spacer minLength={0} />
