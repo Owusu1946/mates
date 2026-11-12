@@ -38,10 +38,10 @@ export class CallError extends Error {
 }
 
 /**
- * Deepgram Aura-2 voices for mates, alternating feminine and masculine so neighbours on a call
+ * Inworld TTS-2 voices for mates, alternating feminine and masculine so neighbours on a call
  * sound distinct. A mate keeps the same voice on every call.
  */
-export const VOICES = ["thalia", "apollo", "andromeda", "arcas", "asteria", "odysseus", "luna", "orion", "helena", "aries"] as const;
+export const VOICES = ["Ashley", "Dennis", "Sarah", "Shaun", "Olivia", "Arthur", "Zoe", "Clive", "Amara", "Alex"] as const;
 
 /** Each mate's voice: stable per mate, and never shared by two mates on the same call. */
 export function voicesFor(mateIds: string[]): Map<string, (typeof VOICES)[number]> {

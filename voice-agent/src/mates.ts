@@ -4,7 +4,7 @@ import type { CallApi, CallContext, CallMate } from './api.ts';
 import { greeting, mateInstructions, meetingInstructions } from './prompts.ts';
 
 /**
- * One agent per mate on the call, each speaking in its own Aura-2 voice. The session holds one
+ * One agent per mate on the call, each speaking in its own Inworld voice. The session holds one
  * call state; the mates pass the conversation between themselves with handoffs.
  */
 
@@ -46,7 +46,7 @@ export class MateAgent extends voice.Agent<CallState> {
   constructor(mate: CallMate, state: CallState) {
     super({
       instructions: instructionsFor(mate, state),
-      tts: new inference.TTS({ model: 'deepgram/aura-2', voice: mate.voice, language: 'en' }),
+      tts: new inference.TTS({ model: 'inworld/inworld-tts-2', voice: mate.voice, language: 'en' }),
       tools: [
         ...(state.meeting ? [] : [passTo]),
         startTask,
