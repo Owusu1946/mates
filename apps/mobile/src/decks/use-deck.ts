@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import type { WorkflowCard } from "@expojet/api-contract";
-import type { Slide, Source, ThemeInput } from "@muse-clone/decks";
+import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
 import { useQuery } from "@tanstack/react-query";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -12,6 +12,7 @@ export type DeckView = {
   id: string;
   title: string;
   theme: ThemeInput;
+  meta: DeckMeta;
   slides: Slide[];
   sources: Source[];
   version: number;

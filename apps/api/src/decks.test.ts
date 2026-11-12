@@ -1,23 +1,23 @@
 import JSZip from "jszip";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { slideContent, type Deck, type Slide } from "@muse-clone/decks";
+import { EMPTY_META, slideContent, type Deck, type Slide } from "@muse-clone/decks";
 import { renderPptx } from "./deck-pptx.js";
-import { applyChanges, buildDeck, deckCard, deckFilename, modelSchema, sourcesOf, withoutCitationTags, type DeckRow } from "./decks.js";
+import { applyChanges, buildDeck, deckCard, deckFilename, modelSchema, sourcesOf, tableFact, withoutCitationTags, type DeckRow } from "./decks.js";
 
 const gradient: [string, string, string] = ["#b9c8f5", "#5b7be0", "#26408b"];
 const slides: Slide[] = [
-  { id: "a", notes: "Open warmly.", layout: "title", title: "Pasta Point", subtitle: "Hot pasta, close by" },
-  { id: "b", notes: "", layout: "bullets", title: "Why now", bullets: ["Delivery keeps growing", "Pasta travels badly today"] },
-  { id: "c", notes: "Point at week 8.", layout: "chart", title: "Weekly bowls", chart: { type: "bar", unit: "bowls", points: [{ label: "Week 2", value: 180 }, { label: "Week 8", value: 470 }] }, takeaway: null, sourceIds: [], fromUser: true },
+  { id: "a", notes: "Open warmly.", layout: "title", title: "Pasta Point", muted: "Hot pasta, close by." },
+  { id: "b", notes: "", layout: "list", title: "Why now", items: ["Delivery keeps growing", "Pasta travels badly today"], takeaway: null },
+  { id: "c", notes: "Point at week 8.", layout: "chart", title: "Weekly bowls", chart: { type: "bar", unit: "bowls", labels: ["Week 2", "Week 8"], series: [{ name: "Bowls", values: [180, 470] }], highlight: 1 }, takeaway: null, sourceIds: [], fromUser: true },
   { id: "d", notes: "", layout: "closing", title: "Thank you", subtitle: null, contact: "hello@pastapoint.gh" },
 ];
-const deck: Deck = { title: "Pasta Point", theme: { mode: "light", gradient }, slides, sources: [{ id: "s1", title: "statista.com", url: "https://www.statista.com/x" }] };
+const deck: Deck = { title: "Pasta Point", theme: { mode: "light", gradient }, meta: { wordmark: "Pasta Point", event: "Accra Demo Day", presenter: "Ama" }, slides, sources: [{ id: "s1", title: "statista.com", url: "https://www.statista.com/x" }] };
 
 describe("model schemas", () => {
   it("are strict and leave length limits to the checks after the call", () => {
-    const schema = JSON.stringify(modelSchema(slideContent.bullets));
+    const schema = JSON.stringify(modelSchema(slideContent.list));
     expect(schema).not.toMatch(/maxLength|minLength|maxItems|minItems|\$schema/);
-    expect(schema).toContain('"enum":["bullets"]');
+    expect(schema).toContain('"enum":["list"]');
     const parsed = modelSchema(slideContent.closing) as { required: string[]; additionalProperties: boolean };
     expect(parsed.required.sort()).toEqual(["contact", "layout", "subtitle", "title"]);
     expect(parsed.additionalProperties).toBe(false);
@@ -50,8 +50,14 @@ describe("sources", () => {
   });
 });
 
+describe("data tables", () => {
+  it("reach the model as compact rows", () => {
+    expect(tableFact({ title: "Revenue", columns: ["Month", "GHS"], rows: [["Jan", 1200], ["Feb, early", 1500]] })).toBe("Table: Revenue\nMonth, GHS\nJan, 1200\nFeb early, 1500");
+  });
+});
+
 describe("edits", () => {
-  const bullets = (title: string): Slide => ({ id: "new", notes: "", layout: "bullets", title, bullets: ["One", "Two"] });
+  const bullets = (title: string): Slide => ({ id: "new", notes: "", layout: "list", title, items: ["One", "Two"], takeaway: null });
 
   it("only touch the slides they're allowed to", () => {
     const next = applyChanges(slides, [
@@ -122,12 +128,12 @@ describe("building a deck", () => {
 
   it("plans, writes each slide, repairs a broken one and adds up the cost", async () => {
     const requests = fakeModel([
-      { title: "Pasta Point", mode: "dark", slides: [{ layout: "title", title: "Pasta Point", intent: "open", sourceIds: [], fromUser: false }, { layout: "big-number", title: "Big market", intent: "size", sourceIds: ["s1"], fromUser: false }, { layout: "closing", title: "Thanks", intent: "close", sourceIds: [], fromUser: false }] },
-      { layout: "title", title: "Pasta Point", subtitle: "Hot pasta [s1]", notes: "Hello." },
+      { title: "Pasta Point", mode: "dark", wordmark: "Pasta Point", event: null, presenter: null, slides: [{ layout: "title", title: "Pasta Point", intent: "open", sourceIds: [], fromUser: false }, { layout: "stats", title: "Big market", intent: "size", sourceIds: ["s1"], fromUser: false }, { layout: "closing", title: "Thanks", intent: "close", sourceIds: [], fromUser: false }] },
+      { layout: "title", title: "Pasta Point", muted: "Hot pasta [s1]", notes: "Hello." },
       // Unsourced figure: sent back once with the problem, then fixed.
-      { layout: "big-number", title: "Big market", value: "$1.2bn", label: "delivery revenue", context: null, sourceIds: [], fromUser: false, notes: "" },
+      { layout: "stats", title: "Big market", stats: [{ value: "$1.2bn", label: "delivery revenue" }], takeaway: null, sourceIds: [], fromUser: false, notes: "" },
       { layout: "closing", title: "Thanks", subtitle: null, contact: null, notes: "" },
-      { layout: "big-number", title: "Big market", value: "$1.2bn", label: "delivery revenue", context: null, sourceIds: ["s1"], fromUser: false, notes: "" },
+      { layout: "stats", title: "Big market", stats: [{ value: "$1.2bn", label: "delivery revenue" }], takeaway: null, sourceIds: ["s1"], fromUser: false, notes: "" },
     ]);
     const progress: number[] = [];
     const { deck: built, cost } = await buildDeck(
@@ -136,8 +142,9 @@ describe("building a deck", () => {
       [{ id: "s1", title: "statista.com", url: "https://www.statista.com/x" }],
       { signal: new AbortController().signal, onSlides: async (s) => void progress.push(s.length) },
     );
-    expect(built.slides.map((s) => s.layout)).toEqual(["title", "big-number", "closing"]);
-    expect(built.slides[0]).toMatchObject({ subtitle: "Hot pasta" });
+    expect(built.slides.map((s) => s.layout)).toEqual(["title", "stats", "closing"]);
+    expect(built.slides[0]).toMatchObject({ muted: "Hot pasta" });
+    expect(built.meta).toEqual({ wordmark: "Pasta Point", event: null, presenter: null });
     expect(built.slides[1]).toMatchObject({ sourceIds: ["s1"] });
     expect(built.theme.mode).toBe("dark");
     expect(cost).toBeCloseTo(0.005);
@@ -150,17 +157,17 @@ describe("building a deck", () => {
     expect(systems.size).toBe(1);
   });
 
-  it("falls back to plain bullets when a slide can't be fixed", async () => {
+  it("falls back to a plain list when a slide can't be fixed", async () => {
     const tooLong = "x".repeat(200);
     fakeModel([
-      { title: "T", mode: "light", slides: [{ layout: "title", title: "T", intent: "open", sourceIds: [], fromUser: false }, { layout: "quote", title: "Q", intent: "quote", sourceIds: [], fromUser: false }, { layout: "closing", title: "End", intent: "close", sourceIds: [], fromUser: false }] },
-      { layout: "title", title: "T", subtitle: null, notes: "" },
+      { title: "T", mode: "light", wordmark: null, event: null, presenter: null, slides: [{ layout: "title", title: "T", intent: "open", sourceIds: [], fromUser: false }, { layout: "quote", title: "Q", intent: "quote", sourceIds: [], fromUser: false }, { layout: "closing", title: "End", intent: "close", sourceIds: [], fromUser: false }] },
+      { layout: "title", title: "T", muted: null, notes: "" },
       { layout: "quote", quote: tooLong + tooLong, attribution: null, notes: "" },
       { layout: "closing", title: "End", subtitle: null, contact: null, notes: "" },
       { layout: "quote", quote: tooLong + tooLong, attribution: null, notes: "" },
-      { layout: "bullets", title: "A point", bullets: ["One", "Two"], notes: "" },
+      { layout: "list", title: "A point", items: ["One", "Two"], takeaway: null, notes: "" },
     ]);
     const { deck: built } = await buildDeck({ topic: "T", audience: null, slideCount: 3, facts: [] }, { mode: "light", gradient }, [], { signal: new AbortController().signal });
-    expect(built.slides.map((s) => s.layout)).toEqual(["title", "bullets", "closing"]);
+    expect(built.slides.map((s) => s.layout)).toEqual(["title", "list", "closing"]);
   });
 });

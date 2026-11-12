@@ -19,6 +19,7 @@ CREATE TABLE "decks" (
 	"request" jsonb NOT NULL,
 	"status" text DEFAULT 'queued' NOT NULL,
 	"theme" jsonb NOT NULL,
+	"meta" jsonb DEFAULT '{"wordmark":null,"event":null,"presenter":null}'::jsonb NOT NULL,
 	"slides" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"sources" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"version" integer DEFAULT 0 NOT NULL,

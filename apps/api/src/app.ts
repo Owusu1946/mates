@@ -540,7 +540,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const row = await ownedDeck(c.get("userId"), c.req.param("id"));
       if (!row) return c.json(failure("NOT_FOUND", "Deck not found", c.get("requestId")), 404);
       if (!row.slides.length || !["ready", "editing"].includes(row.status)) return c.json(failure("CONFLICT", "The deck isn't finished yet.", c.get("requestId")), 409);
-      const bytes = await renderPptx({ title: row.title, theme: row.theme, slides: row.slides, sources: row.sources });
+      const bytes = await renderPptx({ title: row.title, theme: row.theme, meta: row.meta, slides: row.slides, sources: row.sources });
       return new Response(new Uint8Array(bytes), {
         headers: {
           "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",

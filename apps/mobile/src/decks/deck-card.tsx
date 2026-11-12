@@ -75,7 +75,7 @@ export function DeckCard({ state }: { state: WorkflowCard }) {
                 onPress={() => open(i)}
                 style={{ borderRadius: 8, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}
               >
-                <SlideView deck={deck} slide={slide} index={i} total={total} width={THUMB} />
+                <SlideView deck={deck} index={i} width={THUMB} />
               </Pressable>
             </Animated.View>
           ))}

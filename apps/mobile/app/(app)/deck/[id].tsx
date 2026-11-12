@@ -128,7 +128,7 @@ export default function DeckScreen() {
         renderItem={({ item, index: i }) => (
           <ScrollView style={{ width }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, gap: 16 }}>
             <View style={{ borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: colors.border }}>
-              <SlideView deck={deck} slide={item} index={i} total={deck.slides.length} width={slideWidth} />
+              <SlideView deck={deck} index={i} width={slideWidth} />
             </View>
             {item.notes ? (
               <View style={{ gap: 6 }}>

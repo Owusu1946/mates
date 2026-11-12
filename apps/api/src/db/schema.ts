@@ -16,7 +16,7 @@ import {
   real,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
-import type { Slide, Source, ThemeInput } from "@muse-clone/decks";
+import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
 
 export const profiles = pgTable(
   "profiles",
@@ -497,6 +497,8 @@ export const decks = pgTable("decks", {
   request: jsonb("request").$type<DeckRequest>().notNull(),
   status: text("status").$type<DeckStatus>().notNull().default("queued"),
   theme: jsonb("theme").$type<ThemeInput>().notNull(),
+  /** Wordmark, event and presenter, shown on the cover and in the footer. */
+  meta: jsonb("meta").$type<DeckMeta>().notNull().default({ wordmark: null, event: null, presenter: null }),
   slides: jsonb("slides").$type<Slide[]>().notNull().default([]),
   sources: jsonb("sources").$type<Source[]>().notNull().default([]),
   version: integer("version").notNull().default(0),

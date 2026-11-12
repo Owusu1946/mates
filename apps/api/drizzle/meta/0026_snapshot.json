@@ -1,5 +1,5 @@
 {
-  "id": "156356e9-88c6-4db6-9312-07ae7a684118",
+  "id": "5f4e4024-beb1-406b-b1eb-592f156d11fb",
   "prevId": "f789bc43-6309-4acb-9a77-9cb859052728",
   "version": "7",
   "dialect": "postgresql",
@@ -1051,6 +1051,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "meta": {
+          "name": "meta",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{\"wordmark\":null,\"event\":null,\"presenter\":null}'::jsonb"
         },
         "slides": {
           "name": "slides",
