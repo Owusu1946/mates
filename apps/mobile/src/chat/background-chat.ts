@@ -12,7 +12,14 @@ export async function runRequest<T>(getToken: () => Promise<string | null>, path
   if (!base || !token) throw new Error("Sign in and reconnect to continue.");
   const response = await fetch(`${base}/v1/${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal });
   if (!response.ok) {
-    const value = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    const value = await response.json().catch(() => null) as { error?: { message?: string; requestId?: string } } | null;
+    if (value?.error?.requestId) {
+      console.error("[chat] API request failed", {
+        path: `/v1/${path}`,
+        status: response.status,
+        requestId: value.error.requestId,
+      });
+    }
     throw new Error(value?.error?.message ?? "Couldn’t reach your mate. Please try again.");
   }
   return response.json() as Promise<T>;

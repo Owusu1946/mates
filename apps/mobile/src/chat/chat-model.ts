@@ -132,8 +132,19 @@ export function createChatModel(
       });
       if (!response.ok) {
         const failure = (await response.json().catch(() => null)) as {
-          error?: string | { message?: string };
+          error?: string | { message?: string; requestId?: string };
         } | null;
+        if (
+          failure?.error &&
+          typeof failure.error === "object" &&
+          failure.error.requestId
+        ) {
+          console.error("[chat] API request failed", {
+            path: "/v1/chat",
+            status: response.status,
+            requestId: failure.error.requestId,
+          });
+        }
         throw new Error(
           (typeof failure?.error === "string"
             ? failure.error
