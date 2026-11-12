@@ -235,7 +235,9 @@ export const joinMeetingTool = {
 
 /** Runs the tool for the speaking mate; the answer tells the model what to say next. */
 export async function runJoinMeeting(userId: string, mateId: string | undefined, args: Record<string, unknown>, context: { timezone?: string; runId?: string }) {
-  const meetingUrl = typeof args.meeting_url === "string" ? args.meeting_url : "";
+  // The link as the model passed it, or the meeting link inside it (Slack markup, a sentence around it).
+  const raw = typeof args.meeting_url === "string" ? args.meeting_url : "";
+  const meetingUrl = findMeetingLink(raw) ?? raw;
   if (!mateId) return { error: "Only a mate can join a meeting." };
   try {
     const started = await startMeeting(userId, { meetingUrl, mateId, timezone: context.timezone, slack: await slackOrigin(context.runId) });
