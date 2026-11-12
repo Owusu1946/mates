@@ -7,3 +7,6 @@ dist*/
 .expo/
 .trigger/
 .astro/
+
+# macOS folder metadata
+.DS_Store
