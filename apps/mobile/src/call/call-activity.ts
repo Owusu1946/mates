@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import type { CallLiveActivityProps } from "./call-live-activity";
 import { createCallActivityController } from "./call-activity-controller";
-import { prepareCallActivityArtwork } from "./call-activity-artwork";
 
 type CallActivityFactory = import("expo-widgets").LiveActivityFactory<CallLiveActivityProps>;
 
@@ -25,7 +24,7 @@ function getFactory() {
 
 const controller = createCallActivityController<CallLiveActivityProps>(
   getFactory,
-  prepareCallActivityArtwork,
+  undefined,
   (operation, error) => console.warn(
     `[call-live-activity] ${operation} failed:`,
     error instanceof Error ? error.message : String(error),

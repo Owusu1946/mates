@@ -1,18 +1,14 @@
 import { createLiveActivity, type LiveActivityEnvironment } from "expo-widgets";
-import { HStack, Image, Spacer, Text, VStack, ZStack } from "@expo/ui/swift-ui";
+import { HStack, Image, Spacer, Text, VStack } from "@expo/ui/swift-ui";
 import {
-  accessibilityLabel, activityBackgroundTint, background, contentTransition, font,
-  foregroundStyle, frame, lineLimit, monospacedDigit, multilineTextAlignment,
-  opacity, padding, resizable, shapes,
+  accessibilityLabel, activityBackgroundTint, aspectRatio, contentTransition,
+  font, foregroundStyle, frame, lineLimit, monospacedDigit, multilineTextAlignment,
+  padding, resizable, widgetAccentedRenderingMode,
 } from "@expo/ui/swift-ui/modifiers";
 
 export type CallActivityMate = {
   id: string;
   name: string;
-  gradient: [string, string, string];
-  shape?: string;
-  avatarUri?: string;
-  speakingAvatarUri?: string;
 };
 
 export type CallLiveActivityProps = {
@@ -32,36 +28,30 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
 
   const mates = props.mates.slice(0, 4);
   const lead = mates.find((mate) => mate.id === props.leadId) ?? mates[0];
-  const speaker = props.reconnecting ? undefined : mates.find((mate) => mate.id === props.speakerId);
-  const featured = speaker ?? lead;
+  const reconnecting = props.reconnecting || environment.isStale === true;
+  const speaker = reconnecting ? undefined : mates.find((mate) => mate.id === props.speakerId);
   const dimmed = environment.isLuminanceReduced === true;
   const dark = props.isDark || dimmed;
 
   // ── Palette ──────────────────────────────────────────────────────────
   const ink       = dark ? "#FAFAFA" : "#18181B";
   const secondary = dark ? "#A1A1AA" : "#71717A";
-  const subtle    = dark ? "#3F3F46" : "#D4D4D8";
   const surface   = dark ? "#111113" : "#F7F6F3";
-  const accent    = "#E5A36F";
+  const accent    = dark ? "#E5A36F" : "#AD5A28";
+  const islandAccent = "#E5A36F";
   const mutedRed  = "#EE9C8C";
   // Each mate carries their own gradient — use it to personalize the glow.
-  const mateGlow  = featured?.gradient[1] ?? accent;
-
   // ── Derived state ────────────────────────────────────────────────────
-  const reconnecting = props.reconnecting || environment.isStale === true;
   const title = lead
     ? `${lead.name}${mates.length > 1 ? ` + ${mates.length - 1}` : ""}`
     : "Your call";
-  const subtitle = mates.length > 1
-    ? `with ${mates.map((m) => m.name).join(", ")}`
-    : undefined;
   const status = reconnecting
     ? "Reconnecting\u2026"
     : props.isMuted
-      ? "Mic muted"
+      ? "Muted"
       : speaker
         ? `${speaker.name} is speaking`
-        : "Listening to you";
+        : "In call";
   const statusSymbol = reconnecting
     ? "arrow.trianglehead.2.clockwise.rotate.90"
     : props.isMuted
@@ -69,51 +59,27 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
       : speaker
         ? "waveform"
         : "mic.fill";
-  const statusColor = reconnecting ? subtle : props.isMuted ? mutedRed : accent;
-  const isSpeaking = !reconnecting && !props.isMuted && !!speaker;
+  const statusColor = reconnecting ? secondary : props.isMuted ? (dark ? mutedRed : "#B44939") : accent;
+  const islandStatusColor = reconnecting ? "#A1A1AA" : props.isMuted ? mutedRed : islandAccent;
   const timer = new Date(props.startedAtMs);
 
   // ── Atoms ────────────────────────────────────────────────────────────
 
-  /** Mate avatar — uses expressive (speaking) artwork when the mate is the active speaker. */
-  const portrait = (mate: CallActivityMate | undefined, size: number, expressive = false) => {
-    const uri = expressive && !dimmed && mate?.id === speaker?.id
-      ? mate?.speakingAvatarUri ?? mate?.avatarUri
-      : mate?.avatarUri;
-    return uri ? (
-      <Image uiImage={uri} modifiers={[
-        resizable(), frame({ width: size, height: size }),
-        contentTransition("opacity"),
-        accessibilityLabel(mate?.name ?? "Mate"),
-      ]} />
-    ) : (
-      <Image systemName="waveform" color={accent} size={size * 0.45}
-        modifiers={[frame({ width: size, height: size }), accessibilityLabel("Voice call")]} />
-    );
-  };
-
-  /** Portrait wrapped in a soft colored circle — makes the mascot pop against dark backgrounds. */
-  const glowPortrait = (mate: CallActivityMate | undefined, size: number, glowSize: number, glowOpacity: number) => {
-    const glow = mate?.gradient[1] ?? accent;
+  /** Bundled in the WidgetKit extension so both surfaces can load it reliably. */
+  const portrait = (size: number) => {
     return (
-      <ZStack alignment="center">
-        {!dimmed && (
-          <HStack modifiers={[
-            frame({ width: glowSize, height: glowSize }),
-            background(glow, shapes.circle()),
-            opacity(glowOpacity),
-          ]}>
-            <Spacer minLength={0} />
-          </HStack>
-        )}
-        {portrait(mate, size, true)}
-      </ZStack>
+      <Image assetName="MatesMascot" modifiers={[
+        resizable(), aspectRatio({ contentMode: "fit" }), frame({ width: size, height: size }),
+        widgetAccentedRenderingMode("fullColor"),
+        contentTransition("opacity"),
+        accessibilityLabel("Mates mascot"),
+      ]} />
     );
   };
 
   /** Live timer with numericText content transition. */
   const clock = (size: number, color: string, width: number) => (
-    <Text date={timer} dateStyle="timer" modifiers={[
+    <Text timerInterval={{ lower: timer, upper: new Date(timer.getTime() + 8 * 60 * 60 * 1000) }} countsDown={false} modifiers={[
       font({ size, weight: "semibold", design: "rounded" }),
       monospacedDigit(),
       foregroundStyle(color),
@@ -137,88 +103,50 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
     </HStack>
   );
 
-  /** Roster strip — small portraits with individual glow rings. */
-  const roster = (size: number) => (
-    <HStack spacing={4} modifiers={[accessibilityLabel(mates.map((m) => m.name).join(", "))]}>
-      {mates.map((mate) => (
-        <HStack key={mate.id}>{glowPortrait(mate, size, size + 6, 0.15)}</HStack>
-      ))}
-    </HStack>
-  );
-
-  /** Accent-tinted "Return to call" pill. */
-  const returnPill = (isDI: boolean) => (
-    <HStack spacing={5} modifiers={[
-      padding({ horizontal: 12, vertical: 7 }),
-      background(isDI ? "#E5A36F26" : (dark ? "#E5A36F26" : "#E5A36F1F"), shapes.capsule()),
-      accessibilityLabel("Return to call"),
-    ]}>
-      <Text modifiers={[
-        font({ size: 12, weight: "semibold" }),
-        foregroundStyle(accent),
-      ]}>Return</Text>
-      <Image systemName="arrow.up.right" color={accent} size={9} />
+  /** Participant count avoids implying that the brand mascot is a specific mate. */
+  const roster = () => (
+    <HStack spacing={6} modifiers={[accessibilityLabel(mates.map((mate) => mate.name).join(", "))]}>
+      <Image systemName="person.2.fill" color={secondary} size={11} />
+      <Text modifiers={[font({ size: 12, weight: "medium" }), foregroundStyle(secondary), lineLimit(1)]}>
+        {mates.length} {mates.length === 1 ? "mate" : "mates"}
+      </Text>
     </HStack>
   );
 
   // ── Surfaces ─────────────────────────────────────────────────────────
 
   return {
-    // ┌────────────────────────────────────────────────────────────────┐
-    // │ ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ accent strip ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔ │
-    // │  ┌──────┐  Title + N              Timer                       │
-    // │  │ hero │  🎵 Status                                          │
-    // │  └──────┘  with PA, Fav Intern, Prof                          │
-    // │  ○ ○ ○ ○                    [ Return → ]                      │
-    // └────────────────────────────────────────────────────────────────┘
     banner: (
       <VStack spacing={0} modifiers={[activityBackgroundTint(surface)]}>
-        {/* Accent strip — thin brand-colored bar across the top */}
-        <HStack modifiers={[
-          frame({ height: 3 }),
-          background({ type: "linearGradient", colors: [mateGlow, accent], startPoint: { x: 0, y: 0.5 }, endPoint: { x: 1, y: 0.5 } }),
-        ]}>
-          <Spacer minLength={0} />
-        </HStack>
-
-        <VStack spacing={14} modifiers={[padding({ horizontal: 20, top: 16, bottom: 18 })]}>
+        <VStack spacing={12} modifiers={[padding({ horizontal: 20, top: 18, bottom: 16 })]}>
           {/* Hero row */}
-          <HStack spacing={16}>
-            {glowPortrait(featured, 80, 94, 0.22)}
-            <VStack alignment="leading" spacing={5}>
+          <HStack spacing={17}>
+            {portrait(82)}
+            <VStack alignment="leading" spacing={7}>
               <Text modifiers={[
-                font({ size: 22, weight: "bold", design: "rounded" }),
+                font({ size: 23, weight: "bold", design: "rounded" }),
                 foregroundStyle(ink),
                 lineLimit(1),
               ]}>{title}</Text>
-              {statusLine(11, 13, secondary)}
-              {subtitle && (
-                <Text modifiers={[
-                  font({ size: 11, weight: "regular" }),
-                  foregroundStyle(subtle),
-                  lineLimit(1),
-                  contentTransition("opacity"),
-                ]}>{subtitle}</Text>
-              )}
+              {statusLine(12, 14, secondary)}
             </VStack>
             <Spacer minLength={0} />
-            {clock(22, accent, 86)}
           </HStack>
 
-          {/* Footer: roster + CTA */}
+          {/* Footer: roster + elapsed call time */}
           <HStack spacing={8}>
-            {roster(24)}
-            <Spacer minLength={4} />
-            {returnPill(false)}
+            {roster()}
+            <Spacer minLength={8} />
+            {clock(16, ink, 96)}
           </HStack>
         </VStack>
       </VStack>
     ),
 
-    // Small banner — shown when another Live Activity takes priority.
+    // Compact layout for Apple Watch and CarPlay.
     bannerSmall: (
       <HStack spacing={10}>
-        {glowPortrait(featured, 32, 38, 0.18)}
+        {portrait(32)}
         <VStack alignment="leading" spacing={2}>
           <Text modifiers={[
             font({ size: 14, weight: "semibold", design: "rounded" }),
@@ -243,50 +171,30 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
 
     // ── Dynamic Island ─────────────────────────────────────────────
     //
-    // Compact: mascot with colored glow on the left, live indicator + timer on the right.
-    // The glow uses the mate's personal gradient color so each character has its own feel.
-    compactLeading: glowPortrait(featured, 26, 32, 0.25),
+    // Keep the mascot and duration in separate compact regions so neither is clipped.
+    compactLeading: portrait(24),
+    compactTrailing: clock(11, islandAccent, 44),
 
-    compactTrailing: props.isMuted ? (
-      <Image systemName="mic.slash.fill" color={mutedRed} size={14}
-        modifiers={[frame({ width: 24, height: 24 }), contentTransition("opacity")]} />
-    ) : reconnecting ? (
-      <Image systemName="arrow.trianglehead.2.clockwise.rotate.90" color={subtle} size={13}
-        modifiers={[frame({ width: 24, height: 24 }), contentTransition("opacity")]} />
-    ) : (
-      <HStack spacing={5}>
-        {/* Waveform icon pulses with content transition when speaker changes */}
-        <Image systemName={isSpeaking ? "waveform" : "waveform.badge.mic"} color={accent} size={11}
-          modifiers={[frame({ width: 16, height: 16 }), contentTransition("opacity")]} />
-        {clock(12, accent, 48)}
-      </HStack>
-    ),
-
-    // Minimal: mascot with glow — recognizable even at tiny size.
-    minimal: glowPortrait(featured, 24, 28, 0.25),
+    // Minimal: recognizable shape when another Live Activity takes priority.
+    minimal: portrait(22),
 
     // Expanded: long-press reveals full call details.
     expandedLeading: (
-      <Image systemName={statusSymbol} color={statusColor} size={13}
+      <Image systemName={statusSymbol} color={islandStatusColor} size={13}
         modifiers={[padding({ leading: 6, top: 4 }), contentTransition("opacity")]} />
     ),
 
-    expandedTrailing: clock(15, accent, 72),
+    expandedTrailing: (
+      <Image systemName={props.speakerOn ? "speaker.wave.2.fill" : "ear"}
+        color={islandStatusColor} size={14}
+        modifiers={[padding({ trailing: 6, top: 4 }), accessibilityLabel(props.speakerOn ? "Speakerphone" : "Earpiece")]} />
+    ),
 
-    // ┌────────────────────────────────────────────────────────────────┐
-    // │  🎵 icon     Title + N             Timer                      │
-    // │                                                                │
-    // │  ┌──────┐  Name                                               │
-    // │  │ hero │  🎵 Status                                          │
-    // │  └──────┘  with PA, Fav Intern, Prof                          │
-    // │                                                                │
-    // │  ○ ○ ○ ○                    [ Return → ]                      │
-    // └────────────────────────────────────────────────────────────────┘
     expandedBottom: (
-      <VStack spacing={14} modifiers={[padding({ horizontal: 6, top: 8, bottom: 6 })]}>
+      <VStack spacing={10} modifiers={[padding({ horizontal: 6, top: 6, bottom: 4 })]}>
         {/* Hero: avatar + title/status */}
-        <HStack spacing={14}>
-          {glowPortrait(featured, 72, 86, 0.22)}
+        <HStack spacing={13}>
+          {portrait(58)}
           <VStack alignment="leading" spacing={5}>
             <Text modifiers={[
               font({ size: 21, weight: "bold", design: "rounded" }),
@@ -294,7 +202,7 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
               lineLimit(1),
             ]}>{title}</Text>
             <HStack spacing={5}>
-              <Image systemName={statusSymbol} size={11} color={statusColor}
+              <Image systemName={statusSymbol} size={11} color={islandStatusColor}
                 modifiers={[contentTransition("opacity")]} />
               <Text modifiers={[
                 font({ size: 13, weight: "medium" }),
@@ -303,22 +211,15 @@ function CallLiveActivityView(props: CallLiveActivityProps, environment: LiveAct
                 contentTransition("opacity"),
               ]}>{status}</Text>
             </HStack>
-            {subtitle && (
-              <Text modifiers={[
-                font({ size: 11, weight: "regular" }),
-                foregroundStyle("#52525B"),
-                lineLimit(1),
-              ]}>{subtitle}</Text>
-            )}
           </VStack>
           <Spacer minLength={0} />
         </HStack>
 
-        {/* Footer: roster + CTA */}
+        {/* Footer: roster + elapsed call time */}
         <HStack spacing={8}>
-          {roster(22)}
-          <Spacer minLength={4} />
-          {returnPill(true)}
+          {roster()}
+          <Spacer minLength={2} />
+          {clock(14, islandAccent, 52)}
         </HStack>
       </VStack>
     ),

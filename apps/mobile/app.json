@@ -77,6 +77,7 @@
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
       "expo-widgets",
+      "./plugins/with-mates-widget-mascot",
       [
         "expo-build-properties",
         {

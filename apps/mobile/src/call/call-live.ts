@@ -299,11 +299,18 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
 
     const joined = members.filter((member) => member.status === "joined");
     if (!joined.length) return; // Agent hasn't reported anyone yet — wait for the roster.
+    const leadId = rosterRef.current.lead.id;
+    // Keep the call's lead in the first roster position even if the agent reports
+    // participants in a different order. The activity uses that order for its mate strip.
+    const activityMates = [
+      ...joined.filter((member) => member.id === leadId),
+      ...joined.filter((member) => member.id !== leadId),
+    ].slice(0, MAX_CALL_MATES);
     const state = {
       callId: id,
-      leadId: rosterRef.current.lead.id,
-      mates: joined.map(({ id, name, gradient, shape }) => ({ id, name, gradient, shape })),
-      speakerId: joined.find((member) => member.speaking)?.id ?? null,
+      leadId,
+      mates: activityMates.map(({ id, name }) => ({ id, name })),
+      speakerId: activityMates.find((member) => member.speaking)?.id ?? null,
       startedAtMs,
       isMuted: muted,
       speakerOn,
