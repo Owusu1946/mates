@@ -16,6 +16,7 @@ import {
   real,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
+import type { Slide, Source, ThemeInput } from "@muse-clone/decks";
 
 export const profiles = pgTable(
   "profiles",
@@ -482,6 +483,51 @@ export const codeRuns = pgTable("code_runs", {
   // Two runs pushing to one branch would race; a follow-up waits for the active run to end.
   uniqueIndex("code_runs_active_branch_idx").on(t.repo, t.branch).where(sql`status IN ('queued','cloning','coding','checking','pushing')`),
 ]);
+
+export type DeckStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
+
+/** A slide deck a mate builds and edits. `slides` is the current version; every version is in `deck_versions`. */
+export const decks = pgTable("decks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  /** What the user asked for, with the facts the mate gathered; the brief every slide is written from. */
+  request: jsonb("request").$type<DeckRequest>().notNull(),
+  status: text("status").$type<DeckStatus>().notNull().default("queued"),
+  theme: jsonb("theme").$type<ThemeInput>().notNull(),
+  slides: jsonb("slides").$type<Slide[]>().notNull().default([]),
+  sources: jsonb("sources").$type<Source[]>().notNull().default([]),
+  version: integer("version").notNull().default(0),
+  /** Slides written so far while building, out of `total`, for the live card. */
+  built: integer("built").notNull().default(0),
+  total: integer("total").notNull().default(0),
+  /** What the deck has cost on the model so far, edits included. */
+  costUsd: real("cost_usd").notNull().default(0),
+  cancelRequested: boolean("cancel_requested").notNull().default(false),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("decks_user_idx").on(t.clerkUserId, t.createdAt),
+  index("decks_chat_idx").on(t.chatId, t.createdAt),
+]);
+
+export type DeckRequest = { topic: string; audience: string | null; slideCount: number | null; facts: { text: string; url: string | null }[] };
+
+/** Every saved version of a deck, so any change can be undone. */
+export const deckVersions = pgTable("deck_versions", {
+  deckId: uuid("deck_id").notNull().references(() => decks.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  title: text("title").notNull(),
+  theme: jsonb("theme").$type<ThemeInput>().notNull(),
+  slides: jsonb("slides").$type<Slide[]>().notNull(),
+  /** The change that made this version; null for the first build. */
+  instruction: text("instruction"),
+  costUsd: real("cost_usd").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.deckId, t.version] })]);
 
 /**
  * Landing-site page views. No cookies, no IPs: `visitor` is a salted daily hash, so it counts a
