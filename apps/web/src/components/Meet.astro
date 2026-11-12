@@ -1,0 +1,122 @@
+---
+// "A mate in your meeting": a Google Meet call with a mate on it, wide like the Team scene, so
+// visitors watch it listen, answer when named, and send the notes when the call ends.
+import MeetDemo from "./MeetDemo";
+
+const facts = [
+  { title: "Answers when you say its name", body: "Otherwise it listens and takes notes. Ask it anything it can look up." },
+  { title: "Says who it is", body: "It joins as your mate from Mates and tells everyone it is taking notes." },
+  { title: "Notes everyone gets", body: "Decisions and action items after the call, and the to-dos become work for your mates." },
+];
+---
+
+<section class="meet" id="meet">
+  <div class="intro">
+    <div class="eyebrow">Google Meet <span class="soon">Coming soon</span></div>
+    <h2>A mate in your meeting.</h2>
+    <p>Invite a mate to your Google Meet. It listens, answers when you need it, and sends everyone the notes when you hang up.</p>
+  </div>
+
+  <div class="stage">
+    <MeetDemo client:visible />
+  </div>
+
+  <div class="facts">
+    {
+      facts.map((fact) => (
+        <div class="fact">
+          <b>{fact.title}</b>
+          <span>{fact.body}</span>
+        </div>
+      ))
+    }
+  </div>
+</section>
+
+<style>
+  .meet {
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .intro {
+    text-align: center;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .soon {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(28px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.1;
+  }
+  .intro p {
+    max-width: 52ch;
+    margin: 18px auto 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+    text-wrap: balance;
+  }
+  .stage {
+    margin-top: 56px;
+    padding: 40px 56px 32px;
+    border-radius: 32px;
+    background: var(--panel);
+  }
+  .facts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    margin-top: 40px;
+    padding: 0 8px;
+  }
+  .fact {
+    display: grid;
+    gap: 6px;
+    align-content: start;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+
+  @media (max-width: 860px) {
+    .meet {
+      margin-top: 96px;
+    }
+    .stage {
+      margin-top: 40px;
+      padding: 16px 12px 14px;
+      border-radius: 24px;
+    }
+    .facts {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+  }
+</style>

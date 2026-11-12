@@ -1,0 +1,146 @@
+---
+// "Your mates, in Slack": a phone running Slack, where visitors watch a mate take a task from a
+// mention, ask before sending, and hand the next part to another mate. Mirrors Calls, phone first.
+import Device from "./Device.astro";
+import SlackDemo from "./SlackDemo";
+
+const facts = [
+  { title: "Their own names", body: "One app to add, and each of your mates posts through it as themself, face and all, so you can see who did what." },
+  { title: "Your OK, one tap", body: "Approve right in the thread before anything is sent. Only you can press it." },
+  { title: "One conversation", body: "The thread is the same chat as in the app, so you can pick it up on your phone." },
+];
+---
+
+<section class="slack" id="slack">
+  <div class="stage">
+    <Device screen="full">
+      <SlackDemo client:visible />
+    </Device>
+  </div>
+
+  <div class="copy">
+    <div class="eyebrow">Slack <span class="soon">Coming soon</span></div>
+    <h2>Your mates, in Slack.</h2>
+    <p class="lede">
+      Mention @Mates in any channel and say which mate you need, or send it a DM. Your mates reply in the thread under
+      their own names, hand work to each other, and ask before they send anything.
+    </p>
+    <div class="facts">
+      {
+        facts.map((fact) => (
+          <div class="fact">
+            <b>{fact.title}</b>
+            <span>{fact.body}</span>
+          </div>
+        ))
+      }
+    </div>
+    <p class="try">Try it on the phone: tap Approve, or Change for another time.</p>
+  </div>
+</section>
+
+<style>
+  .slack {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+    width: min(1240px, calc(100% - 32px));
+    margin: 140px auto 0;
+  }
+  .copy {
+    padding-right: 56px;
+  }
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .soon {
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    font-size: 11.5px;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  h2 {
+    margin: 14px 0 0;
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 600;
+    letter-spacing: -0.04em;
+    line-height: 1.08;
+  }
+  .lede {
+    max-width: 44ch;
+    margin: 18px 0 0;
+    color: var(--muted);
+    font-size: clamp(16px, 1.4vw, 18px);
+    line-height: 1.6;
+  }
+  .facts {
+    display: grid;
+    gap: 22px;
+    margin-top: 36px;
+    max-width: 440px;
+  }
+  .fact {
+    display: grid;
+    gap: 6px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+  }
+  .fact b {
+    font-size: 15.5px;
+    font-weight: 600;
+  }
+  .fact span {
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+  }
+  .try {
+    margin: 32px 0 0;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 500;
+  }
+  /* The phone at 82%, as in Calls, so the whole thread fits beside the copy. */
+  .stage {
+    display: flex;
+    justify-content: center;
+    height: 630px;
+  }
+  .stage > :global(*) {
+    transform: scale(0.82);
+    transform-origin: top center;
+  }
+
+  @media (max-width: 860px) {
+    .slack {
+      grid-template-columns: 1fr;
+      gap: 40px;
+      margin-top: 96px;
+    }
+    /* Copy first on phones, then the demo, like every other section. */
+    .copy {
+      order: -1;
+      padding: 0 8px;
+    }
+  }
+  @media (max-width: 420px) {
+    .stage {
+      height: 600px;
+    }
+    .stage > :global(*) {
+      transform: scale(0.78);
+      transform-origin: top center;
+    }
+  }
+</style>
