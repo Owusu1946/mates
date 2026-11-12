@@ -1,0 +1,51 @@
+{
+  "_metadata": {
+    "major_version": 1,
+    "minor_version": 1
+  },
+  "display_information": {
+    "name": "Mates",
+    "description": "Your AI teammates, in Slack.",
+    "long_description": "Mention @Mates in any channel or send it a DM, and say which mate you need. Your mates reply in the thread under their own names, hand work to each other, and ask before they send anything. Only the person who linked their Mates account can give their mates work or approve what they do. Mates is a product of Orin.",
+    "background_color": "#0a0a0a"
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Mates",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/mates",
+        "url": "https://mates-production.up.railway.app/v1/slack/commands",
+        "description": "Give one of your mates a task",
+        "usage_hint": "ask Ama to find a venue for Saturday",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "redirect_urls": ["https://mates-production.up.railway.app/v1/slack/callback"],
+    "scopes": {
+      "bot": ["app_mentions:read", "chat:write", "chat:write.customize", "commands", "im:history", "im:read", "im:write", "users:read"]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "request_url": "https://mates-production.up.railway.app/v1/slack/events",
+      "bot_events": ["app_home_opened", "app_mention", "message.im"]
+    },
+    "interactivity": {
+      "is_enabled": true,
+      "request_url": "https://mates-production.up.railway.app/v1/slack/interactions"
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": false,
+    "token_rotation_enabled": false
+  }
+}
