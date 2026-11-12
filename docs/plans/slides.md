@@ -19,11 +19,17 @@ undo:  POST /v1/decks/:id/undo → restores the version before the last change, 
 share: GET /v1/decks/:id/export.pptx (made on demand) → iOS/Android share sheet
 ```
 
-- **`packages/decks`** (`@muse-clone/decks`): the deck schema (10 layouts: title, section, bullets,
-  two-column, big-number, chart, quote, timeline, comparison, closing), hard text limits, the palette
-  from the mate's gradient (light/dark, contrast-tested for every mate colour), and `sceneOf()`, which
-  turns a slide into shapes on a 1280×720 canvas. Both the app and PowerPoint draw those shapes. A fit
+- **`packages/decks`** (`@muse-clone/decks`): the deck schema, hard text limits, the editorial
+  palette (near-monochrome; the mate's colour is the one accent, on highlighted chart marks and the
+  wordmark dot; contrast-tested for every mate colour), and `sceneOf()`, which turns a slide into
+  shapes on a 1280×720 canvas. The app, PowerPoint and HTML (`sceneHtml`) all draw those shapes. A fit
   test proves the longest allowed text fits every box.
+- **12 layouts:** a dark cover with a two-tone title, numbered section dividers and an automatic
+  agenda, rule-based lists, two-column and table slides, numbered steps and flows (boxes and arrows)
+  with one highlighted card, stat rows, charts (bar, stacked, line, pie; one highlighted bar), quote,
+  and a dark closing. Decks carry a wordmark, event and presenter.
+- **Charts from real data:** the mate passes `tables` (from an attached spreadsheet/CSV, a connected
+  app or research); charts are drawn from the real rows, natively in PowerPoint.
 - **Rules enforced in code, not prompts:** text over a limit is sent back to the model, never cut;
   `big-number` and `chart` slides must cite a source id or be the user's own figures; citation tags in
   text are stripped (figures cite through `sourceIds`; the PowerPoint ends with a Sources slide).
