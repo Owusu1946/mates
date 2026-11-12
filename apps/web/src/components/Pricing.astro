@@ -2,15 +2,13 @@
 // Pricing for individuals: three plans, monthly or yearly at a discount. The billing switch is
 // two radio buttons and sibling selectors, so it works without script and on older Safari
 // (no :has, which iOS 15.0-15.3 lacks). The radios sit before the switch and the plans.
-// Yearly is ten months for twelve. Allowance figures are what a full month of usage covers if
-// spent on one kind of work: every mate draws from the same weekly-refilled allowance.
+// Yearly is ten months for twelve.
 const FREE_MONTHS = 2;
 
 type Plan = {
   name: string;
   monthly: number;
   tagline: string;
-  allowance: [string, string][];
   intro: string;
   features: string[];
 };
@@ -19,13 +17,6 @@ const plans: Plan[] = [
     name: "Starter",
     monthly: 8,
     tagline: "For handing off the everyday.",
-    allowance: [
-      ["Tasks done end to end", "~200"],
-      ["Chat messages", "~700"],
-      ["Browser tasks", "~20"],
-      ["Voice call minutes", "~80"],
-      ["Quick coding runs", "~15"],
-    ],
     intro: "Includes:",
     features: [
       "Up to 5 mates, each with their own role and memory",
@@ -40,13 +31,6 @@ const plans: Plan[] = [
     name: "Plus",
     monthly: 15,
     tagline: "For real projects with a team.",
-    allowance: [
-      ["Tasks done end to end", "~400"],
-      ["Chat messages", "~1,400"],
-      ["Browser tasks", "~40"],
-      ["Voice call minutes", "~160"],
-      ["Pull requests coded", "~2"],
-    ],
     intro: "Everything in Starter, plus:",
     features: [
       "2x Starter usage",
@@ -61,13 +45,6 @@ const plans: Plan[] = [
     name: "Pro",
     monthly: 40,
     tagline: "For mates who work all day.",
-    allowance: [
-      ["Tasks done end to end", "~1,200"],
-      ["Chat messages", "~4,200"],
-      ["Browser tasks", "~120"],
-      ["Voice call minutes", "~480"],
-      ["Pull requests coded", "~6"],
-    ],
     intro: "Everything in Plus, plus:",
     features: [
       "3x Plus usage",
@@ -81,13 +58,6 @@ const plans: Plan[] = [
     name: "Max",
     monthly: 80,
     tagline: "For a team that never clocks off.",
-    allowance: [
-      ["Tasks done end to end", "~2,400"],
-      ["Chat messages", "~8,400"],
-      ["Browser tasks", "~240"],
-      ["Voice call minutes", "~960"],
-      ["Pull requests coded", "~12"],
-    ],
     intro: "Everything in Pro, plus:",
     features: [
       "6x Plus usage",
@@ -134,17 +104,6 @@ const yearlyPerMonth = (plan: Plan) => {
 
           <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
 
-          <div class="allowance">
-            <dl>
-              {plan.allowance.map(([label, amount]) => (
-                <div>
-                  <dt>{label}</dt>
-                  <dd>{amount}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
           <div class="intro">{plan.intro}</div>
           <ul>
             {plan.features.map((feature) => (
@@ -160,11 +119,6 @@ const yearlyPerMonth = (plan: Plan) => {
       ))
     }
   </div>
-
-  <p class="note">
-    Usage figures are estimates for spending a whole month on one kind of work. Your mates share one allowance, so mix
-    them however you like. Coding and the most capable models use it faster.
-  </p>
 </section>
 
 <style>
@@ -294,43 +248,6 @@ const yearlyPerMonth = (plan: Plan) => {
     height: 54px;
     margin-top: 32px;
     font-size: 17px;
-  }
-  /* What the allowance buys, as a plain-numbers ledger inside the card. */
-  .allowance {
-    margin-top: 28px;
-    padding: 6px 18px;
-    border-radius: 20px;
-    background: var(--bg);
-  }
-  dl {
-    margin: 0;
-  }
-  dl div {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 0;
-    border-top: 1px solid var(--line);
-    font-size: 14.5px;
-  }
-  dl div:first-child {
-    border-top: 0;
-  }
-  dt {
-    color: var(--muted);
-  }
-  dd {
-    margin: 0;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-  .note {
-    max-width: 72ch;
-    margin: 28px auto 0;
-    color: var(--muted);
-    font-size: 14.5px;
-    line-height: 1.5;
-    text-wrap: balance;
   }
   .intro {
     margin-top: 36px;
