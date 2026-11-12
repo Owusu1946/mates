@@ -520,8 +520,23 @@ export const slackRuns = pgTable("slack_runs", {
   mateId: uuid("mate_id").notNull(),
   clerkUserId: text("clerk_user_id").notNull(),
   slackUserId: text("slack_user_id").notNull(),
+  /** The person's own message, so the mate can react to it (👀 then ✅). Empty for /mates. */
+  askTs: text("ask_ts"),
   attempts: integer("attempts").notNull().default(0),
   deliveredAt: timestamp("delivered_at", { withTimezone: true }),
   deliveredStatus: text("delivered_status"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-}, (t) => [index("slack_runs_pending_idx").on(t.deliveredAt)]);
+}, (t) => [index("slack_runs_pending_idx").on(t.deliveredAt), index("slack_runs_thread_idx").on(t.teamId, t.channelId, t.threadTs)]);
+
+/**
+ * Asks that arrived while the mate was still busy. Each starts, oldest first, as soon as that mate's
+ * chat is free; `ask` holds everything needed to start it as if it had just been sent.
+ */
+export const slackQueue = pgTable("slack_queue", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  teamId: text("team_id").notNull().references(() => slackInstalls.teamId, { onDelete: "cascade" }),
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id").notNull(),
+  ask: jsonb("ask").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("slack_queue_mate_idx").on(t.mateId, t.createdAt)]);
