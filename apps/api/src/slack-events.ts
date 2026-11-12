@@ -98,7 +98,33 @@ export async function handleAsk(ask: Ask) {
   }
 }
 
-type SlackEvent = { type: string; user?: string; text?: string; channel?: string; channel_type?: string; ts?: string; thread_ts?: string; bot_id?: string; subtype?: string };
+/** The app's Home tab, drawn for each person: their own mates and how to ask them, or how to connect. */
+export async function publishHome(teamId: string, slackUserId: string) {
+  const install = await installFor(teamId);
+  if (!install) return;
+  const userId = await linkedUser(teamId, slackUserId);
+  const header = { type: "header", text: { type: "plain_text", text: "Your mates, in Slack" } };
+  const blocks: Record<string, unknown>[] = userId
+    ? await (async () => {
+        const lead = await ensureDefaultMate(userId);
+        const crew = await getDb().select().from(mates).where(eq(mates.clerkUserId, userId));
+        const rows = [lead, ...crew.filter((mate) => mate.id !== lead.id)].map((mate) => ({
+          type: "context",
+          elements: [{ type: "image", image_url: mateIdentity(mate).icon_url, alt_text: mate.name }, { type: "mrkdwn", text: `*${mate.name}*${mate.id === lead.id ? " · lead" : ""}${mate.role ? ` · ${mate.role}` : ""}` }],
+        }));
+        return [
+          header,
+          { type: "section", text: { type: "mrkdwn", text: "Mention *@Mates* in any channel and say which mate you need, or send a DM here. Your mates reply in the thread under their own names, and ask before they send anything." } },
+          { type: "divider" },
+          ...rows,
+          { type: "context", elements: [{ type: "mrkdwn", text: "Try: `@Mates Kojo, find a time with Efua next week`  ·  `/mates ask Ama to find a venue for Saturday`" }] },
+        ];
+      })()
+    : [header, ...connectBlocks(teamId, slackUserId)];
+  await slackApi(install.token, "views.publish", { user_id: slackUserId, view: { type: "home", blocks } });
+}
+
+type SlackEvent = { type: string; user?: string; text?: string; channel?: string; channel_type?: string; ts?: string; thread_ts?: string; bot_id?: string; subtype?: string; tab?: string };
 type Envelope = { type: string; team_id?: string; event_id?: string; event?: SlackEvent };
 
 /** Everything Slack sends to /v1/slack/events, after its signature has been checked. */
@@ -107,6 +133,7 @@ export async function handleSlackEvent(envelope: Envelope) {
   const teamId = envelope.team_id;
   if (envelope.type !== "event_callback" || !event || !teamId) return;
   if (event.type === "app_uninstalled" || event.type === "tokens_revoked") return uninstall(teamId);
+  if (event.type === "app_home_opened") return event.tab === "home" && event.user ? publishHome(teamId, event.user) : undefined;
   // Ignore anything a bot wrote (including ourselves), edits, joins and other system messages.
   if (event.bot_id || event.subtype || !event.user || !event.channel || !event.ts) return;
   const dm = event.type === "message" && event.channel_type === "im";
