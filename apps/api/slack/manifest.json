@@ -32,13 +32,13 @@
   "oauth_config": {
     "redirect_urls": ["https://mates-production.up.railway.app/v1/slack/callback"],
     "scopes": {
-      "bot": ["app_mentions:read", "chat:write", "chat:write.customize", "commands", "im:history", "im:read", "im:write", "users:read"]
+      "bot": ["app_mentions:read", "channels:history", "chat:write", "chat:write.customize", "commands", "files:read", "groups:history", "im:history", "im:read", "im:write", "reactions:write", "users:read"]
     }
   },
   "settings": {
     "event_subscriptions": {
       "request_url": "https://mates-production.up.railway.app/v1/slack/events",
-      "bot_events": ["app_home_opened", "app_mention", "app_uninstalled", "message.im", "tokens_revoked"]
+      "bot_events": ["app_home_opened", "app_mention", "app_uninstalled", "message.channels", "message.groups", "message.im", "tokens_revoked"]
     },
     "interactivity": {
       "is_enabled": true,
