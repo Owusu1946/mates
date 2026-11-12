@@ -14,7 +14,11 @@ import { mateChatId } from "./mates.js";
  * while the mascot animates. The voice agent runs in meeting mode. Notes land like a call's.
  */
 
-export const meetingsConfigured = () => callsConfigured() && !!process.env.RECALL_API_KEY;
+/**
+ * Whether mates can be sent to meetings. Runs (and this tool) execute in the background worker, which
+ * only needs Recall to send the bot; LiveKit is used later by the API, when the bot's page joins.
+ */
+export const meetingsConfigured = () => !!process.env.RECALL_API_KEY;
 const recallBase = () => `https://${process.env.RECALL_REGION ?? "us-west-2"}.recall.ai/api/v1`;
 const SITE = () => process.env.SITE_URL ?? "https://agents.askorin.app";
 const API = () => process.env.API_PUBLIC_URL ?? "https://mates-production.up.railway.app";
@@ -134,7 +138,7 @@ async function meetingCall(callId: string) {
  * never older than the join (the bot may wait minutes in a waiting room first).
  */
 export async function meetingSession(callId: string, pageToken: string | undefined) {
-  if (!verifyPageToken(pageToken, callId)) return null;
+  if (!verifyPageToken(pageToken, callId) || !callsConfigured()) return null;
   const call = await meetingCall(callId);
   if (!call || call.status === "ended" || call.status === "failed") return null;
   const [mate] = call.leadMateId ? await getDb().select().from(mates).where(eq(mates.id, call.leadMateId)) : [];
@@ -223,7 +227,7 @@ export const joinMeetingTool = {
   function: {
     name: "cooper_join_meeting",
     description:
-      "Join a Google Meet, Zoom or Teams meeting yourself, as this mate: you appear with your own name and face, take notes, answer when someone says your name, and post the notes here afterwards. Use when the user shares a meeting link and asks you to join, sit in or take notes. Someone in the meeting must admit you.",
+      "Join a Google Meet, Zoom or Teams meeting yourself, as this mate: you appear with your own name and face, take notes, answer when someone says your name, and post the notes here afterwards. Use when the user shares a meeting link and asks you to join, sit in or take notes. Someone in the meeting must admit you. Always use this for meeting links; never open them in a browser.",
     parameters: {
       type: "object",
       properties: { meeting_url: { type: "string", description: "The meeting link, exactly as shared (https://meet.google.com/..., zoom.us/j/..., teams link)." } },
