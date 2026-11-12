@@ -1620,7 +1620,7 @@ function ChatDrawer({
   const menuItems = [
     { label: "Feed", icon: "feed", href: "/feed" },
     { label: "Ideas", icon: "ideas", href: "/ideas" },
-    { label: "Tasks", icon: "tasks", href: "/tasks" },
+    { label: "Routines", icon: "tasks", href: "/tasks" },
     { label: "Apps", icon: "connections", href: "/connections" },
   ] as const;
 

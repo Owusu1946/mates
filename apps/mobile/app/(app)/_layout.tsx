@@ -160,7 +160,8 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="feed" options={{ title: "Feed" }} />
           <Stack.Screen name="ideas" options={{ title: "Ideas" }} />
-          <Stack.Screen name="tasks" options={{ title: "Tasks" }} />
+          <Stack.Screen name="tasks" options={{ title: "Routines" }} />
+          <Stack.Screen name="routine" options={{ headerShown: false, presentation: "formSheet", sheetGrabberVisible: true, sheetAllowedDetents: [1], sheetCornerRadius: 24 }} />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
           <Stack.Screen name="connections" options={{ title: "Apps" }} />
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
