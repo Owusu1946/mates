@@ -110,6 +110,8 @@ export function activityLabel(slug: string) {
     cooper_assemble_team: "Assembling your team",
     cooper_mission_note: "Updating the team's notes",
     cooper_ship_code: "Setting up the computer",
+    cooper_make_deck: "Planning the deck",
+    cooper_edit_deck: "Updating the slides",
   };
   return known[slug] ?? (slug.startsWith("COMPOSIO_") ? "Working with your apps" : humanize(slug) || "Working on it");
 }
