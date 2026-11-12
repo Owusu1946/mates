@@ -370,8 +370,25 @@ function tidyOutline(outline: Outline, request: DeckRequest): Outline {
 
 type Context = { system: string; sources: Source[]; signal: AbortSignal; addCost: (usd: number) => void };
 
-/** Writes one slide; repairs it once if it breaks a rule, then falls back to a plain list. */
-async function writeSlide(plan: Outline["slides"][number], index: number, total: number, ctx: Context): Promise<Slide> {
+/**
+ * Problems with the offending text quoted and counted ("nodes.0.heading is 24 characters: …"),
+ * because models fix a length far more reliably when they see exactly what ran over.
+ */
+export function explainProblems(slide: unknown, problems: string[]) {
+  return problems.map((problem) => {
+    const match = problem.match(/^([\w.]+): Too big: expected string to have <=(\d+) characters/);
+    if (!match) return problem;
+    const value = match[1]!.split(".").reduce<unknown>((node, key) => (node && typeof node === "object" ? (node as Record<string, unknown>)[key] : undefined), slide);
+    return typeof value === "string" ? `${match[1]} is ${value.length} characters ("${value}"); rewrite it in at most ${match[2]}` : problem;
+  });
+}
+
+/**
+ * Writes one slide: two repair rounds if it breaks a rule, then a pared-back fallback (a cover or
+ * closing stays one, anything else becomes a short list). Null when even that fails, so one
+ * stubborn slide is left out instead of sinking the deck; a cover or closing that fails does fail it.
+ */
+async function writeSlide(plan: Outline["slides"][number], index: number, total: number, ctx: Context): Promise<Slide | null> {
   const ask = (layout: Layout, extra = "") =>
     structured(`slide_${layout.replace("-", "_")}`, modelSchema(writtenSchema(layout)), [
       { role: "system", content: ctx.system },
@@ -390,14 +407,16 @@ async function writeSlide(plan: Outline["slides"][number], index: number, total:
   let { slide, problems } = await attempt(plan.layout);
   // Two repair rounds: each shows the draft and exactly what broke, so the model shortens what it must.
   for (let round = 0; round < 2 && problems.length; round++)
-    ({ slide, problems } = await attempt(plan.layout, `\n\nYour last draft broke these rules; fix them and keep the meaning, shortening wording rather than dropping ideas:\n${problems.map((p) => `- ${p}`).join("\n")}\nLast draft: ${JSON.stringify(slide)}`));
+    ({ slide, problems } = await attempt(plan.layout, `\n\nYour last draft broke these rules; fix them and keep the meaning, shortening wording rather than dropping ideas:\n${explainProblems(slide, problems).map((p) => `- ${p}`).join("\n")}\nLast draft: ${JSON.stringify(slide)}`));
   if (!problems.length) return slide;
   // A cover or closing stays one, pared back; anything else becomes a short list.
   const fallback: Layout = plan.layout === "title" || plan.layout === "closing" ? plan.layout : "list";
   const pared = fallback === "list" ? "\n\nMake the point as a short list, with no figures." : "\n\nKeep only a short title (well under the limit) and set every other text field to null.";
   ({ slide, problems } = await attempt(fallback, pared));
   if (!problems.length) return slide;
-  throw new DeckFailure(`Slide ${index + 1} kept breaking the layout rules.`);
+  if (fallback !== "list") throw new DeckFailure(`Slide ${index + 1} kept breaking the layout rules.`);
+  console.warn("deck_slide_dropped", { slide: index + 1, layout: plan.layout });
+  return null;
 }
 
 /**
@@ -501,7 +520,7 @@ export async function buildDeck(request: DeckRequest, theme: Deck["theme"], sour
   // Everything every slide call shares comes first, so the provider caches it across calls.
   const plan = outline.slides.map((s, i) => `${i + 1}. ${s.layout}: ${s.title} (${s.intent})`).join("\n");
   const system = `${RULES}\n\n${limitsGuide}\n\nLayouts:\n${layoutsGuide()}\n\n${brief}\n\nThe deck "${outline.title}", slide by slide:\n${plan}`;
-  const done: (Slide | undefined)[] = new Array(outline.slides.length);
+  const done: (Slide | null | undefined)[] = new Array(outline.slides.length);
   let reports: Promise<unknown> = Promise.resolve();
   const slides = await pool(outline.slides, PARALLEL, async (planItem, index) => {
     const slide = await writeSlide(planItem, index, outline.slides.length, { system, sources, signal: hooks.signal, addCost });
@@ -514,7 +533,7 @@ export async function buildDeck(request: DeckRequest, theme: Deck["theme"], sour
     return slide;
   });
 
-  const deck: Deck = { title: outline.title, theme: finalTheme, meta: finalMeta, slides, sources };
+  const deck: Deck = { title: outline.title, theme: finalTheme, meta: finalMeta, slides: slides.filter((s): s is Slide => !!s), sources };
   const problems = deckProblems(deck);
   if (problems.length) throw new DeckFailure(`The deck didn't pass its checks (${problems[0]}).`);
   return { deck, cost };
@@ -542,7 +561,7 @@ export async function executeDeck(deckId: string, workerSignal: AbortSignal) {
     cost = built.cost;
     const { title, theme, slides } = built.deck;
     await saveVersion({ id: deckId, title, theme }, 1, slides, null, cost);
-    await update(deckId, { status: "ready", slides, built: slides.length, version: 1, costUsd: cost });
+    await update(deckId, { status: "ready", slides, built: slides.length, total: slides.length, version: 1, costUsd: cost });
     await announce(deckId);
   } catch (error) {
     const cancelled = error instanceof Cancelled || cancel.signal.aborted;

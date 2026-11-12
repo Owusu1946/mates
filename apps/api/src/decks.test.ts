@@ -2,7 +2,7 @@ import JSZip from "jszip";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_META, slideContent, type Deck, type Slide } from "@muse-clone/decks";
 import { renderPptx } from "./deck-pptx.js";
-import { applyChanges, buildDeck, deckCard, deckFilename, modelSchema, sourcesOf, tableFact, withoutCitationTags, type DeckRow } from "./decks.js";
+import { applyChanges, buildDeck, deckCard, deckFilename, explainProblems, modelSchema, sourcesOf, tableFact, withoutCitationTags, type DeckRow } from "./decks.js";
 
 const gradient: [string, string, string] = ["#b9c8f5", "#5b7be0", "#26408b"];
 const slides: Slide[] = [
@@ -169,5 +169,32 @@ describe("building a deck", () => {
     ]);
     const { deck: built } = await buildDeck({ topic: "T", audience: null, slideCount: 3, facts: [] }, { mode: "light", gradient }, [], { signal: new AbortController().signal });
     expect(built.slides.map((s) => s.layout)).toEqual(["title", "list", "closing"]);
+  });
+
+  it("leaves out a slide that can't be fixed at all, instead of failing the deck", async () => {
+    const tooLong = { layout: "list", title: "x".repeat(200), items: ["One", "Two"], takeaway: null, notes: "" };
+    const requests = fakeModel([
+      { title: "T", mode: "light", wordmark: null, event: null, presenter: null, slides: [{ layout: "title", title: "T", intent: "open", sourceIds: [], fromUser: false }, { layout: "list", title: "L", intent: "points", sourceIds: [], fromUser: false }, { layout: "closing", title: "End", intent: "close", sourceIds: [], fromUser: false }] },
+      { layout: "title", title: "T", muted: null, notes: "" },
+      tooLong,
+      { layout: "closing", title: "End", subtitle: null, contact: null, notes: "" },
+      tooLong,
+      tooLong,
+      tooLong,
+    ]);
+    const { deck: built } = await buildDeck({ topic: "T", audience: null, slideCount: 3, facts: [] }, { mode: "light", gradient }, [], { signal: new AbortController().signal });
+    expect(built.slides.map((s) => s.layout)).toEqual(["title", "closing"]);
+    // Each repair quotes what ran over and by how much.
+    expect(requests.at(-2)!.messages.at(-1)!.content).toMatch(/title is 200 characters \("x+"\); rewrite it in at most 60/);
+  });
+});
+
+describe("repair messages", () => {
+  it("quote the text that ran over and its length", () => {
+    const slide = { layout: "flow", nodes: [{ heading: "Owner approves payment" }] };
+    expect(explainProblems(slide, ["nodes.0.heading: Too big: expected string to have <=18 characters", "highlight 4 is past the last box"])).toEqual([
+      'nodes.0.heading is 22 characters ("Owner approves payment"); rewrite it in at most 18',
+      "highlight 4 is past the last box",
+    ]);
   });
 });
