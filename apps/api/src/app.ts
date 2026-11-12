@@ -683,7 +683,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
           callbackUrl: z
             .string()
             .max(500)
-            .refine((value) => /^(exp|exps|muse-clone):\/\//.test(value)),
+            .refine((value) => /^(exp|exps|muse-clone|mates):\/\//.test(value)),
         })
         .safeParse(await c.req.json().catch(() => null));
       if (!body.success)
