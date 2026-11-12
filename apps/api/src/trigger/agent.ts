@@ -6,6 +6,7 @@ import { deliverFindings } from "../delivery.js";
 import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
+import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
 
 export const agentExecution = schemaTask({
   id: "cooper-agent",
@@ -34,6 +35,32 @@ export const codeExecution = schemaTask({
   },
 });
 
+/** Builds a deck. Safe to retry: it rewrites only its own row from the start. */
+export const deckBuild = schemaTask({
+  id: "mate-deck",
+  schema: z.object({ deckId: z.string().uuid() }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 2 },
+  maxDuration: 600,
+  run: async ({ deckId }, { signal }) => {
+    await executeDeck(deckId, signal ?? new AbortController().signal);
+    return { deckId };
+  },
+});
+
+/** Changes some slides of a deck and saves a new version. */
+export const deckEdit = schemaTask({
+  id: "mate-deck-edit",
+  schema: z.object({ deckId: z.string().uuid(), instruction: z.string().min(1).max(2_000), slideIds: z.array(z.string()).nullable() }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 300,
+  run: async ({ deckId, instruction, slideIds }, { signal }) => {
+    await executeDeckEdit(deckId, instruction, slideIds, signal ?? new AbortController().signal);
+    return { deckId };
+  },
+});
+
 export const routineDispatcher = schedules.task({
   id: "cooper-dispatcher",
   cron: { pattern: "* * * * *", timezone: "UTC" },
@@ -43,6 +70,7 @@ export const routineDispatcher = schedules.task({
   run: async () => {
     await recoverStalledRuns();
     await recoverStalledCodeRuns().catch(() => console.warn("code_run_recovery_failed"));
+    await recoverStalledDecks().catch(() => console.warn("deck_recovery_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
     await publishOutbox();

@@ -37,6 +37,8 @@ import { missionForChat, setMissionStatus } from "./missions.js";
 import { createGroup, createMate, deleteGroup, deleteMate, groupInputSchema, groupUpdateSchema, leaderSetupSchema, listMatesAndGroups, MateError, mateInputSchema, mateUpdateSchema, setupLeader, updateGroup, updateMate } from "./mates.js";
 import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
+import { renderPptx } from "./deck-pptx.js";
+import { cancelDeck, deckFilename, deckView, ownedDeck, startDeckEdit, undoDeck } from "./decks.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
 import { keytermsFor, transcribe, transcriptionConfigured } from "./transcription.js";
 import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
@@ -513,6 +515,39 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid run", c.get("requestId")), 400);
       const run = await cancelCodeRun(c.get("userId"), c.req.param("id"));
       return run ? c.json({ card: codeCard(run) }) : c.json(failure("CONFLICT", "This run has already finished.", c.get("requestId")), 409);
+    })
+    .get("/v1/decks/:id", auth, async (c) => {
+      const row = await ownedDeck(c.get("userId"), c.req.param("id"));
+      return row ? c.json(deckView(row)) : c.json(failure("NOT_FOUND", "Deck not found", c.get("requestId")), 404);
+    })
+    .post("/v1/decks/:id/edits", auth, async (c) => {
+      const body = z.object({ instruction: z.string().trim().min(1).max(2_000), slideIds: z.array(z.string().max(40)).max(20).nullable().optional() }).safeParse(await c.req.json().catch(() => null));
+      if (!body.success) return c.json(failure("INVALID_EDIT", "Say what to change.", c.get("requestId")), 400);
+      const result = await startDeckEdit(c.get("userId"), c.req.param("id"), body.data.instruction, body.data.slideIds ?? null);
+      if ("error" in result) return c.json(failure("CONFLICT", result.error ?? "That change couldn't start.", c.get("requestId")), 409);
+      return c.json({ card: result.card });
+    })
+    .post("/v1/decks/:id/undo", auth, async (c) => {
+      const result = await undoDeck(c.get("userId"), c.req.param("id"));
+      if (!result.row) return c.json(failure(result.status === 404 ? "NOT_FOUND" : "CONFLICT", result.error ?? "There's nothing to undo.", c.get("requestId")), result.status ?? 409);
+      return c.json(deckView(result.row));
+    })
+    .post("/v1/decks/:id/cancel", auth, async (c) => {
+      const row = await cancelDeck(c.get("userId"), c.req.param("id"));
+      return row ? c.json(deckView(row)) : c.json(failure("CONFLICT", "This deck is no longer being made.", c.get("requestId")), 409);
+    })
+    .get("/v1/decks/:id/export.pptx", auth, async (c) => {
+      const row = await ownedDeck(c.get("userId"), c.req.param("id"));
+      if (!row) return c.json(failure("NOT_FOUND", "Deck not found", c.get("requestId")), 404);
+      if (!row.slides.length || !["ready", "editing"].includes(row.status)) return c.json(failure("CONFLICT", "The deck isn't finished yet.", c.get("requestId")), 409);
+      const bytes = await renderPptx({ title: row.title, theme: row.theme, meta: row.meta, slides: row.slides, sources: row.sources });
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+          "content-disposition": deckFilename(row.title),
+          "cache-control": "private, no-store",
+        },
+      });
     })
     .get("/v1/missions", auth, async (c) => {
       const chatId = chatIdSchema.safeParse(c.req.query("chatId"));

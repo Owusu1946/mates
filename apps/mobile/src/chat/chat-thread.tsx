@@ -66,6 +66,7 @@ import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MissionBanner, TeamCard } from "../mates/mission";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CodeCard } from "./code-card";
+import { DeckCard } from "../decks/deck-card";
 import { SourcesCard } from "./sources-card";
 import { readCache, writeCache } from "../data/offline-cache";
 import { ComposerTextInput } from "./composer-input";
@@ -633,7 +634,7 @@ function ChatMessage() {
           <MessagePrimitive.Content
             renderToolCall={({ part }) =>
               part.result ? (
-                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
+                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
                   (part.result as WorkflowCard).kind,
                 ) ? (
                   <AppResponseCard state={part.result as WorkflowCard} />
