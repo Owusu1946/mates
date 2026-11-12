@@ -38,7 +38,7 @@
   "settings": {
     "event_subscriptions": {
       "request_url": "https://mates-production.up.railway.app/v1/slack/events",
-      "bot_events": ["app_home_opened", "app_mention", "message.im"]
+      "bot_events": ["app_home_opened", "app_mention", "app_uninstalled", "message.im", "tokens_revoked"]
     },
     "interactivity": {
       "is_enabled": true,
