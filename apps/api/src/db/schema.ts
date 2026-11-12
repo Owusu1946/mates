@@ -488,3 +488,40 @@ export const waitlist = pgTable("waitlist", {
   referrer: text("referrer"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
+
+/** A Slack workspace that installed the Mates app. The bot token is encrypted at rest (SLACK_TOKEN_KEY). */
+export const slackInstalls = pgTable("slack_installs", {
+  teamId: text("team_id").primaryKey(),
+  teamName: text("team_name").notNull(),
+  botUserId: text("bot_user_id").notNull(),
+  botTokenEnc: text("bot_token_enc").notNull(),
+  installedBy: text("installed_by").notNull(),
+  installedAt: timestamp("installed_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** Who a Slack user is in Mates: their messages reach this user's mates, and only they can approve. */
+export const slackLinks = pgTable("slack_links", {
+  teamId: text("team_id").notNull().references(() => slackInstalls.teamId, { onDelete: "cascade" }),
+  slackUserId: text("slack_user_id").notNull(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.teamId, t.slackUserId] }), index("slack_links_user_idx").on(t.clerkUserId)]);
+
+/**
+ * A run started from Slack and where its answer goes: the thread, and the mate's "On it…" message
+ * that the answer replaces. `deliveredAt` stays empty until the result has been posted.
+ */
+export const slackRuns = pgTable("slack_runs", {
+  delegationId: uuid("delegation_id").primaryKey().references(() => delegations.id, { onDelete: "cascade" }),
+  teamId: text("team_id").notNull().references(() => slackInstalls.teamId, { onDelete: "cascade" }),
+  channelId: text("channel_id").notNull(),
+  threadTs: text("thread_ts").notNull(),
+  statusTs: text("status_ts"),
+  mateId: uuid("mate_id").notNull(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  slackUserId: text("slack_user_id").notNull(),
+  attempts: integer("attempts").notNull().default(0),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  deliveredStatus: text("delivered_status"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("slack_runs_pending_idx").on(t.deliveredAt)]);
