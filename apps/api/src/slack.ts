@@ -4,7 +4,7 @@ import { slackInstalls, slackLinks, type mates } from "./db/schema.js";
 import { decryptToken, encryptToken, signState, slackConfigured, verifyState } from "./slack-security.js";
 
 /** The bot's permissions; kept in step with slack/manifest.json. */
-const BOT_SCOPES = ["app_mentions:read", "chat:write", "chat:write.customize", "commands", "im:history", "im:read", "im:write", "users:read"];
+const BOT_SCOPES = ["app_mentions:read", "channels:history", "chat:write", "chat:write.customize", "commands", "files:read", "groups:history", "im:history", "im:read", "im:write", "reactions:write", "users:read"];
 /** Where the mates' pictures are served (the mascot pack, in apps/web/public/mates). */
 const SITE = () => process.env.SITE_URL ?? "https://agents.askorin.app";
 

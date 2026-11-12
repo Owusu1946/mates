@@ -4,22 +4,28 @@ import { createApp } from "./app.js";
 import { pickMate } from "./slack-events.js";
 
 describe("which mate a Slack message is for", () => {
-  const lead = { name: "Kwabena" };
-  const crew = [lead, { name: "Ama" }, { name: "Kojo" }, { name: "Ama Serwaa" }];
+  const crew = [{ name: "Kwabena" }, { name: "Ama" }, { name: "Kojo" }, { name: "Ama Serwaa" }];
 
   it("finds the named mate and keeps only the task", () => {
-    expect(pickMate("<@U0BOT> Kojo, find a time with Efua", crew, lead)).toEqual({ mate: crew[2], task: "find a time with Efua" });
-    expect(pickMate("ask Ama to find a cheaper cake", crew, lead)).toEqual({ mate: crew[1], task: "find a cheaper cake" });
-    expect(pickMate("kojo: hold Saturday", crew, lead).mate).toBe(crew[2]);
+    expect(pickMate("<@U0BOT> Kojo, find a time with Efua", crew)).toEqual({ mate: crew[2], task: "find a time with Efua" });
+    expect(pickMate("ask Ama to find a cheaper cake", crew)).toEqual({ mate: crew[1], task: "find a cheaper cake" });
+    expect(pickMate("kojo: hold Saturday", crew).mate).toBe(crew[2]);
   });
 
   it("prefers the longest matching name", () => {
-    expect(pickMate("Ama Serwaa, draft the invite", crew, lead).mate).toBe(crew[3]);
+    expect(pickMate("Ama Serwaa, draft the invite", crew).mate).toBe(crew[3]);
   });
 
-  it("goes to the lead when no mate is named, or a name is only the start of a word", () => {
-    expect(pickMate("<@U0BOT> what's on today?", crew, lead)).toEqual({ mate: lead, task: "what's on today?" });
-    expect(pickMate("Amazing work, thanks", crew, lead).mate).toBe(lead);
+  it("leaves the choice to the caller when no mate is named", () => {
+    expect(pickMate("<@U0BOT> what's on today?", crew)).toEqual({ mate: null, task: "what's on today?" });
+    expect(pickMate("Amazing work, thanks", crew).mate).toBeNull();
+  });
+
+  it("notices a name that isn't one of your mates, but not everyday openers", () => {
+    expect(pickMate("Kofi, book the room", crew).unknown).toBe("Kofi");
+    expect(pickMate("ask Kofi to book the room", crew).unknown).toBe("Kofi");
+    expect(pickMate("Thanks, that works", crew).unknown).toBeUndefined();
+    expect(pickMate("Hey, are you there?", crew).unknown).toBeUndefined();
   });
 });
 

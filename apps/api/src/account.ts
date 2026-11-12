@@ -21,6 +21,7 @@ import {
   reminders,
   routines,
   slackLinks,
+  slackQueue,
   slackRuns,
   undoActions,
 } from "./db/schema.js";
@@ -38,6 +39,7 @@ export const ACCOUNT_TABLES = [
   routines,
   // Slack: their runs and links go; the workspace's install stays for its other members.
   slackRuns,
+  slackQueue,
   slackLinks,
   delegations,
   findings,
