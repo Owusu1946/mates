@@ -1,0 +1,21 @@
+---
+// A mate's camera in a meeting: Recall's bot opens this page and streams it as the bot's video.
+// Kept out of search; it is only ever opened by the bot.
+import { MeetBotFromUrl } from "../components/MeetBot";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Mates in a meeting</title>
+    <style is:global>
+      html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <MeetBotFromUrl client:only="react" />
+  </body>
+</html>

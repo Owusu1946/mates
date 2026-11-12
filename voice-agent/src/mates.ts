@@ -1,7 +1,7 @@
 import { beta, inference, llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import type { CallApi, CallContext, CallMate } from './api.ts';
-import { greeting, mateInstructions } from './prompts.ts';
+import { greeting, mateInstructions, meetingInstructions } from './prompts.ts';
 
 /**
  * One agent per mate on the call, each speaking in its own Aura-2 voice. The session holds one
@@ -23,7 +23,20 @@ export type CallState = {
   /** Tells the app who's speaking and who's present (room attributes); a no-op in tests. */
   publish: (attributes: Record<string, string>) => void;
   publishEnding?: () => Promise<void>;
+  /** In someone's meeting: speak only when addressed, never greet, take notes. */
+  meeting?: boolean;
+  /** When the mate last spoke, so a follow-up to its own answer doesn't need its name again. */
+  lastSpokeAt?: number;
 };
+
+/** After the mate answers, people can follow up for this long without saying its name. */
+export const FOLLOW_UP_MS = 25_000;
+
+/** Whether a line in a meeting is for this mate: its name (or "Mates") said as a word. */
+export function addressed(text: string, name: string) {
+  const words = [name, ...name.split(/\s+/), 'mates'].filter((w) => w.length > 1).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`\\b(${words.join('|')})\\b`, 'i').test(text);
+}
 
 export const presentAttributes = (state: CallState) => ({ 'mates.present': JSON.stringify(state.present) });
 
@@ -35,7 +48,7 @@ export class MateAgent extends voice.Agent<CallState> {
       instructions: instructionsFor(mate, state),
       tts: new inference.TTS({ model: 'deepgram/aura-2', voice: mate.voice, language: 'en' }),
       tools: [
-        passTo,
+        ...(state.meeting ? [] : [passTo]),
         startTask,
         beta.createEndCallTool({
           deleteRoom: false,
@@ -47,9 +60,19 @@ export class MateAgent extends voice.Agent<CallState> {
     this.mate = mate;
   }
 
+  /** In a meeting, people talk to each other; the mate stays quiet unless it's spoken to. */
+  override async onUserTurnCompleted(_chatCtx: llm.ChatContext, newMessage: llm.ChatMessage): Promise<void> {
+    const state = this.session.userData;
+    if (!state.meeting) return;
+    const followUp = state.lastSpokeAt !== undefined && Date.now() - state.lastSpokeAt < FOLLOW_UP_MS;
+    if (!followUp && !addressed(newMessage.textContent ?? '', this.mate.name)) throw new voice.StopResponse();
+  }
+
   override async onEnter(): Promise<void> {
     const state = this.session.userData;
     state.publish({ 'mates.speaker': this.mate.id, ...presentAttributes(state) });
+    // Walking into a meeting, the mate doesn't interrupt; the chat hello already said who it is.
+    if (state.meeting) return;
     const handedOver = state.previous && state.previous !== this;
     if (handedOver) {
       // Bring the conversation so far, without the previous mate's instructions.
@@ -64,6 +87,7 @@ export class MateAgent extends voice.Agent<CallState> {
 }
 
 export function instructionsFor(mate: CallMate, state: CallState) {
+  if (state.meeting) return meetingInstructions(mate, state.context, state.userName);
   const others = state.present.filter((id) => id !== mate.id).map((id) => state.roster.get(id)!).filter(Boolean);
   return mateInstructions(mate, others, state.context, state.userName);
 }

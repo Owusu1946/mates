@@ -13,6 +13,8 @@ import { extractMemories, listMemories, memorySettings } from "./memory.js";
 import { recentTurns } from "./missions.js";
 import { CHAT_MODEL } from "./models.js";
 import { keytermsFor } from "./transcription.js";
+import { pushToUser } from "./delivery.js";
+import { installFor, mateIdentity, slackApi } from "./slack.js";
 
 /**
  * Voice calls with mates. The API creates the call and signs the phone's LiveKit token, which
@@ -88,8 +90,8 @@ export const startCallSchema = z.object({
   timezone: z.string().max(64).optional(),
 });
 
-/** What the voice agent receives when it's dispatched to the call's room. */
-export type CallDispatch = { callId: string; callToken: string; userName?: string; timezone?: string };
+/** What the voice agent receives when it's dispatched to the call's room. `mode` "meeting": a mate in someone's meeting. */
+export type CallDispatch = { callId: string; callToken: string; userName?: string; timezone?: string; mode?: "call" | "meeting" };
 
 export async function startCall(userId: string, input: z.infer<typeof startCallSchema>) {
   if (!(await createChatStore().get(userId, input.chatId))) throw new CallError("NOT_FOUND");
@@ -110,8 +112,8 @@ export async function startCall(userId: string, input: z.infer<typeof startCallS
  * with the call's details. Each call has its own room, so the dispatch always applies (LiveKit
  * only applies a token's dispatch when the room is created).
  */
-export async function joinToken(userId: string, roomName: string, dispatch: CallDispatch) {
-  const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, { identity: `user_${userId}`, name: dispatch.userName ?? "You", ttl: JOIN_TTL });
+export async function joinToken(userId: string, roomName: string, dispatch: CallDispatch, who: { identity: string; name: string } = { identity: `user_${userId}`, name: dispatch.userName ?? "You" }) {
+  const token = new AccessToken(process.env.LIVEKIT_API_KEY, process.env.LIVEKIT_API_SECRET, { identity: who.identity, name: who.name, ttl: JOIN_TTL });
   token.addGrant({ roomJoin: true, room: roomName, canPublish: true, canSubscribe: true, canPublishData: true });
   token.roomConfig = new RoomConfiguration({ agents: [new RoomAgentDispatch({ agentName: CALL_AGENT_NAME, metadata: JSON.stringify(dispatch) })] });
   return token.toJwt();
@@ -158,6 +160,7 @@ export async function callContext(userId: string, callId: string) {
   if (call.status === "ringing") await getDb().update(calls).set({ status: "live", startedAt: new Date() }).where(eq(calls.id, call.id));
   return {
     callId: call.id,
+    kind: call.kind,
     leadMateId: call.leadMateId ?? roster[0]?.id ?? null,
     chatKind: chat?.kind ?? "mate",
     chatTitle: chat?.title ?? "",
@@ -223,8 +226,11 @@ export const endCallSchema = z.object({
 export type CallCard = NonNullable<WorkflowCard["call"]>;
 
 /** A short, plain-words summary and the action items, from the transcript. Never throws. */
-export async function summarise(transcript: { speaker: string; text: string }[], minutes: number): Promise<{ summary: string; actionItems: string[] }> {
-  const fallback = { summary: transcript.length ? `We talked for ${Math.max(1, minutes)} minute${minutes === 1 ? "" : "s"}.` : "The call ended before anyone spoke.", actionItems: [] };
+export async function summarise(transcript: { speaker: string; text: string }[], minutes: number, kind: "call" | "meeting" = "call"): Promise<{ summary: string; actionItems: string[] }> {
+  const fallback = {
+    summary: transcript.length ? `${kind === "meeting" ? "The meeting ran" : "We talked"} for ${Math.max(1, minutes)} minute${minutes === 1 ? "" : "s"}.` : kind === "meeting" ? "No one spoke while I was in the meeting." : "The call ended before anyone spoke.",
+    actionItems: [],
+  };
   if (!transcript.length || !process.env.OPENROUTER_API_KEY) return fallback;
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -236,7 +242,13 @@ export async function summarise(transcript: { speaker: string; text: string }[],
         max_tokens: 600,
         reasoning: { effort: "low" },
         messages: [
-          { role: "system", content: "Summarise this voice call between the user and their AI mates for the chat history. summary: 1-3 short sentences in plain words, written to the user (\"we\"). action_items: concrete things someone agreed to do, each short; empty if none. Don't invent anything that wasn't said." },
+          {
+            role: "system",
+            content:
+              kind === "meeting"
+                ? "These are notes from a meeting the user's AI mate sat in on. 'Meeting' lines are the people in it (several voices mixed together); other speakers are the mate. summary: 2-4 short sentences in plain words: what it was about and what was decided. action_items: concrete things someone agreed to do, each short, with who if it was said; empty if none. Don't invent anything that wasn't said."
+                : "Summarise this voice call between the user and their AI mates for the chat history. summary: 1-3 short sentences in plain words, written to the user (\"we\"). action_items: concrete things someone agreed to do, each short; empty if none. Don't invent anything that wasn't said.",
+          },
           { role: "user", content: transcript.map((l) => `${l.speaker}: ${l.text}`).join("\n").slice(-24_000) },
         ],
         response_format: {
@@ -277,14 +289,15 @@ export async function endCall(userId: string, callId: string, input: z.infer<typ
 }
 
 async function finishCall(userId: string, call: typeof calls.$inferSelect, transcript: { speaker: string; text: string; at: string }[], durationSec: number) {
-  const { summary, actionItems } = await summarise(transcript, Math.round(durationSec / 60));
+  const meeting = call.kind === "meeting";
+  const { summary, actionItems } = await summarise(transcript, Math.round(durationSec / 60), call.kind);
   await getDb().update(calls).set({ summary, actionItems }).where(eq(calls.id, call.id));
 
   const rows = await getDb().select().from(mates).where(inArray(mates.id, call.mateIds.length ? call.mateIds : [randomUUID()]));
   const card: WorkflowCard = {
     kind: "call",
     phase: "done",
-    label: "Call",
+    label: meeting ? "Meeting" : "Call",
     call: { callId: call.id, durationSec, summary, actionItems, mates: rows.map((m) => ({ id: m.id, name: m.name, color: m.color, shape: m.shape, gradient: gradientOf(m.color) })), lines: transcript.length },
   };
   const messageId = `call_${call.id}`;
@@ -299,14 +312,27 @@ async function finishCall(userId: string, call: typeof calls.$inferSelect, trans
     })
     .onConflictDoNothing();
   await getDb().update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, call.chatId));
+  if (meeting) await shareMeetingNotes(userId, call, rows[0]?.name ?? "Your mate", summary, actionItems).catch(() => console.warn("meeting_notes_share_failed", { callId: call.id }));
 
-  const userText = transcript.filter((l) => l.speaker === "You").map((l) => l.text).join("\n");
+  // In a meeting, everyone else's words come in as "Meeting"; the owner is among them.
+  const userText = transcript.filter((l) => l.speaker === (meeting ? "Meeting" : "You")).map((l) => l.text).join("\n");
   const mateText = transcript.filter((l) => l.speaker !== "You").map((l) => `${l.speaker}: ${l.text}`).join("\n");
-  await rememberCall(userId, call.chatId, summary, userText, mateText).catch(() => console.warn("call_memory_failed", { callId: call.id }));
+  await rememberCall(userId, call.chatId, summary, userText, mateText, call.kind).catch(() => console.warn("call_memory_failed", { callId: call.id }));
 }
 
-async function rememberCall(userId: string, chatId: string, summary: string, userText: string, mateText: string) {
-  const content = `Voice call on ${new Date().toISOString().slice(0, 10)}. ${summary}\nUser said: ${userText.slice(0, 1_500)}`;
+/** A meeting's notes reach the owner wherever they are: a push, and the Slack thread it was asked from. */
+async function shareMeetingNotes(userId: string, call: typeof calls.$inferSelect, mateName: string, summary: string, actionItems: string[]) {
+  await pushToUser(userId, { title: `${mateName}’s meeting notes`, body: summary.slice(0, 180), data: { chatId: call.chatId, chatKind: "mate" } });
+  const slack = call.meeting?.slack;
+  const install = slack ? await installFor(slack.teamId) : null;
+  if (!slack || !install) return;
+  const [mate] = call.leadMateId ? await getDb().select().from(mates).where(eq(mates.id, call.leadMateId)) : [];
+  const items = actionItems.length ? `\n*Action items*\n${actionItems.map((item) => `• ${item}`).join("\n")}` : "";
+  await slackApi(install.token, "chat.postMessage", { channel: slack.channelId, thread_ts: slack.threadTs, ...(mate ? mateIdentity(mate) : {}), text: `*Meeting notes*\n${summary}${items}`.slice(0, 3900) });
+}
+
+async function rememberCall(userId: string, chatId: string, summary: string, userText: string, mateText: string, kind: "call" | "meeting") {
+  const content = `${kind === "meeting" ? "Meeting" : "Voice call"} on ${new Date().toISOString().slice(0, 10)}. ${summary}\nUser said: ${userText.slice(0, 1_500)}`;
   await getDb().insert(recallEntries).values({ clerkUserId: userId, chatId, kind: "exchange", content, embedding: await embedOne(content) });
   await extractMemories({ userId, chatId, userText: userText.slice(0, 6_000), assistantText: mateText.slice(0, 6_000) });
 }

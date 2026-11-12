@@ -376,6 +376,15 @@ export const missionNotes = pgTable("mission_notes", {
  * A voice call with one or more mates. The phone joins a LiveKit room; the voice agent speaks
  * for the mates and reports the transcript here when the call ends.
  */
+export type MeetingInfo = {
+  url: string;
+  botId?: string;
+  botStatus?: string;
+  userName?: string;
+  timezone?: string;
+  slack?: { teamId: string; channelId: string; threadTs: string };
+};
+
 export const calls = pgTable("calls", {
   id: uuid("id").defaultRandom().primaryKey(),
   clerkUserId: text("clerk_user_id").notNull(),
@@ -384,6 +393,10 @@ export const calls = pgTable("calls", {
   leadMateId: uuid("lead_mate_id").references(() => mates.id, { onDelete: "set null" }),
   mateIds: jsonb("mate_ids").$type<string[]>().notNull().default([]),
   roomName: text("room_name").notNull(),
+  /** A call with the user in the app, or a meeting a mate joined (Google Meet, Zoom, Teams) through Recall. */
+  kind: text("kind").$type<"call" | "meeting">().notNull().default("call"),
+  /** Meetings only: where, Recall's bot, and where the notes also go (the Slack thread it was asked from). */
+  meeting: jsonb("meeting").$type<MeetingInfo>(),
   status: text("status").$type<"ringing" | "live" | "ended" | "failed">().notNull().default("ringing"),
   startedAt: timestamp("started_at", { withTimezone: true }),
   endedAt: timestamp("ended_at", { withTimezone: true }),

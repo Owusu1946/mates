@@ -46,6 +46,7 @@ import { completeInstall as completeSlackInstall, completeLink, installUrl as sl
 import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
 import { handleInteraction } from "./slack-delivery.js";
 import { verifySlackSignature } from "./slack-security.js";
+import { handleRecallEvent, leaveMeeting, MeetingError, meetingSession, startMeeting, startMeetingSchema, verifyRecallWebhook } from "./meetings.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
   chatRequestSchema,
@@ -168,6 +169,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const [stats, waiting] = await Promise.all([visitStats(days), waitlistSize()]);
       return c.json({ ...stats, waitlist: waiting });
     })
+    // The meeting bot's camera page (agents.askorin.app/meet-bot) joins and leaves through these,
+    // with the short-lived token in its link; nothing else about the meeting is reachable this way.
+    .get("/site/meetings/:id/session", async (c) => {
+      const session = await meetingSession(c.req.param("id"), c.req.query("t"));
+      return session ? c.json(session) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
+    })
+    .post("/site/meetings/:id/leave", async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), c.req.query("t")) }))
     .post("/site/waitlist", bodyLimit({ maxSize: 2_000 }), async (c) => {
       let body: { email?: unknown; website?: unknown; referrer?: unknown } = {};
       try {
@@ -437,6 +445,25 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .delete("/v1/slack/link/:teamId", auth, async (c) => {
       await unlink(c.get("userId"), c.req.param("teamId"));
       return c.json({ ok: true });
+    })
+    .post("/v1/meetings", auth, validator("json", (value, c) => {
+      const parsed = startMeetingSchema.safeParse(value);
+      return parsed.success ? parsed.data : c.json(failure("INVALID_MEETING", "Send a meeting link and a mate", c.get("requestId")), 400);
+    }), async (c) => {
+      try {
+        return c.json(await startMeeting(c.get("userId"), c.req.valid("json")));
+      } catch (error) {
+        if (error instanceof MeetingError) return c.json(failure(error.code, error.message, c.get("requestId")), error.code === "NOT_CONFIGURED" ? 503 : error.code === "RECALL_FAILED" ? 502 : 400);
+        throw error;
+      }
+    })
+    .post("/v1/meetings/:id/leave", auth, async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), undefined, c.get("userId")) }))
+    // Recall's bot status changes; signed with the workspace secret instead of a Clerk token.
+    .post("/v1/recall/webhook", async (c) => {
+      const raw = await c.req.text();
+      if (!verifyRecallWebhook(raw, (name) => c.req.header(name))) return c.json(failure("BAD_SIGNATURE", "Not from Recall", c.get("requestId")), 401);
+      void handleRecallEvent(JSON.parse(raw)).catch((error) => console.warn("recall_event_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
     })
     // Slack's own calls (events, /mates, buttons) carry no Clerk token: each is checked against the signing secret instead.
     .post("/v1/slack/events", async (c) => {

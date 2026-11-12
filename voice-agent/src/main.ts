@@ -10,8 +10,9 @@ import { Transcript } from './transcript.ts';
 dotenv.config({ path: '.env.local' });
 
 export const AGENT_NAME = process.env.LIVEKIT_AGENT_NAME ?? 'mates-voice';
-/** A call wraps up politely at thirty minutes. */
+/** A call wraps up politely at thirty minutes; a meeting the mate sits in on can run two hours. */
 const MAX_CALL_MS = 30 * 60_000;
+const MAX_MEETING_MS = 2 * 60 * 60_000;
 const WRAP_UP_MS = 20_000;
 
 const rosterPayload = z.object({ mateId: z.string().uuid() });
@@ -44,6 +45,7 @@ export default defineAgent({
     });
     if (!context) return;
 
+    const meeting = dispatch.data.mode === 'meeting';
     const roster = new Map(context.mates.map((mate) => [mate.id, mate]));
     const leadId = context.leadMateId && roster.has(context.leadMateId) ? context.leadMateId : context.mates[0]!.id;
     const state: CallState = {
@@ -58,6 +60,7 @@ export default defineAgent({
       publishEnding: async () => {
         await ctx.room.localParticipant?.setAttributes({ "mates.ending": "true" });
       },
+      meeting,
     };
 
     const session = new voice.AgentSession<CallState>({
@@ -66,7 +69,8 @@ export default defineAgent({
       keytermsOptions: { keyterms: context.keyterms },
       llm: new inference.LLM({ model: 'openai/gpt-5.6-luna', modelOptions: { reasoning_effort: 'low' } }),
       turnHandling: { turnDetection: new inference.TurnDetector(), preemptiveGeneration: { enabled: true } },
-      userAwayTimeout: 20,
+      // In a meeting, long quiet stretches are normal; the mate leaves when the meeting does.
+      userAwayTimeout: meeting ? MAX_MEETING_MS / 1000 : 20,
       userData: state,
     });
 
@@ -74,8 +78,11 @@ export default defineAgent({
     const transcript = new Transcript();
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (event) => {
       if (!(event.item instanceof llm.ChatMessage) || !event.item.textContent) return;
-      if (event.item.role === 'user') transcript.add('You', event.item.textContent);
-      else if (event.item.role === 'assistant') transcript.add((session.currentAgent as MateAgent).mate.name, event.item.textContent);
+      if (event.item.role === 'user') transcript.add(meeting ? 'Meeting' : 'You', event.item.textContent);
+      else if (event.item.role === 'assistant') {
+        state.lastSpokeAt = Date.now();
+        transcript.add((session.currentAgent as MateAgent).mate.name, event.item.textContent);
+      }
     });
 
     // Reported once, however the call ends: the user hangs up, end_call, the time cap or an error.
@@ -87,7 +94,7 @@ export default defineAgent({
     let checkedIn = false;
     session.on(voice.AgentSessionEventTypes.UserStateChanged, (event) => {
       if (event.newState === 'speaking') checkedIn = false;
-      if (event.newState !== 'away') return;
+      if (event.newState !== 'away' || meeting) return;
       if (!checkedIn) {
         checkedIn = true;
         session.generateReply({ instructions: 'The user has gone quiet. Briefly ask if they are still there.', toolChoice: 'none' });
@@ -97,9 +104,14 @@ export default defineAgent({
     });
 
     const cap = setTimeout(() => {
-      session.generateReply({ instructions: "The call has reached its thirty minute limit. Say you need to wrap up, and that they can call back or carry on in the chat. Say goodbye.", toolChoice: 'none' });
+      session.generateReply({
+        instructions: meeting
+          ? "You've been in this meeting for two hours and need to drop off. Say so in one short sentence and that the notes are on their way."
+          : "The call has reached its thirty minute limit. Say you need to wrap up, and that they can call back or carry on in the chat. Say goodbye.",
+        toolChoice: 'none',
+      });
       setTimeout(() => session.shutdown(), WRAP_UP_MS).unref();
-    }, MAX_CALL_MS);
+    }, meeting ? MAX_MEETING_MS : MAX_CALL_MS);
     cap.unref();
 
     // Let the app disconnect after the agent leaves; LiveKit closes the room once it is empty.

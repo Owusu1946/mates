@@ -19,6 +19,7 @@ import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
 import { saveUndo } from "./undo.js";
 import { reminderTool, runReminderTool } from "./reminders.js";
+import { joinMeetingTool, meetingsConfigured, runJoinMeeting } from "./meetings.js";
 import { shipCodeTool, startCodeRun } from "./code-runs.js";
 import { assembleTeam, assembleTeamTool, liveMission, type AssembledTeam, missionContext, missionNoteTool, runMissionNote, teamCard } from "./missions.js";
 import type { PersonaMate } from "./mates.js";
@@ -342,6 +343,7 @@ export async function createAgentResponse(
     scheduleTool,
     viewAttachmentTool,
     reminderTool,
+    ...(meetingsConfigured() ? [joinMeetingTool] : []),
     assembleTeamTool,
     shipCodeTool,
     ...(mission ? [missionNoteTool] : []),
@@ -693,6 +695,10 @@ export async function createAgentResponse(
               // A written note shows in the chat, so the team's progress is visible as it happens.
               if ("saved" in result && execution?.chatId)
                 card(`note_${call.id}`, { kind: "note", phase: "done", label: String(result.saved), note: { title: String(result.saved), version: Number(result.version), author: execution.speaker?.name ?? "A mate", chatId: execution.chatId } });
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+            } else if (call.function.name === "cooper_join_meeting") {
+              activity("Joining the meeting");
+              const result = await runJoinMeeting(userId, execution?.speaker?.id, args, { timezone: execution?.timezone, runId: execution?.runId });
               messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
             } else if (call.function.name === "cooper_set_reminder") {
               activity(activityLabel("cooper_set_reminder"));
