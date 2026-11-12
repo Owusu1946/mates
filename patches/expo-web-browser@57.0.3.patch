@@ -1,0 +1,26 @@
+diff --git a/ios/WebAuthSession.swift b/ios/WebAuthSession.swift
+index a3dac88e2d5a1429da8f16fba5a83e42aad0a715..e2223a928ca150bf30598e735c2bfa8b180c25f0 100644
+--- a/ios/WebAuthSession.swift
++++ b/ios/WebAuthSession.swift
+@@ -6,7 +6,7 @@ import AuthenticationServices
+ private class PresentationContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
+   func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+     #if os(iOS)
+-    return UIApplication.shared.keyWindow ?? ASPresentationAnchor()
++    return SceneGeometry.keyWindow() ?? ASPresentationAnchor()
+     #else
+     return NSApp.mainWindow ?? ASPresentationAnchor()
+     #endif
+diff --git a/ios/WebBrowserSession.swift b/ios/WebBrowserSession.swift
+index d3d29817e46c9886c59dff01dfa68a263d3a12f3..7b01aa2b045489c3d29101f1eb42287ca138a311 100644
+--- a/ios/WebBrowserSession.swift
++++ b/ios/WebBrowserSession.swift
+@@ -30,7 +30,7 @@ internal class WebBrowserSession: NSObject, SFSafariViewControllerDelegate, UIAd
+   }
+ 
+   func open() {
+-    var currentViewController = UIApplication.shared.keyWindow?.rootViewController
++    var currentViewController = SceneGeometry.keyWindow()?.rootViewController
+     while currentViewController?.presentedViewController != nil {
+       currentViewController = currentViewController?.presentedViewController
+     }

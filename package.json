@@ -29,6 +29,9 @@
           "@expo/config-plugins": "57.0.12"
         }
       }
+    },
+    "patchedDependencies": {
+      "expo-web-browser@57.0.3": "patches/expo-web-browser@57.0.3.patch"
     }
   }
 }
