@@ -44,6 +44,7 @@ import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, linkUrl as slackLinkUrl, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
 import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
+import { handleInteraction } from "./slack-delivery.js";
 import { verifySlackSignature } from "./slack-security.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
 import {
@@ -454,6 +455,19 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!form.get("text")?.trim()) return c.json({ response_type: "ephemeral", text: "Tell me what you need, like `/mates ask Ama to find a venue for Saturday`." });
       void handleSlashCommand(form).catch((error) => console.warn("slack_command_failed", { message: error instanceof Error ? error.message : String(error) }));
       return c.json({ response_type: "ephemeral", text: "Got it. Your mate will reply here." });
+    })
+    .post("/v1/slack/interactions", async (c) => {
+      const raw = await c.req.text();
+      if (!verifySlackSignature(raw, c.req.header("x-slack-request-timestamp"), c.req.header("x-slack-signature"))) return c.json(failure("BAD_SIGNATURE", "Not from Slack", c.get("requestId")), 401);
+      const payload = JSON.parse(new URLSearchParams(raw).get("payload") ?? "{}");
+      void handleInteraction(payload).catch((error) => console.warn("slack_interaction_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
+    })
+    // "Open Mates" buttons: Slack buttons need http links, so this page hands over to the app.
+    .get("/v1/slack/open", (c) => {
+      const to = c.req.query("to") === "connections" ? "connections" : "";
+      const target = `mates://${to}`;
+      return c.html(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${target}"><title>Open Mates</title><body style="font-family:system-ui;padding:32px;line-height:1.5"><h1 style="font-size:22px">Opening Mates…</h1><p>If nothing happens, open Mates on your phone, or <a href="${target}">tap here</a>.</p></body>`);
     })
     // The "Connect Mates" button in Slack lands here and opens the app with a signed, short-lived link token.
     .get("/v1/slack/connect", (c) => {

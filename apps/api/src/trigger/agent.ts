@@ -3,6 +3,7 @@ import { z } from "zod";
 import { executeDelegation, publishOutbox, recoverStalledRuns } from "../durable-runs.js";
 import { dispatchDueRoutines } from "../scheduling.js";
 import { deliverFindings } from "../delivery.js";
+import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
 
@@ -15,6 +16,7 @@ export const agentExecution = schemaTask({
   run: async ({ delegationId }, { signal }) => {
     await executeDelegation(delegationId, signal ?? new AbortController().signal);
     await deliverFindings();
+    await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
     return { delegationId };
   },
 });
@@ -45,6 +47,7 @@ export const routineDispatcher = schedules.task({
     await dispatchDueRoutines();
     await publishOutbox();
     await deliverFindings();
+    await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
     return { checkedAt: new Date().toISOString() };
   },
 });
