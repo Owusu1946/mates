@@ -383,6 +383,8 @@ export type MeetingInfo = {
   userName?: string;
   timezone?: string;
   slack?: { teamId: string; channelId: string; threadTs: string };
+  /** SHA-256 of the bot page's token: the page proves it belongs to this meeting without a shared secret. */
+  pageKey?: string;
 };
 
 export const calls = pgTable("calls", {

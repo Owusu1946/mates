@@ -1,4 +1,4 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { CALL_AGENT_NAME, callsConfigured, endCall, joinToken, signCallToken, type CallDispatch } from "./calls.js";
@@ -41,26 +41,20 @@ export class MeetingError extends Error {
 }
 
 // ---- The page's token: lets the bot's page start and leave this one meeting, nothing else ------
+// A random key stored (hashed) with the meeting, so the worker that creates it and the API that
+// checks it never need to share a secret.
 
-const pageKey = () => createHmac("sha256", process.env.CALL_TOKEN_SECRET ?? process.env.CLERK_SECRET_KEY ?? "").update("mates-meeting-page").digest();
-
-export function signPageToken(callId: string, now = Date.now()) {
-  const payload = Buffer.from(JSON.stringify({ c: callId, e: now + PAGE_TOKEN_MS })).toString("base64url");
-  return `${payload}.${createHmac("sha256", pageKey()).update(payload).digest("base64url")}`;
+export function newPageToken() {
+  const token = randomBytes(24).toString("base64url");
+  return { token, hash: createHash("sha256").update(token).digest("hex") };
 }
 
-export function verifyPageToken(token: string | undefined, callId: string, now = Date.now()) {
-  const [payload, signature] = (token ?? "").split(".");
-  if (!payload || !signature) return false;
-  const expected = Buffer.from(createHmac("sha256", pageKey()).update(payload).digest("base64url"));
-  const given = Buffer.from(signature);
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return false;
-  try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as { c?: string; e?: number };
-    return claims.c === callId && typeof claims.e === "number" && claims.e > now;
-  } catch {
-    return false;
-  }
+/** Whether the page's token is this meeting's, and the meeting is recent enough to still be joinable. */
+export function pageTokenMatches(token: string | undefined, hash: string | undefined, createdAt: Date, now = Date.now()) {
+  if (!token || !hash || now - createdAt.getTime() > PAGE_TOKEN_MS) return false;
+  const given = Buffer.from(createHash("sha256").update(token).digest("hex"));
+  const expected = Buffer.from(hash);
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 // ---- Recall --------------------------------------------------------------------------------
@@ -111,10 +105,11 @@ export async function startMeeting(userId: string, input: z.infer<typeof startMe
   const userName = firstName(profile?.displayName);
 
   const id = randomUUID();
-  const meeting: MeetingInfo = { url: meetingUrl, botStatus: "starting", userName, timezone: input.timezone, ...(input.slack ? { slack: input.slack } : {}) };
+  const page = newPageToken();
+  const meeting: MeetingInfo = { url: meetingUrl, botStatus: "starting", userName, timezone: input.timezone, pageKey: page.hash, ...(input.slack ? { slack: input.slack } : {}) };
   await getDb().insert(calls).values({ id, clerkUserId: userId, chatId: mateChatId(mate.id), leadMateId: mate.id, mateIds: [mate.id], roomName: `meet_${id}`, kind: "meeting", meeting });
 
-  const pageUrl = `${SITE()}/meet-bot?${new URLSearchParams({ m: id, t: signPageToken(id), api: API() })}`;
+  const pageUrl = `${SITE()}/meet-bot?${new URLSearchParams({ m: id, t: page.token, api: API() })}`;
   try {
     const bot = await recall<{ id: string }>("/bot/", botRequest({ meetingUrl, mateName: mate.name, ownerName: userName, pageUrl, callId: id }));
     await getDb().update(calls).set({ meeting: { ...meeting, botId: bot.id, botStatus: "joining" } }).where(eq(calls.id, id));
@@ -138,9 +133,9 @@ async function meetingCall(callId: string) {
  * never older than the join (the bot may wait minutes in a waiting room first).
  */
 export async function meetingSession(callId: string, pageToken: string | undefined) {
-  if (!verifyPageToken(pageToken, callId) || !callsConfigured()) return null;
+  if (!callsConfigured()) return null;
   const call = await meetingCall(callId);
-  if (!call || call.status === "ended" || call.status === "failed") return null;
+  if (!call || !pageTokenMatches(pageToken, call.meeting?.pageKey, call.createdAt) || call.status === "ended" || call.status === "failed") return null;
   const [mate] = call.leadMateId ? await getDb().select().from(mates).where(eq(mates.id, call.leadMateId)) : [];
   if (!mate) return null;
   const dispatch: CallDispatch = { callId: call.id, callToken: signCallToken(call.id, call.clerkUserId), userName: call.meeting?.userName, timezone: call.meeting?.timezone, mode: "meeting" };
@@ -151,7 +146,7 @@ export async function meetingSession(callId: string, pageToken: string | undefin
 /** The mate was asked to leave (by name in the meeting, or by its owner): Recall takes the bot out. */
 export async function leaveMeeting(callId: string, pageToken?: string, ownerId?: string) {
   const call = await meetingCall(callId);
-  if (!call || (ownerId ? call.clerkUserId !== ownerId : !verifyPageToken(pageToken, callId))) return false;
+  if (!call || (ownerId ? call.clerkUserId !== ownerId : !pageTokenMatches(pageToken, call.meeting?.pageKey, call.createdAt))) return false;
   if (call.meeting?.botId) await recall(`/bot/${call.meeting.botId}/leave_call/`).catch((error) => console.warn("meeting_leave_failed", { callId, message: error instanceof Error ? error.message : String(error) }));
   return true;
 }

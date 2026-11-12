@@ -1,6 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { botRequest, findMeetingLink, isMeetingLink, signPageToken, verifyPageToken, verifyRecallWebhook } from "./meetings.js";
+import { botRequest, findMeetingLink, isMeetingLink, newPageToken, pageTokenMatches, verifyRecallWebhook } from "./meetings.js";
 
 describe("meeting links", () => {
   it("accepts Google Meet, Zoom and Teams links, and nothing else", () => {
@@ -22,13 +22,15 @@ describe("meeting links", () => {
 });
 
 describe("the bot page's token", () => {
-  it("works only for its own meeting, and expires", () => {
-    const token = signPageToken("call-1");
-    expect(verifyPageToken(token, "call-1")).toBe(true);
-    expect(verifyPageToken(token, "call-2")).toBe(false);
-    expect(verifyPageToken(signPageToken("call-1", 0), "call-1")).toBe(false);
-    expect(verifyPageToken(undefined, "call-1")).toBe(false);
-    expect(verifyPageToken("forged.token", "call-1")).toBe(false);
+  it("matches only its own meeting's stored key, and only while the meeting is recent", () => {
+    const { token, hash } = newPageToken();
+    const now = Date.now();
+    expect(hash).not.toContain(token);
+    expect(pageTokenMatches(token, hash, new Date(now - 60_000), now)).toBe(true);
+    expect(pageTokenMatches(newPageToken().token, hash, new Date(now), now)).toBe(false);
+    expect(pageTokenMatches(token, hash, new Date(now - 5 * 60 * 60_000), now)).toBe(false);
+    expect(pageTokenMatches(undefined, hash, new Date(now), now)).toBe(false);
+    expect(pageTokenMatches(token, undefined, new Date(now), now)).toBe(false);
   });
 });
 
