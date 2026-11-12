@@ -15,7 +15,10 @@ import Apps from "../components/Apps.astro";
 import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
 import Slack from "../components/Slack.astro";
-import Next from "../components/Next.astro";
+import PhoneCalls from "../components/PhoneCalls.astro";
+import Meet from "../components/Meet.astro";
+import Decks from "../components/Decks.astro";
+import More from "../components/More.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
@@ -87,13 +90,19 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Calls />
 
+    <PhoneCalls />
+
+    <Meet />
+
     <Slack />
+
+    <Decks />
 
     <Computer />
 
     <Apps />
 
-    <Next />
+    <More />
 
     <Pricing />
 

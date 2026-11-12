@@ -1,159 +1,61 @@
 ---
-// "Coming next": what the mates learn after Slack, as a grid of cards that each play a small scene
-// once they scroll into view: a deck deals out, a mate answers in a meeting, a phone call books a
-// table, a mate grills your pitch. Without script, or with reduced motion, every scene shows its
-// finished state; the script only arms the start and plays it when the card is seen.
-import { mate } from "../palette";
-import Mascot from "./Mascot";
-
-const nova = mate("blue");
-const bars = [34, 48, 66, 92];
-const more = [
-  { title: "Meeting prep", body: "A brief before every meeting: who’s coming, what you last said, what to ask." },
-  { title: "Docs and spreadsheets", body: "Budgets, invoices, CVs and reports, as files you can send." },
-  { title: "Receipts", body: "Snap a receipt and it lands in your expenses sheet." },
-  { title: "Price watch", body: "Say what to watch; your mate pings you when it drops." },
+// "And the everyday stuff": the smaller jobs coming next, as a row of quiet tiles, each a line
+// icon, a name and one sentence. The big ones (calls, Meet, decks) have their own sections.
+const items = [
+  {
+    title: "Meeting prep",
+    body: "A brief before every meeting: who’s coming, what you last said, what to ask.",
+    icon: "M8 3v3M16 3v3M4 8h16M5 5h14v15H5zM9 13h6M9 16h4",
+  },
+  {
+    title: "Docs and spreadsheets",
+    body: "Budgets, invoices, CVs and reports, as files you can send.",
+    icon: "M6 3h8l4 4v14H6zM14 3v4h4M9 12h6M9 15h6M9 18h4",
+  },
+  {
+    title: "Receipts",
+    body: "Snap a receipt and it lands in your expenses sheet, sorted.",
+    icon: "M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6M9 16h3",
+  },
+  {
+    title: "Price watch",
+    body: "Say what to watch, and your mate pings you when it drops.",
+    icon: "M3 12l7-7h7v7l-7 7zM14 8.5h.01M7 17l-3 3",
+  },
 ];
 ---
 
-<section class="next" id="next" data-next>
-  <div class="intro">
-    <div class="eyebrow">Coming next <span class="soon">Coming soon</span></div>
-    <h2>New jobs for your mates.</h2>
-    <p>
-      They’ll make the deck, sit in on your meetings, and pick up the phone for you. Same mates, and still nothing goes
-      out without your OK.
-    </p>
+<section class="more" id="more">
+  <div class="head">
+    <div class="eyebrow">Also coming <span class="soon">Coming soon</span></div>
+    <h2>And the everyday stuff.</h2>
   </div>
-
-  <div class="grid">
-    <article class="card wide" data-scene>
-      <div class="visual deck" aria-hidden="true">
-        <div class="slide s1">
-          <span class="rule"></span>
-          <b>Osteria Rosa</b>
-          <small>Seed round · 2027</small>
-        </div>
-        <div class="slide s2">
-          <b>Traction</b>
-          <div class="bars">{bars.map((height) => <i style={`--h: ${height}%`}></i>)}</div>
-          <small>Covers per month, Jan to Apr</small>
-        </div>
-        <div class="slide s3">
-          <b>The team</b>
-          <div class="people"><i></i><i></i><i></i></div>
-          <span class="line"></span>
-          <span class="line short"></span>
-        </div>
-        <div class="formats">
-          <span>PowerPoint</span>
-          <span>PDF</span>
-          <span>Google Slides</span>
-        </div>
-      </div>
-      <h3>Make the deck</h3>
-      <p>Tell a mate what it’s for. It writes the slides, lays them out, checks every one, and hands you PowerPoint, PDF or Google Slides.</p>
-    </article>
-
-    <article class="card" data-scene>
-      <div class="visual meet" aria-hidden="true">
-        <div class="tiles">
-          <div class="tile"><span class="face">A</span><small>Ama</small></div>
-          <div class="tile"><span class="face">K</span><small>Kofi</small></div>
-          <div class="tile"><span class="face">Y</span><small>You</small></div>
-          <div class="tile bot">
-            <Mascot client:visible size={44} gradient={nova} shape="triangle" state="listening" />
-            <small>Nova · Mates</small>
-          </div>
-        </div>
-        <div class="captions">
-          <p class="c1"><b>Ama</b> Nova, when did we move the launch?</p>
-          <p class="c2"><b>Nova</b> To the 24th. It’s in Tuesday’s notes.</p>
-        </div>
-      </div>
-      <h3>Sit in on your Meet</h3>
-      <p>Invite a mate to Google Meet. It takes notes, answers when you say its name, and sends the summary after.</p>
-    </article>
-
-    <article class="card" data-scene>
-      <div class="visual phone" aria-hidden="true">
-        <div class="call-head">
-          <Mascot client:visible size={36} gradient={nova} shape="triangle" state="humming" />
-          <div>
-            <b>Calling Osteria Rosa</b>
-            <small>Nova · 0:42</small>
-          </div>
-        </div>
-        <p class="say m1">Hi, I’m Nova, an AI assistant calling for Kenneth.</p>
-        <p class="say them m2">Sure, how can I help?</p>
-        <p class="say m3">A table for four, Friday at 8?</p>
-        <span class="booked">
-          <svg width="14" height="14" viewBox="0 0 16 16"><path d="m3.5 8.4 2.9 2.9 6.1-6.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>
-          Booked · Fri 8:00 pm
-        </span>
-      </div>
-      <h3>Pick up the phone</h3>
-      <p>Ask a mate to book, reschedule or check. It says it’s an AI, asks you first, and tells you how it went.</p>
-    </article>
-
-    <article class="card" data-scene>
-      <div class="visual pitch" aria-hidden="true">
-        <div class="thumb">
-          <b>Market</b>
-          <span class="big">2x</span>
-          <small>Slide 4</small>
-        </div>
-        <div class="grill">
-          <Mascot client:visible size={52} gradient={nova} shape="triangle" state="suspicious" />
-          <p class="ask">Slide 4 says the market doubled. Doubled from what?</p>
-        </div>
-      </div>
-      <h3>Pitch it to me</h3>
-      <p>Practise on a call with the mate that made your deck. It plays the investor and asks the hard questions.</p>
-    </article>
-
-    <article class="card more">
-      <h3>And the small stuff</h3>
-      <ul>
-        {
-          more.map((item) => (
-            <li>
-              <b>{item.title}</b>
-              <span>{item.body}</span>
-            </li>
-          ))
-        }
-      </ul>
-    </article>
+  <div class="tiles">
+    {
+      items.map((item) => (
+        <article class="tile">
+          <span class="icon" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+              <path d={item.icon} />
+            </svg>
+          </span>
+          <h3>{item.title}</h3>
+          <p>{item.body}</p>
+        </article>
+      ))
+    }
   </div>
 </section>
 
-<script>
-  // Arms each scene at its first frame, then plays it once the card is half in view. Reduced
-  // motion (or no script) leaves every scene finished, as the HTML draws it.
-  for (const root of document.querySelectorAll<HTMLElement>("[data-next]")) {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) continue;
-    root.classList.add("armed");
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add("play");
-          observer.unobserve(entry.target);
-        }
-      },
-      { threshold: 0.5 },
-    );
-    for (const scene of root.querySelectorAll("[data-scene]")) observer.observe(scene);
-  }
-</script>
-
 <style>
-  .next {
+  .more {
     width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
+    margin: 120px auto 0;
   }
-  .intro {
+  .head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     text-align: center;
   }
   .eyebrow {
@@ -177,417 +79,73 @@ const more = [
   }
   h2 {
     margin: 14px 0 0;
-    font-size: clamp(28px, 3.6vw, 48px);
+    font-size: clamp(26px, 3vw, 40px);
     font-weight: 600;
     letter-spacing: -0.04em;
     line-height: 1.1;
-  }
-  .intro p {
-    max-width: 52ch;
-    margin: 18px auto 0;
-    color: var(--muted);
-    font-size: clamp(16px, 1.4vw, 18px);
-    line-height: 1.6;
-    text-wrap: balance;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
-    margin-top: 56px;
-  }
-  .card {
-    display: flex;
-    flex-direction: column;
-    padding: 28px;
-    border-radius: 32px;
-    background: var(--panel);
-  }
-  .card.wide {
-    grid-column: span 2;
-  }
-  .card h3 {
-    margin: 24px 0 0;
-    font-size: 20px;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-  }
-  .card > p {
-    max-width: 52ch;
-    margin: 8px 0 0;
-    color: var(--muted);
-    font-size: 15.5px;
-    line-height: 1.5;
-  }
-  .visual {
-    position: relative;
-    height: 260px;
-    overflow: hidden;
-    border-radius: 22px;
-    background: var(--bg);
-  }
-
-  /* Deck: three slides dealt onto the table, then the formats it comes in. */
-  .deck {
-    /* How far the outer slides fan out from the middle one. */
-    --spread: 58%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .slide {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    width: 46%;
-    max-width: 300px;
-    aspect-ratio: 16 / 9;
-    padding: 16px 18px;
-    border-radius: 12px;
-    background: var(--bg);
-    box-shadow: 0 0 0 1px var(--line), 0 18px 36px -18px rgba(15, 23, 42, 0.35);
-  }
-  .slide b {
-    font-size: 15px;
-    letter-spacing: -0.02em;
-  }
-  .slide small {
-    color: var(--muted);
-    font-size: 11px;
-  }
-  .s1 {
-    justify-content: flex-end;
-    transform: translate(calc(-1 * var(--spread)), -24px) rotate(-6deg);
-  }
-  .s1 b {
-    font-size: 20px;
-  }
-  .s1 .rule {
-    width: 28px;
-    height: 4px;
-    margin-bottom: 10px;
-    border-radius: 2px;
-    background: var(--accent);
-  }
-  .s2 {
-    z-index: 2;
-    transform: translateY(-32px);
-  }
-  .bars {
-    flex: 1;
-    display: flex;
-    align-items: flex-end;
-    gap: 8%;
-    margin: 10px 0 6px;
-  }
-  .bars i {
-    flex: 1;
-    height: var(--h);
-    border-radius: 4px 4px 0 0;
-    background: var(--accent);
-    opacity: 0.85;
-    transform-origin: bottom;
-  }
-  .s3 {
-    transform: translate(var(--spread), -24px) rotate(6deg);
-  }
-  .people {
-    display: flex;
-    gap: 8px;
-    margin: 12px 0;
-  }
-  .people i {
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--accent-soft);
-  }
-  .s3 .line {
-    height: 6px;
-    margin-top: 6px;
-    border-radius: 3px;
-    background: var(--soft);
-  }
-  .s3 .line.short {
-    width: 60%;
-  }
-  .formats {
-    position: absolute;
-    bottom: 18px;
-    display: flex;
-    gap: 8px;
-  }
-  .formats span {
-    padding: 5px 12px;
-    border-radius: 999px;
-    background: var(--soft);
-    font-size: 12.5px;
-    font-weight: 500;
-  }
-
-  /* Meet: four tiles, the mate's among them, and live captions underneath. */
-  .meet {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 12px;
   }
   .tiles {
-    flex: 1;
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 20px;
+    margin-top: 40px;
   }
   .tile {
-    position: relative;
+    padding: 24px;
+    border-radius: 24px;
+    background: var(--panel);
+    transition: transform 0.2s ease;
+  }
+  .tile:hover {
+    transform: translateY(-3px);
+  }
+  .icon {
     display: grid;
     place-items: center;
-    border-radius: 12px;
-    background: var(--soft);
-  }
-  .tile small {
-    position: absolute;
-    left: 8px;
-    bottom: 6px;
-    font-size: 11px;
-    font-weight: 500;
-  }
-  .face {
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
     background: var(--bg);
-    color: var(--muted);
-    font-weight: 600;
+    color: var(--accent-deep);
+    box-shadow: 0 0 0 1px var(--line);
   }
-  .tile.bot {
-    background: var(--accent-soft);
-    box-shadow: inset 0 0 0 2px var(--accent);
-  }
-  .captions {
-    display: grid;
-    gap: 4px;
-    padding: 8px 12px;
-    border-radius: 12px;
-    background: var(--text);
-    color: var(--bg);
-    font-size: 12.5px;
-    line-height: 1.35;
-  }
-  .captions p {
-    margin: 0;
-  }
-  .captions b {
-    margin-right: 4px;
-    opacity: 0.6;
-  }
-
-  /* Phone: the call, line by line, ending on the booking. */
-  .phone {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 16px;
-  }
-  .call-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 4px;
-  }
-  .call-head b {
-    display: block;
-    font-size: 14px;
-  }
-  .call-head small {
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .say {
-    max-width: 85%;
-    margin: 0;
-    padding: 8px 12px;
-    border-radius: 16px;
-    border-bottom-left-radius: 6px;
-    background: var(--soft);
-    font-size: 13px;
-    line-height: 1.35;
-  }
-  .say.them {
-    align-self: flex-end;
-    border-radius: 16px;
-    border-bottom-right-radius: 6px;
-    background: var(--text);
-    color: var(--bg);
-  }
-  .booked {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    align-self: flex-start;
-    margin-top: auto;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: var(--success-soft);
-    color: var(--success);
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  /* Pitch: your slide, and the mate asking the hard question about it. */
-  .pitch {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 18px;
-    padding: 20px;
-  }
-  .thumb {
-    display: flex;
-    flex-direction: column;
-    align-self: flex-start;
-    width: 150px;
-    aspect-ratio: 16 / 9;
-    padding: 10px 12px;
-    border-radius: 10px;
-    box-shadow: 0 0 0 1px var(--line), 0 12px 24px -14px rgba(15, 23, 42, 0.3);
-    transform: rotate(-3deg);
-  }
-  .thumb b {
-    font-size: 12px;
-  }
-  .thumb .big {
-    color: var(--accent);
-    font-size: 30px;
-    font-weight: 700;
-    letter-spacing: -0.04em;
-    line-height: 1.1;
-  }
-  .thumb small {
-    margin-top: auto;
-    color: var(--muted);
-    font-size: 10px;
-  }
-  .grill {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-  }
-  .ask {
-    margin: 0;
-    padding: 10px 14px;
-    border-radius: 18px;
-    border-bottom-left-radius: 6px;
-    background: var(--soft);
-    font-size: 14px;
-    line-height: 1.4;
-  }
-
-  /* The small stuff: a plain list, no scene. */
-  .more h3 {
-    margin-top: 0;
-  }
-  .more ul {
-    display: grid;
-    gap: 16px;
+  h3 {
     margin: 18px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-  .more li {
-    display: grid;
-    gap: 4px;
-    padding-top: 16px;
-    border-top: 1px solid var(--line);
-  }
-  .more b {
-    font-size: 15.5px;
+    font-size: 17px;
     font-weight: 600;
+    letter-spacing: -0.01em;
   }
-  .more span {
+  p {
+    margin: 6px 0 0;
     color: var(--muted);
     font-size: 14.5px;
-    line-height: 1.45;
-  }
-
-  /* Motion. Armed = the first frame; play = the scene runs to its finished state and stays. */
-  .armed [data-scene] :is(.slide, .formats, .bars i, .captions p, .say, .booked, .thumb, .ask) {
-    opacity: 0;
-  }
-  .play .s1 { animation: deal-left 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s both; }
-  .play .s2 { animation: deal-mid 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s both; }
-  .play .s3 { animation: deal-right 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.6s both; }
-  .play .bars i { animation: grow 0.6s ease calc(1s + var(--i, 0) * 0.1s) both; }
-  .play .bars i:nth-child(2) { --i: 1; }
-  .play .bars i:nth-child(3) { --i: 2; }
-  .play .bars i:nth-child(4) { --i: 3; }
-  .play .formats { animation: rise 0.5s ease 1.6s both; }
-  .play .c1 { animation: rise 0.45s ease 0.4s both; }
-  .play .c2 { animation: rise 0.45s ease 1.8s both; }
-  .play .m1 { animation: rise 0.45s ease 0.3s both; }
-  .play .m2 { animation: rise 0.45s ease 1.4s both; }
-  .play .m3 { animation: rise 0.45s ease 2.4s both; }
-  .play .booked { animation: pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1.4) 3.4s both; }
-  .play .thumb { animation: rise 0.5s ease 0.2s both; }
-  .play .ask { animation: rise 0.5s ease 1s both; }
-
-  @keyframes deal-left {
-    from { opacity: 0; transform: translate(-20%, 60px) rotate(-14deg); }
-    to { opacity: 1; transform: translate(calc(-1 * var(--spread)), -24px) rotate(-6deg); }
-  }
-  @keyframes deal-mid {
-    from { opacity: 0; transform: translateY(70px); }
-    to { opacity: 1; transform: translateY(-32px); }
-  }
-  @keyframes deal-right {
-    from { opacity: 0; transform: translate(20%, 60px) rotate(14deg); }
-    to { opacity: 1; transform: translate(var(--spread), -24px) rotate(6deg); }
-  }
-  @keyframes grow {
-    from { opacity: 0.85; transform: scaleY(0); }
-    to { opacity: 0.85; transform: scaleY(1); }
-  }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
-  }
-  @keyframes pop {
-    from { opacity: 0; transform: scale(0.8); }
-    to { opacity: 1; transform: none; }
+    line-height: 1.5;
   }
 
   @media (max-width: 1024px) {
-    .grid {
+    .tiles {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
-  @media (max-width: 720px) {
-    .next {
-      margin-top: 96px;
+  @media (max-width: 560px) {
+    .more {
+      margin-top: 88px;
     }
-    .grid {
-      grid-template-columns: minmax(0, 1fr);
-      margin-top: 40px;
+    .tiles {
+      grid-template-columns: 1fr;
+      gap: 12px;
     }
-    .card.wide {
-      grid-column: auto;
+    .tile {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      column-gap: 14px;
+      padding: 18px;
     }
-    .card {
-      padding: 20px;
-      border-radius: 28px;
+    .icon {
+      grid-row: span 2;
     }
-    .deck {
-      --spread: 34%;
-    }
-    .slide {
-      width: 50%;
-      padding: 12px 14px;
-    }
-    .s1 b {
-      font-size: 16px;
+    h3 {
+      margin: 2px 0 0;
     }
   }
 </style>
