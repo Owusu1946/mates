@@ -135,10 +135,6 @@ const yearlyPerMonth = (plan: Plan) => {
           <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
 
           <div class="allowance">
-            <div class="allowance-head">
-              <span>Monthly usage</span>
-              <span class="refill">Refills weekly</span>
-            </div>
             <dl>
               {plan.allowance.map(([label, amount]) => (
                 <div>
@@ -302,25 +298,12 @@ const yearlyPerMonth = (plan: Plan) => {
   /* What the allowance buys, as a plain-numbers ledger inside the card. */
   .allowance {
     margin-top: 28px;
-    padding: 18px 18px 6px;
+    padding: 6px 18px;
     border-radius: 20px;
     background: var(--bg);
   }
-  .allowance-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    flex-wrap: wrap;
-  }
-  .refill {
-    color: var(--muted);
-    font-weight: 400;
-  }
   dl {
-    margin: 10px 0 0;
+    margin: 0;
   }
   dl div {
     display: flex;
@@ -329,6 +312,9 @@ const yearlyPerMonth = (plan: Plan) => {
     padding: 10px 0;
     border-top: 1px solid var(--line);
     font-size: 14.5px;
+  }
+  dl div:first-child {
+    border-top: 0;
   }
   dt {
     color: var(--muted);
