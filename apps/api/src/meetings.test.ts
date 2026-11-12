@@ -17,6 +17,7 @@ describe("meeting links", () => {
     expect(findMeetingLink("Ama, join this: https://meet.google.com/abc-defg-hij. Thanks!")).toBe("https://meet.google.com/abc-defg-hij");
     expect(findMeetingLink("Slides at https://example.com/deck, call at <https://us02web.zoom.us/j/812345?pwd=x>")).toBe("https://us02web.zoom.us/j/812345?pwd=x");
     expect(findMeetingLink("no links here")).toBeNull();
+    expect(findMeetingLink("<https://meet.google.com/abc-defg-hij|meet.google.com/abc-defg-hij>")).toBe("https://meet.google.com/abc-defg-hij");
   });
 });
 

@@ -37,6 +37,9 @@ export function pickMate<M extends Pick<Mate, "name">>(text: string, crew: M[]):
   return named && !NOT_NAMES.has(named.toLowerCase()) ? { mate: null, task: clean, unknown: named } : { mate: null, task: clean };
 }
 
+/** Slack's markup for links (<https://…> or <https://…|label>) and user mentions, as plain text a mate can use. */
+export const plainSlackText = (text: string) => text.replace(/<(https?:\/\/[^|>]+)(?:\|[^>]*)?>/g, "$1");
+
 /** A Slack message id, made safe for chat message ids (letters, digits, - and _). */
 const safeId = (value: string) => value.replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 120);
 
@@ -153,7 +156,7 @@ export async function handleAsk(ask: Ask, { fromQueue = false } = {}): Promise<"
 
   const lead = await ensureDefaultMate(userId);
   const crew = await getDb().select().from(mates).where(eq(mates.clerkUserId, userId));
-  const picked = pickMate(ask.text, crew);
+  const picked = pickMate(plainSlackText(ask.text), crew);
   const command = picked.task.toLowerCase().replace(/[.!?]+$/, "");
   if (command === "help") return void (await reply({ text: HELP_TEXT })), "skipped";
   if (command === "list" || command === "mates") return void (await reply({ text: `*Your mates*\n${listText(lead, crew)}` })), "skipped";
