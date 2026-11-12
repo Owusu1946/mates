@@ -2,37 +2,106 @@
 // Pricing for individuals: three plans, monthly or yearly at a discount. The billing switch is
 // two radio buttons and sibling selectors, so it works without script and on older Safari
 // (no :has, which iOS 15.0-15.3 lacks). The radios sit before the switch and the plans.
-const YEARLY_DISCOUNT = 0.2;
+// Yearly is ten months for twelve. Allowance figures are what a full month of usage covers if
+// spent on one kind of work: every mate draws from the same weekly-refilled allowance.
+const FREE_MONTHS = 2;
 
-type Plan = { name: string; monthly: number; intro: string; features: string[] };
+type Plan = {
+  name: string;
+  monthly: number;
+  tagline: string;
+  allowance: [string, string][];
+  intro: string;
+  features: string[];
+};
 const plans: Plan[] = [
+  {
+    name: "Starter",
+    monthly: 8,
+    tagline: "For handing off the everyday.",
+    allowance: [
+      ["Tasks done end to end", "~200"],
+      ["Chat messages", "~700"],
+      ["Browser tasks", "~20"],
+      ["Voice call minutes", "~80"],
+      ["Quick coding runs", "~15"],
+    ],
+    intro: "Includes:",
+    features: [
+      "Up to 5 mates, each with their own role and memory",
+      "One mission at a time, with handoffs and shared notes",
+      "Sign in to hundreds of apps",
+      "3 routines on a schedule",
+      "Voice calls with up to 2 mates",
+      "Quick coding runs on the fast model",
+    ],
+  },
   {
     name: "Plus",
     monthly: 15,
-    intro: "Includes:",
+    tagline: "For real projects with a team.",
+    allowance: [
+      ["Tasks done end to end", "~400"],
+      ["Chat messages", "~1,400"],
+      ["Browser tasks", "~40"],
+      ["Voice call minutes", "~160"],
+      ["Pull requests coded", "~2"],
+    ],
+    intro: "Everything in Starter, plus:",
     features: [
-      "Your own team of mates",
-      "Missions with handoffs and shared notes",
-      "Sign in to hundreds of apps",
-      "Routines on a schedule",
-      "The mates’ computer: ship code as pull requests",
-      "Weekly usage included",
+      "2x Starter usage",
+      "Up to 10 mates",
+      "2 missions running at the same time",
+      "10 routines on a schedule",
+      "Group calls with up to 4 mates",
+      "The mates’ computer on the flagship model: ship code as pull requests",
     ],
   },
   {
     name: "Pro",
     monthly: 40,
+    tagline: "For mates who work all day.",
+    allowance: [
+      ["Tasks done end to end", "~1,200"],
+      ["Chat messages", "~4,200"],
+      ["Browser tasks", "~120"],
+      ["Voice call minutes", "~480"],
+      ["Pull requests coded", "~6"],
+    ],
     intro: "Everything in Plus, plus:",
-    features: ["4x Plus usage", "More mates working at the same time", "Longer coding runs", "Priority model access at peak times"],
+    features: [
+      "3x Plus usage",
+      "Up to 20 mates",
+      "5 missions running at the same time",
+      "Unlimited routines",
+      "Coding runs that go more than twice as long",
+    ],
   },
   {
     name: "Max",
     monthly: 80,
+    tagline: "For a team that never clocks off.",
+    allowance: [
+      ["Tasks done end to end", "~2,400"],
+      ["Chat messages", "~8,400"],
+      ["Browser tasks", "~240"],
+      ["Voice call minutes", "~960"],
+      ["Pull requests coded", "~12"],
+    ],
     intro: "Everything in Pro, plus:",
-    features: ["10x Plus usage", "The most capable models for every mate", "Earliest access to new features and models"],
+    features: [
+      "6x Plus usage",
+      "10 missions running at the same time",
+      "Choose the most capable model for any mate",
+      "Earliest access to new features and models",
+    ],
   },
 ];
-const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DISCOUNT));
+const yearlyTotal = (plan: Plan) => plan.monthly * (12 - FREE_MONTHS);
+const yearlyPerMonth = (plan: Plan) => {
+  const perMonth = yearlyTotal(plan) / 12;
+  return Number.isInteger(perMonth) ? String(perMonth) : perMonth.toFixed(2);
+};
 ---
 
 <section class="pricing" id="pricing">
@@ -43,7 +112,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   <input class="billing" type="radio" name="billing" id="billing-yearly" value="yearly" aria-label="Yearly billing" />
   <div class="switch" aria-hidden="true">
     <label for="billing-monthly">Monthly</label>
-    <label for="billing-yearly">Yearly <span class="save">Save {YEARLY_DISCOUNT * 100}%</span></label>
+    <label for="billing-yearly">Yearly <span class="save">{FREE_MONTHS} months free</span></label>
   </div>
 
   <div class="plans">
@@ -51,6 +120,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
       plans.map((plan) => (
         <article class="plan">
           <h3>{plan.name}</h3>
+          <p class="tagline">{plan.tagline}</p>
           <div class="price monthly">
             <span class="amount">${plan.monthly}</span>
             <span class="per">/ month</span>
@@ -60,9 +130,24 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
             <span class="per">/ month</span>
           </div>
           <div class="billed monthly">Billed monthly</div>
-          <div class="billed yearly">Billed yearly at ${yearlyPerMonth(plan) * 12}</div>
+          <div class="billed yearly">Billed yearly at ${yearlyTotal(plan)}</div>
 
           <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
+
+          <div class="allowance">
+            <div class="allowance-head">
+              <span>Monthly usage</span>
+              <span class="refill">Refills weekly</span>
+            </div>
+            <dl>
+              {plan.allowance.map(([label, amount]) => (
+                <div>
+                  <dt>{label}</dt>
+                  <dd>{amount}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
 
           <div class="intro">{plan.intro}</div>
           <ul>
@@ -79,6 +164,11 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
       ))
     }
   </div>
+
+  <p class="note">
+    Usage figures are estimates for spending a whole month on one kind of work. Your mates share one allowance, so mix
+    them however you like. Coding and the most capable models use it faster.
+  </p>
 </section>
 
 <style>
@@ -147,7 +237,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
 
   .plans {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
     margin-top: 32px;
     text-align: left;
@@ -155,7 +245,7 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
   .plan {
     display: flex;
     flex-direction: column;
-    padding: 40px 36px;
+    padding: 36px 28px;
     border-radius: 32px;
     background: var(--panel);
   }
@@ -164,6 +254,11 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     color: var(--muted);
     font-size: 17px;
     font-weight: 500;
+  }
+  .tagline {
+    margin: 8px 0 0;
+    font-size: 15.5px;
+    line-height: 1.4;
   }
   .price {
     display: flex;
@@ -204,6 +299,53 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     margin-top: 32px;
     font-size: 17px;
   }
+  /* What the allowance buys, as a plain-numbers ledger inside the card. */
+  .allowance {
+    margin-top: 28px;
+    padding: 18px 18px 6px;
+    border-radius: 20px;
+    background: var(--bg);
+  }
+  .allowance-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    flex-wrap: wrap;
+  }
+  .refill {
+    color: var(--muted);
+    font-weight: 400;
+  }
+  dl {
+    margin: 10px 0 0;
+  }
+  dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line);
+    font-size: 14.5px;
+  }
+  dt {
+    color: var(--muted);
+  }
+  dd {
+    margin: 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .note {
+    max-width: 72ch;
+    margin: 28px auto 0;
+    color: var(--muted);
+    font-size: 14.5px;
+    line-height: 1.5;
+    text-wrap: balance;
+  }
   .intro {
     margin-top: 36px;
     font-size: 16px;
@@ -228,7 +370,14 @@ const yearlyPerMonth = (plan: Plan) => Math.round(plan.monthly * (1 - YEARLY_DIS
     margin-top: 3px;
   }
 
-  @media (max-width: 960px) {
+  @media (max-width: 1180px) {
+    .plans {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 860px;
+      margin-inline: auto;
+    }
+  }
+  @media (max-width: 720px) {
     .plans {
       grid-template-columns: 1fr;
       max-width: 520px;
