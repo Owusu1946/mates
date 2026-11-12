@@ -146,11 +146,12 @@ function Tile({ name, color, shape, state, pill, caption }: { name: string; colo
         justifyContent: "center",
         position: "relative",
         overflow: "hidden",
-        background: `radial-gradient(circle at 50% 45%, color-mix(in srgb, ${gradient[0]} 55%, #ffffff), color-mix(in srgb, ${gradient[0]} 22%, #ffffff))`,
+        // A flat colour: meeting video is heavily compressed, and gradients turn to blur and banding.
+        background: `color-mix(in srgb, ${gradient[0]} 38%, #ffffff)`,
       }}
       aria-label={`${name}, from Mates`}
     >
-      <Mascot size={400} gradient={gradient} shape={silhouette} state={state} />
+      <Mascot size={480} gradient={gradient} shape={silhouette} state={state} />
       <div style={{ position: "absolute", top: 28, left: 32, display: "flex", alignItems: "center", gap: 10, padding: "10px 18px", borderRadius: 999, background: "#ffffff", fontFamily: font, fontSize: 24, fontWeight: 600, color: "#0a0a0a" }}>
         <span style={{ width: 12, height: 12, borderRadius: "50%", background: MATE.rose[1] }} />
         {pill}
