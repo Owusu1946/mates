@@ -7,8 +7,10 @@ import { BULLET_INDENT, palette, sceneOf, type Deck, type Shape } from "@muse-cl
  * inch, so it matches the app exactly. Arial is on every machine and in Google Slides.
  */
 // The package's types declare an ES default export but it isn't marked as an ES module, so under
-// NodeNext the default import types as the whole module; its ES build does export the class.
-const PptxGenJS = pptxModule.default as unknown as typeof pptxModule.default.default;
+// NodeNext the default import types as the whole module (bundler resolution, as in the app's
+// typecheck, sees the class). Its ES build does export the class, so this resolves to it either way.
+type Constructor<T> = T extends { default: infer D } ? (D extends new () => unknown ? D : T) : T;
+const PptxGenJS = pptxModule.default as unknown as Constructor<typeof pptxModule.default>;
 type Pptx = InstanceType<typeof PptxGenJS>;
 type PptxSlide = ReturnType<Pptx["addSlide"]>;
 
