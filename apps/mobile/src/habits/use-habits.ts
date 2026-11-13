@@ -22,11 +22,10 @@ export type Habit = {
 };
 export type HabitSettings = { memoryEnabled: boolean; habitLearning: boolean; learnFromApps: boolean; meetingPrep: boolean; observing: string[]; plusFeatures: boolean };
 export type Habits = { available: boolean; habits: Habit[]; topics: { topic: string; lastSeenAt: string }[]; settings: HabitSettings };
-export type NudgeAction = "handle" | "skip" | "stop" | "automate";
 
 const key = (userId: string | null | undefined) => ["habits", userId];
 
-/** What the mates have noticed, and the switches; shared by "What I've noticed" and the nudge cards. */
+/** What the mates have noticed, and the switches; for "What I've noticed". */
 export function useHabits() {
   const { getToken, userId } = useAuth();
   const api = useMemo(() => createApiClient(getToken), [getToken]);
@@ -68,11 +67,6 @@ export function useHabitActions() {
     clear: () => then(api.v1.habits.$delete().then((r) => ok(r, "Couldn’t clear everything."))),
     settings: (values: Partial<Pick<HabitSettings, "habitLearning" | "learnFromApps" | "meetingPrep">>) =>
       then(api.v1.habits.settings.$post({ json: values }).then((r) => ok(r, "Couldn’t update that setting."))),
-    /** From the app, "Handle it" hands back the task, which the card sends in the open chat. */
-    nudge: async (nudgeId: string, action: NudgeAction) => {
-      const response = await then(api.v1.habits.nudges[":id"].$post({ param: { id: nudgeId }, json: { action, run: false } }).then((r) => ok(r, "That didn’t work. Try again.")));
-      return (await response.json()) as { outcome: string; prompt?: string; chatId?: string };
-    },
   };
 }
 
