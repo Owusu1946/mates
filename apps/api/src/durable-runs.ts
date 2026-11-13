@@ -14,6 +14,7 @@ import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, y
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
 import { extractMemories, memoryCard, memorySettings } from "./memory.js";
+import { recordRunActivity } from "./habits/activity.js";
 import { recordExchange } from "./recall.js";
 import type { agentExecution } from "./trigger/agent.js";
 import { assertUsage, UsageLimitError } from "./usage/gate.js";
@@ -243,7 +244,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           speaker: mate,
           boardTask,
           // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
-          usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : "chat",
+          usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : run.requestKey.startsWith("habit_") ? "habit" : "chat",
           checkpoint: async (pendingTool, history) => {
             await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
@@ -524,6 +525,9 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     if (!missionInfo || finishing) await saveFinding(id);
     // A round's prompt is generated, so there is nothing of the user's to remember or index.
     if (status === "completed" && !missionInfo) await rememberFromRun(id, run, request.messages.at(-1), content, persist);
+    // What the user asked for themselves feeds habit learning; routines, watches and nudges don't.
+    if (status === "completed" && !missionInfo && !/^(occurrence|watch|habit|manual)_/.test(run.requestKey) && request.messages.at(-1)?.role === "user")
+      void recordRunActivity({ userId: run.clerkUserId, runId: id, agentRunId: run.agentRunId ?? id, chatId: run.chatId, mateId: run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null, userText: request.messages.at(-1)!.content, timezone: request.timezone }).catch(() => undefined);
     if (run.chatId) await afterRunInChat(run.clerkUserId, run.chatId, !!missionInfo, status).catch(() => console.warn("mission_continue_failed", { id }));
   }
 }
