@@ -1,6 +1,6 @@
 # Habits: mates learn how you work and offer to handle it
 
-A mate notices what you do regularly ("you plan your week on Monday mornings", "you email a recap after meetings", "you read about fintech in Ghana most mornings") and offers to do it. It sends a push that opens its chat: *"You usually plan your week around now. Want me to handle it?"* The chat shows **Handle it · Not today · Stop suggesting**. After a few "Handle it"s, it also offers **Make it automatic**.
+A mate notices what you do regularly ("you plan your week on Monday mornings", "you email a recap after meetings", "you read about fintech in Ghana most mornings") and offers to do it. It sends a push that opens its chat: *"You usually plan your week around now. Want me to handle it?"* There are no buttons: you just reply, e.g. "yes please", "not today", "stop asking" or "just do it every week". After you've said yes a couple of times, the offer adds "Or I can just do it automatically from now on."
 
 Before calendar meetings with other people, the lead mate posts a short **meeting prep** brief and offers to join and take notes.
 
@@ -35,7 +35,7 @@ At 3am in each person's timezone, the dispatcher claims them and the `mate-habit
 - **Follow-ups:** a task that comes after at least 60% of meetings, calls or app events, at least 3 times, within 2 hours.
 - **Topics:** asked about or opened at least 3 times on 2 different days. A topic read at a regular time becomes a "short digest?" offer.
 
-**The score** combines regularity, how tight the times are, and how often it happened. Feedback then moves it: each "Handle it" raises it, and skips lower it.
+**The score** combines regularity, how tight the times are, and how often it happened. Feedback then moves it: each yes raises it, and "not today"s lower it.
 
 **One model call per person per night** (about $0.002) then describes the patterns in plain words: a title, the offer line, and the task to run. It drops anything about health, religion, sexuality, politics, money trouble, legal matters or other people's private matters, and anything a routine or watch already covers.
 
@@ -56,13 +56,15 @@ Every minute the dispatcher claims time habits coming due. It moves each one to 
 
 If the time passed more than an hour ago (for example, the worker was down), it just moves on.
 
-**What a nudge is:** a message in the mate's chat plus a push that opens it. There's no run and no model cost.
+**What a nudge is:** a plain message in the mate's chat plus a push that opens it. There's no run and no model cost.
 
-**The buttons** (`POST /v1/habits/nudges/:id`):
-- **Handle it:** the app puts the task in the composer and sends it, so it streams like any message, with your usual approval rules. The habit becomes confirmed.
-- **Not today:** counts as a skip.
-- **Stop suggesting:** dismissed for good.
-- **Make it automatic** (offered from the third time): a time habit becomes routines, one per weekday, in that mate's chat. A follow-up habit is then done straight after its event.
+**Answering by typing:** when you next message that chat, the run checks for an open offer (`pendingNudge`). An offer stays open for 12 hours, and only until you say something else in that chat. If there is one, the mate is told what it offered (`nudgeContext`) and gets the `cooper_habit_reply` tool. If your message answers the offer, it records what you said:
+- **yes:** counted as done today, and the habit becomes confirmed. The mate does the task in the same reply, under your usual approval rules.
+- **not_today:** counts as a skip.
+- **stop:** dismissed for good.
+- **automate:** a time habit becomes routines, one per weekday, in that mate's chat. A follow-up habit is then done straight after its event.
+
+If your message is about something else, the mate ignores the offer.
 
 **Follow-up habits** are offered the moment the event happens: a meeting ends in `finishCall`, or mail is sent through the observer.
 
@@ -114,7 +116,7 @@ Usage is metered under the `habit` and `prep` sources, so it shows up in the mar
 | `shared.ts` | The flag, the switches, timezone, the small model call |
 | `activity.ts` | Recording runs and reads, "done today", pruning |
 | `miner.ts` | Patterns, topics, the nightly description, the 3am claim |
-| `nudges.ts` | Sending, the dispatcher, follow-ups, the buttons, making it automatic |
+| `nudges.ts` | Sending, the dispatcher, follow-ups, the open offer and the reply tool, making it automatic |
 | `prep.ts` | Calendar sync, the due claim, the brief, the brief for a joining mate |
 | `observers.ts` | "Learn from my apps" triggers and their events |
 | `manage.ts` | The "What I've noticed" list, changes, settings, clear everything |
@@ -131,7 +133,6 @@ Usage is metered under the `habit` and `prep` sources, so it shows up in the mar
 - `DELETE /v1/habits`
 - `DELETE /v1/habits/topics/:topic`
 - `POST /v1/habits/settings`
-- `POST /v1/habits/nudges/:id`
 - `POST /v1/activity`
 
 **Worker:** the `mate-habits` and `mate-meeting-prep` tasks, plus `dispatchHabits` in `cooper-dispatcher`.
@@ -139,7 +140,7 @@ Usage is metered under the `habit` and `prep` sources, so it shows up in the mar
 **Voice agent:** `brief` in the call context, used in `meetingInstructions`.
 
 **Mobile**
-- `src/chat/nudge-card.tsx` and `src/chat/meeting-prep-card.tsx`
+- `src/chat/meeting-prep-card.tsx` (nudges are plain messages, so they need no card)
 - `app/(app)/noticed.tsx` ("What I've noticed"), linked from Settings and Memory
 - `src/habits/use-habits.ts` and `src/habits/report-reads.ts`
 
