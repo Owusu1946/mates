@@ -73,3 +73,36 @@ export function usageNotice(usage: Usage | undefined) {
   if (fullest && fullest.usedPct >= NEARLY_USED_PCT) return { kind: "nearly" as const, window: fullest.kind, usedPct: fullest.usedPct, resetsAt: fullest.resetsAt };
   return null;
 }
+
+const WINDOW_MS: Record<UsageWindow["kind"], number> = { "5h": 5 * 3_600_000, week: 7 * 86_400_000 };
+
+/**
+ * Whether the pace so far would use up a window before it resets, and roughly when. Too early in a
+ * window (under a tenth of it gone, or under 10% used) says nothing, since a burst isn't a pace.
+ */
+export function paceWarning(usage: Usage | undefined, now = new Date()) {
+  if (!usage?.enforced || usage.blocked) return null;
+  let soonest: { window: UsageWindow; runsOutAt: Date } | null = null;
+  for (const window of usage.windows) {
+    if (!window.resetsAt || window.usedPct < 10 || window.usedPct >= 100) continue;
+    const resetsAt = new Date(window.resetsAt).getTime();
+    const elapsed = WINDOW_MS[window.kind] - (resetsAt - now.getTime());
+    if (elapsed < WINDOW_MS[window.kind] * 0.1) continue;
+    const runsOutAt = now.getTime() + ((100 - window.usedPct) * elapsed) / window.usedPct;
+    if (runsOutAt < resetsAt && (!soonest || runsOutAt < soonest.runsOutAt.getTime())) soonest = { window, runsOutAt: new Date(runsOutAt) };
+  }
+  return soonest;
+}
+
+/** "this afternoon", "tonight", "tomorrow morning", "on Thursday". */
+export function roughly(at: Date, now = new Date()) {
+  const days = Math.round((startOfDay(at) - startOfDay(now)) / 86_400_000);
+  const hour = at.getHours();
+  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : hour < 21 ? "evening" : "night";
+  if (days <= 0) {
+    if (at.getTime() - now.getTime() < 90 * 60_000) return "within the hour";
+    return part === "night" || part === "evening" ? "tonight" : `this ${part}`;
+  }
+  if (days === 1) return `tomorrow ${part === "night" ? "night" : part}`;
+  return `on ${at.toLocaleDateString(undefined, { weekday: "long" })}`;
+}
