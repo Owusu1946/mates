@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "nudge" | "prep";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -78,6 +78,30 @@ export type WorkflowCard = {
     lastCheckedAt: string | null;
     expiresAt: string;
     firedAt: string | null;
+  };
+  /** A mate offering to handle something the user usually does; the app keeps it current by `habitId`. */
+  nudge?: {
+    habitId: string;
+    nudgeId: string;
+    title: string;
+    /** "Mondays around 09:00" or "after a meeting". */
+    when: string;
+    outcome: "handled" | "skipped" | "stopped" | "automated" | null;
+    /** Offered once it's been handled a few times: do it without asking from now on. */
+    canAutomate: boolean;
+  };
+  /** A brief before a calendar meeting with other people. */
+  prep?: {
+    prepId: string;
+    title: string;
+    startsAt: string;
+    attendees: { name: string | null; email: string; lastContact: string | null }[];
+    brief: string;
+    openItems: string[];
+    usual: string | null;
+    meetingUrl: string | null;
+    mateId: string;
+    mateName: string;
   };
   /** A finished voice call: who was on it, how long, the summary and action items. */
   call?: { callId: string; durationSec: number; summary: string; actionItems: string[]; mates: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }[]; lines: number };
