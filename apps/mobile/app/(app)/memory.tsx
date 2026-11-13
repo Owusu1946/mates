@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { useQuery } from "@tanstack/react-query";
+import { router } from "expo-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { ChatIcon } from "../../src/chat/chat-icon";
@@ -90,6 +91,14 @@ export default function MemoryScreen() {
         <ToggleRow title="Save automatically" detail="Your mates decide what’s worth keeping and show “Memory updated” when they do." value={settings.autoMemory} disabled={off} onChange={(autoMemory) => setSetting({ autoMemory })} />
         <ToggleRow title="Reference chat history" detail="Look back at earlier chats and files when they’re relevant." value={settings.historyRecall} disabled={off} onChange={(historyRecall) => setSetting({ historyRecall })} />
       </Group>
+
+      <Pressable accessibilityRole="link" onPress={() => router.push("/noticed")} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface, opacity: pressed ? 0.7 : off ? 0.55 : 1 })}>
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 16 }}>What I’ve noticed</Text>
+          <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18 }}>Habits your mates picked up, and what they offer to handle.</Text>
+        </View>
+        <ChatIcon name="next" color={colors.textMuted} size={16} />
+      </Pressable>
 
       {(error || query.isError) && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.error, fontFamily: font.medium, fontSize: 14 }}>
