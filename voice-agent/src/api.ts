@@ -41,10 +41,29 @@ export type CallContext = z.infer<typeof contextSchema>;
 
 export type TranscriptLine = { speaker: string; text: string; at: string };
 
+const deckSummarySchema = z.object({ id: z.string(), title: z.string(), status: z.string(), built: z.number(), total: z.number(), building: z.boolean(), fromThisChat: z.boolean() });
+export type DeckSummary = z.infer<typeof deckSummarySchema>;
+
+const presentSchema = z.discriminatedUnion('status', [
+  z.object({ status: z.literal('building'), deck: z.object({ id: z.string(), title: z.string(), built: z.number(), total: z.number() }) }),
+  z.object({
+    status: z.literal('presenting'),
+    mode: z.enum(['screenshare', 'tile']),
+    deck: z.object({ id: z.string(), title: z.string(), total: z.number() }),
+    slide: z.object({ index: z.number(), title: z.string(), notes: z.string(), layout: z.string() }),
+  }),
+]);
+export type PresentResult = z.infer<typeof presentSchema>;
+
 export interface CallApi {
   context(): Promise<CallContext>;
-  /** Hands work to the call's chat as a background run; resolves to the run id. */
-  startTask(mateId: string, task: string): Promise<string>;
+  /** Hands work to the call's chat as a background run; resolves to the run id. In a meeting, `context` is the transcript so far. */
+  startTask(mateId: string, task: string, context?: readonly TranscriptLine[]): Promise<string>;
+  /** The owner's decks, this chat's newest first; `query` matches a title. */
+  findDecks(query?: string): Promise<DeckSummary[]>;
+  /** Shows a slide (1-based) of a deck in the meeting; the first time, the bot shares its screen. */
+  present(deckId: string, slide: number): Promise<PresentResult>;
+  stopPresenting(): Promise<void>;
   /** Brings a mate into the call; resolves to everyone who has joined, with voices. */
   invite(mateId: string): Promise<CallMate[]>;
   end(report: { durationSec: number; transcript: TranscriptLine[] }): Promise<void>;
@@ -71,9 +90,20 @@ export function createCallApi(options: { baseUrl: string; dispatch: Dispatch; fe
     async context() {
       return contextSchema.parse(await request('/context'));
     },
-    async startTask(mateId, task) {
-      const body = z.object({ runId: z.string() }).parse(await request('/tasks', { method: 'POST', body: JSON.stringify({ mateId, task }) }));
+    async startTask(mateId, task, context) {
+      const body = z.object({ runId: z.string() }).parse(await request('/tasks', { method: 'POST', body: JSON.stringify({ mateId, task, ...(context?.length ? { context } : {}) }) }));
       return body.runId;
+    },
+    async findDecks(query) {
+      const body = z.object({ decks: z.array(deckSummarySchema) }).parse(await request(`/decks${query ? `?q=${encodeURIComponent(query)}` : ''}`));
+      return body.decks;
+    },
+    async present(deckId, slide) {
+      // Starting a screen share can take Recall a few seconds.
+      return presentSchema.parse(await request('/present', { method: 'POST', body: JSON.stringify({ deckId, slide }), timeoutMs: 20_000 }));
+    },
+    async stopPresenting() {
+      await request('/present/stop', { method: 'POST', body: '{}', timeoutMs: 15_000 });
     },
     async invite(mateId) {
       const body = z.object({ mates: z.array(mateSchema) }).parse(await request('/mates', { method: 'POST', body: JSON.stringify({ mateId }) }));

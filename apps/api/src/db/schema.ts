@@ -393,6 +393,8 @@ export type MeetingInfo = {
   slack?: { teamId: string; channelId: string; threadTs: string };
   /** SHA-256 of the bot page's token: the page proves it belongs to this meeting without a shared secret. */
   pageKey?: string;
+  /** The deck the mate is presenting, and how: as its screen share, or on its tile when sharing is refused. */
+  presentation?: { deckId: string; slide: number; mode: "screenshare" | "tile"; version: number; startedAt: string } | null;
 };
 
 export const calls = pgTable("calls", {

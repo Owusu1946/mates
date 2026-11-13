@@ -1,0 +1,23 @@
+---
+// The slides a mate presents in a meeting: Recall's bot shares this page as its screen.
+// Kept out of search; it is only ever opened by the bot.
+import { MeetShareFromUrl } from "../components/MeetShare";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Mates presenting</title>
+    <style is:global>
+      html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: #ffffff; }
+      @keyframes slide-in { from { opacity: 0; } to { opacity: 1; } }
+      .slide-in { animation: slide-in 260ms ease-out; }
+    </style>
+  </head>
+  <body>
+    <MeetShareFromUrl client:only="react" />
+  </body>
+</html>

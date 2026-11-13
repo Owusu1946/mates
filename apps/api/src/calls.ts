@@ -202,7 +202,26 @@ export async function inviteCallMate(userId: string, callId: string, input: z.in
 
 // ---- Handing work off to the chat -----------------------------------------------------------
 
-export const callTaskSchema = z.object({ mateId: z.string().uuid(), task: z.string().trim().min(3).max(2_000) });
+/** `context`: in a meeting, the transcript so far, so work like "a deck on what we've covered" sees it. */
+export const callTaskSchema = z.object({
+  mateId: z.string().uuid(),
+  task: z.string().trim().min(3).max(2_000),
+  context: z.array(z.object({ speaker: z.string().max(80), text: z.string().max(1_500), at: z.string().max(40) })).max(150).optional(),
+});
+
+/** A run turn holds at most 8,000 characters (chatRequestSchema), so the newest lines that fit are kept. */
+export function transcriptTurn(label: string, lines: { speaker: string; text: string }[], max = 7_900) {
+  const head = `${label} so far (transcript, for context; the task follows):`;
+  const kept: string[] = [];
+  let size = head.length;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = `${lines[i]!.speaker}: ${lines[i]!.text}`;
+    if (size + line.length + 1 > max) break;
+    kept.unshift(line);
+    size += line.length + 1;
+  }
+  return [head, ...kept].join("\n");
+}
 
 /** Starts a background run in the call's chat for one mate on the call; returns the run id. */
 export async function startCallTask(userId: string, callId: string, input: z.infer<typeof callTaskSchema>) {
@@ -214,12 +233,16 @@ export async function startCallTask(userId: string, callId: string, input: z.inf
   const text = `${chat?.kind === "group" && mate ? `@${mate.name} ` : ""}${input.task} (from our call)`;
   const key = randomUUID();
   const parentId = `user_call_${key}`;
+  // The run sees the chat's recent turns (read before the task is saved below) and, from a
+  // meeting, what's been said so far; the chat itself only shows the task.
+  const history = (await recentTurns(call.chatId, 20).catch(() => [])) as { role: "user" | "assistant"; content: string }[];
   const [head] = await getDb().select({ id: chatMessages.id }).from(chatMessages).where(eq(chatMessages.chatId, call.chatId)).orderBy(desc(chatMessages.createdAt)).limit(1);
   await getDb()
     .insert(chatMessages)
     .values({ chatId: call.chatId, id: parentId, parentId: head?.id ?? null, message: { id: parentId, role: "user", createdAt: new Date().toISOString(), content: [{ type: "text", text }] } })
     .onConflictDoNothing();
-  const run = await submitRun(userId, { chatId: call.chatId, parentId, assistantMessageId: `assistant_call_${key}`, requestKey: `call_${callId}_${key}`, messages: [{ role: "user", content: text }] });
+  const transcript = input.context?.length ? [{ role: "user" as const, content: transcriptTurn(call.kind === "meeting" ? "Meeting" : "Call", input.context) }] : [];
+  const run = await submitRun(userId, { chatId: call.chatId, parentId, assistantMessageId: `assistant_call_${key}`, requestKey: `call_${callId}_${key}`, messages: [...history, ...transcript, { role: "user", content: text }] });
   return { runId: run.id };
 }
 

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@astrojs/react": "^7.1.4",
+    "@muse-clone/decks": "workspace:*",
     "@muse-clone/mascot": "workspace:*",
     "astro": "^7.4.7",
     "livekit-client": "^2.23.0",

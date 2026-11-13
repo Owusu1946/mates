@@ -61,6 +61,7 @@ import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/g
 import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
 import { recordUsage } from "./usage/record.js";
+import { findDecks, present, presentationDeck, presentationState, PresentError, stopPresenting } from "./presentation.js";
 
 type Variables = { requestId: string; userId: string };
 type Dependencies = {
@@ -184,6 +185,17 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return session ? c.json(session) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
     })
     .post("/site/meetings/:id/leave", async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), c.req.query("t")) }))
+    // The deck the mate is presenting, for its share page (?s=) or its camera page as a fallback (?t=).
+    .get("/site/meetings/:id/presentation", async (c) => {
+      c.header("cache-control", "no-store");
+      const state = await presentationState(c.req.param("id"), { share: c.req.query("s"), page: c.req.query("t") });
+      return state ? c.json(state) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
+    })
+    .get("/site/meetings/:id/presentation/deck", async (c) => {
+      c.header("cache-control", "no-store");
+      const deck = await presentationDeck(c.req.param("id"), { share: c.req.query("s"), page: c.req.query("t") });
+      return deck ? c.json(deck) : c.json(failure("NOT_FOUND", "Nothing is being presented", c.get("requestId")), 404);
+    })
     .post("/site/waitlist", bodyLimit({ maxSize: 2_000 }), async (c) => {
       let body: { email?: unknown; website?: unknown; referrer?: unknown } = {};
       try {
@@ -267,6 +279,26 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
       if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
       return c.json(await endCall(userId, c.req.param("id"), c.req.valid("json")));
+    })
+    // Presenting a deck in a meeting: the voice agent finds decks and moves through the slides.
+    .get("/v1/calls/:id/agent/decks", async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json({ decks: await findDecks(userId, c.req.param("id"), c.req.query("q")) });
+    })
+    .post("/v1/calls/:id/agent/present", validator("json", (value, c) => {
+      const parsed = z.object({ deckId: z.string().uuid(), slide: z.number().int().min(1).max(100) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_SLIDE", "Choose a deck and a slide", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await present(userId, c.req.param("id"), c.req.valid("json")));
+    })
+    .post("/v1/calls/:id/agent/present/stop", async (c) => {
+      const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
+      if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
+      return c.json(await stopPresenting(userId, c.req.param("id")));
     })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
     .use("/v1/schedules/:id/*", async (c, next) => {
@@ -935,6 +967,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         return c.json({ error: { code: noPlan ? "plan_required" : "usage_limit", message: error.message, requestId: c.get("requestId"), window: noPlan ? null : error.reason, resetsAt: error.resetsAt, plan: error.plan, upgradeUrl: upgradeUrl() } }, noPlan ? 402 : 429);
       }
       if (["IDEMPOTENCY_CONFLICT", "RUN_ALREADY_ACTIVE", "RESUME_CONFLICT", "ROUTINE_CONFLICT"].includes(error.message)) return c.json(failure("CONFLICT", "This task changed or is already running. Refresh before trying again.", c.get("requestId")), 409);
+      if (error instanceof PresentError) return c.json(failure(error.code, error.message, c.get("requestId")), error.code === "NOT_LIVE" ? 409 : error.code === "NOT_FOUND" ? 404 : 422);
       if (error instanceof CallError) {
         const answers = { NOT_FOUND: [404, "Call or chat not found"], INVALID_MATES: [400, "Pick mates you have, up to four on a call"], ENDED: [409, "This call has ended"] } as const;
         const [status, message] = answers[error.code];
