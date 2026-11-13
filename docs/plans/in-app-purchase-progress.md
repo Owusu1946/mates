@@ -52,8 +52,29 @@ Update this document after each reviewed batch with its status, changed files, c
 - Preserve `setPlan()` semantics and the typed API contract. Validate transaction and refund records against the existing finance views before relying on their reported amounts.
 - A new native development build is required for real purchases; Expo Go does not support the required native IAP module.
 
+## RevenueCat Test Store setup
+
+Ken manages the RevenueCat dashboard. Before any test purchase or restore, connect the app to a **staging API and staging database** with sandbox processing enabled; the current backend sync must first be fixed. The app calls the API after both operations, and must not use production data for Test Store tests.
+
+1. Create the Test Store in the Mates RevenueCat project and copy its public SDK key. Configure the key locally as `EXPO_PUBLIC_REVENUECAT_TEST_KEY`; do not commit `.env` values. The app selects this key in development when it is present.
+2. Create the entitlements `starter`, `plus`, `pro`, and `max`. Attach each plan's monthly and yearly Test Store products to the corresponding entitlement, then add the products to an offering.
+3. Use the following product identifiers and durations. The current paywall matches these exact product identifiers; package identifiers can be chosen in RevenueCat.
+
+| Plan | Monthly product / price | Yearly product / price |
+| --- | --- | --- |
+| Starter | `mates_starter_monthly` / $8 | `mates_starter_yearly` / $80 |
+| Plus | `mates_plus_monthly` / $15 | `mates_plus_yearly` / $150 |
+| Pro | `mates_pro_monthly` / $40 | `mates_pro_yearly` / $400 |
+| Max | `mates_max_monthly` / $80 | `mates_max_yearly` / $800 |
+
+4. Build a new iOS development client including `react-native-purchases`. Test Store uses a simulated purchase screen; test success, cancellation and failure, then check the staging API and usage screen.
+5. Before TestFlight or App Store submission, configure the App Store products and use `EXPO_PUBLIC_REVENUECAT_IOS_KEY`. RevenueCat Test Store keys must not be used in release builds; TestFlight is a release build. Complete Apple Sandbox testing separately.
+
+The Test Store key is public by design. RevenueCat secret keys and webhook authorization values belong only in Ken's server configuration, never in mobile `.env` files or this document.
+
 ## Work log
 
+- 2026-11-13: Added Test Store setup details and optional public key placeholders to the mobile environment example. Dashboard setup and sandbox transactions remain outstanding.
 - 2026-11-13: Added an initial paywall, plan selection, store prices, restore and management links, and navigation from usage. The paywall expects the documented iOS product IDs; configure matching Test Store IDs for early testing. No end-to-end purchase or visual device verification has been performed.
 - 2026-11-13: Added the mobile SDK, optional iOS, Android and Test Store public keys, Clerk identity handling, and purchase / restore helpers. The paywall and real purchase testing remain. Backend sync is unsafe until Ken resolves the issues below.
 - 2026-11-13: Samuel requested that Ken take over the unfinished backend and rollout work. The API implementation remains unsafe to deploy; the backend handoff above lists the unresolved issues.
