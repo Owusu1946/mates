@@ -1,6 +1,6 @@
 import { TokenVerifier } from "livekit-server-sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CALL_AGENT_NAME, joinToken, signCallToken, summarise, verifyCallToken, voicesFor, VOICES } from "./calls.js";
+import { CALL_AGENT_NAME, callTaskSchema, joinToken, signCallToken, summarise, transcriptTurn, verifyCallToken, voicesFor, VOICES } from "./calls.js";
 
 const env = { LIVEKIT_URL: "wss://mates-test.livekit.cloud", LIVEKIT_API_KEY: "APItest", LIVEKIT_API_SECRET: "secret-for-tests-only-0123456789abcdef", CALL_TOKEN_SECRET: "call-secret" };
 const saved: Record<string, string | undefined> = {};
@@ -61,5 +61,24 @@ describe("voice calls", () => {
     expect(await summarise(lines, 3)).toEqual({ summary: "We talked for 3 minutes.", actionItems: [] });
     expect(await summarise([], 0)).toEqual({ summary: "The call ended before anyone spoke.", actionItems: [] });
     process.env.OPENROUTER_API_KEY = saved;
+  });
+});
+
+describe("tasks from a meeting", () => {
+  it("carry the newest lines of the transcript that fit in one turn", () => {
+    const lines = Array.from({ length: 300 }, (_, i) => ({ speaker: "Meeting", text: `Point number ${i} about the launch plan.` }));
+    const turn = transcriptTurn("Meeting", lines);
+    expect(turn.length).toBeLessThanOrEqual(7_900);
+    expect(turn.startsWith("Meeting so far (transcript")).toBe(true);
+    expect(turn).toContain("Point number 299");
+    expect(turn).not.toContain("Point number 0 ");
+  });
+
+  it("accept up to 150 transcript lines with a task, and none at all", () => {
+    const line = { speaker: "Meeting", text: "We agreed on the 24th.", at: "2026-11-13T10:00:00Z" };
+    const mateId = "00000000-0000-4000-8000-000000000001";
+    expect(callTaskSchema.safeParse({ mateId, task: "make a deck", context: [line] }).success).toBe(true);
+    expect(callTaskSchema.safeParse({ mateId, task: "make a deck" }).success).toBe(true);
+    expect(callTaskSchema.safeParse({ mateId, task: "make a deck", context: Array(151).fill(line) }).success).toBe(false);
   });
 });
