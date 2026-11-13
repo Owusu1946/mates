@@ -344,6 +344,9 @@ importers:
       '@astrojs/react':
         specifier: ^7.1.4
         version: 7.1.4(@types/node@24.19.1)(@types/react-dom@19.3.0(@types/react@19.2.18))(@types/react@19.2.18)(babel-plugin-react-compiler@1.0.0)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      '@muse-clone/decks':
+        specifier: workspace:*
+        version: link:../../packages/decks
       '@muse-clone/mascot':
         specifier: workspace:*
         version: link:../../packages/mascot

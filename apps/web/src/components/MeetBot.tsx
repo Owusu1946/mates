@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PolygonState } from "@muse-clone/mascot";
 import type { Participant, RemoteTrack, Room } from "livekit-client";
 import { MATE, type Gradient } from "../palette";
 import { SHAPES, type ShapeName } from "../shapes";
 import Mascot from "./Mascot";
+import { Slide, usePresentation } from "./MeetShare";
 
 /**
  * A mate's camera in a meeting. Recall's bot loads this page and streams it as the bot's video
@@ -34,7 +35,12 @@ function LiveMeetBot({ meeting, token, api }: { meeting: string; token: string; 
   const [agentState, setAgentState] = useState("");
   const [hearing, setHearing] = useState(false);
   const [caption, setCaption] = useState("");
+  /** "screenshare" or "tile" while the mate presents a deck; empty otherwise. */
+  const [presenting, setPresenting] = useState("");
   const leaving = useRef(false);
+  // Only when the meeting won't let the bot share its screen do the slides come here, to the tile.
+  const auth = useMemo(() => ({ t: token }), [token]);
+  const { shown } = usePresentation(api, meeting, auth, presenting === "tile");
 
   useEffect(() => {
     let room: Room | null = null;
@@ -60,6 +66,7 @@ function LiveMeetBot({ meeting, token, api }: { meeting: string; token: string; 
       const watch = (participant: Participant) => {
         if (!participant.isAgent) return;
         setAgentState(participant.attributes?.["lk.agent.state"] ?? "");
+        setPresenting(participant.attributes?.["mates.presenting"] ?? "");
         if (participant.attributes?.["mates.ending"] === "true") leave();
       };
       room
@@ -108,8 +115,10 @@ function LiveMeetBot({ meeting, token, api }: { meeting: string; token: string; 
 
   const state: PolygonState =
     phase === "failed" ? "sad" : agentState === "speaking" ? "humming" : agentState === "thinking" ? "thinking" : hearing ? "listening" : phase === "starting" ? "waking" : "idle";
-  const pill = phase === "failed" ? "Couldn’t connect" : phase === "ended" ? "Notes on the way" : phase === "starting" ? "Joining…" : "Taking notes";
-  return <Tile name={session?.mate.name ?? "Your mate"} color={session?.mate.color ?? "amber"} shape={session?.mate.shape ?? "hexagon"} state={state} pill={pill} caption={caption} />;
+  const pill = phase === "failed" ? "Couldn’t connect" : phase === "ended" ? "Notes on the way" : phase === "starting" ? "Joining…" : presenting ? "Presenting" : "Taking notes";
+  const tile = { name: session?.mate.name ?? "Your mate", color: session?.mate.color ?? "amber", shape: session?.mate.shape ?? "hexagon", state, pill };
+  if (presenting === "tile" && shown) return <SlideTile {...tile} slide={<Slide deck={shown.deck} index={shown.index} />} />;
+  return <Tile {...tile} caption={caption} />;
 }
 
 /** Watches the meeting's loudness, so the mascot looks like it's listening when people talk. */
@@ -161,6 +170,24 @@ function Tile({ name, color, shape, state, pill, caption }: { name: string; colo
           {caption.length > 160 ? `…${caption.slice(-160)}` : caption}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Presenting on the tile, when the meeting won't allow screen sharing: the slide fills the frame and
+ * the mate, still talking, sits small in a corner so people can see who's speaking.
+ */
+function SlideTile({ name, color, shape, state, pill, slide }: { name: string; color: string; shape: string; state: PolygonState; pill: string; slide: ReactNode }) {
+  const gradient = ((MATE as Record<string, readonly string[]>)[color] ?? MATE.amber) as unknown as Gradient;
+  const silhouette = (shape in SHAPES ? shape : "hexagon") as ShapeName;
+  return (
+    <div style={{ width: 1280, height: 720, position: "relative", overflow: "hidden" }} aria-label={`${name}, presenting`}>
+      {slide}
+      <div style={{ position: "absolute", right: 20, bottom: 20, width: 168, height: 168, borderRadius: 32, display: "flex", alignItems: "center", justifyContent: "center", background: `color-mix(in srgb, ${gradient[0]} 38%, #ffffff)`, boxShadow: "0 6px 24px rgba(0,0,0,0.18)" }}>
+        <Mascot size={140} gradient={gradient} shape={silhouette} state={state} />
+      </div>
+      <div style={{ position: "absolute", top: 20, left: 24, padding: "6px 14px", borderRadius: 999, background: "rgba(10,10,10,0.55)", color: "#ffffff", fontFamily: "ui-sans-serif, system-ui, sans-serif", fontSize: 18, fontWeight: 600 }}>{pill}</div>
     </div>
   );
 }
