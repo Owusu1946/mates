@@ -7,6 +7,7 @@ import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
+import { checkWatch, dispatchWatches } from "../watches.js";
 
 export const agentExecution = schemaTask({
   id: "cooper-agent",
@@ -61,6 +62,19 @@ export const deckEdit = schemaTask({
   },
 });
 
+/** One scheduled check of a web watch: a search and a judgement. Never retried; the next check comes anyway. */
+export const watchCheck = schemaTask({
+  id: "mate-watch-check",
+  schema: z.object({ watchId: z.string().uuid() }),
+  concurrency: { total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 120,
+  run: async ({ watchId }) => {
+    await checkWatch(watchId);
+    return { watchId };
+  },
+});
+
 export const routineDispatcher = schedules.task({
   id: "cooper-dispatcher",
   cron: { pattern: "* * * * *", timezone: "UTC" },
@@ -73,6 +87,7 @@ export const routineDispatcher = schedules.task({
     await recoverStalledDecks().catch(() => console.warn("deck_recovery_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
+    await dispatchWatches().catch((error) => console.warn("watch_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await publishOutbox();
     await deliverFindings();
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));

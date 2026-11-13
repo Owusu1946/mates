@@ -112,6 +112,8 @@ export function activityLabel(slug: string) {
     cooper_ship_code: "Setting up the computer",
     cooper_make_deck: "Planning the deck",
     cooper_edit_deck: "Updating the slides",
+    cooper_watch: "Setting up the watch",
+    cooper_watch_triggers: "Checking what it can watch",
   };
   return known[slug] ?? (slug.startsWith("COMPOSIO_") ? "Working with your apps" : humanize(slug) || "Working on it");
 }

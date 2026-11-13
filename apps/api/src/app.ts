@@ -13,6 +13,7 @@ import { validator } from "hono/validator";
 import {
   disconnectApp,
   getApp,
+  getComposio,
   getIntegrationSession,
   IntegrationUnavailable,
   listApps,
@@ -62,6 +63,7 @@ import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
 import { recordUsage } from "./usage/record.js";
 import { findDecks, present, presentationDeck, presentationState, PresentError, stopPresenting } from "./presentation.js";
+import { controlWatch, handleWatchEvent, listWatches, watchCard, watchHistory } from "./watches.js";
 
 type Variables = { requestId: string; userId: string };
 type Dependencies = {
@@ -299,6 +301,36 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
       if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
       return c.json(await stopPresenting(userId, c.req.param("id")));
+    })
+    // Watches: listed with their cards, controlled from the card or the Routines screen.
+    .get("/v1/watches", auth, async (c) => c.json({ watches: (await listWatches(c.get("userId"))).map(watchCard) }))
+    .get("/v1/watches/:id/events", auth, async (c) => {
+      const events = await watchHistory(c.get("userId"), c.req.param("id"));
+      return events ? c.json({ events: events.map((e) => ({ kind: e.kind, met: e.met, note: e.note, evidence: e.evidence, at: e.at })) }) : c.json(failure("NOT_FOUND", "Watch not found", c.get("requestId")), 404);
+    })
+    .post("/v1/watches/:id/control", auth, validator("json", (value, c) => {
+      const parsed = z.object({ action: z.enum(["pause", "resume", "cancel", "renew"]), version: z.number().int().positive() }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_ACTION", "Choose a valid action", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const { action, version } = c.req.valid("json");
+      const watch = await controlWatch(c.get("userId"), c.req.param("id"), action, version);
+      return watch ? c.json({ watch: watchCard(watch) }) : c.json(failure("CONFLICT", "This watch changed. Refresh and try again.", c.get("requestId")), 409);
+    })
+    // Composio's trigger events for app watches, signed with the project's webhook secret.
+    .post("/v1/composio/webhook", async (c) => {
+      const secret = process.env.COMPOSIO_WEBHOOK_SECRET;
+      if (!secret) return c.json(failure("NOT_CONFIGURED", "App watches aren't set up", c.get("requestId")), 503);
+      let event: Awaited<ReturnType<ReturnType<typeof getComposio>["triggers"]["parse"]>>;
+      try {
+        event = await getComposio().triggers.parse(c.req.raw, { verifySecret: secret });
+      } catch {
+        return c.json(failure("BAD_SIGNATURE", "Not from Composio", c.get("requestId")), 401);
+      }
+      const { payload } = event;
+      // Answered at once; the judgement and any firing happen after, so Composio never times out.
+      void handleWatchEvent({ triggerId: payload.metadata.id, eventId: payload.id || payload.uuid, slug: payload.triggerSlug, payload: payload.payload ?? {} }).catch((error) => console.warn("watch_event_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
     })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
     .use("/v1/schedules/:id/*", async (c, next) => {

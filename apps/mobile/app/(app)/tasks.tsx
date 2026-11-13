@@ -10,6 +10,7 @@ import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
 import { useLeaderName } from "../../src/mates/data";
 import { isEnded, remindersKey, routinesKey, scheduleText, TEMPLATES, untilText, useReminders, useRoutines, type Reminder, type Routine } from "../../src/routines/model";
 import { useTheme } from "../../src/theme/provider";
+import { howText, useWatchControl, useWatches, type Watch } from "../../src/watches/use-watches";
 
 const font = { regular: "DMSans_400Regular", medium: "DMSans_500Medium", semibold: "DMSans_600SemiBold", bold: "DMSans_700Bold" };
 
@@ -22,12 +23,44 @@ export default function RoutinesScreen() {
   const leaderName = useLeaderName();
   const routines = useRoutines();
   const reminders = useReminders();
+  const watches = useWatches();
+  const controlWatch = useWatchControl();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [showEnded, setShowEnded] = useState(false);
   // The spinner follows a pull only; the list also refreshes itself in the background.
-  const pull = usePullToRefresh(() => Promise.all([routines.refetch(), reminders.refetch()]));
-  useFocusEffect(useCallback(() => void Promise.all([routines.refetch(), reminders.refetch()]), [routines.refetch, reminders.refetch]));
+  const pull = usePullToRefresh(() => Promise.all([routines.refetch(), reminders.refetch(), watches.refetch()]));
+  useFocusEffect(useCallback(() => void Promise.all([routines.refetch(), reminders.refetch(), watches.refetch()]), [routines.refetch, reminders.refetch, watches.refetch]));
+
+  /** Pause or resume a watch from its switch; the switch moves at once and settles on the reply. */
+  const toggleWatch = async (watch: Watch) => {
+    setError(null);
+    setPending((p) => ({ ...p, [watch.watchId]: watch.status !== "active" }));
+    haptic.selection();
+    try {
+      await controlWatch(watch, watch.status === "active" ? "pause" : "resume");
+    } catch {
+      setError("Couldn’t update that watch.");
+    } finally {
+      setPending((p) => {
+        const { [watch.watchId]: _, ...rest } = p;
+        return rest;
+      });
+    }
+  };
+
+  /** What a watch is doing, and a way to stop it. */
+  const showWatch = (watch: Watch) => {
+    haptic.light();
+    Alert.alert(watch.title, [watch.condition, watch.lastNote ? `Now: ${watch.lastNote}` : "", `Then: ${watch.action}`, `${howText(watch)} until ${new Date(watch.expiresAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}.`].filter(Boolean).join("\n\n"), [
+      { text: "Close", style: "cancel" },
+      {
+        text: "Stop watching",
+        style: "destructive",
+        onPress: () => void controlWatch(watch, "cancel").catch(() => setError("Couldn’t stop that watch.")),
+      },
+    ]);
+  };
 
   const open = (params: { id?: string; template?: string } = {}) => {
     haptic.light();
@@ -75,6 +108,7 @@ export default function RoutinesScreen() {
   const paused = all.filter((r) => r.status === "paused");
   const ended = all.filter(isEnded);
   const upcoming = reminders.data ?? [];
+  const watching = (watches.data ?? []).filter((w) => w.status === "active" || w.status === "paused");
   const empty = routines.isSuccess && all.length === 0;
 
   return (
@@ -109,6 +143,22 @@ export default function RoutinesScreen() {
           <Group title="Needs your OK" caption={`Drafted for you. Turn ${drafts.length === 1 ? "it" : "them"} on to start.`}>
             {drafts.map((routine) => (
               <RoutineRow key={routine.id} routine={routine} onPress={() => open({ id: routine.id })} trailing={<Pill label="Turn on" busy={routine.id in pending} onPress={() => void control(routine, "confirm")} />} />
+            ))}
+          </Group>
+        )}
+
+        {watching.length > 0 && (
+          <Group title="Watching" caption={`${leaderName} acts once when it happens, then stops.`}>
+            {watching.map((watch) => (
+              <Row
+                key={watch.watchId}
+                icon={watch.kind === "web" ? "globe" : "connections"}
+                title={watch.title}
+                subtitle={`${howText(watch)}${watch.lastNote ? ` · ${watch.lastNote}` : ""}`}
+                muted={watch.status === "paused"}
+                onPress={() => showWatch(watch)}
+                trailing={<Switch value={pending[watch.watchId] ?? watch.status === "active"} disabled={watch.watchId in pending} onValueChange={() => void toggleWatch(watch)} accessibilityLabel={`${watch.title}, ${watch.status === "active" ? "watching" : "paused"}`} />}
+              />
             ))}
           </Group>
         )}
@@ -223,7 +273,7 @@ function Group({ title, caption, children }: { title?: string; caption?: string;
   );
 }
 
-function Row({ icon, title, subtitle, trailing, onPress, chevron, muted }: { icon: "clock" | "add" | "check"; title: string; subtitle?: string; trailing?: ReactNode; onPress?: () => void; chevron?: boolean; muted?: boolean }) {
+function Row({ icon, title, subtitle, trailing, onPress, chevron, muted }: { icon: "clock" | "add" | "check" | "globe" | "connections"; title: string; subtitle?: string; trailing?: ReactNode; onPress?: () => void; chevron?: boolean; muted?: boolean }) {
   const { colors } = useTheme();
   return (
     <Pressable

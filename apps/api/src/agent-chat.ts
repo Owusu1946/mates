@@ -42,6 +42,7 @@ import {
   isEmptyLookup,
   fallbackItems,
 } from "./workflow-results.js";
+import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTriggersTool } from "./watches.js";
 
 type ToolCall = {
   id: string;
@@ -146,7 +147,7 @@ export async function createAgentResponse(
   const mateName = execution?.speaker?.name ?? "Your mate";
   let session = await getIntegrationSession(userId);
   let messages: ModelMessage[] = [
-    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) },
+    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions },
     ...modelTurns,
   ];
   let runId: string;
@@ -345,6 +346,8 @@ export async function createAgentResponse(
     choiceTool,
     presentationTool,
     scheduleTool,
+    watchTool,
+    watchTriggersTool,
     viewAttachmentTool,
     reminderTool,
     ...(meetingsConfigured() ? [joinMeetingTool] : []),
@@ -764,6 +767,18 @@ export async function createAgentResponse(
                 tool_call_id: call.id,
                 content: JSON.stringify(meta ? { opened: meta.name, note: "The full file follows in the next message." } : { error: "That attachment was not found." }),
               });
+            } else if (call.function.name === "cooper_watch") {
+              const outcome = await runWatchTool(userId, args, { chatId: execution?.chatId ?? null, mateId: execution?.speaker?.id ?? null, request: turns[lastUserIndex]?.content ?? "", timezone: execution?.timezone });
+              if (outcome.card) card(call.id, outcome.card);
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(outcome.result) });
+              if (outcome.card) {
+                hasResults = true;
+                finishWithResults = true;
+              }
+            } else if (call.function.name === "cooper_watch_triggers") {
+              const toolkit = typeof args.toolkit === "string" ? args.toolkit : "";
+              const triggers = toolkit ? await watchTriggers(toolkit).catch(() => null) : null;
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(triggers ? { triggers, note: "Pick the one that matches; fill trigger_config from its config schema, narrowed to the condition where it can be." } : { error: "That app's events couldn't be listed. Check that it's connected." }) });
             } else if (call.function.name === "cooper_schedule_draft") {
               try {
                 // Asking is the decision: active at once, scoped by the user's own words.

@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -61,6 +61,23 @@ export type WorkflowCard = {
     version: number;
     slides: { id: string; layout: string; title: string }[];
     error?: string;
+  };
+  /** A watch ("watch for X, then do Y"); the app keeps it current by `watchId`. */
+  watch?: {
+    watchId: string;
+    version: number;
+    title: string;
+    kind: "web" | "app";
+    condition: string;
+    action: string;
+    status: "active" | "paused" | "fired" | "expired" | "cancelled" | "failed";
+    /** "every 4 hours" for web watches; null for app watches, which wait for the app's event. */
+    every: string | null;
+    app: string | null;
+    lastNote: string | null;
+    lastCheckedAt: string | null;
+    expiresAt: string;
+    firedAt: string | null;
   };
   /** A finished voice call: who was on it, how long, the summary and action items. */
   call?: { callId: string; durationSec: number; summary: string; actionItems: string[]; mates: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }[]; lines: number };
