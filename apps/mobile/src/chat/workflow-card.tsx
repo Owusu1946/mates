@@ -150,7 +150,7 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     );
   if (state.kind === "step" && state.activity?.length)
     return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} />;
-  if (state.kind === "call" && state.call) return <CallCard call={state.call} />;
+  if (state.kind === "call" && state.call) return <CallCard call={state.call} meeting={state.label === "Meeting"} />;
   if (hasAction || state.phase === "done") return null;
   const interrupted = state.phase === "running" && !messageRunning;
   const failed = interrupted || state.phase === "error";
