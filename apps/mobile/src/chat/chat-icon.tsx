@@ -43,6 +43,7 @@ import {
   Presentation01Icon,
   Share08Icon,
   Undo02Icon,
+  CubeIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 
@@ -92,6 +93,7 @@ const icons = {
   presentation: Presentation01Icon,
   share: Share08Icon,
   undo: Undo02Icon,
+  cube: CubeIcon,
 };
 
 export function ChatIcon({

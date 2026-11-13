@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
+import { ChatIcon } from "../chat/chat-icon";
+import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import type { MateInput, Presets } from "./data";
 import { MateAvatar } from "./mate-avatar";
@@ -18,7 +20,6 @@ const SHAPES = [
   { key: "teardrop", label: "Teardrop" },
   { key: "pebble", label: "Pebble" },
 ];
-const SURPRISE = "surprise";
 
 /** Create or edit a mate: name, colour and shape (with a live preview) and role. */
 export function MateForm({
@@ -40,22 +41,20 @@ export function MateForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [color, setColor] = useState(initial?.color ?? presets.palette[1]?.key ?? "teal");
   const [role, setRole] = useState(initial?.role ?? "companion");
-  // New mates start on "Surprise me": the server picks a shape. Editing starts on the mate's own.
   const shapes = SHAPES.filter((s) => !presets.shapes || presets.shapes.includes(s.key));
-  const [shape, setShape] = useState(initial?.shape ?? (initial ? "hexagon" : SURPRISE));
-  const [previewIndex, setPreviewIndex] = useState(0);
-  useEffect(() => {
-    if (shape !== SURPRISE) return;
-    const timer = setInterval(() => setPreviewIndex((i) => (i + 1) % shapes.length), 1400);
-    return () => clearInterval(timer);
-  }, [shape, shapes.length]);
-  const previewShape = shape === SURPRISE ? shapes[previewIndex]?.key : shape;
+  const [shape, setShape] = useState(initial?.shape ?? shapes[0]?.key ?? "hexagon");
   const brief = (key: string) => presets.roles.find((r) => r.key === key)?.brief ?? "";
   const [description, setDescription] = useState(initial?.roleDescription || brief(initial?.role ?? "companion"));
   const gradient = presets.palette.find((p) => p.key === color)?.gradient;
   const trimmed = name.trim();
   const nameProblem = trimmed && !NAME_PATTERN.test(trimmed) ? "Use letters, numbers and spaces only." : null;
   const valid = trimmed.length > 0 && trimmed.length <= 40 && !nameProblem;
+  const surpriseShape = () => {
+    const choices = shapes.filter((option) => option.key !== shape);
+    if (!choices.length) return;
+    haptic.selection();
+    setShape(choices[Math.floor(Math.random() * choices.length)]!.key);
+  };
 
   const label = { color: colors.textMuted, fontSize: 13, fontFamily: "DMSans_600SemiBold", marginBottom: 8 } as const;
   const field = { color: colors.text, fontSize: 16, fontFamily: "DMSans_400Regular", borderRadius: 14, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 12 } as const;
@@ -63,7 +62,7 @@ export function MateForm({
   return (
     <View style={{ gap: 22 }}>
       <View style={{ alignItems: "center" }}>
-        <MateAvatar gradient={gradient} shape={previewShape} size={112} state="happy" />
+        <MateAvatar gradient={gradient} shape={shape} size={112} state="happy" />
       </View>
       <View>
         <Text style={label}>Name</Text>
@@ -71,8 +70,11 @@ export function MateForm({
         {nameProblem && <Text style={{ color: colors.error, fontSize: 13, marginTop: 6 }}>{nameProblem}</Text>}
       </View>
       <View>
-        <Text style={label}>Colour</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <Text style={[label, { marginBottom: 0 }]}>Colour</Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_500Medium", textTransform: "capitalize" }}>{color}</Text>
+        </View>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
           {presets.palette.map((swatch) => {
             const on = swatch.key === color;
             return (
@@ -82,7 +84,7 @@ export function MateForm({
                 accessibilityState={{ checked: on }}
                 accessibilityLabel={swatch.key}
                 onPress={() => setColor(swatch.key)}
-                style={{ width: 40, height: 40, borderRadius: 20, padding: 3, borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
+                style={{ width: 42, height: 42, borderRadius: 21, padding: 4, borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
               >
                 <View style={{ flex: 1, borderRadius: 17, overflow: "hidden", flexDirection: "row" }}>
                   {swatch.gradient.map((stop) => <View key={stop} style={{ flex: 1, backgroundColor: stop }} />)}
@@ -93,19 +95,11 @@ export function MateForm({
         </View>
       </View>
       <View>
-        <Text style={label}>Shape</Text>
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+          <Text style={[label, { marginBottom: 0 }]}>Shape</Text>
+          {!initial && <Pressable accessibilityRole="button" accessibilityLabel="Choose a surprise shape" onPress={surpriseShape} hitSlop={8} style={({ pressed }) => ({ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, opacity: pressed ? 0.55 : 1 })}><ChatIcon name="shuffle" color={colors.textSecondary} size={20} /></Pressable>}
+        </View>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-          {!initial && (
-            <Pressable
-              accessibilityRole="radio"
-              accessibilityState={{ checked: shape === SURPRISE }}
-              accessibilityLabel="Surprise me"
-              onPress={() => setShape(SURPRISE)}
-              style={{ height: 48, paddingHorizontal: 14, borderRadius: 24, justifyContent: "center", borderWidth: 2, borderColor: shape === SURPRISE ? colors.text : colors.border }}
-            >
-              <Text style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 14 }}>Surprise me</Text>
-            </Pressable>
-          )}
           {shapes.map((option) => {
             const on = option.key === shape;
             return (
@@ -125,7 +119,7 @@ export function MateForm({
       </View>
       <View>
         <Text style={label}>Role</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 7 }}>
           {presets.roles.map((preset) => {
             const on = preset.key === role;
             return (
@@ -138,9 +132,9 @@ export function MateForm({
                   // Presets fill the description; a custom role keeps what the user wrote.
                   if (preset.key !== "custom") setDescription(preset.brief);
                 }}
-                style={{ paddingHorizontal: 14, height: 36, borderRadius: 18, justifyContent: "center", backgroundColor: on ? colors.text : colors.surface, borderWidth: 1, borderColor: on ? colors.text : colors.border }}
+                style={{ paddingHorizontal: 12, height: 33, borderRadius: 17, justifyContent: "center", backgroundColor: on ? colors.text : colors.surface, borderWidth: 1, borderColor: on ? colors.text : colors.border }}
               >
-                <Text style={{ color: on ? colors.background : colors.text, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{preset.label}</Text>
+                <Text style={{ color: on ? colors.background : colors.text, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{preset.label}</Text>
               </Pressable>
             );
           })}
@@ -163,7 +157,7 @@ export function MateForm({
         tintColor={colors.text}
         style={{ width: "100%" }}
         disabled={!valid || submitting}
-        onPress={() => onSubmit({ name: trimmed, color, role, roleDescription: description.trim(), ...(shape === SURPRISE ? {} : { shape }) })}
+        onPress={() => onSubmit({ name: trimmed, color, role, roleDescription: description.trim(), shape })}
       >
         {submitting ? <ActivityIndicator color={colors.background} /> : <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 17, opacity: valid ? 1 : 0.5 }}>{submitLabel}</Text>}
       </LiquidGlassButton>
