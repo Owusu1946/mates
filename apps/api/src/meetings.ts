@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { CALL_AGENT_NAME, callsConfigured, endCall, joinToken, MAX_MEETING_MS, signCallToken, type CallDispatch } from "./calls.js";
 import { getDb } from "./db/client.js";
@@ -61,9 +61,9 @@ export function pageTokenMatches(token: string | undefined, hash: string | undef
 
 // ---- Recall --------------------------------------------------------------------------------
 
-async function recall<T = Record<string, unknown>>(path: string, body?: unknown): Promise<T> {
+async function recall<T = Record<string, unknown>>(path: string, body?: unknown, method: "POST" | "DELETE" = "POST"): Promise<T> {
   const response = await fetch(`${recallBase()}${path}`, {
-    method: "POST",
+    method,
     signal: AbortSignal.timeout(20_000),
     headers: { authorization: `Token ${process.env.RECALL_API_KEY}`, "content-type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
@@ -146,6 +146,27 @@ export async function meetingSession(callId: string, pageToken: string | undefin
   return { serverUrl: process.env.LIVEKIT_URL!, token, agentName: CALL_AGENT_NAME, mate: { name: mate.name, color: mate.color, shape: mate.shape } };
 }
 
+/**
+ * The bot shares a second page of ours as its screen (slides), beside its camera (the mascot).
+ * Recall streams the page at 1280×720, the slides' own size. Throws when Recall or the meeting
+ * refuses (a host can turn off sharing); the caller falls back to showing slides on the tile.
+ */
+export async function startScreenshare(botId: string, url: string) {
+  await recall(`/bot/${botId}/output_media/`, { screenshare: { kind: "webpage", config: { url } } });
+}
+
+/** Stops only the screen share; the camera (and the mate's voice) carries on. */
+export async function stopScreenshare(botId: string) {
+  await recall(`/bot/${botId}/output_media/`, { screenshare: true }, "DELETE");
+}
+
+/** The share page's address: the slides, for this meeting only (see presentation.ts). */
+export const sharePageUrl = (callId: string, shareToken: string) => `${SITE()}/meet-share?${new URLSearchParams({ m: callId, s: shareToken, api: API() })}`;
+
+export async function meetingById(callId: string) {
+  return meetingCall(callId);
+}
+
 /** The mate was asked to leave (by name in the meeting, or by its owner): Recall takes the bot out. */
 export async function leaveMeeting(callId: string, pageToken?: string, ownerId?: string) {
   const call = await meetingCall(callId);
@@ -196,7 +217,8 @@ export async function handleRecallEvent(body: RecallEvent) {
   const call = await meetingCall(callId);
   if (!call || call.meeting?.botId !== body.data?.bot?.id) return;
   const status = event.slice(4);
-  await getDb().update(calls).set({ meeting: { ...call.meeting!, botStatus: status } }).where(eq(calls.id, call.id));
+  // One field at a time: the presentation is written alongside, and a stale copy mustn't undo it.
+  await getDb().update(calls).set({ meeting: sql`jsonb_set(coalesce(${calls.meeting}, '{}'::jsonb), '{botStatus}', to_jsonb(${status}::text))` }).where(eq(calls.id, call.id));
   const [mate] = call.leadMateId ? await getDb().select({ name: mates.name }).from(mates).where(eq(mates.id, call.leadMateId)) : [];
   const name = mate?.name ?? "Your mate";
   const data = { chatId: call.chatId, chatKind: "mate" };
