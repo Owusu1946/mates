@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { createCallApi, dispatchSchema } from './api.ts';
 import { type CallState, type MateAgent, agentFor, inviteMate, removeMate } from './mates.ts';
+import { stopWaiting } from './presenting.ts';
 import { Transcript } from './transcript.ts';
 
 // Local runs (`lk agent dev`) read LIVEKIT_* and MATES_API_URL from here; LiveKit Cloud injects them.
@@ -77,8 +78,10 @@ export default defineAgent({
       userData: state,
     });
 
-    // The transcript, with who said each line, for the summary card in the chat.
+    // The transcript, with who said each line, for the summary card in the chat (and, in a meeting,
+    // to give tasks the conversation so far).
     const transcript = new Transcript();
+    state.transcript = transcript;
     session.on(voice.AgentSessionEventTypes.ConversationItemAdded, (event) => {
       if (!(event.item instanceof llm.ChatMessage) || !event.item.textContent) return;
       if (event.item.role === 'user') transcript.add(meeting ? 'Meeting' : 'You', event.item.textContent);
@@ -90,6 +93,8 @@ export default defineAgent({
 
     // Reported once, however the call ends: the user hangs up, end_call, the time cap or an error.
     ctx.addShutdownCallback(async () => {
+      stopWaiting(state);
+      if (state.presenting) await api.stopPresenting().catch(() => undefined);
       await api.end(transcript.report()).catch((error: unknown) => logger.error({ error: String(error) }, 'call_end_report_failed'));
     });
 
