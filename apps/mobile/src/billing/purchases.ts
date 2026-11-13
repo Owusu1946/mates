@@ -1,7 +1,7 @@
 import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
 import { Platform } from "react-native";
 import { env } from "../env";
-import { runRequest, usageChanged } from "../chat/background-chat";
+import { ApiError, runRequest, usageChanged } from "../chat/background-chat";
 import type { UsageResponse } from "@expojet/api-contract";
 
 type GetToken = () => Promise<string | null>;
@@ -9,7 +9,8 @@ type GetToken = () => Promise<string | null>;
 /** The store accepted the transaction, but the server hasn't confirmed the plan yet. */
 export class PurchaseSyncError extends Error {
   constructor(action: "purchase" | "restore", options: { cause: unknown }) {
-    super(action === "purchase" ? "Your purchase completed, but your plan is still updating. Please try restoring purchases." : "Restore completed, but your plan couldn’t be updated. Please try again.", options);
+    const unavailable = options.cause instanceof ApiError && options.cause.status === 404;
+    super(action === "purchase" ? "Your purchase completed, but your plan is still updating. Please try restoring purchases." : unavailable ? "Restore completed, but plan sync is unavailable. Try again later." : "Restore completed, but your plan couldn’t be updated. Please try again.", options);
     this.name = "PurchaseSyncError";
   }
 }
@@ -75,7 +76,7 @@ export function getCustomerInfo(userId: string) {
 
 async function syncUsage(userId: string, getToken: GetToken): Promise<UsageResponse> {
   requireIdentity(userId);
-  const usage = await runRequest<UsageResponse>(getToken, "billing/sync", {});
+  const usage = await runRequest<UsageResponse>(getToken, "billing/sync", {}, undefined, { quietNotFound: true });
   usageChanged();
   return usage;
 }

@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/expo";
+import SegmentedControl from "@expo/ui/community/segmented-control";
 import { router } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
@@ -26,13 +27,14 @@ function matchingPackage(packages: PurchasesPackage[], plan: Plan, period: Perio
 }
 
 export default function PaywallScreen() {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { userId, getToken } = useAuth();
   const usage = useUsage();
   const [period, setPeriod] = useState<Period>("monthly");
   const [selected, setSelected] = useState<Plan>("starter");
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [activeProducts, setActiveProducts] = useState<string[]>([]);
+  const [managementUrl, setManagementUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,6 +48,7 @@ export default function PaywallScreen() {
       const offerings = await getOfferings(userId);
       const customer = await getCustomerInfo(userId);
       setActiveProducts(customer.activeSubscriptions);
+      setManagementUrl(customer.managementURL);
       const available = offerings.current?.availablePackages ?? [];
       setPackages(available);
       if (!available.length) setMessage("Plans aren’t available right now.");
@@ -84,6 +87,7 @@ export default function PaywallScreen() {
     try {
       const result = await restorePurchases(userId, getToken);
       setActiveProducts(result.customerInfo.activeSubscriptions);
+      setManagementUrl(result.customerInfo.managementURL);
       setMessage(result.usage.plan.id === "none" ? "No active plan found." : `Your plan: ${result.usage.plan.label}.`);
     } catch (error) {
       setMessage(error instanceof PurchaseSyncError ? error.message : "Couldn’t restore purchases. Please try again.");
@@ -96,9 +100,13 @@ export default function PaywallScreen() {
   return (
     <ScrollView testID="paywall-screen" style={{ flex: 1, backgroundColor: colors.background }} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, paddingBottom: 48, gap: 18 }} showsVerticalScrollIndicator={false}>
       <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 25 }}>Choose a plan</Text>
-      <View style={{ flexDirection: "row", gap: 8 }} accessibilityRole="radiogroup">
-        {(["monthly", "yearly"] as const).map((value) => <Pressable key={value} accessibilityRole="radio" accessibilityState={{ selected: period === value, disabled: busy }} disabled={busy} onPress={() => setPeriod(value)} style={{ flex: 1, alignItems: "center", padding: 12, borderRadius: 16, backgroundColor: period === value ? colors.surfaceElevated : colors.surface }}><Text style={{ color: colors.text, fontFamily: font.medium }}>{value === "monthly" ? "Monthly" : "Yearly"}</Text></Pressable>)}
-      </View>
+      <SegmentedControl
+        values={["Monthly", "Yearly"]}
+        selectedIndex={period === "monthly" ? 0 : 1}
+        appearance={isDark ? "dark" : "light"}
+        enabled={!busy}
+        onChange={(event) => setPeriod(event.nativeEvent.selectedSegmentIndex === 0 ? "monthly" : "yearly")}
+      />
       {loading ? <ActivityIndicator /> : <View accessibilityRole="radiogroup" style={{ backgroundColor: colors.surface, borderRadius: 20, overflow: "hidden" }}>
         {plans.map((plan, index) => {
           const item = matchingPackage(packages, plan.id, period);
@@ -118,10 +126,10 @@ export default function PaywallScreen() {
       </View>}
       <Pressable accessibilityRole="button" disabled={busy || loading || !chosen || isCurrentProduct} onPress={() => void subscribe()} style={{ alignItems: "center", padding: 16, borderRadius: 20, backgroundColor: colors.primary, opacity: busy || loading || !chosen || isCurrentProduct ? 0.45 : 1 }}>{busy ? <ActivityIndicator /> : <Text style={{ color: colors.background, fontFamily: font.semibold, fontSize: 16 }}>{isCurrentProduct ? "Current plan" : "Continue"}</Text>}</Pressable>
       <View style={{ alignItems: "center", gap: 14 }}>
-        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 12, lineHeight: 18, textAlign: "center" }}>Renews {period === "monthly" ? "monthly" : "yearly"} until cancelled. Cancel in your store account.</Text>
+        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 12, lineHeight: 18, textAlign: "center" }}>Renews {period === "monthly" ? "monthly" : "yearly"} until cancelled.</Text>
         <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 18 }}>
           <Pressable accessibilityRole="button" disabled={busy} onPress={() => void restore()}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Restore purchases</Text></Pressable>
-          <Pressable accessibilityRole="link" onPress={() => link(Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions")}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Manage subscription</Text></Pressable>
+          <Pressable accessibilityRole="link" onPress={() => link(managementUrl ?? (Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions"))}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Manage subscription</Text></Pressable>
         </View>
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 18 }}>
           <Pressable accessibilityRole="link" onPress={() => link("https://agents.askorin.app/terms")}><Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>Terms</Text></Pressable>
