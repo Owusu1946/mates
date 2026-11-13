@@ -249,7 +249,11 @@ function Ended({ call, onDone }: { call: Call; onDone: () => void }) {
       </Text>
       {!call.preview && (
         <Text style={{ color: colors.mutedForeground, fontFamily: font.regular, fontSize: 14, textAlign: "center", maxWidth: 300, lineHeight: 20 }}>
-          {call.summary?.dropped ? "The connection was lost. A summary of what you said will still land in the chat." : "A summary and the transcript will be in the chat in a moment."}
+          {call.summary?.dropped
+            ? "The connection was lost. A summary of what you said will still land in the chat."
+            : call.summary?.usageLimit
+              ? "You’ve reached your plan’s usage limit. A summary and the transcript will be in the chat in a moment."
+              : "A summary and the transcript will be in the chat in a moment."}
         </Text>
       )}
       <View style={{ position: "absolute", left: 20, right: 20, bottom: 12, gap: 10 }}>

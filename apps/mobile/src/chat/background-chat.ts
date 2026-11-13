@@ -6,13 +6,33 @@ import { resolveApiUrl } from "./chat-model";
 export type RunView = { id: string; chatId: string | null; status: string; sequence: number; content: Record<string, unknown>[]; error: string | null; assistantMessageId: string; parentId: string | null; createdAt: string; updatedAt: string };
 const active = new Map<string, string>();
 
+/** An API refusal that keeps its status and code, so callers can tell "out of usage" from a failure. */
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number, readonly code: string, readonly details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+/** Out of usage (429 usage_limit) or no plan (402 plan_required): retrying won't help until it resets. */
+export const isUsageLimit = (error: unknown): error is ApiError =>
+  error instanceof ApiError && (error.code === "usage_limit" || error.code === "plan_required");
+
+const usageListeners = new Set<() => void>();
+/** Told when usage may have changed: a run finished, or the API said someone's out of usage. */
+export function onUsageChange(listener: () => void) {
+  usageListeners.add(listener);
+  return () => void usageListeners.delete(listener);
+}
+const usageChanged = () => usageListeners.forEach((listener) => listener());
+
 export async function runRequest<T>(getToken: () => Promise<string | null>, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const base = resolveApiUrl();
   const token = await getToken();
   if (!base || !token) throw new Error("Sign in and reconnect to continue.");
   const response = await fetch(`${base}/v1/${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal });
   if (!response.ok) {
-    const value = await response.json().catch(() => null) as { error?: { message?: string; requestId?: string } } | null;
+    const value = await response.json().catch(() => null) as { error?: { message?: string; requestId?: string; code?: string } & Record<string, unknown> } | null;
     if (value?.error?.requestId) {
       console.error("[chat] API request failed", {
         path: `/v1/${path}`,
@@ -20,7 +40,9 @@ export async function runRequest<T>(getToken: () => Promise<string | null>, path
         requestId: value.error.requestId,
       });
     }
-    throw new Error(value?.error?.message ?? "Couldn’t reach your mate. Please try again.");
+    const error = new ApiError(value?.error?.message ?? "Couldn’t reach your mate. Please try again.", response.status, value?.error?.code ?? "unknown", value?.error ?? {});
+    if (isUsageLimit(error)) usageChanged();
+    throw error;
   }
   return response.json() as Promise<T>;
 }
@@ -46,7 +68,7 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
         const data = await runRequest<{ runId: string }>(getToken, "runs", input, signal);
         id = data.runId;
         await AsyncStorage.setItem(storageKey, id);
-      } catch (cause) { error = cause; if (signal.aborted) throw cause; await delay(500 * (attempt + 1), signal); }
+      } catch (cause) { error = cause; if (signal.aborted || isUsageLimit(cause)) throw cause; await delay(500 * (attempt + 1), signal); }
     }
     if (!id) throw error;
   }
@@ -64,6 +86,7 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
           if (run.content.length) yield { content: run.content as unknown as NonNullable<ChatModelRunResult["content"]>, metadata: { custom: { delegationId: id } } };
         }
         if (["completed", "waiting", "failed", "cancelled"].includes(run.status)) {
+          usageChanged();
           if (run.status === "failed") {
             yield { content: [...run.content, { type: "text", text: run.error ?? "This task couldn’t finish. Earlier findings are saved." }] as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "error" }, metadata: { custom: { delegationId: id } } };
           }
