@@ -505,8 +505,10 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   } catch (error) {
     status = userCancelled ? "cancelled" : "failed";
     if (error instanceof UsageLimitError) {
-      // A routine or mission round that came due while the person was out of usage: skipped, said plainly.
-      failure = `Skipped: ${error.message}`;
+      // A routine or mission round that came due while the person was out of usage: skipped, said
+      // plainly in the reply itself. Not a failure, so the app adds no error text under it.
+      status = "cancelled";
+      failure = null;
       content.push({ type: "text", text: `I skipped this ${missionInfo ? "round" : "run"} because ${error.message.charAt(0).toLowerCase()}${error.message.slice(1)}` });
       const [chat] = run.chatId ? await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, run.chatId)) : [];
       await pushToUser(run.clerkUserId, { title: chat?.title ?? "Usage limit reached", body: `Skipped: ${error.message}`.slice(0, 200), data: { chatId: run.chatId } }).catch(() => false);

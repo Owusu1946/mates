@@ -117,9 +117,9 @@ describe("where someone stands", () => {
   });
 
   it("says when it resets in plain words", () => {
-    expect(untilText(hours(2 + 10 / 60), now)).toBe("2 h 10 m");
-    expect(untilText(hours(0.5), now)).toBe("30 m");
-    expect(untilText(hours(50), now)).toBe("2 d 2 h");
+    expect(untilText(hours(2 + 10 / 60).toISOString(), now)).toBe("2 h 10 m");
+    expect(untilText(hours(0.5).toISOString(), now)).toBe("30 m");
+    expect(untilText(hours(50).toISOString(), now)).toBe("2 d 2 h");
     expect(untilText(new Date(now.getTime() + 10_000).toISOString(), now)).toBe("1 m");
     expect(limitMessage({ reason: "5h", resetsAt: hours(3).toISOString() }, now)).toBe("You’ve reached your 5-hour limit. It resets in 3 h.");
     expect(limitMessage({ reason: "no_plan", resetsAt: null }, now)).toBe("Choose a plan to keep using mates.");
