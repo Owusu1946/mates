@@ -242,8 +242,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           preamble,
           speaker: mate,
           boardTask,
-          // Scheduled routine runs are claimed with an "occurrence_" key; everything else is chat.
-          usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : "chat",
+          // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
+          usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : "chat",
           checkpoint: async (pendingTool, history) => {
             await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));

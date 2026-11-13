@@ -14,6 +14,19 @@ const deps = {
 };
 
 describe("API contract", () => {
+  it("takes Composio trigger events only when they're signed", async () => {
+    const saved = { secret: process.env.COMPOSIO_WEBHOOK_SECRET, key: process.env.COMPOSIO_API_KEY };
+    const send = () => createApp(deps).request("/v1/composio/webhook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "composio.trigger.message", data: {} }) });
+    delete process.env.COMPOSIO_WEBHOOK_SECRET;
+    expect((await send()).status).toBe(503);
+    process.env.COMPOSIO_WEBHOOK_SECRET = "whsec_dGVzdC1zZWNyZXQtZm9yLXRlc3RzLW9ubHk=";
+    process.env.COMPOSIO_API_KEY = saved.key ?? "test-key";
+    expect((await send()).status).toBe(401);
+    process.env.COMPOSIO_WEBHOOK_SECRET = saved.secret;
+    if (saved.key === undefined) delete process.env.COMPOSIO_API_KEY;
+    if (saved.secret === undefined) delete process.env.COMPOSIO_WEBHOOK_SECRET;
+  });
+
   it("reports health", async () => {
     const response = await createApp(deps).request("/health");
     expect(response.status).toBe(200);

@@ -193,6 +193,73 @@ export const routines = pgTable("routines", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("routines_due").on(t.status, t.nextRunAt), index("routines_owner").on(t.clerkUserId)]);
 
+export type WatchStatus = "active" | "paused" | "fired" | "expired" | "cancelled" | "failed";
+export type WatchEvidence = { url: string | null; quote: string };
+export type WatchTrigger = { toolkit: string; slug: string; triggerId: string; config: Record<string, unknown> };
+
+/**
+ * "Watch for X, then do Y". A web watch is checked on a timer (a search, then the model judges the
+ * results against the condition and the baseline); an app watch listens for a Composio trigger
+ * event. When the condition is met it fires once: a push, then a run in its chat that does the
+ * action the user approved when they set it up.
+ */
+export const watches = pgTable("watches", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  kind: text("kind").$type<"web" | "app">().notNull(),
+  /** What to watch for, in plain words. */
+  condition: text("condition").notNull(),
+  /** What to do when it happens: approved by the user when the watch was set up. */
+  action: text("action").notNull(),
+  /** The user's own words when they asked. */
+  request: text("request").notNull().default(""),
+  status: text("status").$type<WatchStatus>().notNull().default("active"),
+  intervalMinutes: integer("interval_minutes").notNull(),
+  nextCheckAt: timestamp("next_check_at", { withTimezone: true }),
+  lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+  /** The searches a web check runs, written once at setup. */
+  queries: jsonb("queries").$type<string[]>().notNull().default([]),
+  /** What was true when the watch was set up ("BTC $96,400"), so "a 5% drop" has a starting point. */
+  baseline: text("baseline"),
+  /** The latest check's one-line status, for the card. */
+  lastNote: text("last_note"),
+  checks: integer("checks").notNull().default(0),
+  firedAt: timestamp("fired_at", { withTimezone: true }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  /** Set when the expiry warning has been sent, so it's sent once. */
+  warnedAt: timestamp("warned_at", { withTimezone: true }),
+  trigger: jsonb("trigger").$type<WatchTrigger>(),
+  /** Met, but its chat was busy: the run starts on the next tick, without checking again. */
+  pendingFire: jsonb("pending_fire").$type<{ note: string; evidence: WatchEvidence[] }>(),
+  /** The user's timezone when they set it up, for the run that carries out the action. */
+  timezone: text("timezone"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("watches_due_idx").on(t.status, t.nextCheckAt),
+  index("watches_owner_idx").on(t.clerkUserId, t.createdAt),
+]);
+
+/** A watch's recent history: each check, each app event, and the firing. Kept short per watch. */
+export const watchEvents = pgTable("watch_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  watchId: uuid("watch_id").notNull().references(() => watches.id, { onDelete: "cascade" }),
+  kind: text("kind").$type<"setup" | "check" | "event" | "fired" | "error">().notNull(),
+  met: boolean("met").notNull().default(false),
+  note: text("note").notNull().default(""),
+  evidence: jsonb("evidence").$type<WatchEvidence[]>().notNull().default([]),
+  /** The app event's own id, so a redelivered event is handled once. */
+  eventId: text("event_id"),
+  at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("watch_events_watch_idx").on(t.watchId, t.at),
+  uniqueIndex("watch_events_event_idx").on(t.watchId, t.eventId),
+]);
+
 export const routineOccurrences = pgTable("routine_occurrences", {
   id: uuid("id").defaultRandom().primaryKey(),
   routineId: uuid("routine_id").notNull().references(() => routines.id, { onDelete: "cascade" }),
@@ -644,7 +711,7 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch";
 export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram";
 
 /**

@@ -176,6 +176,19 @@ async function call(path: string, body: unknown, signal: AbortSignal) {
   }
 }
 
+/** A plain search for background work (watches): recent pages with their excerpts, metered. */
+export async function searchExcerpts(input: { objective: string; queries: string[] }, options: { sessionId: string; signal: AbortSignal; meter?: MeterContext }) {
+  const request = searchRequest({ objective: input.objective.slice(0, 500), queries: input.queries.slice(0, 3), depth: "quick", freshness: "recent" }, { sessionId: options.sessionId });
+  const data = await call("/search", request, options.signal);
+  if (options.meter?.userId) void recordUsage({ userId: options.meter.userId, source: options.meter.source, provider: "parallel", ref: options.meter.ref, costMicros: price("SEARCH_FAST"), estimated: true });
+  return (data.results ?? []).slice(0, 8).map((r) => ({
+    url: typeof r.url === "string" ? r.url : "",
+    title: typeof r.title === "string" ? r.title : "",
+    published: typeof r.publish_date === "string" ? r.publish_date : null,
+    excerpts: Array.isArray(r.excerpts) ? r.excerpts.map(String).slice(0, 3) : [],
+  }));
+}
+
 export type WebStep = (label: string) => void;
 
 /** Runs web_search or web_read. Never throws: failures come back as a note the model can act on. */

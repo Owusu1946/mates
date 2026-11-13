@@ -30,10 +30,12 @@ import {
   usageDaily,
   usageEvents,
   usageWindows,
+  watches,
 } from "./db/schema.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
 import { getComposio } from "./integrations.js";
+import { deleteWatchTriggers } from "./watches.js";
 
 /**
  * Every table holding a user's rows, in a delete order that satisfies foreign keys: routines
@@ -66,6 +68,8 @@ export const ACCOUNT_TABLES = [
   integrationSessions,
   githubInstallations,
   usageWindows,
+  // Their events cascade.
+  watches,
   profiles,
 ] as const;
 
@@ -103,6 +107,8 @@ export async function deleteAccount(userId: string) {
   await disconnectAllApps(userId);
   // The mates' bot leaves every GitHub account it was installed on.
   if (githubConfigured()) await uninstallAll(userId);
+  // App watches' Composio triggers stop before the account goes.
+  await deleteWatchTriggers(userId).catch(() => undefined);
   const anonymous = `deleted_${randomUUID()}`;
   const [first, ...rest] = [
     ...ACCOUNT_LEDGERS.map((table) => db.update(table).set({ clerkUserId: anonymous }).where(eq(table.clerkUserId, userId))),
