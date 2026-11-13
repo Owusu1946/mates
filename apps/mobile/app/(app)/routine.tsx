@@ -154,23 +154,20 @@ export default function RoutineSheet() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      {/* The header is the scroll view's first, sticky row: inside a form sheet a separate header
-          above the scroll view gets drawn over by the content. */}
+      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 18, paddingBottom: 12 }}>
+        <HeaderButton label="Cancel" onPress={close} />
+        <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: "center", color: colors.text, fontFamily: font.semibold, fontSize: 17 }}>
+          {routine ? (ended ? "Routine" : "Edit routine") : "New routine"}
+        </Text>
+        {ended ? <View style={{ width: 64 }} /> : <HeaderButton label={routine ? "Save" : "Create"} strong disabled={!canSave} busy={saving} onPress={() => void save()} />}
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        stickyHeaderIndices={[0]}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 26 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: insets.bottom + 32, gap: 26 }}
       >
-        <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: -20, paddingHorizontal: 16, paddingTop: 22, paddingBottom: 12, backgroundColor: colors.background }}>
-          <HeaderButton label="Cancel" onPress={close} />
-          <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: "center", color: colors.text, fontFamily: font.semibold, fontSize: 17 }}>
-            {routine ? (ended ? "Routine" : "Edit routine") : "New routine"}
-          </Text>
-          {ended ? <View style={{ width: 64 }} /> : <HeaderButton label={routine ? "Save" : "Create"} strong disabled={!canSave} busy={saving} onPress={() => void save()} />}
-        </View>
-
         {routine && (
           <View style={{ gap: 14 }}>
             <View style={{ gap: 4 }}>
