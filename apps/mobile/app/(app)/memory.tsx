@@ -77,18 +77,19 @@ export default function MemoryScreen() {
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentInsetAdjustmentBehavior="automatic"
-      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 28 }}
+      contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 22 }}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
       refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
     >
       <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
-        Your mates remember useful things you tell them, so you don’t have to repeat yourself. You’re in control of all of it.
+        Your mates remember useful things, so you don’t have to repeat yourself.
       </Text>
 
       <Group>
-        <ToggleRow title="Memory" detail="Let your mates use and save memories." value={settings.memoryEnabled} onChange={(memoryEnabled) => setSetting({ memoryEnabled })} />
-        <ToggleRow title="Save automatically" detail="Your mates decide what’s worth keeping and show “Memory updated” when they do." value={settings.autoMemory} disabled={off} onChange={(autoMemory) => setSetting({ autoMemory })} />
-        <ToggleRow title="Reference chat history" detail="Look back at earlier chats and files when they’re relevant." value={settings.historyRecall} disabled={off} onChange={(historyRecall) => setSetting({ historyRecall })} />
+        <ToggleRow title="Memory" detail="Let your mates save and use memories." value={settings.memoryEnabled} disabled={!query.data} onChange={(memoryEnabled) => setSetting({ memoryEnabled })} />
+        <ToggleRow title="Save automatically" detail="Save useful details from your chats." value={settings.autoMemory} disabled={off || !query.data} onChange={(autoMemory) => setSetting({ autoMemory })} />
+        <ToggleRow title="Reference chat history" detail="Use relevant past chats and files." value={settings.historyRecall} disabled={off || !query.data} onChange={(historyRecall) => setSetting({ historyRecall })} />
       </Group>
 
       {(error || query.isError) && (

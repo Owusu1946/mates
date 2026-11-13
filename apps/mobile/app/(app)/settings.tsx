@@ -1,14 +1,13 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { Column, FieldGroup, Host as UniversalHost, Picker as UniversalPicker, Row, Spacer as UniversalSpacer, Text as UniversalText } from "@expo/ui";
-import { Button, Form, HStack, Host, Image, Label, LabeledContent, Picker, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
-import { buttonStyle, contentShape, font, foregroundStyle, lineLimit, pickerStyle, shapes, tag } from "@expo/ui/swift-ui/modifiers";
+import { Button, Form, HStack, Host, Image, Label, Picker, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
+import { buttonStyle, contentShape, font, foregroundStyle, lineLimit, pickerStyle, scrollIndicators, shapes, tag } from "@expo/ui/swift-ui/modifiers";
 import Constants from "expo-constants";
 import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { Alert, Linking, Platform } from "react-native";
 import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
-import { useOnboarding } from "../../src/onboarding/provider";
 import { useSession } from "../../src/session/provider";
 import { useTheme, type ThemeMode } from "../../src/theme/provider";
 import { NEARLY_USED_PCT, useUsage, type Usage } from "../../src/usage/use-usage";
@@ -19,12 +18,10 @@ const THEMES: { label: string; value: ThemeMode }[] = [
   { label: "Dark", value: "dark" },
 ];
 type SFSymbol = NonNullable<React.ComponentProps<typeof Label>["systemImage"]>;
-const DELETE_NOTE = "Deleting your account removes everything Mates stores for you and disconnects your apps.";
 
 /** Everything the page shows and does, shared by the iOS and Android layouts. */
 function useSettings() {
   const session = useSession();
-  const onboarding = useOnboarding();
   const { getToken } = useAuth();
   const { user } = useUser();
   const theme = useTheme();
@@ -62,7 +59,7 @@ function useSettings() {
     openMemory: () => router.push("/memory"),
     openApps: () => router.push("/connections"),
     openNotifications: () => void Linking.openSettings(),
-    showIntro: () => void onboarding.reset().then(() => router.replace("/(onboarding)")),
+    showIntro: () => router.push({ pathname: "/(onboarding)", params: { preview: "1" } }),
     signOut: () => {
       if (deleting) return;
       Alert.alert("Sign out?", "You can sign back in at any time.", [
@@ -95,14 +92,14 @@ function usageSummary(usage: Usage | undefined) {
 }
 
 /** A tappable row that opens something: icon, title, an optional value, and the system chevron. */
-function LinkRow({ title, icon, color, value, onPress }: { title: string; icon: SFSymbol; color: string; value?: string; onPress: () => void }) {
+function LinkRow({ title, icon, color, value, external, onPress }: { title: string; icon: SFSymbol; color: string; value?: string; external?: boolean; onPress: () => void }) {
   return (
     <Button onPress={onPress} modifiers={[buttonStyle("plain")]}>
       <HStack modifiers={[contentShape(shapes.rectangle())]}>
         <Label title={title} systemImage={icon} color={color} />
         <Spacer />
         {value ? <Text modifiers={[lineLimit(1), foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{value}</Text> : null}
-        <Image systemName="chevron.right" size={13} color="#C4C4C7" />
+        <Image systemName={external ? "arrow.up.right" : "chevron.right"} size={13} color="#C4C4C7" />
       </HStack>
     </Button>
   );
@@ -114,12 +111,12 @@ function IosSettings({ s }: { s: Settings }) {
   const grouped = s.isDark ? "#000000" : "#F2F2F7";
   return (
     <>
-    <Stack.Screen options={{ headerStyle: { backgroundColor: grouped }, headerShadowVisible: false }} />
+    <Stack.Screen options={{ headerStyle: { backgroundColor: grouped }, headerShadowVisible: false, headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
     <Host testID="settings-screen" style={{ flex: 1, backgroundColor: grouped }} colorScheme={s.isDark ? "dark" : "light"}>
-      <Form>
+      <Form modifiers={[scrollIndicators("hidden", "vertical")]}>
         <Section>
           <HStack spacing={14}>
-            <Image systemName="person.crop.circle.fill" size={52} color="#d27e41" />
+            <Image systemName="person.crop.circle.fill" size={44} color="#d27e41" />
             <VStack alignment="leading" spacing={2}>
               <Text modifiers={[font({ size: 20, weight: "semibold" })]}>{s.name}</Text>
               {s.email ? <Text modifiers={[font({ size: 15 }), foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{s.email}</Text> : null}
@@ -133,8 +130,8 @@ function IosSettings({ s }: { s: Settings }) {
 
         <Section title="Mates">
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
-          <LinkRow title="Apps & connections" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
-          <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" onPress={s.openNotifications} />
+          <LinkRow title="Apps" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
+          <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" external onPress={s.openNotifications} />
         </Section>
 
         <Section title="Appearance">
@@ -144,14 +141,11 @@ function IosSettings({ s }: { s: Settings }) {
         </Section>
 
         <Section title="About">
-          <LabeledContent label="Version">
-            <Text>{s.version}</Text>
-          </LabeledContent>
-          <Button label="Show the introduction" onPress={s.showIntro} />
+          <Button label="View introduction" onPress={s.showIntro} />
         </Section>
 
-        <Section footer={<Text>{DELETE_NOTE}</Text>}>
-          <Button label="Sign out" role="destructive" onPress={s.signOut} />
+        <Section footer={<Text>{`v ${s.version}`}</Text>}>
+          <Button label="Sign out" onPress={s.signOut} />
           <Button label={s.deleting ? "Deleting your account…" : "Delete account"} role="destructive" onPress={s.confirmDelete} />
         </Section>
       </Form>
@@ -186,7 +180,7 @@ function AndroidSettings({ s }: { s: Settings }) {
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
           {row("Memory", s.openMemory)}
-          {row("Apps & connections", s.openApps)}
+          {row("Apps", s.openApps)}
           {row("Notifications", s.openNotifications)}
         </FieldGroup.Section>
         <FieldGroup.Section title="Appearance">
@@ -199,15 +193,12 @@ function AndroidSettings({ s }: { s: Settings }) {
           </Row>
         </FieldGroup.Section>
         <FieldGroup.Section title="About">
-          {row("Version", undefined, title, s.version)}
-          {row("Show the introduction", s.showIntro)}
+          {row("View introduction", s.showIntro)}
         </FieldGroup.Section>
         <FieldGroup.Section>
-          {row("Sign out", s.signOut, danger)}
+          {row("Sign out", s.signOut)}
           {row(s.deleting ? "Deleting your account…" : "Delete account", s.confirmDelete, danger)}
-          <FieldGroup.SectionFooter>
-            <UniversalText textStyle={muted}>{DELETE_NOTE}</UniversalText>
-          </FieldGroup.SectionFooter>
+          <FieldGroup.SectionFooter><UniversalText textStyle={muted}>{`v ${s.version}`}</UniversalText></FieldGroup.SectionFooter>
         </FieldGroup.Section>
       </FieldGroup>
     </UniversalHost>

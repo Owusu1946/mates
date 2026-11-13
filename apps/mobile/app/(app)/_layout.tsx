@@ -166,7 +166,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
           <Stack.Screen name="connections" options={{ title: "Apps", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
-          <Stack.Screen name="memory" options={{ title: "Memory" }} />
+          <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
           <Stack.Screen name="new-mate" options={{ title: "New", headerShown: false, presentation: "modal" }} />
