@@ -7,6 +7,7 @@ vi.mock("./billing.js", async (importOriginal) => ({
 
 import { setPlan } from "./billing.js";
 import { handleRevenueCatEvent, revenueCatAuthorized, subscriberPlan, syncFromRevenueCat } from "./revenuecat.js";
+import { createApp } from "../app.js";
 
 const originalEnv = { ...process.env };
 const customer = (sandbox: boolean, expires = "2099-01-01T00:00:00Z") => ({ subscriber: {
@@ -42,6 +43,23 @@ describe("RevenueCat subscription sync", () => {
     expect(subscriberPlan(customer(false, "2000-01-01T00:00:00Z"), false)).toBe("none");
   });
 
+  it("chooses the highest active entitlement and respects a billing grace period", () => {
+    const data = { subscriber: {
+      entitlements: {
+        starter: { product_identifier: "starter_monthly", expires_date: "2099-01-01T00:00:00Z" },
+        pro: { product_identifier: "pro_monthly", expires_date: "2000-01-01T00:00:00Z", grace_period_expires_date: "2099-01-01T00:00:00Z" },
+      },
+      subscriptions: { starter_monthly: { is_sandbox: false }, pro_monthly: { is_sandbox: false } },
+    } };
+    expect(subscriberPlan(data, false)).toBe("pro");
+  });
+
+  it("preserves existing state by rejecting entitlements with an unknown subscription", () => {
+    const data = customer(false);
+    data.subscriber.subscriptions = {} as typeof data.subscriber.subscriptions;
+    expect(() => subscriberPlan(data, false)).toThrow("no matching subscription");
+  });
+
   it("does not change a plan when the response is malformed or RevenueCat fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response("unavailable", { status: 503 })).mockResolvedValueOnce(Response.json({ subscriber: {} })));
     await expect(syncFromRevenueCat("user_1")).rejects.toThrow();
@@ -61,5 +79,24 @@ describe("RevenueCat subscription sync", () => {
     vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(Response.json(customer(false)))));
     await handleRevenueCatEvent({ type: "TRANSFER", transferred_from: ["user_old", "$RCAnonymousID:1"], transferred_to: ["user_new"] });
     expect(vi.mocked(setPlan).mock.calls.map(([id]) => id)).toEqual(["user_old", "user_new"]);
+  });
+});
+
+describe("RevenueCat routes", () => {
+  const app = createApp({ verifyToken: async () => ({ sub: "user_1" }) });
+
+  it("rejects unauthenticated and malformed webhooks", async () => {
+    const request = (authorization: string, body: string) => app.request("/webhooks/revenuecat", {
+      method: "POST", headers: { authorization, "content-type": "application/json" }, body,
+    });
+    expect((await request("wrong", "{}" )).status).toBe(401);
+    expect((await request("webhook", "not json")).status).toBe(400);
+    expect((await request("webhook", JSON.stringify({ event: { type: "TEST" } }))).status).toBe(200);
+  });
+
+  it("requires a Clerk bearer token for the billing sync", async () => {
+    const response = await app.request("/v1/billing/sync", { method: "POST" });
+    expect(response.status).toBe(401);
+    expect(setPlan).not.toHaveBeenCalled();
   });
 });

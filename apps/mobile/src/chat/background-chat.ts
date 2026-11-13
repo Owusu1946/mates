@@ -24,7 +24,7 @@ export function onUsageChange(listener: () => void) {
   usageListeners.add(listener);
   return () => void usageListeners.delete(listener);
 }
-const usageChanged = () => usageListeners.forEach((listener) => listener());
+export const usageChanged = () => usageListeners.forEach((listener) => listener());
 
 export async function runRequest<T>(getToken: () => Promise<string | null>, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
   const base = resolveApiUrl();

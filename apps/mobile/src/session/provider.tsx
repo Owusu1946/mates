@@ -1,21 +1,28 @@
 import { ClerkProvider, useAuth, useUser } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
-import { createContext, type PropsWithChildren, useContext, useMemo } from "react";
+import { createContext, type PropsWithChildren, useContext, useEffect, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { env } from "../env";
 import type { SessionState } from "./types";
 import { disableNotifications } from "../data/notifications";
 import { clearCache } from "../data/offline-cache";
+import { identifyPurchases } from "../billing/purchases";
 
 const SessionContext = createContext<SessionState | null>(null);
 function ClerkSession({ children }: PropsWithChildren) {
   const auth = useAuth();
   const { user } = useUser();
+  useEffect(() => {
+    if (!auth.isLoaded) return;
+    void identifyPurchases(auth.isSignedIn ? auth.userId : null).catch((error) => console.warn("purchase_identity_failed", error));
+  }, [auth.isLoaded, auth.isSignedIn, auth.userId]);
   const value = useMemo<SessionState>(() => ({
     status: !auth.isLoaded ? "loading" : auth.isSignedIn ? "authenticated" : "unauthenticated",
     user: auth.isSignedIn && user ? { id: user.id, displayName: user.fullName ?? user.primaryEmailAddress?.emailAddress ?? undefined } : null,
     signIn: () => {},
     signOut: () => { void (async () => {
+      // Invalidate the purchase identity before Clerk begins signing out.
+      void identifyPurchases(null).catch((error) => console.warn("purchase_identity_failed", error));
       if (auth.userId) await disableNotifications(auth.getToken, auth.userId).catch(() => {});
       const userId = auth.userId;
       await auth.signOut();
