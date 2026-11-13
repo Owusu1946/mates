@@ -26,7 +26,8 @@ export interface Caption {
 /** `chatId` is where the call's tasks and summary go: the open chat, else the lead's own chat. */
 export type CallRoster = { lead: BotMate; others: BotMate[]; group: string[]; chatId?: string };
 
-export type CallSummary = { duration: number; members: BotMate[]; dropped?: boolean };
+/** `usageLimit`: the mate ended the call because the user's plan usage ran out. */
+export type CallSummary = { duration: number; members: BotMate[]; dropped?: boolean; usageLimit?: boolean };
 
 export interface CallSession {
   lead: BotMate;

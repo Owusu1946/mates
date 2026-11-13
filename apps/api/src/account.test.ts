@@ -1,15 +1,15 @@
 import { getTableColumns, getTableName, isTable } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
-import { ACCOUNT_TABLES } from "./account.js";
+import { ACCOUNT_LEDGERS, ACCOUNT_TABLES } from "./account.js";
 import * as schema from "./db/schema.js";
 
 describe("account deletion", () => {
-  it("covers every table that stores a user's rows", () => {
+  it("covers every table that stores a user's rows, deleting them or cutting the ledgers loose", () => {
     const owned = Object.values(schema)
       .filter((value) => isTable(value) && "clerkUserId" in getTableColumns(value as never))
       .map((table) => getTableName(table as never))
       .sort();
-    expect(ACCOUNT_TABLES.map((table) => getTableName(table)).sort()).toEqual(owned);
+    expect([...ACCOUNT_TABLES, ...ACCOUNT_LEDGERS].map((table) => getTableName(table)).sort()).toEqual(owned);
   });
 
   it("deletes routines before delegations and chats before mates", () => {

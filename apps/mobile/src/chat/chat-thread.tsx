@@ -87,6 +87,8 @@ import { ComposerPlusMenu, type PlusMenuOption } from "./composer-plus-menu";
 import { ComposerCameraSheet } from "./composer-camera-sheet";
 import { ComposerAttachmentChip, MessageAttachments } from "./attachment-views";
 import { DOCUMENT_TYPES, MAX_ATTACHMENTS, prepareImage, uploadAttachment, type UploadSource } from "./attachments";
+import { LimitReply, limitError, UsageLine } from "../usage/usage-notice";
+import { useUsage } from "../usage/use-usage";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -603,6 +605,8 @@ function ChatMessage() {
   const hasContent = useAuiState((state) =>
     state.message.content.some((part) => part.type !== "text" || part.text.trim().length > 0),
   );
+  // Refused for usage: say so and when it comes back, instead of "couldn't reply · Try again".
+  const limit = limitError(useAuiState((state) => state.message.status));
   const colors = useChatColors();
   const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
@@ -656,6 +660,11 @@ function ChatMessage() {
         </View>
       )}
       {!user && <ThinkingIndicator />}
+      {limit ? (
+        <ErrorPrimitive.Root style={{ marginTop: 8, paddingHorizontal: 2 }}>
+          <LimitReply message={limit.message} colors={colors} />
+        </ErrorPrimitive.Root>
+      ) : (
       <ErrorPrimitive.Root
         style={{
           marginTop: 8,
@@ -688,6 +697,7 @@ function ChatMessage() {
           </Text>
         </ActionBarPrimitive.Reload>
       </ErrorPrimitive.Root>
+      )}
       {!editing && !running && <MessageActions user={user} />}
     </MessagePrimitive.Root>
   );
@@ -1037,6 +1047,9 @@ function ChatComposer() {
         : leaderName;
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
+  // Out of usage: the line above says until when; sending waits for the reset.
+  const usage = useUsage();
+  const outOfUsage = !!usage.data?.enforced && !!usage.data.blocked;
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
   // Picked from the @ menu: the next message always searches the web (sent as "@Web").
   const [searchOn, setSearchOn] = useState(false);
@@ -1253,7 +1266,7 @@ function ChatComposer() {
     isLiquidGlassAvailable() &&
     isGlassEffectAPIAvailable();
   const sendMessage = () => {
-    if (!canSend || uploads.length) return;
+    if (!canSend || uploads.length || outOfUsage) return;
     const tags = [selectedApp ? `@${selectedApp.name}` : null, searchOn ? "@Web" : null].filter(Boolean).join(" ");
     if (tags) {
       const text = composerText.trimEnd();
@@ -1570,7 +1583,7 @@ function ChatComposer() {
                 <ChatIcon name="mic" color={colors.foreground} size={21} />
               </Pressable>
               <AuiIf condition={(state) => !state.thread.isRunning}>
-                <SendControl canSend={canSend && !uploads.length} onSend={sendMessage} />
+                <SendControl canSend={canSend && !uploads.length && !outOfUsage} onSend={sendMessage} />
               </AuiIf>
               <AuiIf condition={(state) => state.thread.isRunning}>
                 <Pressable
@@ -2059,6 +2072,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
         <ChatSyncNotice />
         <ChatBody keyboardVisible={keyboardVisible} loading={starting} />
         <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+          <UsageLine colors={colors} />
           <ChatComposer />
         </View>
         <View

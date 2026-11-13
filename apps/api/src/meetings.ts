@@ -1,11 +1,13 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { CALL_AGENT_NAME, callsConfigured, endCall, joinToken, signCallToken, type CallDispatch } from "./calls.js";
+import { CALL_AGENT_NAME, callsConfigured, endCall, joinToken, MAX_MEETING_MS, signCallToken, type CallDispatch } from "./calls.js";
 import { getDb } from "./db/client.js";
 import { calls, mates, profiles, slackRuns, type MeetingInfo } from "./db/schema.js";
 import { pushToUser } from "./delivery.js";
 import { mateChatId } from "./mates.js";
+import { assertUsage, usageCapMs } from "./usage/gate.js";
+import { price } from "./usage/prices.js";
 
 /**
  * A mate in someone's meeting. Recall.ai sends a bot into the meeting under the mate's name; the bot's
@@ -96,6 +98,7 @@ export const startMeetingSchema = z.object({ meetingUrl: z.string().url().max(20
  * through Recall's webhooks and the voice agent. `slack` is where to post the notes too.
  */
 export async function startMeeting(userId: string, input: z.infer<typeof startMeetingSchema> & { slack?: MeetingInfo["slack"] }) {
+  await assertUsage(userId, "meetings");
   if (!meetingsConfigured()) throw new MeetingError("NOT_CONFIGURED", "Meetings aren’t set up on this server yet.");
   const meetingUrl = input.meetingUrl.trim();
   if (!isMeetingLink(meetingUrl)) throw new MeetingError("INVALID_LINK", "That isn’t a Google Meet, Zoom or Teams link.");
@@ -138,7 +141,7 @@ export async function meetingSession(callId: string, pageToken: string | undefin
   if (!call || !pageTokenMatches(pageToken, call.meeting?.pageKey, call.createdAt) || call.status === "ended" || call.status === "failed") return null;
   const [mate] = call.leadMateId ? await getDb().select().from(mates).where(eq(mates.id, call.leadMateId)) : [];
   if (!mate) return null;
-  const dispatch: CallDispatch = { callId: call.id, callToken: signCallToken(call.id, call.clerkUserId), userName: call.meeting?.userName, timezone: call.meeting?.timezone, mode: "meeting" };
+  const dispatch: CallDispatch = { callId: call.id, callToken: signCallToken(call.id, call.clerkUserId), userName: call.meeting?.userName, timezone: call.meeting?.timezone, mode: "meeting", maxMs: await usageCapMs(call.clerkUserId, price("MEETING_MINUTE"), MAX_MEETING_MS) };
   const token = await joinToken(call.clerkUserId, call.roomName, dispatch, { identity: `meet_${call.id}`, name: "Meeting" });
   return { serverUrl: process.env.LIVEKIT_URL!, token, agentName: CALL_AGENT_NAME, mate: { name: mate.name, color: mate.color, shape: mate.shape } };
 }

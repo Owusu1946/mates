@@ -134,8 +134,8 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
   }, []);
   useEffect(() => () => { leaving.current = true; void cleanup(); }, [cleanup]);
 
-  const finish = useCallback((dropped: boolean) => {
-    setSummary({ duration: elapsedRef.current, members: membersRef.current.filter((m) => m.status === "joined").map(({ status: _s, speaking: _p, ...mate }) => mate), dropped });
+  const finish = useCallback((dropped: boolean, usageLimit = false) => {
+    setSummary({ duration: elapsedRef.current, members: membersRef.current.filter((m) => m.status === "joined").map(({ status: _s, speaking: _p, ...mate }) => mate), dropped, usageLimit });
     setMembers([]);
     setReconnecting(false);
     setPhase("ended");
@@ -201,13 +201,13 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
 
       const next = new LiveRoom({ adaptiveStream: false, dynacast: false });
       room.current = next;
-      const finishFromAgent = (dropped: boolean) => {
+      const finishFromAgent = (dropped: boolean, reason?: string) => {
         if (leaving.current) return;
         startAttempt.current += 1;
         startRequest.current?.abort();
         startRequest.current = null;
         leaving.current = true;
-        finish(dropped);
+        finish(dropped, reason === "usage_limit");
         void cleanup();
       };
       next
@@ -219,13 +219,13 @@ export function useLiveCallSession(roster: CallRoster): CallSession {
         .on(RoomEvent.ParticipantAttributesChanged, (_changed, participant) => {
           if (!participant.isAgent) return;
           if (participant.attributes?.["mates.ending"] === "true") {
-            finishFromAgent(false);
+            finishFromAgent(false, participant.attributes?.["mates.endReason"]);
             return;
           }
           applyAgentState(participant);
         })
         .on(RoomEvent.ParticipantDisconnected, (participant) => {
-          if (participant.isAgent) finishFromAgent(participant.attributes?.["mates.ending"] !== "true");
+          if (participant.isAgent) finishFromAgent(participant.attributes?.["mates.ending"] !== "true", participant.attributes?.["mates.endReason"]);
         })
         .on(RoomEvent.Reconnecting, () => setReconnecting(true))
         .on(RoomEvent.Reconnected, () => setReconnecting(false))

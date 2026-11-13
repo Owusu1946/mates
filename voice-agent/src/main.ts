@@ -106,15 +106,24 @@ export default defineAgent({
       }
     });
 
+    // The usual cap, or sooner when the user's plan usage would run out first.
+    const usualMs = meeting ? MAX_MEETING_MS : MAX_CALL_MS;
+    const outOfUsage = dispatch.data.maxMs !== undefined && dispatch.data.maxMs < usualMs;
     const cap = setTimeout(() => {
+      if (outOfUsage) state.publish({ 'mates.endReason': 'usage_limit' });
       session.generateReply({
-        instructions: meeting
-          ? "You've been in this meeting for two hours and need to drop off. Say so in one short sentence and that the notes are on their way."
-          : "The call has reached its thirty minute limit. Say you need to wrap up, and that they can call back or carry on in the chat. Say goodbye.",
+        instructions: outOfUsage
+          ? meeting
+            ? "The user's plan has reached its usage limit, so you need to drop off this meeting. Say so in one short sentence and that the notes are on their way."
+            : "The user has reached their plan's usage limit, so the call has to end now. Say so kindly in one sentence, that it resets soon and they can see the details in Settings, then say goodbye."
+          : meeting
+            ? "You've been in this meeting for two hours and need to drop off. Say so in one short sentence and that the notes are on their way."
+            : "The call has reached its thirty minute limit. Say you need to wrap up, and that they can call back or carry on in the chat. Say goodbye.",
         toolChoice: 'none',
       });
-      setTimeout(() => session.shutdown(), WRAP_UP_MS).unref();
-    }, meeting ? MAX_MEETING_MS : MAX_CALL_MS);
+      // A usage stop is a clean end with a reason, not a dropped call, so the app can say why.
+      setTimeout(() => void (outOfUsage ? (state.publishEnding?.() ?? Promise.resolve()).catch(() => {}) : Promise.resolve()).finally(() => session.shutdown()), WRAP_UP_MS).unref();
+    }, outOfUsage ? dispatch.data.maxMs : usualMs);
     cap.unref();
 
     // Let the app disconnect after the agent leaves; LiveKit closes the room once it is empty.

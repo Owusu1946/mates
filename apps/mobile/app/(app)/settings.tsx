@@ -11,6 +11,7 @@ import { haptic } from "../../src/haptics";
 import { useOnboarding } from "../../src/onboarding/provider";
 import { useSession } from "../../src/session/provider";
 import { useTheme, type ThemeMode } from "../../src/theme/provider";
+import { useUsage, type Usage } from "../../src/usage/use-usage";
 
 const THEMES: { label: string; value: ThemeMode }[] = [
   { label: "System", value: "system" },
@@ -27,6 +28,7 @@ function useSettings() {
   const { getToken } = useAuth();
   const { user } = useUser();
   const theme = useTheme();
+  const usage = useUsage().data;
   const [deleting, setDeleting] = useState(false);
 
   const deleteAccount = async () => {
@@ -51,6 +53,8 @@ function useSettings() {
     name: user?.fullName || user?.firstName || "Your account",
     email: user?.primaryEmailAddress?.emailAddress ?? "",
     version: Constants.expoConfig?.version ?? "—",
+    usageSummary: usageSummary(usage),
+    openUsage: () => router.push("/usage"),
     setTheme: (value: ThemeMode) => {
       haptic.selection();
       theme.setMode(value);
@@ -78,13 +82,23 @@ function useSettings() {
 
 type Settings = ReturnType<typeof useSettings>;
 
-/** A tappable row that opens something: icon, title, and the system chevron. */
-function LinkRow({ title, icon, color, onPress }: { title: string; icon: SFSymbol; color: string; onPress: () => void }) {
+/** "Starter · 42% this week", from the fuller of the two allowances. */
+function usageSummary(usage: Usage | undefined) {
+  if (!usage) return "";
+  if (usage.plan.id === "none") return "No plan";
+  const fullest = [...usage.windows].sort((a, b) => b.usedPct - a.usedPct)[0];
+  if (!fullest) return usage.plan.label;
+  return `${usage.plan.label} · ${fullest.usedPct}% ${fullest.kind === "5h" ? "this session" : "this week"}`;
+}
+
+/** A tappable row that opens something: icon, title, an optional value, and the system chevron. */
+function LinkRow({ title, icon, color, value, onPress }: { title: string; icon: SFSymbol; color: string; value?: string; onPress: () => void }) {
   return (
     <Button onPress={onPress} modifiers={[buttonStyle("plain")]}>
       <HStack modifiers={[contentShape(shapes.rectangle())]}>
         <Label title={title} systemImage={icon} color={color} />
         <Spacer />
+        {value ? <Text modifiers={[foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{value}</Text> : null}
         <Image systemName="chevron.right" size={13} color="#C4C4C7" />
       </HStack>
     </Button>
@@ -108,6 +122,10 @@ function IosSettings({ s }: { s: Settings }) {
               {s.email ? <Text modifiers={[font({ size: 15 }), foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{s.email}</Text> : null}
             </VStack>
           </HStack>
+        </Section>
+
+        <Section>
+          <LinkRow title="Plan & usage" icon="gauge.with.dots.needle.50percent" color="#34C759" value={s.usageSummary} onPress={s.openUsage} />
         </Section>
 
         <Section title="Mates">
@@ -159,6 +177,9 @@ function AndroidSettings({ s }: { s: Settings }) {
             <UniversalText textStyle={{ color: s.colors.text, fontSize: 20, fontWeight: "600" }}>{s.name}</UniversalText>
             {s.email ? <UniversalText textStyle={muted}>{s.email}</UniversalText> : null}
           </Column>
+        </FieldGroup.Section>
+        <FieldGroup.Section>
+          {row("Plan & usage", s.openUsage, title, s.usageSummary)}
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
           {row("Memory", s.openMemory)}

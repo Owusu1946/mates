@@ -12,6 +12,8 @@ export const dispatchSchema = z.object({
   timezone: z.string().optional(),
   /** "meeting": the mate is sitting in on someone's meeting (Google Meet, Zoom, Teams), not a call with the user. */
   mode: z.enum(['call', 'meeting']).optional(),
+  /** Set when the user's plan usage runs out before the usual cap: the call wraps up then. */
+  maxMs: z.number().int().positive().optional(),
 });
 export type Dispatch = z.infer<typeof dispatchSchema>;
 

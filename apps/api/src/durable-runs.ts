@@ -16,6 +16,7 @@ import { pushToUser } from "./delivery.js";
 import { extractMemories, memoryCard, memorySettings } from "./memory.js";
 import { recordExchange } from "./recall.js";
 import type { agentExecution } from "./trigger/agent.js";
+import { assertUsage, UsageLimitError } from "./usage/gate.js";
 
 export const submissionSchema = chatRequestSchema.extend({
   chatId: chatIdSchema,
@@ -42,6 +43,8 @@ export async function submitRun(userId: string, input: Submission) {
     if (existing.requestHash !== hash) throw new Error("IDEMPOTENCY_CONFLICT");
     return existing;
   }
+  // After the replay check, so a retried send of an already accepted run still gets its answer.
+  await assertUsage(userId, "run");
   const store = createChatStore();
   if (!(await store.initialize(userId, input.chatId))) throw new Error("CHAT_NOT_FOUND");
   if (input.resumeRunId) {
@@ -239,6 +242,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           preamble,
           speaker: mate,
           boardTask,
+          // Scheduled routine runs are claimed with an "occurrence_" key; everything else is chat.
+          usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : "chat",
           checkpoint: async (pendingTool, history) => {
             await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
@@ -363,7 +368,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     leaderStatus(board.some((t) => t.status === "review") ? `${leader.name} is reviewing the team’s work…` : board.length ? `${leader.name} is lining up the next step…` : `${leader.name} is planning the work…`, "running");
     showBoard();
     await persist("progress");
-    const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages });
+    const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
     if (decision) {
       board = await applyDecision(mission.id, board, decision);
       leaderStatus(decision.reviews.length ? `${leader.name} reviewed the team’s work` : `${leader.name} planned the next step`, "done");
@@ -412,6 +417,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
 
   try {
     await persist("run.started");
+    if (run.requestKey.startsWith("occurrence_") || missionInfo) await assertUsage(run.clerkUserId, missionInfo ? "mission" : "routine");
     let agentRunId = run.agentRunId ?? id;
     const leader = persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
     if (persona.kind !== "group") {
@@ -446,7 +452,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         mentioned = parseMentions(request.messages.at(-1)?.content ?? "", persona.mates);
         const plan = mentioned.length
           ? { handoff: "", assignments: mentioned.map((mate) => ({ mateId: mate.id, task: "" })) }
-          : await planGroupTurn({ members: persona.mates, leaderId: leader.id, turns: request.messages });
+          : await planGroupTurn({ members: persona.mates, leaderId: leader.id, turns: request.messages, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
         if (plan.handoff) {
           mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
           mergePayload(content, { choices: [{ delta: { content: plan.handoff } }] });
@@ -496,10 +502,20 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     }
     const [agent] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, agentRunId));
     status = signal.aborted ? userCancelled ? "cancelled" : "failed" : failure ? "failed" : agent?.status.startsWith("waiting") ? "waiting" : agent?.status === "failed" ? "failed" : "completed";
-  } catch {
+  } catch (error) {
     status = userCancelled ? "cancelled" : "failed";
-    failure = status === "cancelled" ? null : "This run was interrupted. Saved findings are available. Verify any external action before trying again.";
-    if (!content.length) content.push({ type: "text", text: failure ?? "Stopped." });
+    if (error instanceof UsageLimitError) {
+      // A routine or mission round that came due while the person was out of usage: skipped, said
+      // plainly in the reply itself. Not a failure, so the app adds no error text under it.
+      status = "cancelled";
+      failure = null;
+      content.push({ type: "text", text: `I skipped this ${missionInfo ? "round" : "run"} because ${error.message.charAt(0).toLowerCase()}${error.message.slice(1)}` });
+      const [chat] = run.chatId ? await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, run.chatId)) : [];
+      await pushToUser(run.clerkUserId, { title: chat?.title ?? "Usage limit reached", body: `Skipped: ${error.message}`.slice(0, 200), data: { chatId: run.chatId } }).catch(() => false);
+    } else {
+      failure = status === "cancelled" ? null : "This run was interrupted. Saved findings are available. Verify any external action before trying again.";
+      if (!content.length) content.push({ type: "text", text: failure ?? "Stopped." });
+    }
   } finally {
     clearInterval(heartbeat);
     await persist(`run.${status}`, status);

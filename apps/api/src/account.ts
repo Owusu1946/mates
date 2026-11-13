@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createClerkClient } from "@clerk/backend";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./db/client.js";
@@ -25,6 +26,10 @@ import {
   slackQueue,
   slackRuns,
   undoActions,
+  planPeriods,
+  usageDaily,
+  usageEvents,
+  usageWindows,
 } from "./db/schema.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
@@ -60,8 +65,16 @@ export const ACCOUNT_TABLES = [
   mates,
   integrationSessions,
   githubInstallations,
+  usageWindows,
   profiles,
 ] as const;
+
+/**
+ * The money ledgers: what someone cost us and paid us. They outlive the account, since the months
+ * they belong to still have to add up, but are cut loose from the person: the user id becomes a
+ * random one that leads nowhere.
+ */
+export const ACCOUNT_LEDGERS = [usageEvents, usageDaily, planPeriods] as const;
 
 /** Disconnects every app the user linked, so no third-party access outlives the account. */
 async function disconnectAllApps(userId: string) {
@@ -90,7 +103,11 @@ export async function deleteAccount(userId: string) {
   await disconnectAllApps(userId);
   // The mates' bot leaves every GitHub account it was installed on.
   if (githubConfigured()) await uninstallAll(userId);
-  const [first, ...rest] = ACCOUNT_TABLES.map((table) => db.delete(table).where(eq(table.clerkUserId, userId)));
+  const anonymous = `deleted_${randomUUID()}`;
+  const [first, ...rest] = [
+    ...ACCOUNT_LEDGERS.map((table) => db.update(table).set({ clerkUserId: anonymous }).where(eq(table.clerkUserId, userId))),
+    ...ACCOUNT_TABLES.map((table) => db.delete(table).where(eq(table.clerkUserId, userId))),
+  ];
   await db.batch([first!, ...rest]);
   await createClerkClient({ secretKey: getEnv().CLERK_SECRET_KEY }).users.deleteUser(userId);
 }

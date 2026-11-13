@@ -3,6 +3,7 @@ import type { WorkflowCard } from "./integrations.js";
 import { gradientOf, type PersonaMate } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
 import { bestMate } from "./workboard.js";
+import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
 
 export type Assignment = { mateId: string; task: string };
 export type GroupTurnPlan = { handoff: string; assignments: Assignment[] };
@@ -62,7 +63,7 @@ export function normalisePlan(raw: z.input<typeof planSchema>, members: PersonaM
  * The leader decides who handles a message nobody was tagged in: the fewest mates whose roles
  * fit, each with its own task, and a one-line handoff in the leader's voice.
  */
-export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: string; turns: { role: string; content: string }[] }): Promise<GroupTurnPlan> {
+export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: string; turns: { role: string; content: string }[]; meter?: MeterContext }): Promise<GroupTurnPlan> {
   const leader = input.members.find((m) => m.id === input.leaderId) ?? input.members[0]!;
   const latest = input.turns.at(-1)?.content ?? "";
   const roster = input.members.map((m) => `- ${m.id}: ${m.name} — ${m.roleDescription || m.role}`).join("\n");
@@ -75,6 +76,7 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
       body: JSON.stringify({
         model: CHAT_MODEL,
         max_tokens: 400,
+        usage: { include: true },
         // Routing is a quick call; low reasoning keeps replies in a group from feeling slow.
         reasoning: { effort: "low" },
         messages: [
@@ -107,7 +109,8 @@ export async function planGroupTurn(input: { members: PersonaMate[]; leaderId: s
       }),
     });
     if (!response.ok) throw new Error(String(response.status));
-    const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const result = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+    if (input.meter) void meterOpenRouter(input.meter, CHAT_MODEL, result.usage);
     return normalisePlan(planSchema.parse(JSON.parse(result.choices?.[0]?.message?.content ?? "null")), input.members, leader.id, latest);
   } catch {
     // Routing must never block a reply: the leader answers alone.

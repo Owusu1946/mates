@@ -7,6 +7,7 @@ import type { WorkflowCard } from "./integrations.js";
 import { gradientOf, type PersonaMate } from "./mates.js";
 import type { Mission } from "./missions.js";
 import { CHAT_MODEL } from "./models.js";
+import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
 
 /**
  * The mission's work board. The leader is a chief of staff: it breaks the goal into tasks, hands
@@ -205,7 +206,7 @@ function boardForLeader(tasks: BoardTask[], members: PersonaMate[], notes: Map<s
  * The leader's one decision per round, as structured output: plan or add tasks, review what came
  * back, and continue, ask the user, or finish. Retries once; null means it couldn't decide.
  */
-export async function decideRound(input: { mission: Mission; members: PersonaMate[]; leaderId: string; tasks: BoardTask[]; turns: { role: string; content: string }[] }): Promise<Decision | null> {
+export async function decideRound(input: { mission: Mission; members: PersonaMate[]; leaderId: string; tasks: BoardTask[]; turns: { role: string; content: string }[]; meter?: MeterContext }): Promise<Decision | null> {
   const leader = input.members.find((m) => m.id === input.leaderId) ?? input.members[0]!;
   const notes = await notesByTitle(input.mission.id);
   const roster = input.members.filter((m) => m.id !== leader.id).map((m) => `- ${m.id}: ${m.name} — ${m.roleDescription || m.role}`).join("\n") || "(no teammates: you do the work yourself)";
@@ -231,6 +232,7 @@ ${roster}`;
         body: JSON.stringify({
           model: process.env.OPENROUTER_PLANNER_MODEL ?? CHAT_MODEL,
           max_tokens: 2_000,
+          usage: { include: true },
           // Planning and review are judgement calls on a short board; deep reasoning only adds latency.
           reasoning: { effort: "low" },
           messages: [{ role: "system", content: system }, { role: "user", content: user }],
@@ -238,7 +240,8 @@ ${roster}`;
         }),
       });
       if (!response.ok) throw new Error(String(response.status));
-      const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+      const body = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+      if (input.meter) void meterOpenRouter(input.meter, process.env.OPENROUTER_PLANNER_MODEL ?? CHAT_MODEL, body.usage);
       const raw = decisionSchema.parse(JSON.parse(body.choices?.[0]?.message?.content ?? "null"));
       return normaliseDecision(raw, { members: input.members, leaderId: leader.id, tasks: input.tasks });
     } catch {

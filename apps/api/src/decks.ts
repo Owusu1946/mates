@@ -22,6 +22,8 @@ import { pushToUser } from "./delivery.js";
 import type { WorkflowCard } from "./integrations.js";
 import { gradientOf } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
+import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
+import { assertUsage } from "./usage/gate.js";
 
 /**
  * Mates make slide decks. The mate fills in a validated deck document (packages/decks) and code we
@@ -146,6 +148,7 @@ async function usedToday(userId: string) {
 }
 
 async function checkAllowance(userId: string) {
+  await assertUsage(userId, "deck");
   if ((await usedToday(userId)) >= DAILY_LIMIT()) return "You've made a lot of decks today. Try again tomorrow.";
   return null;
 }
@@ -266,7 +269,7 @@ export function modelSchema(schema: z.ZodType): JsonSchema {
 type Message = { role: "system" | "user" | "assistant"; content: string };
 
 /** One structured call. Returns the parsed JSON and what it cost; retries network and 5xx errors. */
-async function structured(name: string, schema: JsonSchema, messages: Message[], options: { maxTokens: number; signal: AbortSignal }) {
+async function structured(name: string, schema: JsonSchema, messages: Message[], options: { maxTokens: number; signal: AbortSignal; meter?: MeterContext }) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -284,7 +287,8 @@ async function structured(name: string, schema: JsonSchema, messages: Message[],
         }),
       });
       if (response.status >= 500 || response.status === 429) throw new Error(`model ${response.status}`);
-      const body = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: { cost?: number }; error?: { message?: string } };
+      const body = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage; error?: { message?: string } };
+      if (options.meter) void meterOpenRouter(options.meter, MODEL(), body.usage);
       if (!response.ok) throw new DeckFailure(`The writing model refused the request (${body.error?.message ?? response.status}).`);
       return { value: JSON.parse(body.choices?.[0]?.message?.content ?? "null") as unknown, cost: body.usage?.cost ?? 0 };
     } catch (error) {
@@ -368,7 +372,7 @@ function tidyOutline(outline: Outline, request: DeckRequest): Outline {
   return { ...outline, title: outline.title.trim().slice(0, LIMITS.deckTitle) || "Untitled deck", slides };
 }
 
-type Context = { system: string; sources: Source[]; signal: AbortSignal; addCost: (usd: number) => void };
+type Context = { system: string; sources: Source[]; signal: AbortSignal; addCost: (usd: number) => void; meter?: MeterContext };
 
 /**
  * Problems with the offending text quoted and counted ("nodes.0.heading is 24 characters: …"),
@@ -393,7 +397,7 @@ async function writeSlide(plan: Outline["slides"][number], index: number, total:
     structured(`slide_${layout.replace("-", "_")}`, modelSchema(writtenSchema(layout)), [
       { role: "system", content: ctx.system },
       { role: "user", content: `Write slide ${index + 1} of ${total} as a "${layout}" slide.\nPlanned title: ${plan.title}\nWhat it must do: ${plan.intent}\nSource ids it may cite: ${plan.sourceIds.join(", ") || "none"}${plan.fromUser ? " (the figures are the user's own: set fromUser true)" : ""}\n\nHard limits for this layout (count the characters; aim for about two thirds of each):\n${fieldGuide(layout)}${extra}` },
-    ], { maxTokens: 1_200, signal: ctx.signal });
+    ], { maxTokens: 1_200, signal: ctx.signal, meter: ctx.meter });
 
   const attempt = async (layout: Layout, extra?: string) => {
     const { value, cost } = await ask(layout, extra);
@@ -484,6 +488,8 @@ async function saveVersion(row: Pick<DeckRow, "id" | "title" | "theme">, version
 
 type BuildHooks = {
   signal: AbortSignal;
+  /** Whose usage the model calls count against; scripts leave it out. */
+  meter?: MeterContext;
   onOutline?: (outline: { title: string; theme: Deck["theme"]; meta: DeckMeta; total: number }, cost: number) => Promise<void>;
   /** Called with the slides written so far, in deck order, each time one lands. */
   onSlides?: (slides: Slide[], cost: number) => Promise<void>;
@@ -505,7 +511,7 @@ export async function buildDeck(request: DeckRequest, theme: Deck["theme"], sour
       content: `${RULES}\n\nPlan the deck: a clear story from first slide to last (for a pitch: problem, solution, why now, market, traction, business model, team, ask). Start with a title slide and end with a closing slide. ${request.slideCount ? `Exactly ${request.slideCount} slides.` : "8-12 slides unless the request needs fewer or more."} ${(request.slideCount ?? 10) >= 10 ? "Group the deck into 2-4 parts of at least two slides each, each opened by a section slide, with an agenda slide after the cover." : "This deck is short: no section or agenda slides; every slide after the cover carries content."} Show processes as steps, movements of money, data or people as a flow, and comparisons as a table. Use stats or a chart only where the facts, their tables or the user give the figures; several comparable figures (this quarter vs last, month by month) belong in one chart. Vary the layouts: never the same layout three times in a row. wordmark, event and presenter: only what the request says, else null. mode: light unless the request asks for dark.\n\nLayouts:\n${layoutsGuide()}`,
     },
     { role: "user", content: brief },
-  ], { maxTokens: 2_500, signal: hooks.signal });
+  ], { maxTokens: 2_500, signal: hooks.signal, meter: hooks.meter });
   addCost(planned.cost);
   const outline = tidyOutline(outlineSchema.parse(planned.value), request);
   const finalTheme = { ...theme, mode: theme.mode === "dark" ? ("dark" as const) : outline.mode };
@@ -523,7 +529,7 @@ export async function buildDeck(request: DeckRequest, theme: Deck["theme"], sour
   const done: (Slide | null | undefined)[] = new Array(outline.slides.length);
   let reports: Promise<unknown> = Promise.resolve();
   const slides = await pool(outline.slides, PARALLEL, async (planItem, index) => {
-    const slide = await writeSlide(planItem, index, outline.slides.length, { system, sources, signal: hooks.signal, addCost });
+    const slide = await writeSlide(planItem, index, outline.slides.length, { system, sources, signal: hooks.signal, addCost, meter: hooks.meter });
     done[index] = slide;
     // Reports go one after another so parallel slides never overwrite each other's progress.
     if (hooks.onSlides) {
@@ -549,6 +555,7 @@ export async function executeDeck(deckId: string, workerSignal: AbortSignal) {
     await update(deckId, { status: "outlining", built: 0, slides: [], error: null });
     const built = await buildDeck(row.request, row.theme, row.sources, {
       signal: cancel.signal,
+      meter: { userId: row.clerkUserId, source: "deck", ref: row.id },
       onOutline: async (outline, spent) => {
         cost = spent;
         await update(deckId, { status: "writing", title: outline.title, theme: outline.theme, meta: outline.meta, total: outline.total, costUsd: spent });
@@ -667,7 +674,7 @@ export async function executeDeckEdit(deckId: string, instruction: string, slide
       const { value, cost: spent } = await structured("deck_changes", modelSchema(changesSchema), [
         { role: "system", content: `${RULES}\n\n${limitsGuide}\n\nLayouts:\n${layoutsGuide()}\n\n${briefOf(row.request, row.sources)}\n\nThe deck "${row.title}" now:\n${numbered}` },
         { role: "user", content: `Instruction: ${instruction}\n\n${scope}${extra}` },
-      ], { maxTokens: 4_000, signal });
+      ], { maxTokens: 4_000, signal, meter: { userId: row.clerkUserId, source: "deck", ref: row.id } });
       cost += spent;
       const changes = changesSchema.parse(withoutCitationTags(value));
       const slides = applyChanges(row.slides, changes.changes, allowed);
