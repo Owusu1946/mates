@@ -19,7 +19,10 @@ const plans: { id: Plan; name: string; detail: string }[] = [
 const font = { regular: "DMSans_400Regular", medium: "DMSans_500Medium", semibold: "DMSans_600SemiBold" };
 
 function matchingPackage(packages: PurchasesPackage[], plan: Plan, period: Period) {
-  return packages.find((item) => item.product.identifier === `mates_${plan}_${period}`);
+  const productIds = [`mates_${plan}_${period}`];
+  // The Test Store's original yearly identifier was archived and cannot be reused.
+  if (plan === "starter" && period === "yearly") productIds.push("mates_starter_annual");
+  return packages.find((item) => productIds.includes(item.product.identifier));
 }
 
 export default function PaywallScreen() {
@@ -43,7 +46,7 @@ export default function PaywallScreen() {
       const offerings = await getOfferings(userId);
       const customer = await getCustomerInfo(userId);
       setActiveProducts(customer.activeSubscriptions);
-      const available = Object.values(offerings.all).flatMap((offering) => offering.availablePackages);
+      const available = offerings.current?.availablePackages ?? [];
       setPackages(available);
       if (!available.length) setMessage("Plans aren’t available right now.");
     } catch {

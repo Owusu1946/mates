@@ -62,13 +62,14 @@ Ken manages the RevenueCat dashboard. Before any test purchase or restore, conne
 
 | Plan | Monthly product / price | Yearly product / price |
 | --- | --- | --- |
-| Starter | `mates_starter_monthly` / $8 | `mates_starter_yearly` / $80 |
+| Starter | `mates_starter_monthly` / $8 | `mates_starter_annual` / $80 (Test Store); `mates_starter_yearly` / $80 (planned App Store ID) |
 | Plus | `mates_plus_monthly` / $15 | `mates_plus_yearly` / $150 |
 | Pro | `mates_pro_monthly` / $40 | `mates_pro_yearly` / $400 |
 | Max | `mates_max_monthly` / $80 | `mates_max_yearly` / $800 |
 
-4. Build a new iOS development client including `react-native-purchases`. Test Store uses a simulated purchase screen; test success, cancellation and failure, then check the staging API and usage screen.
-5. Before TestFlight or App Store submission, configure the App Store products and use `EXPO_PUBLIC_REVENUECAT_IOS_KEY`. RevenueCat Test Store keys must not be used in release builds; TestFlight is a release build. Complete Apple Sandbox testing separately.
+4. The current Test Store offering is `mates_tiers`. The `starter` entitlement includes `mates_starter_monthly` and `mates_starter_annual`; the latter is no longer attached to `mates_pro`. The app reads the current offering and recognizes both Starter yearly identifiers. Its own paywall is custom, so a RevenueCat-hosted paywall is not required.
+5. Build a new iOS development client including `react-native-purchases`. Test Store uses a simulated purchase screen; test success, cancellation and failure, then check the staging API and usage screen.
+6. Before TestFlight or App Store submission, configure the App Store products and use `EXPO_PUBLIC_REVENUECAT_IOS_KEY`. RevenueCat Test Store keys must not be used in release builds; TestFlight is a release build. Complete Apple Sandbox testing separately.
 
 The Test Store key is public by design. RevenueCat secret keys and webhook authorization values belong only in Ken's server configuration, never in mobile `.env` files or this document.
 
