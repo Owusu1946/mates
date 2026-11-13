@@ -19,6 +19,7 @@ const SHAPES = [
   { key: "cloud", label: "Cloud" },
   { key: "teardrop", label: "Teardrop" },
   { key: "pebble", label: "Pebble" },
+  { key: "star", label: "Star" },
 ];
 
 /** Create or edit a mate: name, colour and shape (with a live preview) and role. */

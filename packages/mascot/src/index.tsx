@@ -2906,8 +2906,16 @@ export const PEBBLE: PolygonShape = {
   anchor: { x: 108, y: 108, scale: 1.04 },
 }
 
-export type ShapeName = 'hexagon' | 'circle' | 'triangle' | 'oval' | 'squircle' | 'pill' | 'cloud' | 'teardrop' | 'pebble'
-export const SHAPE_NAMES: ShapeName[] = ['hexagon', 'circle', 'triangle', 'oval', 'squircle', 'pill', 'cloud', 'teardrop', 'pebble']
+/** A five-point star with a centred face anchor. */
+export const STAR: PolygonShape = {
+  name: 'Star',
+  fit: SHAPE.fit,
+  ...outline('M100 10L120 68L183 70L134 109L151 174L100 137L49 174L66 109L17 70L80 68Z'),
+  anchor: { x: 100, y: 106, scale: 0.86 },
+}
+
+export type ShapeName = 'hexagon' | 'circle' | 'triangle' | 'oval' | 'squircle' | 'pill' | 'cloud' | 'teardrop' | 'pebble' | 'star'
+export const SHAPE_NAMES: ShapeName[] = ['hexagon', 'circle', 'triangle', 'oval', 'squircle', 'pill', 'cloud', 'teardrop', 'pebble', 'star']
 export const SHAPES: Record<ShapeName, PolygonShape> = {
   hexagon: SHAPE,
   circle: CIRCLE,
@@ -2918,6 +2926,7 @@ export const SHAPES: Record<ShapeName, PolygonShape> = {
   cloud: CLOUD,
   teardrop: TEARDROP,
   pebble: PEBBLE,
+  star: STAR,
 }
 /** The silhouette for a stored name; anything unknown (or missing) is the hexagon. */
 export const shapeOf = (name: string | null | undefined): PolygonShape => SHAPES[name as ShapeName] ?? SHAPE
