@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
+import type { PlanId } from "../usage/plans.js";
 
 export const profiles = pgTable(
   "profiles",
@@ -29,6 +30,10 @@ export const profiles = pgTable(
     autoMemory: boolean("auto_memory").notNull().default(true),
     /** Lets Cooper search past chats and shared files, like ChatGPT's "reference chat history". */
     historyRecall: boolean("history_recall").notNull().default(true),
+    /** The paid plan. Null means the server's DEFAULT_PLAN (see src/usage/plans.ts). */
+    plan: text("plan").$type<PlanId>(),
+    /** Who set the plan: us by hand for now, the store's webhook once payments exist. */
+    planSource: text("plan_source").$type<"manual" | "revenuecat">(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -131,6 +136,8 @@ export const browserSessions = pgTable("browser_sessions", {
   steps: jsonb("steps").$type<{ label: string; state: "running" | "done" | "waiting" | "error" }[]>().notNull().default([]),
   pendingAction: jsonb("pending_action").$type<Record<string, unknown>>(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  /** When the remote browser was launched, so its minutes can be metered when it closes. */
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -603,3 +610,98 @@ export const slackQueue = pgTable("slack_queue", {
   ask: jsonb("ask").$type<Record<string, unknown>>().notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("slack_queue_mate_idx").on(t.mateId, t.createdAt)]);
+
+/**
+ * Every cost one person caused, one row each: a model step, a call's minutes, a web search. The
+ * single source of truth for usage limits and for what each plan really costs us. `costMicros` is
+ * millionths of a US dollar; `estimated` marks costs priced from our own table rather than reported
+ * by the provider. The idempotency key keeps a retried worker from charging twice.
+ */
+export const usageEvents = pgTable("usage_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  source: text("source").$type<UsageSource>().notNull(),
+  provider: text("provider").$type<UsageProvider>().notNull(),
+  /** The model for LLM work, empty for the rest. */
+  model: text("model").notNull().default(""),
+  /** The plan they were on when it happened, so margins stay right after a plan change. */
+  plan: text("plan").$type<PlanId>().notNull(),
+  /** The run, call, deck or code run it belongs to. */
+  ref: text("ref"),
+  costMicros: bigint("cost_micros", { mode: "number" }).notNull(),
+  inputTokens: integer("input_tokens").notNull().default(0),
+  cachedTokens: integer("cached_tokens").notNull().default(0),
+  outputTokens: integer("output_tokens").notNull().default(0),
+  seconds: integer("seconds").notNull().default(0),
+  estimated: boolean("estimated").notNull().default(false),
+  priceVersion: integer("price_version"),
+  idempotencyKey: text("idempotency_key").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("usage_events_user_idx").on(t.clerkUserId, t.createdAt),
+  index("usage_events_created_idx").on(t.createdAt),
+]);
+
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed";
+export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram";
+
+/**
+ * The two refilling allowances. A window starts with the first use after the last one ended and
+ * resets exactly 5 hours (or 7 days) later; both are charged on every event, and a plan without a
+ * 5-hour limit (Max) simply never checks that row.
+ */
+export const usageWindows = pgTable("usage_windows", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  kind: text("kind").$type<"5h" | "week">().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  resetsAt: timestamp("resets_at", { withTimezone: true }).notNull(),
+  spentMicros: bigint("spent_micros", { mode: "number" }).notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.kind] })]);
+
+/** Daily totals of the ledger, kept in step with every event, so dashboards never scan it. */
+export const usageDaily = pgTable("usage_daily", {
+  day: text("day").notNull(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  plan: text("plan").$type<PlanId>().notNull(),
+  source: text("source").$type<UsageSource>().notNull(),
+  provider: text("provider").$type<UsageProvider>().notNull(),
+  model: text("model").notNull().default(""),
+  costMicros: bigint("cost_micros", { mode: "number" }).notNull().default(0),
+  inputTokens: bigint("input_tokens", { mode: "number" }).notNull().default(0),
+  cachedTokens: bigint("cached_tokens", { mode: "number" }).notNull().default(0),
+  outputTokens: bigint("output_tokens", { mode: "number" }).notNull().default(0),
+  seconds: bigint("seconds", { mode: "number" }).notNull().default(0),
+  events: integer("events").notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.day, t.clerkUserId, t.plan, t.source, t.provider, t.model] }),
+  index("usage_daily_day_idx").on(t.day),
+]);
+
+/**
+ * What a person paid for a stretch of time: written by hand (list price) until payments exist, then
+ * by the store's webhook with the real amounts. Net revenue is gross minus the store's cut.
+ */
+export const planPeriods = pgTable("plan_periods", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  plan: text("plan").$type<PlanId>().notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  grossMicros: bigint("gross_micros", { mode: "number" }).notNull(),
+  storeFeeMicros: bigint("store_fee_micros", { mode: "number" }).notNull().default(0),
+  source: text("source").$type<"manual" | "revenuecat">().notNull().default("manual"),
+  /** The store's transaction id, so a replayed webhook can't record a payment twice. */
+  externalId: text("external_id").unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("plan_periods_user_idx").on(t.clerkUserId, t.startsAt), index("plan_periods_starts_idx").on(t.startsAt)]);
+
+/** Monthly bills that aren't any one person's (hosting, base fees), entered by hand for profit. */
+export const fixedCosts = pgTable("fixed_costs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** The month it belongs to, as YYYY-MM. */
+  month: text("month").notNull(),
+  vendor: text("vendor").notNull(),
+  amountMicros: bigint("amount_micros", { mode: "number" }).notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("fixed_costs_month_vendor_idx").on(t.month, t.vendor)]);
