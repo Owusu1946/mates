@@ -74,7 +74,7 @@ export function MateForm({
           <Text style={[label, { marginBottom: 0 }]}>Colour</Text>
           <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_500Medium", textTransform: "capitalize" }}>{color}</Text>
         </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+        <View style={{ flexDirection: "row", flexWrap: "nowrap", gap: 8 }}>
           {presets.palette.map((swatch) => {
             const on = swatch.key === color;
             return (
@@ -83,10 +83,11 @@ export function MateForm({
                 accessibilityRole="radio"
                 accessibilityState={{ checked: on }}
                 accessibilityLabel={swatch.key}
+                hitSlop={6}
                 onPress={() => setColor(swatch.key)}
-                style={{ width: 42, height: 42, borderRadius: 21, padding: 4, borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
+                style={{ width: 38, height: 38, borderRadius: 19, padding: 3, borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
               >
-                <View style={{ flex: 1, borderRadius: 17, overflow: "hidden", flexDirection: "row" }}>
+                <View style={{ flex: 1, borderRadius: 13, overflow: "hidden", flexDirection: "row" }}>
                   {swatch.gradient.map((stop) => <View key={stop} style={{ flex: 1, backgroundColor: stop }} />)}
                 </View>
               </Pressable>
@@ -99,7 +100,7 @@ export function MateForm({
           <Text style={[label, { marginBottom: 0 }]}>Shape</Text>
           {!initial && <Pressable accessibilityRole="button" accessibilityLabel="Choose a surprise shape" onPress={surpriseShape} hitSlop={8} style={({ pressed }) => ({ width: 36, height: 36, alignItems: "center", justifyContent: "center", borderRadius: 18, opacity: pressed ? 0.55 : 1 })}><ChatIcon name="shuffle" color={colors.textSecondary} size={20} /></Pressable>}
         </View>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           {shapes.map((option) => {
             const on = option.key === shape;
             return (
@@ -109,9 +110,9 @@ export function MateForm({
                 accessibilityState={{ checked: on }}
                 accessibilityLabel={option.label}
                 onPress={() => setShape(option.key)}
-                style={{ width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
+                style={{ width: 56, height: 56, borderRadius: 28, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: on ? colors.text : "transparent" }}
               >
-                <MateAvatar gradient={gradient} shape={option.key} size={36} still />
+                <MateAvatar gradient={gradient} shape={option.key} size={42} still />
               </Pressable>
             );
           })}
