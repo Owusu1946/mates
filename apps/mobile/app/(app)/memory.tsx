@@ -5,6 +5,7 @@ import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView,
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
+import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
 import { useTheme } from "../../src/theme/provider";
 
 type Memory = { id: string; text: string; category: string; source: string; updatedAt: string };
@@ -28,6 +29,8 @@ export default function MemoryScreen() {
       return (await response.json()) as unknown as { memories: Memory[]; settings: Settings };
     },
   });
+  // The spinner follows a pull only, not the reloads after each toggle or edit.
+  const pull = usePullToRefresh(() => query.refetch());
   const settings = query.data?.settings ?? { memoryEnabled: true, autoMemory: true, historyRecall: true };
   const memories = query.data?.memories ?? [];
   const shown = search.trim() ? memories.filter((m) => m.text.toLowerCase().includes(search.trim().toLowerCase())) : memories;
@@ -76,7 +79,7 @@ export default function MemoryScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 28 }}
       keyboardShouldPersistTaps="handled"
-      refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} />}
+      refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
     >
       <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
         Your mates remember useful things you tell them, so you don’t have to repeat yourself. You’re in control of all of it.
