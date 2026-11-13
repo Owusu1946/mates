@@ -1,14 +1,26 @@
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import { Pressable, Text, TextInput, View, type TextInputProps } from "react-native";
 import { Icon } from "../ui/icon";
 import { authLayout, useAuthTheme } from "../../theme/auth";
 
-/** A borderless field whose placeholder is its label; the outline appears only while focused. */
-export function AuthField({ label, secureTextEntry, ...props }: TextInputProps & { label: string }) {
+/**
+ * A borderless field whose placeholder is its label; the outline appears only while focused. An
+ * `error` outlines it in red and says what's wrong underneath; otherwise a `hint` can sit there.
+ */
+export function AuthField({
+  label,
+  secureTextEntry,
+  error,
+  hint,
+  ref,
+  ...props
+}: TextInputProps & { label: string; error?: string | null; hint?: string | null; ref?: Ref<TextInput> }) {
   const { colors } = useAuthTheme();
   const [focused, setFocused] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const note = error || hint;
   return (
+    <View style={{ width: "100%", gap: 6 }}>
     <View
       style={{
         flexDirection: "row",
@@ -16,7 +28,7 @@ export function AuthField({ label, secureTextEntry, ...props }: TextInputProps &
         height: 56,
         width: "100%",
         backgroundColor: colors.field,
-        borderColor: focused ? colors.accent : "transparent",
+        borderColor: error ? colors.error : focused ? colors.accent : "transparent",
         borderWidth: 1.5,
         borderRadius: authLayout.fieldRadius,
         borderCurve: "continuous",
@@ -24,13 +36,21 @@ export function AuthField({ label, secureTextEntry, ...props }: TextInputProps &
     >
       <TextInput
         {...props}
+        ref={ref}
         placeholder={props.placeholder ?? label}
         accessibilityLabel={label}
+        accessibilityHint={error ?? hint ?? undefined}
         secureTextEntry={secureTextEntry && !revealed}
         placeholderTextColor={colors.muted}
         selectionColor={colors.accent}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
+        onFocus={(event) => {
+          setFocused(true);
+          props.onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setFocused(false);
+          props.onBlur?.(event);
+        }}
         style={{ flex: 1, height: "100%", minWidth: 0, paddingHorizontal: 18, paddingVertical: 0, fontSize: authLayout.textSize, color: colors.text }}
       />
       {secureTextEntry && (
@@ -43,6 +63,12 @@ export function AuthField({ label, secureTextEntry, ...props }: TextInputProps &
           <Icon name={revealed ? "eye-off" : "eye"} size={20} color={colors.secondary} />
         </Pressable>
       )}
+    </View>
+    {note ? (
+      <Text accessibilityLiveRegion={error ? "polite" : "none"} style={{ color: error ? colors.error : colors.muted, fontSize: 13, lineHeight: 18, paddingHorizontal: 6 }}>
+        {note}
+      </Text>
+    ) : null}
     </View>
   );
 }
