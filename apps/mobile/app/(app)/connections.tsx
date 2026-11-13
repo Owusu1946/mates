@@ -59,14 +59,14 @@ export default function ConnectionsScreen() {
     keyboardShouldPersistTaps="handled"
     keyboardDismissMode="on-drag"
     showsVerticalScrollIndicator={false}
-    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 50, gap: 0 }}
+    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 0, paddingBottom: 50, gap: 0 }}
     data={apps.data?.pages.flatMap((page) => page.apps) ?? []}
     keyExtractor={(app) => app.slug}
     refreshing={apps.isRefetching && !apps.isFetchingNextPage}
     onRefresh={() => void apps.refetch()}
     onEndReached={() => { if (apps.hasNextPage && !apps.isFetchingNextPage) void apps.fetchNextPage(); }}
     onEndReachedThreshold={.5}
-    ListHeaderComponent={<View style={{ gap: 12, marginBottom: 12 }}>
+    ListHeaderComponent={<View style={{ gap: 7, marginBottom: 10 }}>
       <GitHubCard isDark={isDark} />
       <SlackCard isDark={isDark} />
       {Platform.OS !== "ios" && <View style={{ flexDirection: "row", gap: 9, alignItems: "center", borderRadius: 14, paddingHorizontal: 12, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>

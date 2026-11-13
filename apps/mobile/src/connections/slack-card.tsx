@@ -7,6 +7,7 @@ import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { runRequest } from "../chat/background-chat";
 import { resolveApiUrl } from "../chat/chat-model";
 import { haptic } from "../haptics";
+import { CardButton } from "../chat/card-button";
 
 /** What went wrong, in words that say what to do next. Keyed by the API's failure reason. */
 const FAILURES: Record<string, string> = {
@@ -87,28 +88,17 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
   };
 
   return (
-    <View style={{ padding: 13, borderRadius: 16, gap: 9, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+    <View style={{ padding: 12, borderRadius: 15, gap: 8, backgroundColor: isDark ? "#202023" : "#f7f7f8" }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
         <SlackMark color={foreground} />
         <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>Slack</Text>
+          <Text style={{ color: foreground, fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>Slack</Text>
           <Text numberOfLines={1} style={{ color: muted, fontSize: 12, lineHeight: 16 }}>
-            {connected ? slack.data.workspaces.map((workspace) => workspace.name).join(", ") : "Mention @Mates in any channel, and your mates reply as themselves"}
+            {connected ? slack.data.workspaces.map((workspace) => workspace.name).join(", ") : "Not connected"}
           </Text>
         </View>
+      {busy ? <ActivityIndicator color={foreground} size="small" /> : <CardButton label={connected ? "Add workspace" : "Connect"} variant="outlined" disabled={busy} onPress={() => void open()} />}
       </View>
-      <Pressable
-        accessibilityRole="button"
-        disabled={busy}
-        onPress={() => void open()}
-        style={({ pressed }) => ({ minHeight: 36, alignSelf: "flex-start", paddingHorizontal: 13, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: connected ? "transparent" : foreground, borderWidth: connected ? 1 : 0, borderColor: muted, opacity: pressed || busy ? 0.6 : 1 })}
-      >
-        {busy ? (
-          <ActivityIndicator color={connected ? foreground : isDark ? "#18181b" : "#fafafa"} />
-        ) : (
-          <Text style={{ color: connected ? foreground : isDark ? "#18181b" : "#fafafa", fontSize: 13, fontFamily: "DMSans_600SemiBold" }}>{connected ? "Add workspace" : "Add to Slack"}</Text>
-        )}
-      </Pressable>
       {slack.data.workspaces.map((workspace) => (
         <View key={workspace.id} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
           <Text style={{ color: foreground, fontSize: 14, fontFamily: "DMSans_400Regular" }}>{workspace.name}</Text>
