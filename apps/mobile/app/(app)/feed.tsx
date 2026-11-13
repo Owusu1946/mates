@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
 import { plainPreview } from "../../src/components/rich-text/markdown-text";
 import { RichText } from "../../src/components/rich-text/rich-text";
 import { runRequest, type RunView } from "../../src/chat/background-chat";
@@ -40,12 +40,13 @@ function dayLabel(iso: string) {
   return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
 }
 
-const statusText = (status: string) => (status === "waiting" || status === "needs_input" ? "Needs you" : status === "failed" ? "Didn’t finish" : ACTIVE.includes(status) ? "Working" : status === "cancelled" ? "Stopped" : null);
+const statusText = (status: string) => (status === "waiting" || status === "needs_input" ? "Needs your input" : status === "failed" ? "Didn’t finish" : ACTIVE.includes(status) ? "Working" : status === "cancelled" ? "Stopped" : null);
 
 /** What the mates finished while you were away: a plain list, newest first, with the open result on top. */
 export default function FeedScreen() {
   const { userId, getToken } = useAuth();
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const aui = useAui();
   const router = useRouter();
   const params = useLocalSearchParams<{ runId?: string }>();
@@ -54,6 +55,7 @@ export default function FeedScreen() {
   const [busy, setBusy] = useState(false);
   const [notifications, setNotifications] = useState(false);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [attentionPage, setAttentionPage] = useState(0);
   useEffect(() => {
     let active = true;
     if (userId) void AsyncStorage.getItem(`feed.last-checked.${userId}`).then((value) => { if (active && value) setLastChecked(Number(value)); });
@@ -138,6 +140,7 @@ export default function FeedScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
+      showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingTop: 8, paddingBottom: 56, gap: 24 }}
       refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
@@ -220,13 +223,17 @@ export default function FeedScreen() {
 
       {attentionItems.length > 0 && <View style={{ gap: 5 }}>
         <Text style={{ marginHorizontal: 22, color: colors.textMuted, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1 }}>NEEDS ATTENTION · {attentionItems.length}</Text>
-        {attentionItems.map((item) => <View key={item.id} style={{ paddingHorizontal: 22, paddingVertical: 12, backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "DIDN’T FINISH" : "NEEDS YOU"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 4 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable>{item.chatId && <Pressable onPress={() => void openChat(item.chatId!)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.medium, fontSize: 12, marginTop: 7 }}>Continue in chat ↗</Text></Pressable>}</View>)}
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setAttentionPage(Math.round(event.nativeEvent.contentOffset.x / screenWidth))}>
+          {attentionItems.map((item) => <View key={item.id} style={{ width: screenWidth - 44, marginLeft: 22, marginRight: 22, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "FAILED" : "NEEDS YOUR INPUT"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 5 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable><Pressable onPress={() => item.status === "failed" ? open(item) : item.chatId ? void openChat(item.chatId) : open(item)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.semibold, fontSize: 12, marginTop: 10 }}>{item.status === "failed" ? "View details ↗" : item.chatId ? "Reply in chat ↗" : "View request ↗"}</Text></Pressable></View>)}
+        </ScrollView>
+        {attentionItems.length > 1 && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 2 }}>{attentionItems.map((item, index) => <View key={item.id} style={{ width: index === attentionPage ? 14 : 5, height: 5, borderRadius: 3, backgroundColor: index === attentionPage ? colors.textMuted : colors.border }} />)}</View>}
       </View>}
 
       {feed.isSuccess && items.length === 0 && (
         <View style={{ alignItems: "center", gap: 10, paddingVertical: 48, paddingHorizontal: 20 }}>
-          <View style={{ width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
-            <ChatIcon name="feed" color={colors.text} size={24} />
+          <View style={{ width: 72, height: 72, alignItems: "center", justifyContent: "center", marginBottom: 5 }}>
+            <View style={{ position: "absolute", width: 48, height: 48, borderRadius: 15, transform: [{ rotate: "18deg" }], backgroundColor: colors.surfaceElevated }} />
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, opacity: 0.88 }} />
           </View>
           <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 16 }}>Nothing here yet</Text>
         </View>
@@ -258,7 +265,7 @@ export default function FeedScreen() {
                       <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>{ago(item.createdAt)}</Text>
                     </View>
                     <Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 14, lineHeight: 20 }}>{plainPreview(item.summary)}</Text>
-                    {status && <Text style={{ color: status === "Needs you" ? colors.primary : status === "Didn’t finish" ? colors.error : colors.textMuted, fontFamily: font.medium, fontSize: 11, letterSpacing: 0.2, marginTop: 1 }}>{status.toUpperCase()}</Text>}
+                    {status && <Text style={{ color: status === "Needs your input" ? colors.primary : status === "Didn’t finish" ? colors.error : colors.textMuted, fontFamily: font.medium, fontSize: 11, letterSpacing: 0.2, marginTop: 1 }}>{status.toUpperCase()}</Text>}
                   </View>
                 </View>
               </Pressable>
