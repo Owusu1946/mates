@@ -8,6 +8,9 @@ import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
 import { checkWatch, dispatchWatches } from "../watches.js";
+import { dispatchHabits } from "../habits/dispatch.js";
+import { mineHabits } from "../habits/miner.js";
+import { runPrep, syncPreps } from "../habits/prep.js";
 
 export const agentExecution = schemaTask({
   id: "cooper-agent",
@@ -75,6 +78,33 @@ export const watchCheck = schemaTask({
   },
 });
 
+/** One person's nightly habit mining (with a calendar read for meeting prep), or just the calendar read. */
+export const habitsJob = schemaTask({
+  id: "mate-habits",
+  schema: z.object({ userId: z.string().min(1), job: z.enum(["mine", "sync"]) }),
+  concurrency: { total: 5 },
+  retry: { maxAttempts: 2 },
+  maxDuration: 180,
+  run: async ({ userId, job }) => {
+    if (job === "mine") await mineHabits(userId);
+    await syncPreps(userId).catch((error) => console.warn("prep_sync_failed", { message: error instanceof Error ? error.message : String(error) }));
+    return { userId, job };
+  },
+});
+
+/** A meeting prep brief, posted 20 minutes before the meeting. Not retried: a late brief is no use. */
+export const meetingPrep = schemaTask({
+  id: "mate-meeting-prep",
+  schema: z.object({ prepId: z.string().uuid() }),
+  concurrency: { total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 120,
+  run: async ({ prepId }) => {
+    await runPrep(prepId);
+    return { prepId };
+  },
+});
+
 export const routineDispatcher = schedules.task({
   id: "cooper-dispatcher",
   cron: { pattern: "* * * * *", timezone: "UTC" },
@@ -88,6 +118,7 @@ export const routineDispatcher = schedules.task({
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
     await dispatchWatches().catch((error) => console.warn("watch_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
+    await dispatchHabits().catch((error) => console.warn("habits_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await publishOutbox();
     await deliverFindings();
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
