@@ -9,6 +9,7 @@ import { SvgUri } from "react-native-svg";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
 import type { AppConnection } from "@expojet/api-contract";
+import { useToast } from "../components/toast";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -92,9 +93,9 @@ export function ConnectionButton({
   const api = useMemo(() => createApiClient(() => token.current()), []);
   const { isDark } = useTheme();
   const cache = useQueryClient();
+  const { show } = useToast();
   const [opening, setOpening] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const resumed = useRef(false);
   const callback = useRef(onConnected);
   callback.current = onConnected;
@@ -118,10 +119,10 @@ export function ConnectionButton({
     if (!pending || !connected || resumed.current) return;
     resumed.current = true;
     setPending(false);
-    setError(null);
     void cache.invalidateQueries({ queryKey: ["connected-apps", userId] });
+    show({ message: `${app.name} connected.`, tone: "success" });
     callback.current?.();
-  }, [connected, pending, cache, userId]);
+  }, [connected, pending, cache, userId, app.name, show]);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (state) => {
       if (state === "active" && pending) void status.refetch();
@@ -134,9 +135,9 @@ export function ConnectionButton({
       ["FAILED", "EXPIRED", "REVOKED", "DISABLED"].includes(status.data.status)
     ) {
       setPending(false);
-      setError("Connection failed. Try again.");
+      show({ message: `Couldn’t connect ${app.name}.`, tone: "error" });
     }
-  }, [pending, status.data.status]);
+  }, [pending, status.data.status, app.name, show]);
   const connect = async () => {
     if (opening || disabled) return;
     if (connected && callback.current) {
@@ -144,7 +145,6 @@ export function ConnectionButton({
       return;
     }
     setOpening(true);
-    setError(null);
     resumed.current = false;
     try {
       const callbackUrl = Linking.createURL(callbackPath);
@@ -177,10 +177,9 @@ export function ConnectionButton({
       if (cancelled && !refreshed.data?.connected && !refreshed.data?.noAuth) {
         setPending(false);
         // Dismissing the provider sheet is an intentional choice, not a failure.
-        setError(null);
       }
-    } catch (cause) {
-      setError("Couldn’t connect. Try again.");
+    } catch {
+      show({ message: `Couldn’t connect ${app.name}.`, tone: "error" });
       setPending(false);
     } finally {
       setOpening(false);
@@ -203,7 +202,7 @@ export function ConnectionButton({
         disabled={disabled || opening || (connected && !onConnected)}
         onPress={() => void connect()}
       />
-      {(error || status.error) && (
+      {status.error && (
         <Text
           accessibilityLiveRegion="polite"
           style={{
@@ -213,10 +212,10 @@ export function ConnectionButton({
             ...(compact ? { width: 170, textAlign: "right" as const } : {}),
           }}
         >
-        {error ?? "Can’t check connection. Try again."}
+        Can’t check connection. Try again.
         </Text>
       )}
-      {pending && !opening && !error && (
+      {pending && !opening && (
         <Text style={{ fontSize: 12, color: isDark ? "#a1a1aa" : "#71717a" }}>
           Waiting for authorization. Return here when you’re done.
         </Text>

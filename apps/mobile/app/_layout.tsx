@@ -4,6 +4,7 @@ import { Stack } from "expo-router";
 import * as Notifications from "expo-notifications";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { useFonts } from "expo-font";
 import {
@@ -18,6 +19,7 @@ import { OnboardingProvider, useOnboarding } from "../src/onboarding/provider";
 import { SessionProvider, useSession } from "../src/session/provider";
 import { AnimatedSplash } from "../src/splash/animated-splash";
 import { ThemeProvider } from "../src/theme/provider";
+import { ToastProvider } from "../src/components/toast";
 
 // The native splash stays up until the animated one has drawn the same first frame over it.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
@@ -49,8 +51,10 @@ export default function RootLayout() {
   if (!fontsLoaded && !fontError) return null;
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
       <StatusBar style="auto" />
       <ThemeProvider>
+        <ToastProvider>
         <SessionProvider>
           <DataProvider>
             <OnboardingProvider>
@@ -60,7 +64,9 @@ export default function RootLayout() {
             </OnboardingProvider>
           </DataProvider>
         </SessionProvider>
+        </ToastProvider>
       </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

@@ -32,6 +32,25 @@ function apiKey(): string | undefined {
   return Platform.OS === "ios" ? env.EXPO_PUBLIC_REVENUECAT_IOS_KEY : Platform.OS === "android" ? env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY : undefined;
 }
 
+/** RevenueCat logs simulated failures and cancellations at error level in Test Store. */
+function configureTestStoreLogging() {
+  Purchases.setLogHandler((level, message) => {
+    const text = `[RevenueCat] ${message}`;
+    const expected = message.endsWith("Purchase failure simulated successfully in Test Store.") || message.endsWith("Purchase was cancelled.");
+    if (level === LOG_LEVEL.ERROR && expected) {
+      console.info(text);
+    } else if (level === LOG_LEVEL.ERROR) {
+      console.error(text);
+    } else if (level === LOG_LEVEL.WARN) {
+      console.warn(text);
+    } else if (level === LOG_LEVEL.DEBUG) {
+      console.debug(text);
+    } else {
+      console.info(text);
+    }
+  });
+}
+
 export async function identifyPurchases(userId: string | null): Promise<void> {
   desiredUserId = userId;
   await enqueue(async () => {
@@ -44,6 +63,7 @@ export async function identifyPurchases(userId: string | null): Promise<void> {
     const key = apiKey();
     if (!key) return;
     if (!configured) {
+      if (__DEV__ && key === env.EXPO_PUBLIC_REVENUECAT_TEST_KEY) configureTestStoreLogging();
       if (__DEV__) await Purchases.setLogLevel(LOG_LEVEL.DEBUG);
       Purchases.configure({ apiKey: key, appUserID: userId });
       configured = true;

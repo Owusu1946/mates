@@ -6,6 +6,7 @@ import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View
 import type { PurchasesPackage } from "react-native-purchases";
 import { getCustomerInfo, getOfferings, identifyPurchases, purchasePackage, PurchaseSyncError, restorePurchases } from "../../src/billing/purchases";
 import { haptic } from "../../src/haptics";
+import { useToast } from "../../src/components/toast";
 import { useTheme } from "../../src/theme/provider";
 import { useUsage } from "../../src/usage/use-usage";
 
@@ -38,6 +39,7 @@ export default function PaywallScreen() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     if (!userId) return;
@@ -74,7 +76,7 @@ export default function PaywallScreen() {
       router.back();
     } catch (error) {
       if (typeof error === "object" && error !== null && "userCancelled" in error && error.userCancelled === true) return;
-      setMessage(error instanceof PurchaseSyncError ? error.message : "Couldn’t complete your purchase. Please try again.");
+      toast.show({ message: error instanceof PurchaseSyncError ? "Purchased. Your plan is still updating." : "Purchase failed. Try again.", tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -88,15 +90,15 @@ export default function PaywallScreen() {
       const result = await restorePurchases(userId, getToken);
       setActiveProducts(result.customerInfo.activeSubscriptions);
       setManagementUrl(result.customerInfo.managementURL);
-      setMessage(result.usage.plan.id === "none" ? "No active plan found." : `Your plan: ${result.usage.plan.label}.`);
+      toast.show({ message: result.usage.plan.id === "none" ? "No active plan found." : `Your plan: ${result.usage.plan.label}.`, tone: "success" });
     } catch (error) {
-      setMessage(error instanceof PurchaseSyncError ? error.message : "Couldn’t restore purchases. Please try again.");
+      toast.show({ message: error instanceof PurchaseSyncError ? "Restored. Your plan is still updating." : "Restore failed. Try again.", tone: "error" });
     } finally {
       setBusy(false);
     }
   };
 
-  const link = (url: string) => { void Linking.openURL(url).catch(() => setMessage("Couldn’t open the link.")); };
+  const link = (url: string) => { void Linking.openURL(url).catch(() => toast.show({ message: "Couldn’t open the link.", tone: "error" })); };
   return (
     <ScrollView testID="paywall-screen" style={{ flex: 1, backgroundColor: colors.background }} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ padding: 20, paddingBottom: 48, gap: 18 }} showsVerticalScrollIndicator={false}>
       <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 25 }}>Choose a plan</Text>
