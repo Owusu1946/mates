@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "../db/client.js";
 import { chatMessages, chats, delegations, deviceTokens, habitNudges, habits, mates, type ActivityKind, type NudgeOutcome } from "../db/schema.js";
 import { pushToUser } from "../delivery.js";
 import { submitRun } from "../durable-runs.js";
-import type { WorkflowCard } from "../integrations.js";
 import { mateChatId } from "../mates.js";
 import { routineChat, scheduleRoutine } from "../scheduling.js";
 import { recordActivity, doneToday } from "./activity.js";
@@ -13,9 +12,10 @@ import { nextDue, whenText } from "./miner.js";
 import { learningFor } from "./shared.js";
 
 /**
- * Nudges: a mate offering, in its own chat, to handle something the user usually does around now
- * (or straight after a meeting or app event). A nudge is a message and a push, with no run and no
- * model cost; only "Handle it" starts work, in that chat, under the user's usual approval rules.
+ * Nudges: a mate asking, in its own chat, whether to handle something the user usually does around
+ * now (or straight after a meeting or app event). A nudge is a plain message and a push, with no run
+ * and no model cost. The user answers by typing; the mate's next run sees the offer (see
+ * `pendingNudge`) and records the answer with the `cooper_habit_reply` tool, doing the task on a yes.
  */
 
 type HabitRow = typeof habits.$inferSelect;
@@ -48,13 +48,9 @@ async function chatBusy(chatId: string) {
   return !!run;
 }
 
-export function nudgeCard(habit: Pick<HabitRow, "id" | "title" | "trigger" | "accepted" | "automatic">, nudgeId: string, outcome: NudgeOutcome | null = null): WorkflowCard {
-  return {
-    kind: "nudge",
-    phase: "done",
-    label: habit.title,
-    nudge: { habitId: habit.id, nudgeId, title: habit.title, when: whenText(habit.trigger), outcome, canAutomate: !habit.automatic && habit.accepted >= AUTOMATE_AFTER - 1 },
-  };
+/** The offer as the mate says it; once it's been handled a few times, it also offers to do it automatically. */
+export function nudgeText(habit: Pick<HabitRow, "line" | "accepted" | "automatic">) {
+  return !habit.automatic && habit.accepted >= AUTOMATE_AFTER - 1 ? `${habit.line} Or I can just do it automatically from now on.` : habit.line;
 }
 
 export type NudgeSkip = "learning_off" | "done_today" | "quiet" | "daily_limit" | "busy";
@@ -75,14 +71,12 @@ export async function sendNudge(habit: HabitRow, now = new Date()): Promise<{ se
 
   const nudgeId = randomUUID();
   const messageId = `nudge_${nudgeId}`;
+  const text = nudgeText(habit);
   const message = {
     id: messageId,
     role: "assistant",
     createdAt: now.toISOString(),
-    content: [
-      { type: "text", text: habit.line },
-      { type: "tool-call", toolCallId: messageId, toolName: "cooper_workflow", args: {}, argsText: "{}", result: nudgeCard(habit, nudgeId) },
-    ],
+    content: [{ type: "text", text }],
     status: { type: "complete", reason: "stop" },
     metadata: { custom: { nudge: { habitId: habit.id, nudgeId } } },
   };
@@ -94,7 +88,7 @@ export async function sendNudge(habit: HabitRow, now = new Date()): Promise<{ se
     getDb().update(chats).set({ updatedAt: now }).where(eq(chats.id, chatId)),
   ]);
   const [chat] = await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, chatId));
-  await pushToUser(habit.clerkUserId, { title: chat?.title ?? "Mates", body: habit.line.slice(0, 180), data: { chatId, chatKind: "mate" } }).catch(() => false);
+  await pushToUser(habit.clerkUserId, { title: chat?.title ?? "Mates", body: text.slice(0, 180), data: { chatId, chatKind: "mate" } }).catch(() => false);
   return { sent: true, chatId, nudgeId };
 }
 
@@ -155,53 +149,101 @@ async function handleHabit(habit: HabitRow, key: string) {
   return { runId: run.id, chatId };
 }
 
-/** Rewrites the nudge's card in its chat so it shows what was chosen. */
-async function settleCard(nudge: typeof habitNudges.$inferSelect, habit: HabitRow, outcome: NudgeOutcome) {
-  const [row] = await getDb().select().from(chatMessages).where(and(eq(chatMessages.chatId, nudge.chatId), eq(chatMessages.id, nudge.messageId)));
-  if (!row || !Array.isArray(row.message.content)) return;
-  const content = (row.message.content as Record<string, unknown>[]).map((part) => (part.type === "tool-call" ? { ...part, result: nudgeCard(habit, nudge.id, outcome) } : part));
-  await getDb().update(chatMessages).set({ message: { ...row.message, content } }).where(and(eq(chatMessages.chatId, nudge.chatId), eq(chatMessages.id, nudge.messageId)));
-}
-
 export type NudgeAction = "handle" | "skip" | "stop" | "automate";
 
 export class HabitError extends Error {}
 
 /**
- * The buttons on a nudge. Handle runs the task (or, from the app, hands back the task to send) and confirms the habit; skip counts against it;
- * stop dismisses it for good; automate does it without asking from now on.
+ * The user's typed answer to a nudge, as the mate understood it. Handle confirms the habit and
+ * counts it as done today (the mate then does the task in the same reply); skip counts against
+ * it; stop dismisses it for good; automate does it without asking from now on.
  */
-export async function nudgeAction(userId: string, nudgeId: string, action: NudgeAction, { run = true } = {}) {
+export async function nudgeAction(userId: string, nudgeId: string, action: NudgeAction) {
   const [nudge] = await getDb().select().from(habitNudges).where(and(eq(habitNudges.id, nudgeId), eq(habitNudges.clerkUserId, userId)));
   if (!nudge) throw new HabitError("NOT_FOUND");
   const [habit] = await getDb().select().from(habits).where(eq(habits.id, nudge.habitId));
   if (!habit) throw new HabitError("NOT_FOUND");
-  // One answer per nudge, except making it automatic after handling it.
+  // One answer per nudge, except "and do it automatically from now on" after a yes.
   if (nudge.outcome && !(nudge.outcome === "handled" && action === "automate")) throw new HabitError("ALREADY_ANSWERED");
 
-  let result: { runId?: string; chatId?: string; prompt?: string; routineIds?: string[] } = {};
-  let updated: HabitRow = habit;
+  let result: { prompt?: string; routineIds?: string[] } = {};
   if (action === "handle") {
-    // The app sends the task itself, so it streams in the open chat; elsewhere the server starts it.
-    if (run) result = await handleHabit(habit, nudge.id);
-    else {
-      result = { chatId: nudge.chatId, prompt: habit.actionPrompt };
-      await recordActivity([{ userId, kind: "ask", taskKey: habit.taskKey, label: habit.title, chatId: nudge.chatId, mateId: habit.mateId, ref: nudge.id }]);
-    }
-    [updated] = await getDb().update(habits).set({ status: "confirmed", accepted: sql`${habits.accepted} + 1`, skipped: 0, version: sql`${habits.version} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id)).returning() as [HabitRow];
+    result = { prompt: habit.actionPrompt };
+    await recordActivity([{ userId, kind: "ask", taskKey: habit.taskKey, label: habit.title, chatId: nudge.chatId, mateId: habit.mateId, ref: nudge.id }]);
+    await getDb().update(habits).set({ status: "confirmed", accepted: sql`${habits.accepted} + 1`, skipped: 0, version: sql`${habits.version} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id));
   } else if (action === "skip") {
-    [updated] = await getDb().update(habits).set({ skipped: sql`${habits.skipped} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id)).returning() as [HabitRow];
+    await getDb().update(habits).set({ skipped: sql`${habits.skipped} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id));
   } else if (action === "stop") {
-    [updated] = await getDb().update(habits).set({ status: "dismissed", nextDueAt: null, version: sql`${habits.version} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id)).returning() as [HabitRow];
+    await getDb().update(habits).set({ status: "dismissed", nextDueAt: null, version: sql`${habits.version} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id));
   } else {
-    if (habit.accepted < AUTOMATE_AFTER - 1 && nudge.outcome !== "handled") throw new HabitError("NOT_YET");
+    // Asked for in their own words, so it's honoured whenever they say it.
     result = await automateHabit(habit, nudge.chatId);
-    [updated] = (await getDb().select().from(habits).where(eq(habits.id, habit.id))) as [HabitRow];
   }
   const outcome: NudgeOutcome = action === "handle" ? "handled" : action === "skip" ? "skipped" : action === "stop" ? "stopped" : "automated";
   await getDb().update(habitNudges).set({ outcome }).where(eq(habitNudges.id, nudge.id));
-  await settleCard(nudge, updated, outcome);
-  return { outcome, ...result };
+  return { outcome, title: habit.title, ...result };
+}
+
+/** How long an unanswered offer stays open for a typed reply. */
+const OPEN_FOR_MS = 12 * 3_600_000;
+
+/**
+ * The offer the user's message may be answering: the chat's latest unanswered nudge from the last
+ * 12 hours, as long as the user hasn't said anything else in that chat since it was sent.
+ */
+export async function pendingNudge(userId: string, chatId: string | undefined, now = new Date()) {
+  if (!chatId) return null;
+  const [nudge] = await getDb()
+    .select({ id: habitNudges.id, sentAt: habitNudges.sentAt, title: habits.title, line: habits.line, actionPrompt: habits.actionPrompt, accepted: habits.accepted, automatic: habits.automatic, trigger: habits.trigger })
+    .from(habitNudges)
+    .innerJoin(habits, eq(habits.id, habitNudges.habitId))
+    .where(and(eq(habitNudges.clerkUserId, userId), eq(habitNudges.chatId, chatId), isNull(habitNudges.outcome), gte(habitNudges.sentAt, new Date(now.getTime() - OPEN_FOR_MS))))
+    .orderBy(desc(habitNudges.sentAt))
+    .limit(1);
+  if (!nudge) return null;
+  // The reply itself may already be saved; anything said before it means the offer moved on.
+  const [said] = await getDb()
+    .select({ count: sql<number>`count(*)::int` })
+    .from(chatMessages)
+    .where(and(eq(chatMessages.chatId, chatId), gt(chatMessages.createdAt, nudge.sentAt), sql`${chatMessages.message}->>'role' = 'user'`));
+  return (said?.count ?? 0) <= 1 ? nudge : null;
+}
+
+export type PendingNudge = NonNullable<Awaited<ReturnType<typeof pendingNudge>>>;
+
+/** What the mate is told when the user's message may be answering its offer. */
+export function nudgeContext(nudge: PendingNudge) {
+  return `Your last message in this chat offered to handle something the user usually does (${whenText(nudge.trigger)}): "${nudgeText(nudge)}". Their message is probably their answer. If it is, call cooper_habit_reply first with what they said: yes (then do this task in this reply: ${nudge.actionPrompt}), not_today, stop (don't suggest it again), or automate (do it automatically from now on; if they also said yes to today, do today's too). Keep the acknowledgement short. If their message is about something else, ignore the offer and don't call the tool.`;
+}
+
+export const habitReplyTool = {
+  type: "function" as const,
+  function: {
+    name: "cooper_habit_reply",
+    description: "Record the user's answer to your offer to handle something they usually do. Call it only when their message answers that offer.",
+    parameters: {
+      type: "object",
+      properties: { answer: { type: "string", enum: ["yes", "not_today", "stop", "automate"], description: "yes: do it now; not_today: skip this time; stop: never suggest it again; automate: do it automatically from now on." } },
+      required: ["answer"],
+      additionalProperties: false,
+    },
+  },
+};
+
+/** Runs the tool: records the answer and tells the mate what to do next. */
+export async function runHabitReply(userId: string, nudgeId: string, args: unknown) {
+  const answer = (args as { answer?: string })?.answer;
+  const action: NudgeAction | null = answer === "yes" ? "handle" : answer === "not_today" ? "skip" : answer === "stop" ? "stop" : answer === "automate" ? "automate" : null;
+  if (!action) return { error: "Answer with yes, not_today, stop or automate." };
+  try {
+    const result = await nudgeAction(userId, nudgeId, action);
+    if (action === "handle") return { recorded: "yes", next: `Do this now: ${result.prompt}` };
+    if (action === "automate") return { recorded: "automatic", routines: result.routineIds?.length ?? 0, next: "Tell the user in a few words that you'll do it automatically from now on. They can change it in Settings > What I've noticed." };
+    if (action === "stop") return { recorded: "stop", next: "Acknowledge briefly; you won't suggest it again." };
+    return { recorded: "not_today", next: "Acknowledge briefly." };
+  } catch (error) {
+    return { error: error instanceof HabitError && error.message === "ALREADY_ANSWERED" ? "Already answered." : "Couldn't record that." };
+  }
 }
 
 /**

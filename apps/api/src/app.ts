@@ -67,7 +67,6 @@ import { controlWatch, handleWatchEvent, listWatches, watchCard, watchHistory } 
 import { recordAppEvent } from "./habits/observers.js";
 import { readEventSchema, recordReads } from "./habits/activity.js";
 import { changeHabit, clearHabits, habitChangeSchema, habitSettingsSchema, HabitSettingsError, listHabits, removeHabit, removeTopic, saveHabitSettings } from "./habits/manage.js";
-import { HabitError, nudgeAction } from "./habits/nudges.js";
 
 type Variables = { requestId: string; userId: string };
 type Dependencies = {
@@ -353,21 +352,6 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       } catch (error) {
         if (error instanceof HabitSettingsError) return c.json(failure("PLAN", "Learning from your apps and meeting prep come with Plus.", c.get("requestId")), 402);
         throw error;
-      }
-    })
-    .post("/v1/habits/nudges/:id", auth, validator("json", (value, c) => {
-      const parsed = z.object({ action: z.enum(["handle", "skip", "stop", "automate"]), run: z.boolean().default(true) }).safeParse(value);
-      if (!parsed.success || !z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ACTION", "Choose a valid action", c.get("requestId")), 400);
-      return parsed.data;
-    }), async (c) => {
-      try {
-        const { action, run } = c.req.valid("json");
-        return c.json(await nudgeAction(c.get("userId"), c.req.param("id"), action, { run }));
-      } catch (error) {
-        if (!(error instanceof HabitError)) throw error;
-        const answers = { NOT_FOUND: [404, "Not found"], ALREADY_ANSWERED: [409, "You've already answered this one."], NOT_YET: [409, "Handle it a few times first."] } as const;
-        const [status, message] = answers[error.message as keyof typeof answers] ?? [400, "That didn't work"];
-        return c.json(failure(error.message, message, c.get("requestId")), status);
       }
     })
     .post("/v1/activity", auth, validator("json", (value, c) => {

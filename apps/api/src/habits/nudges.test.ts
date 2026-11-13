@@ -14,7 +14,7 @@ const ext = vi.hoisted(() => ({
 const chain = (): Record<string, unknown> => {
   const take = () => Promise.resolve(db.results.shift() ?? []);
   const self: Record<string, unknown> = {};
-  for (const name of ["select", "from", "where", "orderBy", "limit", "insert", "values", "update", "set", "onConflictDoNothing"])
+  for (const name of ["select", "from", "innerJoin", "where", "orderBy", "limit", "insert", "values", "update", "set", "onConflictDoNothing"])
     self[name] = (...args: unknown[]) => {
       if (name === "set" || name === "values") db.writes.push(JSON.stringify(args[0], (_k, v) => (typeof v === "object" && v && "queryChunks" in v ? "[sql]" : v)));
       return self;
@@ -43,7 +43,7 @@ vi.mock("../scheduling.js", () => ({ routineChat: async () => "mate_m1", schedul
 vi.mock("../mates.js", () => ({ mateChatId: (id: string) => `mate_${id}` }));
 vi.mock("./miner.js", () => ({ nextDue: () => new Date("2026-11-16T08:55:00Z"), whenText: () => "Mondays around 08:55" }));
 
-const { dispatchNudges, nudgeAction, nudgeCard, sendNudge, HabitError } = await import("./nudges.js");
+const { dispatchNudges, nudgeContext, nudgeText, pendingNudge, runHabitReply, sendNudge } = await import("./nudges.js");
 
 const habit = (extra: Record<string, unknown> = {}) => ({
   id: "00000000-0000-4000-8000-0000000000h1",
@@ -90,7 +90,7 @@ describe("sending a nudge", () => {
     expect(sent).toMatchObject({ sent: true, chatId: "mate_m1" });
     expect(db.batches).toBe(1);
     expect(db.writes[0]).toContain("You usually plan your week around now");
-    expect(db.writes[0]).toContain('"kind":"nudge"');
+    expect(db.writes[0]).not.toContain("tool-call");
     expect(ext.push).toHaveBeenCalledWith("user_1", expect.objectContaining({ title: "Nova", data: { chatId: "mate_m1", chatKind: "mate" } }));
   });
 
@@ -143,62 +143,80 @@ describe("the dispatcher", () => {
   });
 });
 
-describe("the nudge buttons", () => {
+describe("answering by typing", () => {
   const nudge = (extra: Record<string, unknown> = {}) => ({ id: "00000000-0000-4000-8000-0000000000n1", habitId: habit().id, clerkUserId: "user_1", chatId: "mate_m1", messageId: "nudge_n1", sentAt: new Date(), outcome: null, ...extra });
-  const message = [{ message: { id: "nudge_n1", content: [{ type: "text", text: "line" }, { type: "tool-call", result: {} }] } }];
 
-  it("Handle it runs the task in the mate's chat and confirms the habit", async () => {
-    // nudge, habit, chat head, updated habit, (outcome write), card message
-    db.results = [[nudge()], [habit()], [], [habit({ status: "confirmed", accepted: 1 })], [], message];
-    const result = await nudgeAction("user_1", nudge().id, "handle");
-    expect(result).toMatchObject({ outcome: "handled", runId: "run_1", chatId: "mate_m1" });
-    expect(ext.submitRun).toHaveBeenCalledWith("user_1", expect.objectContaining({ chatId: "mate_m1", requestKey: `habit_${nudge().id}` }));
+  it("yes counts it as done today, confirms the habit and hands the mate the task", async () => {
+    db.results = [[nudge()], [habit()]];
+    const result = await runHabitReply("user_1", nudge().id, { answer: "yes" });
+    expect(result).toEqual({ recorded: "yes", next: "Do this now: Plan my week." });
     expect(ext.record).toHaveBeenCalledWith([expect.objectContaining({ taskKey: "plan_week", kind: "ask" })]);
     expect(db.writes.some((w) => w.includes('"status":"confirmed"'))).toBe(true);
     expect(db.writes.some((w) => w.includes('"outcome":"handled"'))).toBe(true);
-  });
-
-  it("from the app, Handle it hands back the task to send in the open chat", async () => {
-    db.results = [[nudge()], [habit()], [habit({ status: "confirmed", accepted: 1 })], [], message];
-    const result = await nudgeAction("user_1", nudge().id, "handle", { run: false });
-    expect(result).toMatchObject({ outcome: "handled", chatId: "mate_m1", prompt: "Plan my week." });
     expect(ext.submitRun).not.toHaveBeenCalled();
-    expect(ext.record).toHaveBeenCalledWith([expect.objectContaining({ taskKey: "plan_week" })]);
   });
 
-  it("Stop suggesting dismisses it for good", async () => {
-    db.results = [[nudge()], [habit()], [habit({ status: "dismissed" })], [], message];
-    expect(await nudgeAction("user_1", nudge().id, "stop")).toMatchObject({ outcome: "stopped" });
+  it("stop dismisses it for good", async () => {
+    db.results = [[nudge()], [habit()]];
+    expect(await runHabitReply("user_1", nudge().id, { answer: "stop" })).toMatchObject({ recorded: "stop" });
     expect(db.writes.some((w) => w.includes('"status":"dismissed"'))).toBe(true);
-    expect(ext.submitRun).not.toHaveBeenCalled();
   });
 
-  it("Make it automatic turns it into a routine for each weekday", async () => {
-    const often = habit({ status: "confirmed", accepted: 3, trigger: { type: "time", dows: [1, 4], hour: 8, minute: 55, tz: "Africa/Accra" } });
-    db.results = [[nudge({ outcome: "handled" })], [often], [], [often], [], message];
-    const result = await nudgeAction("user_1", nudge().id, "automate");
-    expect(result).toMatchObject({ outcome: "automated", routineIds: ["routine_1", "routine_1"] });
+  it("not today counts as a skip", async () => {
+    db.results = [[nudge()], [habit()]];
+    expect(await runHabitReply("user_1", nudge().id, { answer: "not_today" })).toMatchObject({ recorded: "not_today" });
+    expect(db.writes.some((w) => w.includes('"outcome":"skipped"'))).toBe(true);
+  });
+
+  it("automate turns a time habit into a routine for each weekday", async () => {
+    const often = habit({ status: "confirmed", accepted: 1, trigger: { type: "time", dows: [1, 4], hour: 8, minute: 55, tz: "Africa/Accra" } });
+    db.results = [[nudge()], [often]];
+    expect(await runHabitReply("user_1", nudge().id, { answer: "automate" })).toMatchObject({ recorded: "automatic", routines: 2 });
     expect(ext.scheduleRoutine).toHaveBeenCalledWith("user_1", expect.objectContaining({ frequency: "weekly", weekday: 1, time: "08:55", prompt: "Plan my week." }), "mate_m1", expect.any(String));
     expect(db.writes.some((w) => w.includes('"automatic":true'))).toBe(true);
   });
 
-  it("won't automate before it's been handled a few times", async () => {
-    db.results = [[nudge()], [habit()]];
-    await expect(nudgeAction("user_1", nudge().id, "automate")).rejects.toThrow(HabitError);
+  it("yes and then 'do it automatically' both count", async () => {
+    db.results = [[nudge({ outcome: "handled" })], [habit({ accepted: 1 })]];
+    expect(await runHabitReply("user_1", nudge().id, { answer: "automate" })).toMatchObject({ recorded: "automatic" });
   });
 
-  it("answers a nudge once", async () => {
+  it("answers an offer once", async () => {
     db.results = [[nudge({ outcome: "skipped" })], [habit()]];
-    await expect(nudgeAction("user_1", nudge().id, "handle")).rejects.toThrow("ALREADY_ANSWERED");
+    expect(await runHabitReply("user_1", nudge().id, { answer: "yes" })).toEqual({ error: "Already answered." });
   });
 
-  it("someone else's nudge isn't found", async () => {
+  it("rejects an answer it doesn't know", async () => {
+    expect(await runHabitReply("user_1", nudge().id, { answer: "maybe" })).toMatchObject({ error: expect.any(String) });
+  });
+
+  const open = { id: "n1", sentAt: new Date("2026-11-16T08:55:00Z"), title: "Plans the week", line: "You usually plan your week around now. Want me to handle it?", actionPrompt: "Plan my week.", accepted: 0, automatic: false, trigger: habit().trigger };
+
+  it("treats the user's next message as the answer", async () => {
+    db.results = [[open], [{ count: 1 }]];
+    expect(await pendingNudge("user_1", "mate_m1")).toMatchObject({ id: "n1" });
+  });
+
+  it("lets the offer go once the user has said something else", async () => {
+    db.results = [[open], [{ count: 2 }]];
+    expect(await pendingNudge("user_1", "mate_m1")).toBeNull();
+  });
+
+  it("has nothing open without a recent unanswered offer", async () => {
     db.results = [[]];
-    await expect(nudgeAction("user_2", nudge().id, "handle")).rejects.toThrow("NOT_FOUND");
+    expect(await pendingNudge("user_1", "mate_m1")).toBeNull();
+    expect(await pendingNudge("user_1", undefined)).toBeNull();
   });
 
-  it("offers Make it automatic on the card once it's been handled twice", () => {
-    expect(nudgeCard(habit({ accepted: 1 }), "n").nudge!.canAutomate).toBe(false);
-    expect(nudgeCard(habit({ accepted: 2 }), "n").nudge!.canAutomate).toBe(true);
+  it("tells the mate what was offered and how to record the answer", () => {
+    const text = nudgeContext(open);
+    expect(text).toContain("You usually plan your week around now");
+    expect(text).toContain("cooper_habit_reply");
+    expect(text).toContain("Plan my week.");
+  });
+
+  it("offers to do it automatically once it's been handled twice", () => {
+    expect(nudgeText(habit({ accepted: 1 }))).not.toContain("automatically");
+    expect(nudgeText(habit({ accepted: 2 }))).toContain("Or I can just do it automatically from now on.");
   });
 });
