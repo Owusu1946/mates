@@ -70,12 +70,12 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
   };
 
   return (
-    <View style={{ padding: 16, borderRadius: 20, gap: 14, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
+    <View style={{ padding: 13, borderRadius: 16, gap: 9, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <GitHubMark color={foreground} />
+        <GitHubMark color={foreground} size={22} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>GitHub</Text>
-          <Text style={{ color: muted, fontSize: 13, lineHeight: 18 }}>
+          <Text numberOfLines={1} style={{ color: muted, fontSize: 12, lineHeight: 16 }}>
             {connected
               ? `${github.data.installations.map((item) => item.account).join(", ")} · ${repos} repo${repos === 1 ? "" : "s"}`
               : "Let your mates ship code and open pull requests"}
@@ -86,12 +86,12 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
         accessibilityRole="button"
         disabled={busy}
         onPress={() => void open()}
-        style={({ pressed }) => ({ minHeight: 46, borderRadius: 23, alignItems: "center", justifyContent: "center", backgroundColor: connected ? "transparent" : foreground, borderWidth: connected ? 1 : 0, borderColor: muted, opacity: pressed || busy ? 0.6 : 1 })}
+        style={({ pressed }) => ({ minHeight: 36, alignSelf: "flex-start", paddingHorizontal: 13, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: connected ? "transparent" : foreground, borderWidth: connected ? 1 : 0, borderColor: muted, opacity: pressed || busy ? 0.6 : 1 })}
       >
         {busy ? (
           <ActivityIndicator color={connected ? foreground : isDark ? "#18181b" : "#fafafa"} />
         ) : (
-          <Text style={{ color: connected ? foreground : isDark ? "#18181b" : "#fafafa", fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>{connected ? "Choose repos" : "Connect GitHub"}</Text>
+          <Text style={{ color: connected ? foreground : isDark ? "#18181b" : "#fafafa", fontSize: 13, fontFamily: "DMSans_600SemiBold" }}>{connected ? "Choose repos" : "Connect GitHub"}</Text>
         )}
       </Pressable>
       {error && <Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 13 }}>{error}</Text>}
