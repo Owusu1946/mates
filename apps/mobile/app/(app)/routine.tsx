@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { runRequest } from "../../src/chat/background-chat";
 import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
-import { deviceTimezone, isEnded, routinesKey, scheduleText, TEMPLATES, untilText, useRoutines, WEEKDAYS, type RoutineRun, type RoutineSpec } from "../../src/routines/model";
+import { clockTime, deviceTimezone, isEnded, routinesKey, scheduleText, TEMPLATES, untilText, useRoutines, WEEKDAYS, type RoutineRun, type RoutineSpec } from "../../src/routines/model";
 import { useTheme } from "../../src/theme/provider";
 
 const font = { regular: "DMSans_400Regular", medium: "DMSans_500Medium", semibold: "DMSans_600SemiBold" };
@@ -59,6 +59,12 @@ export default function RoutineSheet() {
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Which picker is open under its row; one at a time. */
+  const [picking, setPicking] = useState<"date" | "time" | null>(null);
+  const toggle = (which: "date" | "time") => {
+    haptic.selection();
+    setPicking((open) => (open === which ? null : which));
+  };
   const runKey = useRef<string | null>(null);
   const runs = useQuery({
     queryKey: ["routine-runs", userId, id],
@@ -148,20 +154,23 @@ export default function RoutineSheet() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background }}>
-      <View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingTop: 14, paddingBottom: 10 }}>
-        <HeaderButton label="Cancel" onPress={close} />
-        <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: "center", color: colors.text, fontFamily: font.semibold, fontSize: 17 }}>
-          {routine ? (ended ? "Routine" : "Edit routine") : "New routine"}
-        </Text>
-        {ended ? <View style={{ width: 64 }} /> : <HeaderButton label={routine ? "Save" : "Create"} strong disabled={!canSave} busy={saving} onPress={() => void save()} />}
-      </View>
-
+      {/* The header is the scroll view's first, sticky row: inside a form sheet a separate header
+          above the scroll view gets drawn over by the content. */}
       <ScrollView
         style={{ flex: 1 }}
         keyboardShouldPersistTaps="handled"
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: insets.bottom + 32, gap: 26 }}
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: insets.bottom + 32, gap: 26 }}
       >
+        <View style={{ flexDirection: "row", alignItems: "center", marginHorizontal: -20, paddingHorizontal: 16, paddingTop: 22, paddingBottom: 12, backgroundColor: colors.background }}>
+          <HeaderButton label="Cancel" onPress={close} />
+          <Text accessibilityRole="header" numberOfLines={1} style={{ flex: 1, textAlign: "center", color: colors.text, fontFamily: font.semibold, fontSize: 17 }}>
+            {routine ? (ended ? "Routine" : "Edit routine") : "New routine"}
+          </Text>
+          {ended ? <View style={{ width: 64 }} /> : <HeaderButton label={routine ? "Save" : "Create"} strong disabled={!canSave} busy={saving} onPress={() => void save()} />}
+        </View>
+
         {routine && (
           <View style={{ gap: 14 }}>
             <View style={{ gap: 4 }}>
@@ -227,6 +236,7 @@ export default function RoutineSheet() {
               appearance={isDark ? "dark" : "light"}
               onValueChange={(label) => {
                 haptic.selection();
+                setPicking(null);
                 change("frequency", REPEAT.find((r) => r.label === label)!.value);
               }}
             />
@@ -258,43 +268,41 @@ export default function RoutineSheet() {
             </Field>
           )}
 
-          {spec.frequency === "once" ? (
-            <Field label="Date and time">
-              <View style={{ flexDirection: "row", gap: 8 }}>
-                <DateTimePicker
-                  mode="date"
-                  display={Platform.OS === "ios" ? "compact" : "default"}
-                  value={new Date(spec.onceAt!)}
-                  minimumDate={new Date()}
-                  timeZoneName={spec.timezone}
-                  themeVariant={isDark ? "dark" : "light"}
-                  disabled={ended}
-                  onValueChange={(_, date) => change("onceAt", date.toISOString())}
-                />
-                <DateTimePicker
-                  mode="time"
-                  display={Platform.OS === "ios" ? "compact" : "default"}
-                  value={new Date(spec.onceAt!)}
-                  timeZoneName={spec.timezone}
-                  themeVariant={isDark ? "dark" : "light"}
-                  disabled={ended}
-                  onValueChange={(_, date) => change("onceAt", date.toISOString())}
-                />
-              </View>
-            </Field>
-          ) : (
-            <Field label="Time">
-              <DateTimePicker
-                mode="time"
-                display={Platform.OS === "ios" ? "compact" : "default"}
-                value={timeAsDate(spec.time)}
-                timeZoneName="UTC"
-                themeVariant={isDark ? "dark" : "light"}
+          {spec.frequency === "once" && (
+            <Field label="Date">
+              <ValueButton
+                label={new Date(spec.onceAt!).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short", timeZone: spec.timezone })}
+                open={picking === "date"}
                 disabled={ended}
-                onValueChange={(_, date) => change("time", dateAsTime(date))}
+                onPress={() => toggle("date")}
               />
             </Field>
           )}
+          {spec.frequency === "once" && picking === "date" && (
+            <PickerRow
+              mode="date"
+              value={new Date(spec.onceAt!)}
+              timeZoneName={spec.timezone}
+              minimumDate={new Date()}
+              onChange={(date) => change("onceAt", date.toISOString())}
+              onDone={() => setPicking(null)}
+            />
+          )}
+          <Field label="Time">
+            <ValueButton
+              label={spec.frequency === "once" ? new Date(spec.onceAt!).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", timeZone: spec.timezone }) : clockTime(spec.time)}
+              open={picking === "time"}
+              disabled={ended}
+              onPress={() => toggle("time")}
+            />
+          </Field>
+          {picking === "time" &&
+            (spec.frequency === "once" ? (
+              <PickerRow mode="time" value={new Date(spec.onceAt!)} timeZoneName={spec.timezone} onChange={(date) => change("onceAt", date.toISOString())} onDone={() => setPicking(null)} />
+            ) : (
+              // A UTC clock shows "HH:MM" exactly as stored, whatever the device's own zone.
+              <PickerRow mode="time" value={timeAsDate(spec.time)} timeZoneName="UTC" onChange={(date) => change("time", dateAsTime(date))} onDone={() => setPicking(null)} />
+            ))}
         </Section>
 
         {routine && (
@@ -365,6 +373,59 @@ function Field({ label, children }: { label?: string; children: ReactNode }) {
     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingHorizontal: 16, paddingVertical: 10, minHeight: 52 }}>
       <Text style={{ color: colors.text, fontFamily: font.regular, fontSize: 16 }}>{label}</Text>
       {children}
+    </View>
+  );
+}
+
+/** A row's current value as a tappable pill; tapping opens its picker below. */
+function ValueButton({ label, open, disabled, onPress }: { label: string; open: boolean; disabled?: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ expanded: open, disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, borderCurve: "continuous", backgroundColor: open ? colors.primary : colors.surfaceElevated, opacity: pressed ? 0.7 : 1 })}
+    >
+      <Text style={{ color: open ? colors.primaryForeground : colors.text, fontFamily: font.semibold, fontSize: 16 }}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * A full-width native picker under its row: a wheel for times and a calendar for dates on iOS; on
+ * Android the system dialog, which closes itself once a value is picked or dismissed.
+ */
+function PickerRow({ mode, value, timeZoneName, minimumDate, onChange, onDone }: { mode: "date" | "time"; value: Date; timeZoneName: string; minimumDate?: Date; onChange: (date: Date) => void; onDone: () => void }) {
+  const { isDark } = useTheme();
+  if (Platform.OS === "android")
+    return (
+      <DateTimePicker
+        mode={mode}
+        presentation="dialog"
+        value={value}
+        timeZoneName={timeZoneName}
+        minimumDate={minimumDate}
+        onValueChange={(_, date) => {
+          onChange(date);
+          onDone();
+        }}
+        onDismiss={onDone}
+      />
+    );
+  return (
+    <View style={{ paddingHorizontal: 8, paddingVertical: 4, alignItems: "center" }}>
+      <DateTimePicker
+        mode={mode}
+        display={mode === "date" ? "inline" : "spinner"}
+        value={value}
+        timeZoneName={timeZoneName}
+        minimumDate={minimumDate}
+        themeVariant={isDark ? "dark" : "light"}
+        style={{ width: "100%", height: mode === "date" ? 330 : 190 }}
+        onValueChange={(_, date) => onChange(date)}
+      />
     </View>
   );
 }
