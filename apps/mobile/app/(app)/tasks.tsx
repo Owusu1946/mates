@@ -6,6 +6,7 @@ import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text,
 import { runRequest } from "../../src/chat/background-chat";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { haptic } from "../../src/haptics";
+import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
 import { useLeaderName } from "../../src/mates/data";
 import { isEnded, remindersKey, routinesKey, scheduleText, TEMPLATES, untilText, useReminders, useRoutines, type Reminder, type Routine } from "../../src/routines/model";
 import { useTheme } from "../../src/theme/provider";
@@ -24,6 +25,8 @@ export default function RoutinesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<Record<string, boolean>>({});
   const [showEnded, setShowEnded] = useState(false);
+  // The spinner follows a pull only; the list also refreshes itself in the background.
+  const pull = usePullToRefresh(() => Promise.all([routines.refetch(), reminders.refetch()]));
   useFocusEffect(useCallback(() => void Promise.all([routines.refetch(), reminders.refetch()]), [routines.refetch, reminders.refetch]));
 
   const open = (params: { id?: string; template?: string } = {}) => {
@@ -90,7 +93,7 @@ export default function RoutinesScreen() {
         style={{ flex: 1, backgroundColor: colors.background }}
         contentInsetAdjustmentBehavior="automatic"
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 28 }}
-        refreshControl={<RefreshControl refreshing={routines.isRefetching} onRefresh={() => void Promise.all([routines.refetch(), reminders.refetch()])} />}
+        refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
       >
         <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
           Work your mates do on a schedule, even while you’re away. Results land in your chat.
