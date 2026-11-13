@@ -168,10 +168,10 @@ export type NudgeAction = "handle" | "skip" | "stop" | "automate";
 export class HabitError extends Error {}
 
 /**
- * The buttons on a nudge. Handle runs the task and confirms the habit; skip counts against it;
+ * The buttons on a nudge. Handle runs the task (or, from the app, hands back the task to send) and confirms the habit; skip counts against it;
  * stop dismisses it for good; automate does it without asking from now on.
  */
-export async function nudgeAction(userId: string, nudgeId: string, action: NudgeAction) {
+export async function nudgeAction(userId: string, nudgeId: string, action: NudgeAction, { run = true } = {}) {
   const [nudge] = await getDb().select().from(habitNudges).where(and(eq(habitNudges.id, nudgeId), eq(habitNudges.clerkUserId, userId)));
   if (!nudge) throw new HabitError("NOT_FOUND");
   const [habit] = await getDb().select().from(habits).where(eq(habits.id, nudge.habitId));
@@ -179,10 +179,15 @@ export async function nudgeAction(userId: string, nudgeId: string, action: Nudge
   // One answer per nudge, except making it automatic after handling it.
   if (nudge.outcome && !(nudge.outcome === "handled" && action === "automate")) throw new HabitError("ALREADY_ANSWERED");
 
-  let result: { runId?: string; chatId?: string; routineIds?: string[] } = {};
+  let result: { runId?: string; chatId?: string; prompt?: string; routineIds?: string[] } = {};
   let updated: HabitRow = habit;
   if (action === "handle") {
-    result = await handleHabit(habit, nudge.id);
+    // The app sends the task itself, so it streams in the open chat; elsewhere the server starts it.
+    if (run) result = await handleHabit(habit, nudge.id);
+    else {
+      result = { chatId: nudge.chatId, prompt: habit.actionPrompt };
+      await recordActivity([{ userId, kind: "ask", taskKey: habit.taskKey, label: habit.title, chatId: nudge.chatId, mateId: habit.mateId, ref: nudge.id }]);
+    }
     [updated] = await getDb().update(habits).set({ status: "confirmed", accepted: sql`${habits.accepted} + 1`, skipped: 0, version: sql`${habits.version} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id)).returning() as [HabitRow];
   } else if (action === "skip") {
     [updated] = await getDb().update(habits).set({ skipped: sql`${habits.skipped} + 1`, updatedAt: new Date() }).where(eq(habits.id, habit.id)).returning() as [HabitRow];

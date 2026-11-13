@@ -356,12 +356,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       }
     })
     .post("/v1/habits/nudges/:id", auth, validator("json", (value, c) => {
-      const parsed = z.object({ action: z.enum(["handle", "skip", "stop", "automate"]) }).safeParse(value);
+      const parsed = z.object({ action: z.enum(["handle", "skip", "stop", "automate"]), run: z.boolean().default(true) }).safeParse(value);
       if (!parsed.success || !z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ACTION", "Choose a valid action", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => {
       try {
-        return c.json(await nudgeAction(c.get("userId"), c.req.param("id"), c.req.valid("json").action));
+        const { action, run } = c.req.valid("json");
+        return c.json(await nudgeAction(c.get("userId"), c.req.param("id"), action, { run }));
       } catch (error) {
         if (!(error instanceof HabitError)) throw error;
         const answers = { NOT_FOUND: [404, "Not found"], ALREADY_ANSWERED: [409, "You've already answered this one."], NOT_YET: [409, "Handle it a few times first."] } as const;

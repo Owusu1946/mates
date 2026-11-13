@@ -158,6 +158,14 @@ describe("the nudge buttons", () => {
     expect(db.writes.some((w) => w.includes('"outcome":"handled"'))).toBe(true);
   });
 
+  it("from the app, Handle it hands back the task to send in the open chat", async () => {
+    db.results = [[nudge()], [habit()], [habit({ status: "confirmed", accepted: 1 })], [], message];
+    const result = await nudgeAction("user_1", nudge().id, "handle", { run: false });
+    expect(result).toMatchObject({ outcome: "handled", chatId: "mate_m1", prompt: "Plan my week." });
+    expect(ext.submitRun).not.toHaveBeenCalled();
+    expect(ext.record).toHaveBeenCalledWith([expect.objectContaining({ taskKey: "plan_week" })]);
+  });
+
   it("Stop suggesting dismisses it for good", async () => {
     db.results = [[nudge()], [habit()], [habit({ status: "dismissed" })], [], message];
     expect(await nudgeAction("user_1", nudge().id, "stop")).toMatchObject({ outcome: "stopped" });
