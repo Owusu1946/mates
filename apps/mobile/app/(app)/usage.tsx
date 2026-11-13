@@ -1,6 +1,6 @@
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { haptic } from "../../src/haptics";
 import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
@@ -89,10 +89,10 @@ export default function UsageScreen() {
               </View>
               <Pressable
                 testID="see-plans"
-                accessibilityRole="link"
+                accessibilityRole="button"
                 onPress={() => {
                   haptic.selection();
-                  void Linking.openURL(usage.upgradeUrl);
+                  router.push("/paywall");
                 }}
                 style={({ pressed }) => ({ paddingHorizontal: 18, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, opacity: pressed ? 0.6 : 1 })}
               >

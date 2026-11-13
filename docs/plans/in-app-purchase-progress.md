@@ -25,7 +25,7 @@ Update this document after each reviewed batch with its status, changed files, c
 | Backend subscription sync | Handed off to Ken | Routes and initial reconciliation exist but are unsafe to deploy; resolve the backend handoff below before enabling billing. |
 | Revenue accounting and rollout | Not started | Idempotent transaction/refund handling and a safe grandfather cohort and cutoff procedure. |
 | Mobile purchase foundation | Ready for review | SDK, optional keys, Clerk identity, purchase and restore helpers added; real purchase testing awaits a development build and safe staging backend. |
-| Paywall and integration | Not started | iOS purchase screen, localized store prices, restore/manage actions, and usage navigation. |
+| Paywall and integration | In progress | Initial paywall and usage navigation added; product mapping and purchase flow require Test Store / iOS sandbox verification after Ken's backend fixes. |
 | iOS sandbox and release | Not started | New development build, sandbox purchase and lifecycle checks, then coordinated rollout. |
 
 ## Ken / backend owner
@@ -54,6 +54,7 @@ Update this document after each reviewed batch with its status, changed files, c
 
 ## Work log
 
+- 2026-11-13: Added an initial paywall, plan selection, store prices, restore and management links, and navigation from usage. The paywall expects the documented iOS product IDs; configure matching Test Store IDs for early testing. No end-to-end purchase or visual device verification has been performed.
 - 2026-11-13: Added the mobile SDK, optional iOS, Android and Test Store public keys, Clerk identity handling, and purchase / restore helpers. The paywall and real purchase testing remain. Backend sync is unsafe until Ken resolves the issues below.
 - 2026-11-13: Samuel requested that Ken take over the unfinished backend and rollout work. The API implementation remains unsafe to deploy; the backend handoff above lists the unresolved issues.
 - 2026-11-13: Added initial RevenueCat webhook and authenticated sync routes, environment placeholders and unit tests. `pnpm typecheck && pnpm test` passed. Do not deploy: manual/grandfathered plan precedence, concurrent sync ordering, and mixed sandbox/production receipts require resolution; route-level tests are still needed. Revenue accounting is not implemented.

@@ -2,13 +2,14 @@ import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purcha
 import { Platform } from "react-native";
 import { env } from "../env";
 import { runRequest, usageChanged } from "../chat/background-chat";
+import type { UsageResponse } from "@expojet/api-contract";
 
 type GetToken = () => Promise<string | null>;
 
 /** The store accepted the transaction, but the server hasn't confirmed the plan yet. */
 export class PurchaseSyncError extends Error {
-  constructor(options: { cause: unknown }) {
-    super("Your purchase completed, but your plan is still updating. Please try restoring purchases.", options);
+  constructor(action: "purchase" | "restore", options: { cause: unknown }) {
+    super(action === "purchase" ? "Your purchase completed, but your plan is still updating. Please try restoring purchases." : "Restore completed, but your plan couldn’t be updated. Please try again.", options);
     this.name = "PurchaseSyncError";
   }
 }
@@ -65,10 +66,18 @@ export function getOfferings(userId: string) {
   });
 }
 
-async function syncUsage(userId: string, getToken: GetToken): Promise<void> {
+export function getCustomerInfo(userId: string) {
+  return enqueue(async () => {
+    requireIdentity(userId);
+    return Purchases.getCustomerInfo();
+  });
+}
+
+async function syncUsage(userId: string, getToken: GetToken): Promise<UsageResponse> {
   requireIdentity(userId);
-  await runRequest(getToken, "billing/sync", {});
+  const usage = await runRequest<UsageResponse>(getToken, "billing/sync", {});
   usageChanged();
+  return usage;
 }
 
 export function purchasePackage(userId: string, getToken: GetToken, item: PurchasesPackage) {
@@ -78,7 +87,7 @@ export function purchasePackage(userId: string, getToken: GetToken, item: Purcha
     try {
       await syncUsage(userId, getToken);
     } catch (cause) {
-      throw new PurchaseSyncError({ cause });
+      throw new PurchaseSyncError("purchase", { cause });
     }
     return result;
   });
@@ -87,8 +96,12 @@ export function purchasePackage(userId: string, getToken: GetToken, item: Purcha
 export function restorePurchases(userId: string, getToken: GetToken) {
   return enqueue(async () => {
     requireIdentity(userId);
-    const result = await Purchases.restorePurchases();
-    await syncUsage(userId, getToken);
-    return result;
+    const customerInfo = await Purchases.restorePurchases();
+    try {
+      const usage = await syncUsage(userId, getToken);
+      return { customerInfo, usage };
+    } catch (cause) {
+      throw new PurchaseSyncError("restore", { cause });
+    }
   });
 }

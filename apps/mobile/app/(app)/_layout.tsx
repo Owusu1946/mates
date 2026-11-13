@@ -168,6 +168,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
           <Stack.Screen name="memory" options={{ title: "Memory" }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage" }} />
+          <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
           <Stack.Screen name="new-mate" options={{ title: "New", headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="mate/[id]" options={{ title: "Mate" }} />
           <Stack.Screen name="group/[id]" options={{ title: "Group" }} />
