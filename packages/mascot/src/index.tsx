@@ -2906,12 +2906,15 @@ export const PEBBLE: PolygonShape = {
   anchor: { x: 108, y: 108, scale: 1.04 },
 }
 
-/** A five-point star with a centred face anchor. */
+/**
+ * A starfish: five plump arms with round tips and soft inner curves, so the middle is wide
+ * enough for the face. The face sits a little small and low, in the body's centre.
+ */
 export const STAR: PolygonShape = {
   name: 'Star',
   fit: SHAPE.fit,
-  ...outline('M100 10L120 68L183 70L134 109L151 174L100 137L49 174L66 109L17 70L80 68Z'),
-  anchor: { x: 100, y: 106, scale: 0.86 },
+  ...outline('M87.95 25.76C94.58 14.34 105.42 14.34 112.05 25.76L126.89 51.32C130.20 57.03 138.20 62.83 144.65 64.22L173.54 70.43C186.45 73.21 189.80 83.52 180.99 93.35L161.27 115.37C156.86 120.28 153.81 129.68 154.48 136.24L157.50 165.65C158.85 178.78 150.08 185.15 138.01 179.81L110.97 167.85C104.94 165.18 95.06 165.18 89.03 167.85L61.99 179.81C49.92 185.15 41.15 178.78 42.50 165.65L45.52 136.24C46.19 129.68 43.14 120.28 38.73 115.37L19.01 93.35C10.20 83.52 13.55 73.21 26.46 70.43L55.35 64.22C61.80 62.83 69.80 57.03 73.11 51.32Z'),
+  anchor: { x: 106, y: 114, scale: 0.88 },
 }
 
 export type ShapeName = 'hexagon' | 'circle' | 'triangle' | 'oval' | 'squircle' | 'pill' | 'cloud' | 'teardrop' | 'pebble' | 'star'
