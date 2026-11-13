@@ -14,11 +14,13 @@ export function CardButton({
   onPress,
   variant = "filled",
   disabled = false,
+  align = "start",
 }: {
   label: string;
   onPress: () => void;
   variant?: "filled" | "outlined" | "text";
   disabled?: boolean;
+  align?: "start" | "end";
 }) {
   const { colors } = useTheme();
   const filled = variant === "filled";
@@ -39,7 +41,7 @@ export function CardButton({
         borderRadius: 20,
         alignItems: "center",
         justifyContent: "center",
-        alignSelf: "flex-start",
+        alignSelf: align === "end" ? "flex-end" : "flex-start",
         backgroundColor: filled ? colors.text : "transparent",
         borderWidth: variant === "outlined" ? 1 : 0,
         borderColor: colors.border,

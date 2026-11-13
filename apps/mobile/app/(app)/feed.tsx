@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View, useWindowDimensions } from "react-native";
 import { plainPreview } from "../../src/components/rich-text/markdown-text";
 import { RichText } from "../../src/components/rich-text/rich-text";
 import { runRequest, type RunView } from "../../src/chat/background-chat";
@@ -29,12 +29,24 @@ function ago(iso: string, now = Date.now()) {
   return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
 }
 
-const statusText = (status: string) => (status === "waiting" || status === "needs_input" ? "Needs you" : status === "failed" ? "Didn’t finish" : ACTIVE.includes(status) ? "Working" : status === "cancelled" ? "Stopped" : null);
+function dayLabel(iso: string) {
+  const date = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  if (sameDay(date, today)) return "Today";
+  if (sameDay(date, yesterday)) return "Yesterday";
+  return date.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+}
+
+const statusText = (status: string) => (status === "waiting" || status === "needs_input" ? "Needs your input" : status === "failed" ? "Didn’t finish" : ACTIVE.includes(status) ? "Working" : status === "cancelled" ? "Stopped" : null);
 
 /** What the mates finished while you were away: a plain list, newest first, with the open result on top. */
 export default function FeedScreen() {
   const { userId, getToken } = useAuth();
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const aui = useAui();
   const router = useRouter();
   const params = useLocalSearchParams<{ runId?: string }>();
@@ -42,6 +54,13 @@ export default function FeedScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notifications, setNotifications] = useState(false);
+  const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [attentionPage, setAttentionPage] = useState(0);
+  useEffect(() => {
+    let active = true;
+    if (userId) void AsyncStorage.getItem(`feed.last-checked.${userId}`).then((value) => { if (active && value) setLastChecked(Number(value)); });
+    return () => { active = false; };
+  }, [userId]);
   useEffect(() => {
     let active = true;
     const refresh = async () => {
@@ -106,10 +125,14 @@ export default function FeedScreen() {
   const open = (item: Finding) => {
     haptic.light();
     setSelected(item.id);
+    if (userId) { const now = Date.now(); setLastChecked(now); void AsyncStorage.setItem(`feed.last-checked.${userId}`, String(now)); }
     if (!item.readAt) void runRequest(getToken, `feed/${item.id}/read`, {}).then(() => feed.refetch()).catch(() => undefined);
   };
 
   const items = feed.data?.items ?? [];
+  const attentionItems = items.filter((item) => ["waiting", "needs_input", "failed"].includes(item.status));
+  const activityItems = items.filter((item) => !attentionItems.includes(item));
+  const inProgressItems = items.filter((item) => ACTIVE.includes(item.status));
   const run = result.data?.run;
   const runText = run?.content.filter((part) => part.type === "text").map((part) => String(part.text)).join("\n\n") ?? "";
   const openTitle = items.find((item) => item.id === id)?.title;
@@ -117,19 +140,15 @@ export default function FeedScreen() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
+      showsVerticalScrollIndicator={false}
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingTop: 8, paddingBottom: 56, gap: 24 }}
       refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
     >
-      <View style={{ paddingHorizontal: 20, gap: 16 }}>
-        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>What your mates finished, routine results, and anything that needs you.</Text>
-
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 16, paddingHorizontal: 16, paddingVertical: 13, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}>
-          <View style={{ flex: 1, gap: 2 }}>
-            <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 16 }}>Notify me when results land</Text>
-            <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>{notifications ? "Quiet from 22:00 to 08:00 your time." : "Get a notification for each finished task."}</Text>
-          </View>
-          <Switch value={notifications} disabled={busy || !userId} onValueChange={() => void toggleNotifications()} accessibilityLabel="Result notifications" />
+      <View style={{ paddingHorizontal: 22, gap: 18 }}>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 9, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border }}>
+          <Text style={{ flex: 1, color: colors.text, fontFamily: font.medium, fontSize: 13 }}>Notify me when a mate is done</Text>
+          <Switch value={notifications} disabled={busy || !userId} onValueChange={() => void toggleNotifications()} accessibilityLabel="Notify me when a mate is done" />
         </View>
 
         {(error || feed.isError || result.isError) && (
@@ -140,7 +159,7 @@ export default function FeedScreen() {
       </View>
 
       {id && (
-        <View style={{ paddingHorizontal: 20, gap: 12 }}>
+        <View style={{ marginHorizontal: 20, padding: 18, gap: 12, borderRadius: 20, borderCurve: "continuous", backgroundColor: colors.surface }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Text numberOfLines={1} style={{ flex: 1, color: colors.textMuted, fontFamily: font.medium, fontSize: 13 }}>
               {run ? (statusText(run.status) ?? "Result") : "Result"}
@@ -192,51 +211,66 @@ export default function FeedScreen() {
               </View>
             </>
           ) : null}
-          <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginTop: 8 }} />
         </View>
       )}
 
       {feed.isLoading && <ListSkeleton />}
 
+      {inProgressItems.length > 0 && <View style={{ gap: 8 }}>
+        <Text style={{ marginHorizontal: 22, color: colors.textMuted, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1 }}>IN PROGRESS · {inProgressItems.length}</Text>
+        {inProgressItems.map((item) => <Pressable key={item.id} onPress={() => open(item)} style={{ marginHorizontal: 20, padding: 14, borderRadius: 16, backgroundColor: colors.surface, flexDirection: "row", alignItems: "center", gap: 12 }}><ActivityIndicator size="small" color={colors.primary} /><Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontFamily: font.medium, fontSize: 14 }}>{item.title}</Text><Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: 12 }}>View</Text></Pressable>)}
+      </View>}
+
+      {attentionItems.length > 0 && <View style={{ gap: 5 }}>
+        <Text style={{ marginHorizontal: 22, color: colors.textMuted, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1 }}>NEEDS ATTENTION · {attentionItems.length}</Text>
+        <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setAttentionPage(Math.round(event.nativeEvent.contentOffset.x / screenWidth))}>
+          {attentionItems.map((item) => <View key={item.id} style={{ width: screenWidth - 44, marginLeft: 22, marginRight: 22, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "FAILED" : "NEEDS YOUR INPUT"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 5 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable><Pressable onPress={() => item.status === "failed" ? open(item) : item.chatId ? void openChat(item.chatId) : open(item)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.semibold, fontSize: 12, marginTop: 10 }}>{item.status === "failed" ? "View details ↗" : item.chatId ? "Reply in chat ↗" : "View request ↗"}</Text></Pressable></View>)}
+        </ScrollView>
+        {attentionItems.length > 1 && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 2 }}>{attentionItems.map((item, index) => <View key={item.id} style={{ width: index === attentionPage ? 14 : 5, height: 5, borderRadius: 3, backgroundColor: index === attentionPage ? colors.textMuted : colors.border }} />)}</View>}
+      </View>}
+
       {feed.isSuccess && items.length === 0 && (
         <View style={{ alignItems: "center", gap: 10, paddingVertical: 48, paddingHorizontal: 20 }}>
-          <View style={{ width: 52, height: 52, borderRadius: 26, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
-            <ChatIcon name="feed" color={colors.text} size={24} />
+          <View style={{ width: 72, height: 72, alignItems: "center", justifyContent: "center", marginBottom: 5 }}>
+            <View style={{ position: "absolute", width: 48, height: 48, borderRadius: 15, transform: [{ rotate: "18deg" }], backgroundColor: colors.surfaceElevated }} />
+            <View style={{ width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primary, opacity: 0.88 }} />
           </View>
           <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 16 }}>Nothing here yet</Text>
-          <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 14, lineHeight: 20, textAlign: "center", maxWidth: 290 }}>
-            When your mates finish a task or a routine runs, the result shows up here.
-          </Text>
         </View>
       )}
 
-      {items.length > 0 && (
+      {activityItems.length > 0 && (
         <View>
-          {items.map((item, i) => {
+          {activityItems.map((item, i) => {
             const status = statusText(item.status);
             const unread = !item.readAt;
             const current = item.id === id;
+            const newDay = i === 0 || dayLabel(item.createdAt) !== dayLabel(activityItems[i - 1]!.createdAt);
+            const fresh = lastChecked !== null && new Date(item.createdAt).getTime() > lastChecked;
             return (
+              <View key={item.id}>
+              {newDay && <Text style={{ marginHorizontal: 22, marginTop: i === 0 ? 2 : 18, marginBottom: 5, color: colors.textMuted, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1.1, textTransform: "uppercase" }}>{dayLabel(item.createdAt)}</Text>}
+              {fresh && (i === 0 || new Date(activityItems[i - 1]!.createdAt).getTime() <= lastChecked!) && <Text style={{ marginHorizontal: 22, marginVertical: 8, color: colors.primary, fontFamily: font.medium, fontSize: 10, letterSpacing: 1 }}>— SINCE LAST CHECK —</Text>}
               <Pressable
-                key={item.id}
                 accessibilityRole="button"
                 accessibilityLabel={`${unread ? "New. " : ""}${item.title}`}
                 onPress={() => open(item)}
                 style={({ pressed }) => ({ backgroundColor: pressed || current ? colors.surface : "transparent" })}
               >
-                {i > 0 && <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 40, backgroundColor: colors.border }} />}
-                <View style={{ flexDirection: "row", gap: 12, paddingLeft: 20, paddingRight: 20, paddingVertical: 14 }}>
-                  <View style={{ width: 8, paddingTop: 8 }}>{unread && <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: colors.primary }} />}</View>
-                  <View style={{ flex: 1, gap: 3 }}>
+                <View style={{ flexDirection: "row", gap: 12, paddingLeft: 22, paddingRight: 22, paddingVertical: 15 }}>
+                  <View style={{ width: 6, paddingTop: 8 }}>{unread && <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary }} />}</View>
+                  <View style={{ flex: 1, gap: 5 }}>
                     <View style={{ flexDirection: "row", alignItems: "baseline", gap: 8 }}>
                       <Text numberOfLines={1} style={{ flex: 1, color: colors.text, fontFamily: unread ? font.semibold : font.medium, fontSize: 16 }}>{item.title}</Text>
                       <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>{ago(item.createdAt)}</Text>
                     </View>
                     <Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 14, lineHeight: 20 }}>{plainPreview(item.summary)}</Text>
-                    {status && <Text style={{ color: status === "Needs you" ? colors.text : status === "Didn’t finish" ? colors.error : colors.textMuted, fontFamily: font.medium, fontSize: 12, marginTop: 2 }}>{status}</Text>}
+                    {status && <Text style={{ color: status === "Needs your input" ? colors.primary : status === "Didn’t finish" ? colors.error : colors.textMuted, fontFamily: font.medium, fontSize: 11, letterSpacing: 0.2, marginTop: 1 }}>{status.toUpperCase()}</Text>}
                   </View>
                 </View>
               </Pressable>
+              <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 40, backgroundColor: colors.border }} />
+              </View>
             );
           })}
         </View>

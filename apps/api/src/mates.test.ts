@@ -12,7 +12,7 @@ describe("mates", () => {
     expect(mateInputSchema.parse({ name: "  Scout " })).toEqual({ name: "Scout", role: "companion", roleDescription: "", color: "teal" });
     expect(mateInputSchema.safeParse({ name: "@scout" }).success).toBe(false);
     for (const shape of MATE_SHAPES) expect(mateInputSchema.parse({ name: "Nova", shape }).shape).toBe(shape);
-    expect(mateInputSchema.safeParse({ name: "Nova", shape: "star" }).success).toBe(false);
+    expect(mateInputSchema.parse({ name: "Nova", shape: "star" }).shape).toBe("star");
     expect(mateInputSchema.safeParse({ name: "" }).success).toBe(false);
     expect(mateInputSchema.safeParse({ name: "Scout", color: "neon" }).success).toBe(false);
     expect(mateChatId("abc")).toBe("mate_abc");
@@ -83,7 +83,7 @@ describe("handoff relay", () => {
   it("needs a name, shape and colour to set up the lead mate", () => {
     expect(leaderSetupSchema.parse({ name: " Kojo ", shape: "cloud", color: "blue" })).toEqual({ name: "Kojo", shape: "cloud", color: "blue" });
     expect(leaderSetupSchema.safeParse({ name: "Kojo", shape: "cloud" }).success).toBe(false);
-    expect(leaderSetupSchema.safeParse({ name: "Kojo", shape: "star", color: "blue" }).success).toBe(false);
+    expect(leaderSetupSchema.parse({ name: "Kojo", shape: "star", color: "blue" }).shape).toBe("star");
     expect(leaderSetupSchema.safeParse({ name: "@kojo", shape: "cloud", color: "blue" }).success).toBe(false);
   });
 

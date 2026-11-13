@@ -82,6 +82,8 @@ export default function RoutinesScreen() {
       <Stack.Screen
         options={{
           title: "Routines",
+          headerLargeTitle: true,
+          headerLargeTitleShadowVisible: false,
           headerRight: () => (
             <Pressable accessibilityRole="button" accessibilityLabel="New routine" hitSlop={10} onPress={() => open()} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1, padding: 4 })}>
               <ChatIcon name="add" color={colors.text} size={24} />
@@ -95,10 +97,6 @@ export default function RoutinesScreen() {
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 28 }}
         refreshControl={<RefreshControl refreshing={pull.refreshing} onRefresh={pull.onRefresh} />}
       >
-        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
-          Work your mates do on a schedule, even while you’re away. Results land in your chat.
-        </Text>
-
         {(error || routines.isError) && (
           <Text accessibilityLiveRegion="polite" style={{ color: colors.error, fontFamily: font.medium, fontSize: 14 }}>
             {error ?? "Couldn’t refresh your routines. Pull down to try again."}

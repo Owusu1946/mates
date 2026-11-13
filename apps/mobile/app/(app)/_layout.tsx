@@ -158,13 +158,13 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       <View style={{ flex: 1 }}>
         <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="feed" options={{ title: "Feed" }} />
+          <Stack.Screen name="feed" options={{ title: "Feed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="ideas" options={{ title: "Ideas" }} />
           <Stack.Screen name="tasks" options={{ title: "Routines" }} />
           {/* A modal sheet (swipe down to close), as for New mate: a formSheet gives its content no height, so it renders blank. */}
           <Stack.Screen name="routine" options={{ headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
-          <Stack.Screen name="connections" options={{ title: "Apps" }} />
+          <Stack.Screen name="connections" options={{ title: "Apps", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
           <Stack.Screen name="memory" options={{ title: "Memory" }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage" }} />

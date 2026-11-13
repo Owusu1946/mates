@@ -1,7 +1,8 @@
 import { useAuth } from "@clerk/expo";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, AppState, FlatList, Pressable, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, AppState, FlatList, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Stack } from "expo-router";
 import { AppLogo, ConnectionButton } from "../../src/connections/app-connection";
 import { GitHubCard } from "../../src/connections/github-card";
 import { SlackCard } from "../../src/connections/slack-card";
@@ -50,39 +51,41 @@ export default function ConnectionsScreen() {
       finally { setDisconnecting(null); }
     } },
   ]);
-  return <FlatList
+  return <>
+    <Stack.Screen options={{ title: "Apps", headerLargeTitle: true, headerLargeTitleShadowVisible: false, headerSearchBarOptions: { placeholder: "Search apps", hideWhenScrolling: true, onChangeText: (event) => setQuery(event.nativeEvent.text), onCancelButtonPress: () => setQuery("") } }} />
+    <FlatList
     style={{ flex: 1, backgroundColor: background }}
     contentInsetAdjustmentBehavior="automatic"
     keyboardShouldPersistTaps="handled"
     keyboardDismissMode="on-drag"
-    contentContainerStyle={{ padding: 20, paddingBottom: 50, gap: 4 }}
+    showsVerticalScrollIndicator={false}
+    contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 0, paddingBottom: 50, gap: 0 }}
     data={apps.data?.pages.flatMap((page) => page.apps) ?? []}
     keyExtractor={(app) => app.slug}
     refreshing={apps.isRefetching && !apps.isFetchingNextPage}
     onRefresh={() => void apps.refetch()}
     onEndReached={() => { if (apps.hasNextPage && !apps.isFetchingNextPage) void apps.fetchNextPage(); }}
     onEndReachedThreshold={.5}
-    ListHeaderComponent={<View style={{ gap: 16, marginBottom: 18 }}>
-      <Text style={{ fontFamily: "DMSans_600SemiBold", fontSize: 27, letterSpacing: -.7, color: foreground }}>Your apps, with your mates.</Text>
-      <Text style={{ fontFamily: "DMSans_400Regular", fontSize: 15, lineHeight: 22, color: muted }}>Connect once. Let your mates bring your work together.</Text>
+    ListHeaderComponent={<View style={{ gap: 7, marginBottom: 10 }}>
       <GitHubCard isDark={isDark} />
       <SlackCard isDark={isDark} />
-      <View style={{ flexDirection: "row", gap: 9, alignItems: "center", borderRadius: 18, paddingHorizontal: 14, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
+      {Platform.OS !== "ios" && <View style={{ flexDirection: "row", gap: 9, alignItems: "center", borderRadius: 14, paddingHorizontal: 12, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>
         <ChatIcon name="search" color={muted} size={19} />
-        <TextInput value={query} onChangeText={setQuery} autoCorrect={false} placeholder="Search all apps" placeholderTextColor={muted} style={{ flex: 1, minHeight: 48, fontSize: 16, color: foreground, fontFamily: "DMSans_400Regular" }} />
-      </View>
-      <View style={{ flexDirection: "row", gap: 8 }}>{[false, true].map((connected) => <Pressable key={String(connected)} accessibilityRole="button" accessibilityState={{ selected: connectedOnly === connected }} onPress={() => setConnectedOnly(connected)} style={{ paddingHorizontal: 16, paddingVertical: 9, borderRadius: 20, backgroundColor: connectedOnly === connected ? foreground : isDark ? "#27272a" : "#f4f4f5" }}><Text style={{ color: connectedOnly === connected ? background : foreground, fontFamily: "DMSans_600SemiBold", fontSize: 14 }}>{connected ? "Connected" : "All apps"}</Text></Pressable>)}</View>
+        <TextInput value={query} onChangeText={setQuery} autoCorrect={false} placeholder="Find an app" placeholderTextColor={muted} style={{ flex: 1, minHeight: 42, fontSize: 15, color: foreground, fontFamily: "DMSans_400Regular" }} />
+      </View>}
+      <View style={{ flexDirection: "row", padding: 3, borderRadius: 11, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>{[false, true].map((connected) => <Pressable key={String(connected)} accessibilityRole="button" accessibilityState={{ selected: connectedOnly === connected }} onPress={() => setConnectedOnly(connected)} style={{ flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 8, backgroundColor: connectedOnly === connected ? background : "transparent" }}><Text style={{ color: connectedOnly === connected ? foreground : muted, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{connected ? "Connected" : "All apps"}</Text></Pressable>)}</View>
       {(error || apps.error) && <View style={{ gap: 8 }}><Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 14 }}>{error ?? apps.error?.message}</Text><Pressable accessibilityRole="button" onPress={() => void apps.refetch()}><Text style={{ color: foreground, fontWeight: "600" }}>Try again</Text></Pressable></View>}
     </View>}
     ListEmptyComponent={apps.isPending ? <ActivityIndicator style={{ marginTop: 35 }} color={muted} /> : !apps.error ? <View style={{ paddingVertical: 30, gap: 8 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{search ? "No apps found" : connectedOnly ? "Your connected apps will appear here" : "No apps available yet"}</Text><Text style={{ color: muted, fontSize: 14 }}>{search ? "Try a different app name." : "Browse All apps, or ask a mate to help with an app."}</Text></View> : null}
     ListFooterComponent={apps.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 20 }} color={muted} /> : null}
-    renderItem={({ item: app }) => <View style={{ paddingVertical: 17, borderBottomWidth: .5, borderBottomColor: border, gap: 12 }}>
+    renderItem={({ item: app }) => <View style={{ paddingVertical: 13, borderBottomWidth: .5, borderBottomColor: border, gap: 7 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <AppLogo name={app.name} logo={app.logo} />
-        <View style={{ flex: 1, gap: 3 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{app.name}</Text><Text style={{ color: muted, fontSize: 13 }}>{app.noAuth ? "Ready to use" : app.connected ? "Connected" : "Connect to use with your mates"}</Text></View>
+        <AppLogo name={app.name} logo={app.logo} size={38} />
+        <View style={{ flex: 1, gap: 3 }}><Text style={{ color: foreground, fontSize: 16, fontFamily: "DMSans_600SemiBold" }}>{app.name}</Text><Text style={{ color: muted, fontSize: 12 }}>{app.noAuth ? "Ready to use" : app.connected ? "Connected" : "Not connected"}</Text></View>
         {app.connected && !app.noAuth && <Pressable disabled={disconnecting === app.slug} accessibilityRole="button" onPress={() => disconnect(app)} hitSlop={8}><Text style={{ color: muted, fontSize: 13 }}>{disconnecting === app.slug ? "Disconnecting…" : "Disconnect"}</Text></Pressable>}
+        {!app.noAuth && !app.connected && <ConnectionButton app={app} label="Connect" compact />}
       </View>
-      {!app.noAuth && <ConnectionButton app={app} label="Connect" />}
     </View>}
-  />;
+    />
+  </>;
 }

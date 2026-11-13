@@ -77,12 +77,14 @@ export function ConnectionButton({
   callbackPath = "/connections",
   label,
   disabled = false,
+  compact = false,
 }: {
   app: AppConnection;
   onConnected?: () => void;
   callbackPath?: string;
   label?: string;
   disabled?: boolean;
+  compact?: boolean;
 }) {
   const { getToken, userId } = useAuth();
   const token = useRef(getToken);
@@ -132,7 +134,7 @@ export function ConnectionButton({
       ["FAILED", "EXPIRED", "REVOKED", "DISABLED"].includes(status.data.status)
     ) {
       setPending(false);
-      setError("Connection didn’t finish. You can try again.");
+      setError("Connection failed. Try again.");
     }
   }, [pending, status.data.status]);
   const connect = async () => {
@@ -174,22 +176,21 @@ export function ConnectionButton({
       const refreshed = await status.refetch();
       if (cancelled && !refreshed.data?.connected && !refreshed.data?.noAuth) {
         setPending(false);
-        setError(
-          "Connection cancelled. Your request is saved—connect when you’re ready.",
-        );
+        // Dismissing the provider sheet is an intentional choice, not a failure.
+        setError(null);
       }
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "Couldn’t connect. Try again.",
-      );
+      setError("Couldn’t connect. Try again.");
       setPending(false);
     } finally {
       setOpening(false);
     }
   };
   return (
-    <View style={{ gap: 8 }}>
+    <View style={{ gap: 6, flexDirection: "column", alignItems: compact ? "flex-end" : "stretch" }}>
       <CardButton
+        variant={compact ? "outlined" : "filled"}
+        align={compact ? "end" : "start"}
         label={opening
               ? "Connecting…"
               : connected
@@ -206,12 +207,13 @@ export function ConnectionButton({
         <Text
           accessibilityLiveRegion="polite"
           style={{
-            fontSize: 13,
-            lineHeight: 18,
+            fontSize: 11,
+            lineHeight: 15,
             color: isDark ? "#fda4af" : "#be123c",
+            ...(compact ? { width: 170, textAlign: "right" as const } : {}),
           }}
         >
-          {error ?? status.error?.message}
+        {error ?? "Can’t check connection. Try again."}
         </Text>
       )}
       {pending && !opening && !error && (
