@@ -90,6 +90,8 @@ import { DOCUMENT_TYPES, MAX_ATTACHMENTS, prepareImage, uploadAttachment, type U
 import { LimitReply, limitError, UsageLine } from "../usage/usage-notice";
 import { useUsage } from "../usage/use-usage";
 import { WatchCard } from "./watch-card";
+import { NudgeCard } from "./nudge-card";
+import { MeetingPrepCard } from "./meeting-prep-card";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -596,10 +598,11 @@ function RoutineMarker({ title, at }: { title: string; at: Date }) {
 
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role);
-  // A routine's or a fired watch's turn: the user didn't type it just now, so it shows as a marker.
+  // A routine's, a fired watch's or a habit's turn: the user didn't type it just now, so it shows as a marker.
   const routineTitle = useAuiState((state) => {
-    const custom = state.message.metadata?.custom as { routine?: { title?: unknown }; watch?: { title?: unknown } } | undefined;
+    const custom = state.message.metadata?.custom as { routine?: { title?: unknown }; watch?: { title?: unknown }; habit?: { title?: unknown } } | undefined;
     if (typeof custom?.routine?.title === "string") return custom.routine.title;
+    if (typeof custom?.habit?.title === "string") return custom.habit.title;
     return typeof custom?.watch?.title === "string" ? `Watch triggered: ${custom.watch.title}` : null;
   });
   const createdAt = useAuiState((state) => state.message.createdAt);
@@ -641,7 +644,7 @@ function ChatMessage() {
           <MessagePrimitive.Content
             renderToolCall={({ part }) =>
               part.result ? (
-                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "watch" ? <WatchCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
+                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "watch" ? <WatchCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "nudge" ? <NudgeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "prep" ? <MeetingPrepCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
                   (part.result as WorkflowCard).kind,
                 ) ? (
                   <AppResponseCard state={part.result as WorkflowCard} />
