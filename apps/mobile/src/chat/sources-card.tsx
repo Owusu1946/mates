@@ -1,3 +1,5 @@
+import { useAuth } from "@clerk/expo";
+import { reportRead } from "../habits/report-reads";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { Image } from "expo-image";
 import * as WebBrowser from "expo-web-browser";
@@ -45,11 +47,13 @@ const published = (date: string | null) =>
  */
 export function SourcesCard({ state }: { state: WorkflowCard }) {
   const { colors } = useTheme();
+  const { getToken } = useAuth();
   const [open, setOpen] = useState(false);
   const sources = state.sources ?? [];
   if (!sources.length) return null;
   const openSource = (source: Source) => {
     haptic.light();
+    reportRead(getToken, { type: "link", ref: source.domain, label: source.title });
     void WebBrowser.openBrowserAsync(source.url);
   };
 
