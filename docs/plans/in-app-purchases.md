@@ -15,10 +15,32 @@ Each person has a `plan` stored in the database (`profiles.plan`): `starter`, `p
 
 ---
 
+## Who does what
+
+| Part | Who |
+|---|---|
+| **App Store Connect**: subscriptions, keys, sandbox testers (§3) | **You** (you have the Apple developer account) |
+| **RevenueCat dashboard**: project, apps, products, entitlements, offering, webhook | **The owner.** You don't touch it. |
+| **Railway**: every environment variable on the API, and flipping `DEFAULT_PLAN` | **The owner.** You don't touch it; tell them names and values (§4.1). |
+| **Google Play Console** | Ask the owner who does this before starting |
+| **Code**: server (§4) and app (§6) | **You** |
+
+**Handover between you and the owner:**
+1. You finish App Store Connect (§3) and send the owner, privately (a password manager, not chat or email):
+   - the In-App Purchase key **.p8 file**, its **Key ID** and the **Issuer ID**;
+   - the App Store Connect API key **.p8 file** and its **Key ID**.
+2. The owner sets up RevenueCat and sends you:
+   - the RevenueCat **App Store Server Notifications URL**, which you paste into App Store Connect (§3, step 7);
+   - the iOS **public** SDK key (`appl_…`), and the Android one (`goog_…`) later, for `apps/mobile/.env`.
+3. When your server code is deployed, tell the owner. They add the Railway variables and point RevenueCat's webhook at `/webhooks/revenuecat`.
+
+---
+
 ## 1. Ground rules (don't skip)
 
 - **Secrets stay in `apps/api` only.**
   - The RevenueCat **secret** API key and the webhook auth value must never go in the mobile app, `EXPO_PUBLIC_*` variables or git.
+  - You won't normally see them at all: the owner puts them in Railway. For local testing, ask the owner for a sandbox setup.
   - The mobile app only gets RevenueCat's **public SDK keys**, which are designed to be public.
 - **Never trust the phone about payments.** The server decides the plan, from RevenueCat's servers. The app only shows what the server says (`GET /v1/usage`).
 - **Run `pnpm typecheck && pnpm test` from the repo root before every commit** (from `AGENTS.md`).
@@ -87,12 +109,17 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 - **One RevenueCat Offering**, `default`, with packages `$rc_monthly` / `$rc_annual` for each plan. A simpler alternative is one offering per plan. Either works; the paywall reads offerings.
 - **No free trial.** It was decided against, so don't add introductory offers.
 
-**Store setup checklist (done by whoever owns the store accounts):**
-1. App Store Connect: paid apps agreement signed; subscription group and 8 products created with prices, localisations and review screenshots.
-2. Google Play Console: merchant account; subscriptions and base plans created.
-3. RevenueCat: a project, with the iOS app (App Store Connect API key or in-app purchase key uploaded) and the Android app (Play service account JSON uploaded).
-4. RevenueCat: products imported, the 4 entitlements created and products attached, the offering created.
-5. RevenueCat → Integrations → **Webhooks**: URL `https://<API host>/webhooks/revenuecat`, with an authorization header value you generate (§4.1).
+**Your App Store Connect steps.** The bundle ID is `app.askorin.mates`.
+1. *Business → Agreements*: make sure the **Paid Apps** agreement is active, with bank and tax details filled in. Purchases fail without it.
+2. *Apps → Mates → Monetization → Subscriptions*: create one subscription group, **Mates**.
+3. In it, create the **8 subscriptions** from the table above, with the exact product IDs, durations and prices. Give each a display name, a description (English) and a review screenshot (the paywall, once built). **No introductory offers.**
+4. Rank the group, highest first: **Max, Pro, Plus, Starter**. This makes upgrades and downgrades work properly.
+5. *Users and Access → Integrations → In-App Purchase*: generate a key. Download the **.p8** (it can only be downloaded once) and note its **Key ID** and the **Issuer ID**. Send these to the owner.
+6. *Users and Access → Integrations → App Store Connect API*: create a key with **App Manager** access, so RevenueCat can import the products. Download its **.p8** and note its **Key ID**. Send these to the owner.
+7. When the owner sends RevenueCat's **App Store Server Notifications URL**: go to *Apps → Mates → App Information → App Store Server Notifications* and paste it for **both Production and Sandbox**, choosing **Version 2**.
+8. *Users and Access → Sandbox*: add sandbox tester accounts for testing (§7).
+
+The owner then does everything in RevenueCat: imports these products, creates the `starter`/`plus`/`pro`/`max` entitlements and the `default` offering (packages `starter_monthly`, `starter_yearly`, … `max_yearly`), and sets up the webhook. **Your code should read offerings and packages by those names.**
 
 ---
 
@@ -100,7 +127,7 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 
 ### 4.1 Environment variables
 
-Add these to **Railway (the API service) only**. The worker doesn't need them.
+The **owner** adds these to **Railway (the API service) only**. Don't set Railway variables yourself; send the owner this list when your code is deployed. The worker doesn't need them.
 
 ```
 REVENUECAT_SECRET_KEY=sk_xxxxxxxxxxxxxxxxx        # RevenueCat → Project settings → API keys → secret key
@@ -108,7 +135,7 @@ REVENUECAT_WEBHOOK_AUTH=<long random string>     # paste the same value into Rev
 REVENUECAT_ALLOW_SANDBOX=false                   # true only on a dev/staging API, so test purchases set plans there
 ```
 
-Generate the webhook value with `openssl rand -hex 32`. Also add both names to `apps/api/.env.example` if one exists, with empty values. **Never commit real values.**
+The owner generates the webhook value and puts the same value in RevenueCat's webhook settings. Your part: read these three names in code, and add them to `apps/api/.env.example` if one exists, with empty values. **Never commit real values.**
 
 ### 4.2 New file: `apps/api/src/usage/revenuecat.ts`
 
@@ -246,14 +273,14 @@ Copy the mocking style of `apps/api/src/usage/usage.test.ts`: it mocks `../db/cl
 ## 5. Turning it on for real
 
 Do these in order, **only after purchases work end to end in sandbox:**
-1. Deploy the API with the RevenueCat env vars.
+1. Deploy the API. Then ask the owner to add the RevenueCat variables in Railway and turn on the RevenueCat webhook.
 2. Release the app build that contains the paywall.
 3. **Decide what happens to existing users.** Today everyone without a stored plan is treated as Starter (`DEFAULT_PLAN=starter`). Options:
    - (a) Give existing users a grace period with `set-plan.ts` or the admin route (`PUT /internal/users/:id/plan` with `{ plan: "starter", recordPayment: false }`), then flip.
    - (b) Flip straight away.
 
    **Ask the owner** which one.
-4. Flip `DEFAULT_PLAN=none` on Railway, **and** in the local `.env` used for `worker:deploy`, then run `pnpm --filter @expojet/api worker:deploy`. The worker reads it too (`trigger.config.ts` syncs it).
+4. **The owner** flips `DEFAULT_PLAN=none` on Railway, **and** in the local `.env` used for `worker:deploy`, then runs `pnpm --filter @expojet/api worker:deploy`. The worker reads it too (`trigger.config.ts` syncs it).
 5. From then on, people without a subscription get `402 plan_required`. The app already handles that: "Choose a plan to keep using mates." with a See plans button, which you're pointing at the paywall.
 
 ---
@@ -270,7 +297,7 @@ npx expo install react-native-purchases react-native-purchases-ui
 - `react-native-purchases-ui` is optional. It gives RevenueCat's ready-made paywall, but a custom paywall (§6.4) matches our design better. Pick one.
 - Then a **new dev build** (EAS) is required. Check the RevenueCat Expo docs for any config plugin needed by the installed version.
 
-Public keys go in `apps/mobile/.env` (public by design):
+Public keys go in `apps/mobile/.env` (public by design). **The owner gives you these** from RevenueCat:
 
 ```
 EXPO_PUBLIC_REVENUECAT_IOS_KEY=appl_xxxxxxxx
@@ -346,20 +373,22 @@ In `apps/mobile/app/(app)/settings.tsx`, the "Plan & usage" row already opens `/
 
 ## 8. Done means
 
-- [ ] Products, entitlements (`starter`/`plus`/`pro`/`max`) and the offering are set up in both stores and RevenueCat
+- [ ] App Store Connect: the subscription group, 8 products, both keys sent to the owner, and the notifications URL pasted in (you)
+- [ ] RevenueCat: entitlements, the offering and the webhook set up (owner)
 - [ ] `POST /webhooks/revenuecat` (auth-checked, idempotent, sandbox-gated) and `POST /v1/billing/sync`, with tests
 - [ ] The app calls `Purchases.logIn(clerkUserId)` on sign-in and `logOut` on sign-out
 - [ ] The paywall screen with store prices, restore, manage, and the legal links
 - [ ] Every "See plans" on the phone opens the paywall, not the website
 - [ ] Sandbox purchase → plan → usage screen → `plan_periods` row works on iOS and Android
-- [ ] Existing-user decision made, then `DEFAULT_PLAN=none` on Railway and the worker (`worker:deploy`)
+- [ ] Railway variables added and the existing-user decision made, then `DEFAULT_PLAN=none` on Railway and the worker (owner)
 - [ ] `docs/plans/usage.md`'s "Next: payments" section updated to point here
 
 ## 9. Don'ts
 
 - Don't trust `entitlement_ids` from a single event over `fetchSubscriber()`.
 - Don't record money from `PRODUCT_CHANGE`, `CANCELLATION` (except refunds) or `EXPIRATION`.
-- Don't put `REVENUECAT_SECRET_KEY` or `REVENUECAT_WEBHOOK_AUTH` anywhere but `apps/api` on Railway.
+- Don't put `REVENUECAT_SECRET_KEY` or `REVENUECAT_WEBHOOK_AUTH` anywhere but `apps/api` on Railway, and don't set Railway variables yourself: the owner does.
+- Don't change anything in the RevenueCat dashboard: the owner manages it.
 - Don't hard-code prices in the app; use the store's `priceString`.
 - Don't change `setPlan`'s behaviour, the plan ids or the usage tables. Limits and the finance views depend on them.
 - Don't link to the website for buying on iOS.
