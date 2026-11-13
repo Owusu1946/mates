@@ -29,6 +29,9 @@ import { recallContext, recallTool, runRecall } from "./recall.js";
 import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, type Plan } from "./plans.js";
 import { playbookContext } from "./playbooks.js";
 import { embedOne } from "./embeddings.js";
+import type { UsageSource } from "./db/schema.js";
+import { hasUsageLeft } from "./usage/gate.js";
+import { metered, meterOpenRouter, type OpenRouterUsage } from "./usage/openrouter.js";
 import { attachmentCache as createAttachmentCache, attachmentMeta, chatAttachmentsContext, expandAttachments, type AttachmentRef } from "./attachments.js";
 import {
   choiceTool,
@@ -128,12 +131,12 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
   const lastUserText = turns.filter((t) => t.role === "user").at(-1)?.content ?? "";
-  const queryVector = lastUserText.trim() ? embedOne(lastUserText).catch(() => null) : Promise.resolve(null);
+  const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
   const forced = forcedSearch(lastUserText);
@@ -418,6 +421,8 @@ export async function createAgentResponse(
   const browserExecutions = new Map<string, number>();
   let searchUnavailable = messages.some(m => m.role === "tool" && m.content?.includes('"searchUnavailable":true'));
   let finishWithResults = false;
+  /** Set once the person runs out of usage mid-run: one last step, without tools, to wrap up. */
+  let outOfUsage = false;
   let hasProgress = false;
   let hasResults = false;
   let lastApp: Awaited<ReturnType<typeof getApp>> = null;
@@ -487,6 +492,11 @@ export async function createAgentResponse(
             return;
           }
           signal.throwIfAborted();
+          // Long runs are checked between steps, so one task can't spend a whole week's usage.
+          if (turn > 0 && !outOfUsage && !(await hasUsageLeft(userId))) {
+            outOfUsage = true;
+            messages.push({ role: "system", content: "The user has just reached their usage limit. Don't call any more tools. Reply now with what you've found or done so far, and say in one short sentence that you paused here because their usage limit was reached and they can pick this up after it resets." });
+          }
           const provider = await expandAttachments(messages, userId, attachmentCache);
           const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -497,18 +507,19 @@ export async function createAgentResponse(
                 authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
                 "content-type": "application/json",
               },
-              body: JSON.stringify({
+              body: JSON.stringify(metered({
                 model,
                 stream: true,
                 messages: provider,
-                tools: finishWithResults || turn === 31 ? [] : tools,
+                tools: finishWithResults || outOfUsage || turn === 31 ? [] : tools,
                 ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),
                 parallel_tool_calls: false,
-              }),
+              })),
             },
           );
           if (!response.ok || !response.body)
             throw new Error("The model is unavailable.");
+          let stepUsage: OpenRouterUsage | undefined;
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let buffer = "",
@@ -533,6 +544,7 @@ export async function createAgentResponse(
                 if (data && data !== "[DONE]") {
                   const chunk = JSON.parse(data) as {
                     error?: unknown;
+                    usage?: OpenRouterUsage;
                     choices?: {
                       delta?: {
                         content?: string;
@@ -544,6 +556,7 @@ export async function createAgentResponse(
                       };
                     }[];
                   };
+                  if (chunk.usage) stepUsage = chunk.usage;
                   if (chunk.error)
                     throw new Error("The model could not finish this request.");
                   const delta = chunk.choices?.[0]?.delta;
@@ -570,6 +583,8 @@ export async function createAgentResponse(
             }
           } finally {
             reader.releaseLock();
+            // Charged for whatever was generated, even if the step was cut short.
+            void meterOpenRouter({ userId, source: execution?.usageSource ?? "chat", ref: execution?.runId ?? runId }, model, stepUsage);
           }
           const leaked = recoverLeakedCalls(text, toolNames);
           if (leaked.found) {
@@ -765,7 +780,7 @@ export async function createAgentResponse(
               const output =
                 webCalls[name] > limit
                   ? { results: [], error: `That is ${limit} ${name} calls for this request. Answer with what you have.` }
-                  : await executeWebTool(name, args, { ledger, sessionId: runId, signal, step: activity });
+                  : await executeWebTool(name, args, { ledger, sessionId: runId, signal, step: activity, meter: { userId, source: "search", ref: execution?.runId ?? runId } });
               const map = sources.get("web") ?? new Map<string, Record<string, unknown>>();
               collectSources(output, map);
               sources.set("web", map);

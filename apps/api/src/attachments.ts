@@ -4,6 +4,7 @@ import { getDb } from "./db/client.js";
 import { attachments } from "./db/schema.js";
 import { memorySettings } from "./memory.js";
 import { linkRecallAttachments, recordAttachment } from "./recall.js";
+import { meterOpenRouter, type OpenRouterUsage } from "./usage/openrouter.js";
 
 // Neon's HTTP driver carries bytea as hex inside a ~10 MB request, so stay well under it.
 export const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
@@ -182,6 +183,7 @@ export async function analyzeAttachment(id: string) {
       body: JSON.stringify({
         model: ANALYSIS_MODEL,
         max_tokens: 16_000,
+        usage: { include: true },
         messages: [
           { role: "system", content: ANALYSIS_PROMPT },
           { role: "user", content: [fullPart(row, row.data), { type: "text", text: `Index this file: "${row.name}".` }] },
@@ -202,7 +204,8 @@ export async function analyzeAttachment(id: string) {
       }),
     });
     if (!response.ok) throw new Error(`Attachment analysis failed (${response.status})`);
-    const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const result = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+    void meterOpenRouter({ userId: row.clerkUserId, source: "attachment", ref: row.id }, ANALYSIS_MODEL, result.usage);
     const parsed = z.object({ description: z.string(), text: z.string() }).parse(JSON.parse(result.choices?.[0]?.message?.content ?? "null"));
     description = parsed.description.slice(0, 2_000);
     contentText = parsed.text.slice(0, 200_000);

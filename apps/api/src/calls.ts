@@ -15,6 +15,10 @@ import { CHAT_MODEL } from "./models.js";
 import { keytermsFor } from "./transcription.js";
 import { pushToUser } from "./delivery.js";
 import { installFor, mateIdentity, slackApi } from "./slack.js";
+import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
+import { perMinute, price } from "./usage/prices.js";
+import { recordUsage } from "./usage/record.js";
+import { assertUsage, usageCapMs } from "./usage/gate.js";
 
 /**
  * Voice calls with mates. The API creates the call and signs the phone's LiveKit token, which
@@ -91,9 +95,13 @@ export const startCallSchema = z.object({
 });
 
 /** What the voice agent receives when it's dispatched to the call's room. `mode` "meeting": a mate in someone's meeting. */
-export type CallDispatch = { callId: string; callToken: string; userName?: string; timezone?: string; mode?: "call" | "meeting" };
+/** `maxMs`: when set, the call ends then because the person's usage runs out (see usageCapMs). */
+export type CallDispatch = { callId: string; callToken: string; userName?: string; timezone?: string; mode?: "call" | "meeting"; maxMs?: number };
+export const MAX_CALL_MS = 30 * 60_000;
+export const MAX_MEETING_MS = 2 * 60 * 60_000;
 
 export async function startCall(userId: string, input: z.infer<typeof startCallSchema>) {
+  await assertUsage(userId, "calls");
   if (!(await createChatStore().get(userId, input.chatId))) throw new CallError("NOT_FOUND");
   const wanted = [...new Set([input.leadMateId, ...input.mateIds])].slice(0, MAX_CALL_MATES);
   const owned = await getDb().select({ id: mates.id }).from(mates).where(and(eq(mates.clerkUserId, userId), inArray(mates.id, wanted)));
@@ -103,7 +111,7 @@ export async function startCall(userId: string, input: z.infer<typeof startCallS
   const roomName = `call_${id}`;
   await getDb().insert(calls).values({ id, clerkUserId: userId, chatId: input.chatId, leadMateId: input.leadMateId, mateIds: wanted, roomName });
 
-  const dispatch: CallDispatch = { callId: id, callToken: signCallToken(id, userId), userName: input.userName, timezone: input.timezone };
+  const dispatch: CallDispatch = { callId: id, callToken: signCallToken(id, userId), userName: input.userName, timezone: input.timezone, maxMs: await usageCapMs(userId, price("CALL_MINUTE"), MAX_CALL_MS) };
   return { callId: id, roomName, serverUrl: process.env.LIVEKIT_URL!, token: await joinToken(userId, roomName, dispatch) };
 }
 
@@ -226,7 +234,7 @@ export const endCallSchema = z.object({
 export type CallCard = NonNullable<WorkflowCard["call"]>;
 
 /** A short, plain-words summary and the action items, from the transcript. Never throws. */
-export async function summarise(transcript: { speaker: string; text: string }[], minutes: number, kind: "call" | "meeting" = "call"): Promise<{ summary: string; actionItems: string[] }> {
+export async function summarise(transcript: { speaker: string; text: string }[], minutes: number, kind: "call" | "meeting" = "call", meter?: MeterContext): Promise<{ summary: string; actionItems: string[] }> {
   const fallback = {
     summary: transcript.length ? `${kind === "meeting" ? "The meeting ran" : "We talked"} for ${Math.max(1, minutes)} minute${minutes === 1 ? "" : "s"}.` : kind === "meeting" ? "No one spoke while I was in the meeting." : "The call ended before anyone spoke.",
     actionItems: [],
@@ -240,6 +248,7 @@ export async function summarise(transcript: { speaker: string; text: string }[],
       body: JSON.stringify({
         model: CHAT_MODEL,
         max_tokens: 600,
+        usage: { include: true },
         reasoning: { effort: "low" },
         messages: [
           {
@@ -258,7 +267,8 @@ export async function summarise(transcript: { speaker: string; text: string }[],
       }),
     });
     if (!response.ok) return fallback;
-    const body = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+    const body = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+    if (meter) void meterOpenRouter(meter, CHAT_MODEL, body.usage);
     const parsed = z.object({ summary: z.string(), action_items: z.array(z.string()) }).parse(JSON.parse(body.choices?.[0]?.message?.content ?? "null"));
     return { summary: parsed.summary.trim().slice(0, 1_000) || fallback.summary, actionItems: parsed.action_items.map((a) => a.trim().slice(0, 200)).filter(Boolean).slice(0, 8) };
   } catch {
@@ -282,6 +292,8 @@ export async function endCall(userId: string, callId: string, input: z.infer<typ
     .where(and(eq(calls.id, call.id), inArray(calls.status, ["ringing", "live", "failed"])))
     .returning();
   if (!claimed) return { summary: call.summary, actionItems: call.actionItems ?? [] };
+  const meeting = claimed.kind === "meeting";
+  void recordUsage({ userId, source: meeting ? "meeting" : "call", provider: meeting ? "recall" : "livekit", ref: claimed.id, seconds: durationSec, costMicros: perMinute(meeting ? "MEETING_MINUTE" : "CALL_MINUTE", durationSec), estimated: true, key: `call:${claimed.id}` });
   // The agent reports from a shutdown hook with ~10 seconds to spare: the transcript is saved now,
   // and the summary, card and memories follow without making it wait.
   void finishCall(userId, claimed, transcript, durationSec).catch(() => console.warn("call_finish_failed", { callId: call.id }));
@@ -290,7 +302,7 @@ export async function endCall(userId: string, callId: string, input: z.infer<typ
 
 async function finishCall(userId: string, call: typeof calls.$inferSelect, transcript: { speaker: string; text: string; at: string }[], durationSec: number) {
   const meeting = call.kind === "meeting";
-  const { summary, actionItems } = await summarise(transcript, Math.round(durationSec / 60), call.kind);
+  const { summary, actionItems } = await summarise(transcript, Math.round(durationSec / 60), call.kind, { userId, source: meeting ? "meeting" : "call", ref: call.id });
   await getDb().update(calls).set({ summary, actionItems }).where(eq(calls.id, call.id));
 
   const rows = await getDb().select().from(mates).where(inArray(mates.id, call.mateIds.length ? call.mateIds : [randomUUID()]));

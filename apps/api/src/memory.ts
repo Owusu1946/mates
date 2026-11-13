@@ -4,6 +4,7 @@ import { getDb } from "./db/client.js";
 import { memories, profiles } from "./db/schema.js";
 import { embed, embedOne } from "./embeddings.js";
 import type { WorkflowCard } from "./integrations.js";
+import { meterOpenRouter, type OpenRouterUsage } from "./usage/openrouter.js";
 
 const MEMORY_MODEL = process.env.OPENROUTER_MEMORY_MODEL ?? "openai/gpt-5.6-luna";
 /** At or under this many memories, all of them go into every conversation. */
@@ -282,6 +283,7 @@ export async function extractMemories(input: { userId: string; chatId?: string |
     body: JSON.stringify({
       model: MEMORY_MODEL,
       max_tokens: 1_500,
+      usage: { include: true },
       messages: [
         { role: "system", content: EXTRACTION_PROMPT },
         {
@@ -321,7 +323,8 @@ export async function extractMemories(input: { userId: string; chatId?: string |
     }),
   });
   if (!response.ok) throw new Error(`Memory extraction failed (${response.status})`);
-  const result = (await response.json()) as { choices?: { message?: { content?: string } }[] };
+  const result = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+  void meterOpenRouter({ userId: input.userId, source: "memory", ref: input.chatId }, MEMORY_MODEL, result.usage);
   const { operations } = extractionSchema.parse(JSON.parse(result.choices?.[0]?.message?.content ?? "null"));
   const owned = new Set(existing.map((m) => m.id));
   const changes: MemoryChange[] = [];

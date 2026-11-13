@@ -4,6 +4,7 @@ import { attachmentRefSchema, expandAttachments } from "./attachments.js";
 import { memoryContext } from "./memory.js";
 import { recallContext } from "./recall.js";
 import { embedOne } from "./embeddings.js";
+import { meterStream } from "./usage/openrouter.js";
 
 const turnSchema = z
   .object({
@@ -66,7 +67,8 @@ export async function requestChatCompletion(
   const query = userId && lastUser.trim() ? await embedOne(lastUser).catch(() => null) : null;
   const memory = userId ? await memoryContext(userId, query).catch(() => null) : null;
   const recalled = userId && memory?.enabled && memory.settings.historyRecall ? await recallContext(userId, query).catch(() => null) : null;
-  return fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const model = "openai/gpt-5.6-luna";
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     signal,
     headers: {
@@ -74,8 +76,9 @@ export async function requestChatCompletion(
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      model: "openai/gpt-5.6-luna",
+      model,
       stream: true,
+      usage: { include: true },
       messages: [
         {
           role: "system",
@@ -91,4 +94,5 @@ export async function requestChatCompletion(
       ],
     }),
   });
+  return meterStream(response, { userId, source: "chat" }, model);
 }

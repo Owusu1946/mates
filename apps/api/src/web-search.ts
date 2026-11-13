@@ -1,5 +1,8 @@
 import { z } from "zod";
 import type { WorkflowCard } from "./integrations.js";
+import type { MeterContext } from "./usage/openrouter.js";
+import { price } from "./usage/prices.js";
+import { recordUsage } from "./usage/record.js";
 
 /**
  * Web search on Parallel (docs.parallel.ai): `web_search` finds pages and returns relevant
@@ -179,13 +182,15 @@ export type WebStep = (label: string) => void;
 export async function executeWebTool(
   name: "web_search" | "web_read",
   input: Record<string, unknown>,
-  context: { ledger: SourceLedger; sessionId: string; signal: AbortSignal; step: WebStep },
+  context: { ledger: SourceLedger; sessionId: string; signal: AbortSignal; step: WebStep; meter?: MeterContext },
 ): Promise<Record<string, unknown>> {
   try {
     if (name === "web_search") {
       const args = searchArgs.parse(input);
       for (const query of args.queries) context.step(`Searching for “${query}”`);
-      const data = await call("/search", searchRequest(args, { sessionId: context.sessionId }), context.signal);
+      const request = searchRequest(args, { sessionId: context.sessionId });
+      const data = await call("/search", request, context.signal);
+      if (context.meter?.userId) void recordUsage({ userId: context.meter.userId, source: "search", provider: "parallel", ref: context.meter.ref, costMicros: price(request.mode === "advanced" ? "SEARCH_ADVANCED" : "SEARCH_FAST"), estimated: true });
       const found = context.ledger.add(data.results ?? []);
       context.step(found.length ? `Reading ${found.length} source${found.length === 1 ? "" : "s"}` : "No matching pages");
       return found.length ? forModel(found) : { results: [], note: "No pages matched. Try different queries once, or answer from what you know and say so." };
@@ -198,6 +203,7 @@ export async function executeWebTool(
       { urls: args.urls, objective: args.objective, session_id: context.sessionId.slice(0, 1000), advanced_settings: args.full ? { full_content: { max_chars_per_result: 12_000 } } : {} },
       context.signal,
     );
+    if (context.meter?.userId) void recordUsage({ userId: context.meter.userId, source: "search", provider: "parallel", ref: context.meter.ref, costMicros: price("EXTRACT_URL") * args.urls.length, estimated: true });
     return forModel(context.ledger.add(data.results ?? []));
   } catch (error) {
     context.signal.throwIfAborted();

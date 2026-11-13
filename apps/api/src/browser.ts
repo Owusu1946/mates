@@ -6,9 +6,14 @@ import { getDb } from "./db/client.js";
 import { browserSessions } from "./db/schema.js";
 import type { WorkflowCard } from "./integrations.js";
 import { trustedGhanaRetailers } from "./shopping.js";
+import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
+import { perMinute } from "./usage/prices.js";
+import { recordUsage } from "./usage/record.js";
 
 // The callback keeps all browser inference on OpenRouter, including DOM extraction.
-export const browserModel: ClientLLM = {
+const BROWSER_MODEL = "openai/gpt-5.6-luna";
+/** Stagehand's model, charged to the person whose session it drives. */
+export const browserModelFor = (meter?: MeterContext): ClientLLM => ({
   async generate(request) {
     const messages: Record<string, unknown>[] = [];
     if (request.systemPrompt) messages.push({ role: "system", content: request.systemPrompt });
@@ -28,13 +33,14 @@ export const browserModel: ClientLLM = {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST", signal: AbortSignal.timeout(90_000),
       headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model: "openai/gpt-5.6-luna", messages,
+      body: JSON.stringify({ model: BROWSER_MODEL, messages, usage: { include: true },
         ...(request.responseFormat?.type === "json_schema" ? { response_format: { type: "json_schema", json_schema: { name: request.responseFormat.name, schema: request.responseFormat.schema } } } : {}),
         ...(tools?.length ? { tools: tools.map(t => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.inputSchema } })), tool_choice: "auto" } : {}),
       }),
     });
     if (!response.ok) throw new Error(`Browser model unavailable (${response.status})`);
-    const result = await response.json() as { choices?: { message: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
+    const result = await response.json() as { choices?: { message: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[]; usage?: OpenRouterUsage };
+    if (meter) void meterOpenRouter(meter, BROWSER_MODEL, result.usage);
     const answer = result.choices?.[0]?.message;
     if (!answer) throw new Error("Browser model returned no response");
     const content = [ ...(answer.content ? [{ type: "text" as const, text: answer.content }] : []),
@@ -42,7 +48,9 @@ export const browserModel: ClientLLM = {
     if (request.responseFormat?.type === "json_schema") return { role: "assistant", content, outputFormat: "json_schema", structuredContent: JSON.parse(answer.content ?? "null") };
     return { role: "assistant", content, outputFormat: "text", stopReason: answer.tool_calls?.length ? "tool_use" : "end_turn" };
   },
-};
+});
+/** Unmetered, for scripts. */
+export const browserModel = browserModelFor();
 
 function configuration() {
   const apiKey = process.env.BROWSERBASE_API_KEY;
@@ -72,7 +80,7 @@ async function handle(row: typeof browserSessions.$inferSelect) {
   if (!pending) {
     pending = (async () => {
       const browser = await browserbase.connect({ apiKey: configuration().apiKey, sessionId: row.providerId });
-      const stagehand = await Stagehand.create({ browser, model: browserModel, selfHeal: false, logging: { level: "off" } });
+      const stagehand = await Stagehand.create({ browser, model: browserModelFor({ userId: row.clerkUserId, source: "browser", ref: row.runId }), selfHeal: false, logging: { level: "off" } });
       const value = { browser, stagehand }; handles.set(row.id, value); return value;
     })();
     connecting.set(row.id, pending);
@@ -114,6 +122,9 @@ export async function closeBrowser(id: string, userId: string, status = "complet
   try { await active?.browser.close(); } catch {}
   try { await sdk().sessions.update(row.providerId, { status: "REQUEST_RELEASE", projectId: configuration().projectId }); } catch {}
   await getDb().update(browserSessions).set({ status, pendingAction: null, steps: row.steps.map(s => s.state === "running" ? { ...s, state: status === "completed" ? "done" : "error" } : s), updatedAt: new Date() }).where(eq(browserSessions.id, id));
+  // Browserbase bills by the minute with a one-minute minimum; the key charges a session once.
+  const seconds = Math.max(0, Math.round((Date.now() - row.createdAt.getTime()) / 1000));
+  void recordUsage({ userId: row.clerkUserId, source: "browser", provider: "browserbase", ref: row.runId, seconds, costMicros: perMinute("BROWSER_MINUTE", seconds, 60), estimated: true, key: `browser:${row.id}` });
 }
 export async function browserInput(id: string, userId: string, text?: string, key?: string) {
   const row = await ownedBrowser(id, userId);
@@ -203,7 +214,7 @@ export async function executeBrowser(name: string, input: Record<string, unknown
     if (!browser.sessionId) { await browser.close(); throw new Error("No browser session was created."); }
     [row] = await getDb().insert(browserSessions).values({ clerkUserId: userId, runId, providerId: browser.sessionId, expiresAt: new Date(Date.now() + 20 * 60_000), url, title: "Opening website" }).returning() as [typeof browserSessions.$inferSelect];
     emit(`browser_${row.id}`, browserCard(row));
-    try { const stagehand = await Stagehand.create({ browser, model: browserModel, selfHeal: false, logging: { level: "off" } }); handles.set(row.id, { browser, stagehand }); const page = await browser.context.activePage() ?? await browser.context.newPage(); await page.goto(url); }
+    try { const stagehand = await Stagehand.create({ browser, model: browserModelFor({ userId, source: "browser", ref: runId }), selfHeal: false, logging: { level: "off" } }); handles.set(row.id, { browser, stagehand }); const page = await browser.context.activePage() ?? await browser.context.newPage(); await page.goto(url); }
     catch (error) { await closeBrowser(row.id, userId, "error"); throw error; }
   } else { if (!args.sessionId) throw new Error("A browser session ID is required."); row = await ownedBrowser(args.sessionId, userId); if (row.runId !== runId) throw new Error("Use this request's browser session."); }
   const id = `browser_${row.id}`;

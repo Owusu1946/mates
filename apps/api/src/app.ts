@@ -55,6 +55,12 @@ import {
   requestChatCompletion,
   type ChatTurn,
 } from "./chat.js";
+import { adminAuthorized, setPlan, upgradeUrl } from "./usage/billing.js";
+import { financeCosts, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
+import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/gate.js";
+import { PLAN_IDS } from "./usage/plans.js";
+import { perMinute } from "./usage/prices.js";
+import { recordUsage } from "./usage/record.js";
 
 type Variables = { requestId: string; userId: string };
 type Dependencies = {
@@ -192,6 +198,11 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     })
     .use("/v1/*", bodyLimit({ maxSize: 1_000_000 }))
     .get("/v1/capabilities", auth, (c) => c.json({ durableRuns: workerConfigured(), production: process.env.NODE_ENV === "production" }))
+    .get("/v1/usage", auth, async (c) => {
+      const state = await usageState(c.get("userId"));
+      // Shadow mode measures without stopping anyone, so the app shouldn't say they're stopped.
+      return c.json({ ...state, blocked: enforcement() === "on" ? state.blocked : null, enforced: enforcement() === "on", upgradeUrl: upgradeUrl() });
+    })
     .use("/v1/runs/*", bodyLimit({ maxSize: 150_000 }))
     .post("/v1/runs", bodyLimit({ maxSize: 150_000 }), auth, validator("json", (value, c) => {
       const parsed = submissionSchema.safeParse(value);
@@ -335,6 +346,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const contentType = resolveContentType(file.name, file.type);
       if (!contentType) return c.json(failure("UNSUPPORTED_FILE", "Attach a photo, PDF, or text file", c.get("requestId")), 415);
       if (!file.size || file.size > MAX_ATTACHMENT_BYTES) return c.json(failure("TOO_LARGE", "Files must be 4 MB or smaller", c.get("requestId")), 413);
+      await assertUsage(c.get("userId"), "attachment");
       const attachment = await saveAttachment(c.get("userId"), { name: file.name || "attachment", contentType, bytes: Buffer.from(await file.arrayBuffer()) });
       // Indexed while the user is still typing; the reply never waits on it.
       void analyzeAttachment(attachment.id).catch(() => console.warn("attachment_analysis_failed", { id: attachment.id }));
@@ -344,6 +356,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     // (the app caps recordings at 3 minutes of 32 kbps speech audio).
     .post("/v1/transcribe", auth, async (c) => {
       if (!transcriptionConfigured()) return c.json(failure("TRANSCRIPTION_UNAVAILABLE", "Voice typing isn’t set up on this server yet", c.get("requestId")), 503);
+      await assertUsage(c.get("userId"), "transcribe");
       // The phone sends the clip as a raw audio body; other clients may send multipart field "audio".
       const header = c.req.header("content-type") ?? "";
       let bytes: ArrayBuffer | null = null;
@@ -366,6 +379,9 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       try {
         const text = await transcribe(bytes, { contentType, keyterms: keytermsFor(names), signal: c.req.raw.signal });
         console.info("transcription_done", { requestId: c.get("requestId"), bytes: bytes.byteLength, ms: Date.now() - started, empty: !text });
+        // The app records speech at 32 kbps, so the clip's length follows from its size.
+        const seconds = Math.max(1, Math.round((bytes.byteLength * 8) / 32_000));
+        void recordUsage({ userId: c.get("userId"), source: "transcribe", provider: "deepgram", seconds, costMicros: perMinute("TRANSCRIBE_MINUTE", seconds), estimated: true });
         return c.json({ text });
       } catch (error) {
         console.warn("transcription_failed", { requestId: c.get("requestId"), message: error instanceof Error ? error.message : String(error) });
@@ -881,10 +897,43 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       try { await closeBrowser(c.req.param("id"), c.get("userId"), "cancelled"); return c.json({ ok: true }); }
       catch { return c.json(failure("BROWSER_UNAVAILABLE", "Browser session not found.", c.get("requestId")), 404); }
     })
+    .use("/internal/*", async (c, next) => {
+      if (!adminAuthorized(c.req.header("x-admin-key"))) return c.json(failure("UNAUTHORIZED", "Admin key required", c.get("requestId")), 401);
+      await next();
+    })
+    .put("/internal/users/:id/plan", validator("json", (value, c) => {
+      const parsed = z.object({ plan: z.enum(PLAN_IDS), recordPayment: z.boolean().default(true), grossMicros: z.number().int().min(0).optional(), storeFeeMicros: z.number().int().min(0).optional() }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_PLAN", "Choose a plan: starter, plus, pro, max or none", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const body = c.req.valid("json");
+      await setPlan(c.req.param("id"), body.plan, { period: body.recordPayment ? { grossMicros: body.grossMicros, storeFeeMicros: body.storeFeeMicros } : undefined });
+      return c.json({ usage: await usageState(c.req.param("id")) });
+    })
+    .get("/internal/finance/summary", async (c) => {
+      const month = /^\d{4}-\d{2}$/;
+      const now = new Date().toISOString().slice(0, 7);
+      const from = month.test(c.req.query("from") ?? "") ? c.req.query("from")! : now;
+      const to = month.test(c.req.query("to") ?? "") ? c.req.query("to")! : now;
+      return c.json(await financeSummary(from, to));
+    })
+    .get("/internal/finance/costs", async (c) => {
+      const day = /^\d{4}-\d{2}-\d{2}$/;
+      const today = new Date().toISOString().slice(0, 10);
+      const from = day.test(c.req.query("from") ?? "") ? c.req.query("from")! : `${today.slice(0, 8)}01`;
+      const to = day.test(c.req.query("to") ?? "") ? c.req.query("to")! : today;
+      const groupBy = (Object.keys(GROUPS) as CostGroup[]).find((key) => key === c.req.query("groupBy")) ?? "source";
+      return c.json({ from, to, groupBy, rows: await financeCosts(from, to, groupBy) });
+    })
+    .get("/internal/finance/users/:id", async (c) => c.json(await financeUser(c.req.param("id"))))
     .notFound((c) =>
       c.json(failure("NOT_FOUND", "Route not found", c.get("requestId")), 404),
     )
     .onError((error, c) => {
+      if (error instanceof UsageLimitError) {
+        const noPlan = error.reason === "no_plan";
+        return c.json({ error: { code: noPlan ? "plan_required" : "usage_limit", message: error.message, requestId: c.get("requestId"), window: noPlan ? null : error.reason, resetsAt: error.resetsAt, plan: error.plan, upgradeUrl: upgradeUrl() } }, noPlan ? 402 : 429);
+      }
       if (["IDEMPOTENCY_CONFLICT", "RUN_ALREADY_ACTIVE", "RESUME_CONFLICT", "ROUTINE_CONFLICT"].includes(error.message)) return c.json(failure("CONFLICT", "This task changed or is already running. Refresh before trying again.", c.get("requestId")), 409);
       if (error instanceof CallError) {
         const answers = { NOT_FOUND: [404, "Call or chat not found"], INVALID_MATES: [400, "Pick mates you have, up to four on a call"], ENDED: [409, "This call has ended"] } as const;
