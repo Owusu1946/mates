@@ -1620,7 +1620,7 @@ function ChatDrawer({
   const [query, setQuery] = useState("");
   const menuItems = [
     { label: "Feed", icon: "feed", href: "/feed" },
-    { label: "Ideas", icon: "ideas", href: "/ideas" },
+    // Ideas is hidden from the menu for now; the screen and its route stay in place.
     { label: "Routines", icon: "tasks", href: "/tasks" },
     { label: "Apps", icon: "connections", href: "/connections" },
   ] as const;
