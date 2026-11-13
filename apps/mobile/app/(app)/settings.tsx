@@ -1,7 +1,7 @@
 import { useAuth, useUser } from "@clerk/expo";
 import { Column, FieldGroup, Host as UniversalHost, Picker as UniversalPicker, Row, Spacer as UniversalSpacer, Text as UniversalText } from "@expo/ui";
 import { Button, Form, HStack, Host, Image, Label, LabeledContent, Picker, Section, Spacer, Text, VStack } from "@expo/ui/swift-ui";
-import { buttonStyle, contentShape, font, foregroundStyle, pickerStyle, shapes, tag } from "@expo/ui/swift-ui/modifiers";
+import { buttonStyle, contentShape, font, foregroundStyle, lineLimit, pickerStyle, shapes, tag } from "@expo/ui/swift-ui/modifiers";
 import Constants from "expo-constants";
 import { router, Stack } from "expo-router";
 import { useState } from "react";
@@ -11,7 +11,7 @@ import { haptic } from "../../src/haptics";
 import { useOnboarding } from "../../src/onboarding/provider";
 import { useSession } from "../../src/session/provider";
 import { useTheme, type ThemeMode } from "../../src/theme/provider";
-import { useUsage, type Usage } from "../../src/usage/use-usage";
+import { NEARLY_USED_PCT, useUsage, type Usage } from "../../src/usage/use-usage";
 
 const THEMES: { label: string; value: ThemeMode }[] = [
   { label: "System", value: "system" },
@@ -82,13 +82,16 @@ function useSettings() {
 
 type Settings = ReturnType<typeof useSettings>;
 
-/** "Starter · 42% this week", from the fuller of the two allowances. */
+/**
+ * The row's short value, one line like Settings' own: the plan, with a percentage only once an
+ * allowance is nearly used ("Starter · 85%"), or "Limit reached". The detail lives a tap away.
+ */
 function usageSummary(usage: Usage | undefined) {
   if (!usage) return "";
   if (usage.plan.id === "none") return "No plan";
-  const fullest = [...usage.windows].sort((a, b) => b.usedPct - a.usedPct)[0];
-  if (!fullest) return usage.plan.label;
-  return `${usage.plan.label} · ${fullest.usedPct}% ${fullest.kind === "5h" ? "this session" : "this week"}`;
+  if (usage.enforced && usage.blocked) return "Limit reached";
+  const fullest = Math.max(0, ...usage.windows.map((w) => w.usedPct));
+  return fullest >= NEARLY_USED_PCT ? `${usage.plan.label} · ${fullest}%` : usage.plan.label;
 }
 
 /** A tappable row that opens something: icon, title, an optional value, and the system chevron. */
@@ -98,7 +101,7 @@ function LinkRow({ title, icon, color, value, onPress }: { title: string; icon: 
       <HStack modifiers={[contentShape(shapes.rectangle())]}>
         <Label title={title} systemImage={icon} color={color} />
         <Spacer />
-        {value ? <Text modifiers={[foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{value}</Text> : null}
+        {value ? <Text modifiers={[lineLimit(1), foregroundStyle({ type: "hierarchical", style: "secondary" })]}>{value}</Text> : null}
         <Image systemName="chevron.right" size={13} color="#C4C4C7" />
       </HStack>
     </Button>
