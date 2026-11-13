@@ -42,6 +42,7 @@ import {
   ArrowDown01Icon,
   Presentation01Icon,
   Share08Icon,
+  Undo02Icon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 
@@ -90,6 +91,7 @@ const icons = {
   clock: Clock01Icon,
   presentation: Presentation01Icon,
   share: Share08Icon,
+  undo: Undo02Icon,
 };
 
 export function ChatIcon({
