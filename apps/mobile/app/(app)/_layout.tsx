@@ -166,9 +166,10 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
           <Stack.Screen name="connections" options={{ title: "Apps", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
-          <Stack.Screen name="memory" options={{ title: "Memory" }} />
-          <Stack.Screen name="noticed" options={{ title: "What I’ve noticed" }} />
-          <Stack.Screen name="usage" options={{ title: "Plan & usage" }} />
+          <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="noticed" options={{ title: "What I’ve noticed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
           <Stack.Screen name="new-mate" options={{ title: "New", headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="mate/[id]" options={{ title: "Mate" }} />
           <Stack.Screen name="group/[id]" options={{ title: "Group" }} />

@@ -8,13 +8,7 @@ import { runRequest } from "../chat/background-chat";
 import { resolveApiUrl } from "../chat/chat-model";
 import { haptic } from "../haptics";
 import { CardButton } from "../chat/card-button";
-
-/** What went wrong, in words that say what to do next. Keyed by the API's failure reason. */
-const FAILURES: Record<string, string> = {
-  expired: "That took a little too long. Try adding Mates again.",
-  cancelled: "Slack wasn’t connected. Tap Add to Slack when you’re ready.",
-  oauth: "Slack didn’t accept the install. Try again in a moment.",
-};
+import { useToast } from "../components/toast";
 
 type SlackState = { configured: boolean; workspaces: { id: string; name: string }[] };
 
@@ -37,7 +31,7 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
   const { getToken } = useAuth();
   const slack = useSlack();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   if (!slack.data?.configured) return null;
 
   const foreground = isDark ? "#fafafa" : "#18181b";
@@ -52,15 +46,15 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
         text: "Disconnect",
         style: "destructive",
         onPress: async () => {
-          setError(null);
           try {
             const [base, token] = [resolveApiUrl(), await getToken()];
             const response = base && token ? await fetch(`${base}/v1/slack/link/${encodeURIComponent(workspace.id)}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } }) : null;
             if (!response?.ok) throw new Error("Couldn’t disconnect Slack. Try again.");
             haptic.light();
             await slack.refetch();
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Couldn’t disconnect Slack.");
+            toast.show({ message: "Slack disconnected.", tone: "success" });
+          } catch {
+            toast.show({ message: "Couldn’t disconnect Slack.", tone: "error" });
           }
         },
       },
@@ -68,7 +62,6 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
 
   const open = async () => {
     setBusy(true);
-    setError(null);
     haptic.light();
     try {
       // Slack hands back to this link (mates:// in builds, exp:// in Expo Go), closing the sheet.
@@ -77,11 +70,11 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
       const result = await WebBrowser.openAuthSessionAsync(url, returnTo);
       if (result.type === "success" && result.url.includes("slack=failed")) {
         const reason = /[?&]reason=([a-z_]+)/.exec(result.url)?.[1] ?? "";
-        setError(FAILURES[reason] ?? "Slack didn’t confirm the install. Try again.");
+        if (reason !== "cancelled") toast.show({ message: "Couldn’t connect Slack.", tone: "error" });
       }
       await slack.refetch();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn’t open Slack.");
+    } catch {
+      toast.show({ message: "Couldn’t connect Slack.", tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -107,7 +100,6 @@ export function SlackCard({ isDark }: { isDark: boolean }) {
           </Pressable>
         </View>
       ))}
-      {error && <Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 13 }}>{error}</Text>}
     </View>
   );
 }

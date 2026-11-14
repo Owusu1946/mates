@@ -8,14 +8,7 @@ import Svg, { Path } from "react-native-svg";
 import { CardButton } from "../chat/card-button";
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
-
-/** What went wrong, in words that say what to do next. Keyed by the API's failure reason. */
-const FAILURES: Record<string, string> = {
-  expired: "That took a little too long. Try connecting again.",
-  config: "GitHub sign-in isn’t finished on the server yet (the App’s client ID and secret).",
-  oauth: "GitHub didn’t accept the sign-in. Check the App’s client secret and callback URL, then try again.",
-  not_installed: "Install the bot on your GitHub account first, then try again.",
-};
+import { useToast } from "../components/toast";
 
 type GitHubState = { configured: boolean; installations: { id: number; account: string }[]; repos: { fullName: string; private: boolean }[] };
 
@@ -40,7 +33,7 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
   const { getToken } = useAuth();
   const github = useGitHub();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   if (!github.data?.configured) return null;
 
   const foreground = isDark ? "#fafafa" : "#18181b";
@@ -51,7 +44,6 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
   // The same GitHub page installs the bot or, once installed, changes which repos it can reach.
   const open = async () => {
     setBusy(true);
-    setError(null);
     haptic.light();
     try {
       // GitHub hands back to this link (mates:// in builds, exp:// in Expo Go), closing the sheet.
@@ -60,11 +52,11 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
       const result = await WebBrowser.openAuthSessionAsync(url, returnTo);
       if (result.type === "success" && result.url.includes("github=failed")) {
         const reason = /[?&]reason=([a-z_]+)/.exec(result.url)?.[1] ?? "";
-        setError(FAILURES[reason] ?? "GitHub didn’t confirm the connection. Try again.");
+        if (reason !== "cancelled") toast.show({ message: "Couldn’t connect GitHub.", tone: "error" });
       }
       await github.refetch();
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn’t open GitHub.");
+    } catch {
+      toast.show({ message: "Couldn’t connect GitHub.", tone: "error" });
     } finally {
       setBusy(false);
     }
@@ -84,7 +76,6 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
         </View>
       {busy ? <ActivityIndicator color={foreground} size="small" /> : <CardButton label={connected ? "Choose repos" : "Connect"} variant="outlined" disabled={busy} onPress={() => void open()} />}
       </View>
-      {error && <Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 13 }}>{error}</Text>}
     </View>
   );
 }

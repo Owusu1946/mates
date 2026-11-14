@@ -57,6 +57,7 @@ import {
   type ChatTurn,
 } from "./chat.js";
 import { adminAuthorized, setPlan, upgradeUrl } from "./usage/billing.js";
+import { handleRevenueCatEvent, revenueCatAuthorized, revenueCatWebhookSchema, syncFromRevenueCat } from "./usage/revenuecat.js";
 import { financeCosts, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
 import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/gate.js";
 import { PLAN_IDS } from "./usage/plans.js";
@@ -159,6 +160,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       }),
     )
     .get("/health", (c) => c.json({ ok: true, service: "expojet-api" }))
+    .post("/webhooks/revenuecat", bodyLimit({ maxSize: 200_000 }), async (c) => {
+      if (!revenueCatAuthorized(c.req.header("authorization"))) return c.json(failure("UNAUTHORIZED", "Bad webhook authorization", c.get("requestId")), 401);
+      const parsed = revenueCatWebhookSchema.safeParse(await c.req.json().catch(() => null));
+      if (!parsed.success) return c.json(failure("INVALID_EVENT", "Invalid webhook event", c.get("requestId")), 400);
+      await handleRevenueCatEvent(parsed.data.event);
+      return c.json({ ok: true });
+    })
     // Landing-site analytics: public, cookie-free, and open only to the site's own origins.
     .use("/site/*", cors({ origin: (origin) => (siteOrigins().includes(origin) ? origin : siteOrigins()[0]!), allowMethods: ["GET", "POST"] }))
     .post("/site/visit", bodyLimit({ maxSize: 2_000 }), async (c) => {
@@ -218,6 +226,11 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/v1/usage", auth, async (c) => {
       const state = await usageState(c.get("userId"));
       // Shadow mode measures without stopping anyone, so the app shouldn't say they're stopped.
+      return c.json({ ...state, blocked: enforcement() === "on" ? state.blocked : null, enforced: enforcement() === "on", upgradeUrl: upgradeUrl() });
+    })
+    .post("/v1/billing/sync", auth, async (c) => {
+      await syncFromRevenueCat(c.get("userId"));
+      const state = await usageState(c.get("userId"));
       return c.json({ ...state, blocked: enforcement() === "on" ? state.blocked : null, enforced: enforcement() === "on", upgradeUrl: upgradeUrl() });
     })
     .use("/v1/runs/*", bodyLimit({ maxSize: 150_000 }))

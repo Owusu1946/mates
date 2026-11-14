@@ -1,4 +1,4 @@
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Pressable, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
@@ -119,6 +119,7 @@ function Dot({ index, width, scroll }: { index: number; width: number; scroll: S
 
 /** First run: three swipeable pages, then sign-in. Shown once, before an account exists. */
 export default function OnboardingScreen() {
+  const { preview } = useLocalSearchParams<{ preview?: string }>();
   const onboarding = useOnboarding();
   const session = useSession();
   const { colors } = useAuthTheme();
@@ -143,6 +144,11 @@ export default function OnboardingScreen() {
   // Saving can fail (secure storage); onboarding is a courtesy, so move on regardless.
   const finish = async () => {
     if (pending) return;
+    if (preview === "1") {
+      if (router.canGoBack()) router.back();
+      else router.replace(session.status === "authenticated" ? "/(app)" : "/(public)/sign-in");
+      return;
+    }
     setPending(true);
     await onboarding.finish().catch(() => undefined);
     // An explicit destination: "/" also matches this group's own index and would restart the intro.
@@ -158,8 +164,8 @@ export default function OnboardingScreen() {
     <View testID="onboarding" style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + authLayout.gap }}>
       <View style={{ height: 48, flexDirection: "row", justifyContent: "flex-end", alignItems: "center", paddingHorizontal: authLayout.edge }}>
         {!last && (
-          <Pressable accessibilityRole="button" accessibilityLabel="Skip introduction" hitSlop={12} onPress={() => void finish()}>
-            <Text style={{ fontSize: 16, fontWeight: "500", color: colors.secondary }}>Skip</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={preview === "1" ? "Close introduction" : "Skip introduction"} hitSlop={12} onPress={() => void finish()}>
+            <Text style={{ fontSize: 16, fontWeight: "500", color: colors.secondary }}>{preview === "1" ? "Close" : "Skip"}</Text>
           </Pressable>
         )}
       </View>
@@ -181,7 +187,7 @@ export default function OnboardingScreen() {
         <View accessibilityRole="progressbar" accessibilityLabel={`Page ${page + 1} of ${PAGES.length}`} style={{ flexDirection: "row", justifyContent: "center", gap: 6 }}>
           {PAGES.map((item, index) => <Dot key={item.title} index={index} width={width} scroll={scroll} />)}
         </View>
-        <AuthAction testID="onboarding-next" title={last ? "Get started" : "Continue"} loading={pending} onPress={next} />
+        <AuthAction testID="onboarding-next" title={last ? (preview === "1" ? "Done" : "Get started") : "Continue"} loading={pending} onPress={next} />
       </View>
     </View>
   );

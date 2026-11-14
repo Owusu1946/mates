@@ -9,6 +9,7 @@ import { SlackCard } from "../../src/connections/slack-card";
 import { createApiClient } from "../../src/data/api";
 import { useTheme } from "../../src/theme/provider";
 import { ChatIcon } from "../../src/chat/chat-icon";
+import { useToast } from "../../src/components/toast";
 import type { AppConnection } from "@expojet/api-contract";
 
 export default function ConnectionsScreen() {
@@ -20,7 +21,7 @@ export default function ConnectionsScreen() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [connectedOnly, setConnectedOnly] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   useEffect(() => { const timer = setTimeout(() => setSearch(query.trim()), 250); return () => clearTimeout(timer); }, [query]);
   const apps = useInfiniteQuery({
@@ -41,13 +42,14 @@ export default function ConnectionsScreen() {
   const disconnect = (app: AppConnection) => Alert.alert(`Disconnect ${app.name}?`, "Your mates will need a new connection to use this app again.", [
     { text: "Cancel", style: "cancel" },
     { text: "Disconnect", style: "destructive", onPress: async () => {
-      setDisconnecting(app.slug); setError(null);
+      setDisconnecting(app.slug);
       try {
         const response = await api.v1.apps[":slug"].$delete({ param: { slug: app.slug } });
         if (!response.ok) throw new Error("Couldn’t disconnect. Try again.");
         await cache.invalidateQueries({ queryKey: ["connected-apps", userId] });
         await cache.invalidateQueries({ queryKey: ["app-connection", userId, app.slug] });
-      } catch (cause) { setError(cause instanceof Error ? cause.message : "Couldn’t disconnect."); }
+        toast.show({ message: `${app.name} disconnected.`, tone: "success" });
+      } catch { toast.show({ message: `Couldn’t disconnect ${app.name}.`, tone: "error" }); }
       finally { setDisconnecting(null); }
     } },
   ]);
@@ -74,7 +76,7 @@ export default function ConnectionsScreen() {
         <TextInput value={query} onChangeText={setQuery} autoCorrect={false} placeholder="Find an app" placeholderTextColor={muted} style={{ flex: 1, minHeight: 42, fontSize: 15, color: foreground, fontFamily: "DMSans_400Regular" }} />
       </View>}
       <View style={{ flexDirection: "row", padding: 3, borderRadius: 11, backgroundColor: isDark ? "#27272a" : "#f4f4f5" }}>{[false, true].map((connected) => <Pressable key={String(connected)} accessibilityRole="button" accessibilityState={{ selected: connectedOnly === connected }} onPress={() => setConnectedOnly(connected)} style={{ flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: 8, backgroundColor: connectedOnly === connected ? background : "transparent" }}><Text style={{ color: connectedOnly === connected ? foreground : muted, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{connected ? "Connected" : "All apps"}</Text></Pressable>)}</View>
-      {(error || apps.error) && <View style={{ gap: 8 }}><Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 14 }}>{error ?? apps.error?.message}</Text><Pressable accessibilityRole="button" onPress={() => void apps.refetch()}><Text style={{ color: foreground, fontWeight: "600" }}>Try again</Text></Pressable></View>}
+      {apps.error && <View style={{ gap: 8 }}><Text style={{ color: isDark ? "#fda4af" : "#be123c", fontSize: 14 }}>{apps.error.message}</Text><Pressable accessibilityRole="button" onPress={() => void apps.refetch()}><Text style={{ color: foreground, fontWeight: "600" }}>Try again</Text></Pressable></View>}
     </View>}
     ListEmptyComponent={apps.isPending ? <ActivityIndicator style={{ marginTop: 35 }} color={muted} /> : !apps.error ? <View style={{ paddingVertical: 30, gap: 8 }}><Text style={{ color: foreground, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{search ? "No apps found" : connectedOnly ? "Your connected apps will appear here" : "No apps available yet"}</Text><Text style={{ color: muted, fontSize: 14 }}>{search ? "Try a different app name." : "Browse All apps, or ask a mate to help with an app."}</Text></View> : null}
     ListFooterComponent={apps.isFetchingNextPage ? <ActivityIndicator style={{ marginVertical: 20 }} color={muted} /> : null}
