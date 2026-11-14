@@ -140,6 +140,28 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 - **Line above the composer** appears from 80% of an allowance, and again when someone is out. While they're out, sending is disabled.
 - **A refused reply** shows why and when the person can pick it up, instead of "Try again". The app doesn't retry 402 or 429 responses.
 
-## Next: payments
+## Plans and where they come from
 
-RevenueCat (App Store and Google Play) only needs to call `setPlan(userId, plan, { source: "revenuecat", period: { startsAt, endsAt, grossMicros, storeFeeMicros, externalId } })` from its webhook, then flip `DEFAULT_PLAN` to `none`.
+A person can have a plan for more than one reason at once. Each reason is a **grant** in `plan_grants`, with one row per kind:
+
+| Kind | Set by | Ends |
+|---|---|---|
+| `manual` | `setPlan()`, the `/internal` route or `scripts/set-plan.ts` | When we change it (`none` removes it) |
+| `grandfather` | `scripts/grandfather.ts` at the start of enforcement | On its date (the 30-day grace period) |
+| `revenuecat` | RevenueCat syncs (purchase, restore, webhook) | When the subscription lapses or is refunded |
+
+**How grants combine:**
+- **The plan in force** is the best active grant (Max > Pro > Plus > Starter). It's cached on `profiles.plan`, so every check still reads one column.
+- **No active grant** means `DEFAULT_PLAN`. A subscription ending falls back to whatever else the person has, never below the default.
+- **Expiry:** `profiles.plan_expires_at` holds the next time a grant lapses, and the every-minute dispatcher works the plan out again then (`expireGrants`).
+
+## Payments (RevenueCat)
+
+Purchases and restores in the app call `POST /v1/billing/sync`. RevenueCat also calls `POST /webhooks/revenuecat`. Both end in `syncFromRevenueCat` (`src/usage/revenuecat.ts`), which reads the customer's **current** state from RevenueCat and turns their best active subscription into the `revenuecat` grant.
+
+**How it's kept safe:**
+- **Unknown products** never grant or take away access. Products map to plans by name: `mates_<plan>_<monthly|yearly>`, `mates_starter_annual` and `rc_promo_<plan>_*`.
+- **Sandbox receipts** count only when `REVENUECAT_ALLOW_SANDBOX=true`, which is for staging only.
+- **Ordering:** an older RevenueCat state never overwrites a newer one (by RevenueCat's `request_date`), so a late webhook or a slow client sync can't undo a purchase.
+- **Webhook events** are stored in `billing_events` (once each, by id) and answered at once. They're processed from there, and the dispatcher retries failures, up to 8 attempts with a growing wait.
+- **Revenue:** production purchases, renewals and plan changes become `plan_periods` rows, with the real price, the store's commission and tax, and the real period (a year for yearly plans), keyed by transaction id. Refunds are recorded as the negative amounts RevenueCat sends, keyed `refund_<transaction_id>`. The finance views pick these up as they are.
