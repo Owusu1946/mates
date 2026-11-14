@@ -30,6 +30,17 @@ export const profiles = pgTable(
     autoMemory: boolean("auto_memory").notNull().default(true),
     /** Lets Cooper search past chats and shared files, like ChatGPT's "reference chat history". */
     historyRecall: boolean("history_recall").notNull().default(true),
+    /** Mates learn habits from how you use them and offer to handle them ("What I've noticed"). */
+    habitLearning: boolean("habit_learning").notNull().default(true),
+    /** Also learn from connected apps (sent mail, calendar), through opt-in Composio triggers. */
+    learnFromApps: boolean("learn_from_apps").notNull().default(false),
+    /** A brief before calendar meetings with other people. */
+    meetingPrep: boolean("meeting_prep").notNull().default(true),
+    /** Observer triggers created for learning from apps, so they can be removed. */
+    /** When the nightly habit miner last ran for them, and when their calendar was last read for meeting prep. */
+    habitsMinedAt: timestamp("habits_mined_at", { withTimezone: true }),
+    prepsSyncedAt: timestamp("preps_synced_at", { withTimezone: true }),
+    observerTriggers: jsonb("observer_triggers").$type<{ toolkit: string; slug: string; triggerId: string }[]>().notNull().default([]),
     /** The paid plan. Null means the server's DEFAULT_PLAN (see src/usage/plans.ts). */
     plan: text("plan").$type<PlanId>(),
     /** Who set the plan: us by hand for now, the store's webhook once payments exist. */
@@ -711,7 +722,7 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep";
 export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram";
 
 /**
@@ -774,3 +785,114 @@ export const fixedCosts = pgTable("fixed_costs", {
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("fixed_costs_month_vendor_idx").on(t.month, t.vendor)]);
+
+// ---- Habits: what mates learn about how you work --------------------------------------------------
+
+export type ActivityKind = "ask" | "app_action" | "app_event" | "call" | "meeting" | "read";
+
+/**
+ * What happened and when, normalised, so patterns can be found: what you asked, what mates did in
+ * your apps, calls and meetings, what you opened in the app, and (opt-in) events from your apps.
+ * Metadata only, never message bodies; kept 90 days.
+ */
+export const activityEvents = pgTable("activity_events", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id"),
+  chatId: text("chat_id"),
+  at: timestamp("at", { withTimezone: true }).defaultNow().notNull(),
+  /** Local weekday (1 = Monday … 7 = Sunday), hour and minute, in the user's timezone at the time. */
+  localDow: integer("local_dow").notNull(),
+  localHour: integer("local_hour").notNull(),
+  localMinute: integer("local_minute").notNull().default(0),
+  timezone: text("timezone"),
+  kind: text("kind").$type<ActivityKind>().notNull(),
+  /** A stable, normalised task id ("plan_week", "email_meeting_recap"), shared across occurrences. */
+  taskKey: text("task_key"),
+  label: text("label").notNull().default(""),
+  toolkit: text("toolkit"),
+  slug: text("slug"),
+  ref: text("ref"),
+  topic: text("topic"),
+}, (t) => [
+  index("activity_user_task_idx").on(t.clerkUserId, t.taskKey, t.at),
+  index("activity_user_at_idx").on(t.clerkUserId, t.at),
+]);
+
+export type HabitTrigger =
+  | { type: "time"; dows: number[]; hour: number; minute: number; tz: string }
+  | { type: "after_event"; kind: ActivityKind; match: string; withinMinutes: number };
+export type HabitStatus = "candidate" | "confirmed" | "paused" | "dismissed";
+export type NudgeOutcome = "handled" | "skipped" | "stopped" | "automated";
+
+/** A pattern a mate noticed, and what it offers to do when it comes round. */
+export const habits = pgTable("habits", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id"),
+  taskKey: text("task_key").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  /** The nudge, in the mate's voice: "You usually plan your week around now. Want me to handle it?" */
+  line: text("line").notNull(),
+  /** The task to run on "Handle it", written as an instruction. */
+  actionPrompt: text("action_prompt").notNull(),
+  trigger: jsonb("trigger").$type<HabitTrigger>().notNull(),
+  /** Why we think so: how many times, and the latest dates. */
+  evidence: jsonb("evidence").$type<{ count: number; weeks: number; dates: string[] }>().notNull(),
+  confidence: real("confidence").notNull(),
+  status: text("status").$type<HabitStatus>().notNull().default("candidate"),
+  nextDueAt: timestamp("next_due_at", { withTimezone: true }),
+  lastNudgedAt: timestamp("last_nudged_at", { withTimezone: true }),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+  accepted: integer("accepted").notNull().default(0),
+  skipped: integer("skipped").notNull().default(0),
+  /** Made automatic: it's done without asking (a routine for time habits, straight after the event otherwise). */
+  automatic: boolean("automatic").notNull().default(false),
+  /** For a time habit made automatic, the routine that now does it. */
+  routineId: uuid("routine_id"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("habits_user_task_idx").on(t.clerkUserId, t.taskKey),
+  index("habits_due_idx").on(t.status, t.nextDueAt),
+]);
+
+/** Each nudge sent, and what the user did with it. */
+export const habitNudges = pgTable("habit_nudges", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  habitId: uuid("habit_id").notNull().references(() => habits.id, { onDelete: "cascade" }),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").notNull(),
+  messageId: text("message_id").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+  outcome: text("outcome").$type<NudgeOutcome>(),
+}, (t) => [index("habit_nudges_user_idx").on(t.clerkUserId, t.sentAt)]);
+
+/** Topics someone keeps coming back to; they fade if not seen for a few weeks. */
+export const interests = pgTable("interests", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  topic: text("topic").notNull(),
+  /** Recent weight; a removed topic stays at -1 so it isn't learned again. */
+  weight: real("weight").notNull(),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull(),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.topic] })]);
+
+/** A calendar meeting with other people, briefed shortly before it starts. */
+export const meetingPreps = pgTable("meeting_preps", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  eventId: text("event_id").notNull(),
+  title: text("title").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  attendees: jsonb("attendees").$type<{ name: string | null; email: string }[]>().notNull(),
+  meetingUrl: text("meeting_url"),
+  status: text("status").$type<"scheduled" | "briefed" | "skipped">().notNull().default("scheduled"),
+  chatId: text("chat_id"),
+  brief: text("brief"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex("meeting_preps_event_idx").on(t.clerkUserId, t.eventId),
+  index("meeting_preps_due_idx").on(t.status, t.startsAt),
+]);

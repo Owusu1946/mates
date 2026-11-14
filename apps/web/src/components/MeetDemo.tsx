@@ -56,7 +56,7 @@ export default function MeetDemo() {
             <span className="md-mascot">
               <Mascot size={112} gradient={NOVA} shape="triangle" state={novaTalking ? "humming" : speaking ? "listening" : "idle"} />
             </span>
-            <span className="md-name">Nova (Mates)</span>
+            <span className="md-name">Nova (Your mate)</span>
             <Bars on={novaTalking} />
           </div>
         </div>

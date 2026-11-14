@@ -43,6 +43,7 @@ import {
   fallbackItems,
 } from "./workflow-results.js";
 import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTriggersTool } from "./watches.js";
+import { habitReplyTool, nudgeContext, pendingNudge, runHabitReply } from "./habits/nudges.js";
 
 type ToolCall = {
   id: string;
@@ -146,8 +147,10 @@ export async function createAgentResponse(
   // Who the user is talking to, for the few messages that name them.
   const mateName = execution?.speaker?.name ?? "Your mate";
   let session = await getIntegrationSession(userId);
+  // The user may be answering this mate's offer to handle one of their habits.
+  const nudge = resumeRunId ? null : await pendingNudge(userId, execution?.chatId).catch(() => null);
   let messages: ModelMessage[] = [
-    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions },
+    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
     ...modelTurns,
   ];
   let runId: string;
@@ -348,6 +351,7 @@ export async function createAgentResponse(
     scheduleTool,
     watchTool,
     watchTriggersTool,
+    ...(nudge ? [habitReplyTool] : []),
     viewAttachmentTool,
     reminderTool,
     ...(meetingsConfigured() ? [joinMeetingTool] : []),
@@ -775,6 +779,8 @@ export async function createAgentResponse(
                 hasResults = true;
                 finishWithResults = true;
               }
+            } else if (call.function.name === "cooper_habit_reply" && nudge) {
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(await runHabitReply(userId, nudge.id, args)) });
             } else if (call.function.name === "cooper_watch_triggers") {
               const toolkit = typeof args.toolkit === "string" ? args.toolkit : "";
               const triggers = toolkit ? await watchTriggers(toolkit).catch(() => null) : null;

@@ -36,6 +36,8 @@ export const contextSchema = z.object({
   memories: z.array(z.string()),
   recent: z.array(z.object({ role: z.string(), content: z.string() })),
   keyterms: z.array(z.string()),
+  /** For a meeting that was prepped: who's there and what's still open. */
+  brief: z.string().nullish(),
 });
 export type CallContext = z.infer<typeof contextSchema>;
 

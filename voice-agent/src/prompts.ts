@@ -47,8 +47,9 @@ export const greeting = (mate: CallMate, isLead: boolean, userName?: string) =>
  * What a mate is told when it sits in on someone's meeting. Everyone else's speech arrives mixed
  * together as one voice, so the mate can't tell who is talking unless they say so.
  */
-export function meetingInstructions(mate: CallMate, context: Pick<CallContext, 'memories' | 'recent' | 'chatTitle'>, userName?: string) {
+export function meetingInstructions(mate: CallMate, context: Pick<CallContext, 'memories' | 'recent' | 'chatTitle' | 'brief'>, userName?: string) {
   const owner = userName ?? 'the user';
+  const brief = context.brief ? `Your prep for this meeting (from ${owner}'s calendar, earlier meetings and email; use it to follow along, don't read it out):\n${context.brief}` : '';
   const memories = context.memories.length ? `What you remember about ${owner}:\n${context.memories.map((m) => `- ${m}`).join('\n')}` : '';
   return dedent`
     You are ${mate.name}, ${mate.brief}. You are ${owner}'s AI mate from the Mates app, and you have joined a video meeting (Google Meet, Zoom or Teams) for them. Everyone can see your face and hear your voice. The meeting chat has already told them who you are and that you're taking notes.
@@ -68,5 +69,7 @@ export function meetingInstructions(mate: CallMate, context: Pick<CallContext, '
     - When you're asked to leave, say a short goodbye and use end_call. Notes go to ${owner} when the meeting ends.
 
     ${memories}
+
+    ${brief}
   `.trim();
 }

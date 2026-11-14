@@ -60,6 +60,7 @@ function useSettings() {
       theme.setMode(value);
     },
     openMemory: () => router.push("/memory"),
+    openNoticed: () => router.push("/noticed"),
     openApps: () => router.push("/connections"),
     openNotifications: () => void Linking.openSettings(),
     showIntro: () => void onboarding.reset().then(() => router.replace("/(onboarding)")),
@@ -133,6 +134,7 @@ function IosSettings({ s }: { s: Settings }) {
 
         <Section title="Mates">
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
+          <LinkRow title="What I’ve noticed" icon="sparkles" color="#FF9500" onPress={s.openNoticed} />
           <LinkRow title="Apps & connections" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
           <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" onPress={s.openNotifications} />
         </Section>
@@ -186,6 +188,7 @@ function AndroidSettings({ s }: { s: Settings }) {
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
           {row("Memory", s.openMemory)}
+          {row("What I’ve noticed", s.openNoticed)}
           {row("Apps & connections", s.openApps)}
           {row("Notifications", s.openNotifications)}
         </FieldGroup.Section>
