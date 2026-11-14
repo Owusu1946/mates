@@ -73,12 +73,15 @@ async function recall<T = Record<string, unknown>>(path: string, body?: unknown,
   return value;
 }
 
+/** How the mate shows up in the meeting's participant list: "Ama (Kenneth’s mate)", or "Ama (Mates)" without a name. */
+export const botName = (mateName: string, ownerName?: string | null) => `${mateName} (${ownerName ? `${ownerName}’s mate` : "Mates"})`.slice(0, 100);
+
 /** What we ask Recall for: the mate's name, our page as its camera, and a hello in the chat. */
 export function botRequest(input: { meetingUrl: string; mateName: string; ownerName?: string; pageUrl: string; callId: string }) {
   const owner = input.ownerName ? `${input.ownerName}’s` : "an";
   return {
     meeting_url: input.meetingUrl,
-    bot_name: `${input.mateName} (Mates)`.slice(0, 100),
+    bot_name: botName(input.mateName, input.ownerName),
     metadata: { callId: input.callId },
     output_media: { camera: { kind: "webpage", config: { url: input.pageUrl } } },
     // Four cores keep the animated camera smooth (Recall's advice for Output Media).
@@ -121,7 +124,7 @@ export async function startMeeting(userId: string, input: z.infer<typeof startMe
     console.warn("meeting_start_failed", { callId: id, message: error instanceof Error ? error.message : String(error) });
     throw error instanceof MeetingError ? error : new MeetingError("RECALL_FAILED", "Couldn’t send your mate to the meeting.");
   }
-  return { callId: id, mate: mate.name };
+  return { callId: id, mate: mate.name, botName: botName(mate.name, userName) };
 }
 
 async function meetingCall(callId: string) {
@@ -224,7 +227,7 @@ export async function handleRecallEvent(body: RecallEvent) {
   const data = { chatId: call.chatId, chatKind: "mate" };
 
   if (status === "in_waiting_room") {
-    await pushToUser(call.clerkUserId, { title: `${name} is at the door`, body: `Admit “${name} (Mates)” in the meeting to let them in.`, data });
+    await pushToUser(call.clerkUserId, { title: `${name} is at the door`, body: `Admit “${botName(name, call.meeting?.userName)}” in the meeting to let them in.`, data });
   } else if (status === "fatal") {
     if (call.status !== "ended") await getDb().update(calls).set({ status: "failed" }).where(eq(calls.id, call.id));
     const why = body.data?.data?.sub_code?.replace(/_/g, " ") ?? "something went wrong";
@@ -265,7 +268,7 @@ export async function runJoinMeeting(userId: string, mateId: string | undefined,
   if (!mateId) return { error: "Only a mate can join a meeting." };
   try {
     const started = await startMeeting(userId, { meetingUrl, mateId, timezone: context.timezone, slack: await slackOrigin(context.runId) });
-    return { joining: true, callId: started.callId, next: `Tell the user in one short sentence that you're on your way, and to admit "${started.mate} (Mates)" when you knock. The notes will land in this chat when the meeting ends.` };
+    return { joining: true, callId: started.callId, next: `Tell the user in one short sentence that you're on your way, and to admit "${started.botName}" when you knock. The notes will land in this chat when the meeting ends.` };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Couldn’t join that meeting." };
   }

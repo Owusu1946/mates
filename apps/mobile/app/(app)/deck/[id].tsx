@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/expo";
+import { reportRead } from "../../../src/habits/report-reads";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +29,14 @@ export default function DeckScreen() {
   const [busyAction, setBusyAction] = useState<"edit" | "undo" | "share" | null>(null);
   const list = useRef<FlatList>(null);
   const slideWidth = width - 32;
+
+  // Opening a deck is something read, for habit learning; once per visit.
+  const reported = useRef(false);
+  useEffect(() => {
+    if (!deck || reported.current) return;
+    reported.current = true;
+    reportRead(getToken, { type: "deck", ref: deck.id, label: deck.title });
+  }, [deck, getToken]);
 
   // Keep the current slide in range when an edit or undo changes how many there are.
   useEffect(() => {

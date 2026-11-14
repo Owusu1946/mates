@@ -62,3 +62,15 @@ export function planSpec(plan: PlanId) {
     } as Record<WindowKind, number | null>,
   };
 }
+
+/**
+ * Watches ("watch for X, then do Y"), from Plus up: how many can be active at once, and how often a
+ * web watch may be checked at most. A check is a search plus a short judgement, about $0.0015.
+ */
+export const WATCH_LIMITS: Record<PlanId, { active: number; fastestMinutes: number } | null> = {
+  starter: null,
+  plus: { active: 5, fastestMinutes: 4 * 60 },
+  pro: { active: 15, fastestMinutes: 2 * 60 },
+  max: { active: 40, fastestMinutes: 60 },
+  none: null,
+};

@@ -1,4 +1,5 @@
 import { useAuth } from "@clerk/expo";
+import { reportRead } from "../../src/habits/report-reads";
 import { useAui } from "@assistant-ui/react-native";
 import { useQuery } from "@tanstack/react-query";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
@@ -127,6 +128,7 @@ export default function FeedScreen() {
     setSelected(item.id);
     if (userId) { const now = Date.now(); setLastChecked(now); void AsyncStorage.setItem(`feed.last-checked.${userId}`, String(now)); }
     if (!item.readAt) void runRequest(getToken, `feed/${item.id}/read`, {}).then(() => feed.refetch()).catch(() => undefined);
+    reportRead(getToken, { type: "feed", ref: item.id, label: item.title, chatId: item.chatId ?? undefined });
   };
 
   const items = feed.data?.items ?? [];

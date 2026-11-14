@@ -1,8 +1,9 @@
 import { useAuth } from "@clerk/expo";
+import { reportRead } from "../habits/report-reads";
 import BottomSheet, { BottomSheetView } from "@expo/ui/community/bottom-sheet";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { runRequest } from "../chat/background-chat";
 import { ChatIcon } from "../chat/chat-icon";
@@ -83,6 +84,7 @@ export function CallCard({ call, meeting = false }: { call: CallInfo; meeting?: 
 
 function TranscriptSheet({ callId, colors, onClose }: { callId: string; colors: RichTextColors; onClose: () => void }) {
   const { getToken, userId } = useAuth();
+  useEffect(() => reportRead(getToken, { type: "call_notes", ref: callId, label: "Transcript" }), [callId, getToken]);
   const detail = useQuery({
     queryKey: ["call", userId, callId],
     queryFn: async () => (await runRequest<{ call: CallDetail }>(getToken, `calls/${callId}`)).call,

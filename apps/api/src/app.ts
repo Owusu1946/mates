@@ -13,6 +13,7 @@ import { validator } from "hono/validator";
 import {
   disconnectApp,
   getApp,
+  getComposio,
   getIntegrationSession,
   IntegrationUnavailable,
   listApps,
@@ -63,6 +64,10 @@ import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
 import { recordUsage } from "./usage/record.js";
 import { findDecks, present, presentationDeck, presentationState, PresentError, stopPresenting } from "./presentation.js";
+import { controlWatch, handleWatchEvent, listWatches, watchCard, watchHistory } from "./watches.js";
+import { recordAppEvent } from "./habits/observers.js";
+import { readEventSchema, recordReads } from "./habits/activity.js";
+import { changeHabit, clearHabits, habitChangeSchema, habitSettingsSchema, HabitSettingsError, listHabits, removeHabit, removeTopic, saveHabitSettings } from "./habits/manage.js";
 
 type Variables = { requestId: string; userId: string };
 type Dependencies = {
@@ -312,6 +317,82 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const userId = verifyCallToken(c.req.header("x-call-token"), c.req.param("id"));
       if (!userId) return c.json(failure("UNAUTHORIZED", "Invalid call token", c.get("requestId")), 401);
       return c.json(await stopPresenting(userId, c.req.param("id")));
+    })
+    // Watches: listed with their cards, controlled from the card or the Routines screen.
+    .get("/v1/watches", auth, async (c) => c.json({ watches: (await listWatches(c.get("userId"))).map(watchCard) }))
+    .get("/v1/watches/:id/events", auth, async (c) => {
+      const events = await watchHistory(c.get("userId"), c.req.param("id"));
+      return events ? c.json({ events: events.map((e) => ({ kind: e.kind, met: e.met, note: e.note, evidence: e.evidence, at: e.at })) }) : c.json(failure("NOT_FOUND", "Watch not found", c.get("requestId")), 404);
+    })
+    .post("/v1/watches/:id/control", auth, validator("json", (value, c) => {
+      const parsed = z.object({ action: z.enum(["pause", "resume", "cancel", "renew"]), version: z.number().int().positive() }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_ACTION", "Choose a valid action", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const { action, version } = c.req.valid("json");
+      const watch = await controlWatch(c.get("userId"), c.req.param("id"), action, version);
+      return watch ? c.json({ watch: watchCard(watch) }) : c.json(failure("CONFLICT", "This watch changed. Refresh and try again.", c.get("requestId")), 409);
+    })
+    // Habits ("What I've noticed"): what mates learned, the nudge buttons, the switches, and what the app saw you open.
+    .get("/v1/habits", auth, async (c) => c.json(await listHabits(c.get("userId"))))
+    .patch("/v1/habits/:id", auth, validator("json", (value, c) => {
+      const parsed = habitChangeSchema.safeParse(value);
+      if (!parsed.success || !z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_CHANGE", "Choose a valid change", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const habit = await changeHabit(c.get("userId"), c.req.param("id"), c.req.valid("json"));
+      return habit ? c.json({ habit }) : c.json(failure("CONFLICT", "This changed. Refresh and try again.", c.get("requestId")), 409);
+    })
+    .delete("/v1/habits/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid habit", c.get("requestId")), 400);
+      return (await removeHabit(c.get("userId"), c.req.param("id"))) ? c.body(null, 204) : c.json(failure("NOT_FOUND", "Not found", c.get("requestId")), 404);
+    })
+    .delete("/v1/habits", auth, async (c) => {
+      await clearHabits(c.get("userId"));
+      return c.body(null, 204);
+    })
+    .delete("/v1/habits/topics/:topic", auth, async (c) => {
+      await removeTopic(c.get("userId"), decodeURIComponent(c.req.param("topic")).slice(0, 60));
+      return c.body(null, 204);
+    })
+    .post("/v1/habits/settings", auth, validator("json", (value, c) => {
+      const parsed = habitSettingsSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_SETTINGS", "Choose valid settings", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try {
+        return c.json(await saveHabitSettings(c.get("userId"), c.req.valid("json")));
+      } catch (error) {
+        if (error instanceof HabitSettingsError) return c.json(failure("PLAN", "Learning from your apps and meeting prep come with Plus.", c.get("requestId")), 402);
+        throw error;
+      }
+    })
+    .post("/v1/activity", auth, validator("json", (value, c) => {
+      const parsed = z.object({ events: z.array(readEventSchema).max(50) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_EVENTS", "Invalid activity", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      await recordReads(c.get("userId"), c.req.valid("json").events);
+      return c.body(null, 204);
+    })
+    // Composio's trigger events for app watches, signed with the project's webhook secret.
+    .post("/v1/composio/webhook", async (c) => {
+      const secret = process.env.COMPOSIO_WEBHOOK_SECRET;
+      if (!secret) return c.json(failure("NOT_CONFIGURED", "App watches aren't set up", c.get("requestId")), 503);
+      let event: Awaited<ReturnType<ReturnType<typeof getComposio>["triggers"]["parse"]>>;
+      try {
+        event = await getComposio().triggers.parse(c.req.raw, { verifySecret: secret });
+      } catch {
+        return c.json(failure("BAD_SIGNATURE", "Not from Composio", c.get("requestId")), 401);
+      }
+      const { payload } = event;
+      // Answered at once; the judgement and any firing happen after, so Composio never times out.
+      // A watch's event is judged; otherwise it may be one of the user's "learn from my apps" observers.
+      const appEvent = { triggerId: payload.metadata.id, eventId: payload.id || payload.uuid, slug: payload.triggerSlug, payload: payload.payload ?? {} };
+      void handleWatchEvent(appEvent)
+        .then((result) => (result.handled ? result : recordAppEvent(appEvent)))
+        .catch((error) => console.warn("watch_event_failed", { message: error instanceof Error ? error.message : String(error) }));
+      return c.body(null, 200);
     })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
     .use("/v1/schedules/:id/*", async (c, next) => {

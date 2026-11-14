@@ -61,7 +61,8 @@ describe("Recall webhooks", () => {
 describe("what we ask Recall for", () => {
   it("names the bot after the mate, uses our page as its camera, and says hello", () => {
     const request = botRequest({ meetingUrl: "https://meet.google.com/abc-defg-hij", mateName: "Ama", ownerName: "Kenneth", pageUrl: "https://agents.askorin.app/meet-bot?m=c1&t=x", callId: "c1" });
-    expect(request.bot_name).toBe("Ama (Mates)");
+    expect(request.bot_name).toBe("Ama (Kenneth’s mate)");
+    expect(botRequest({ meetingUrl: "https://meet.google.com/abc-defg-hij", mateName: "Ama", pageUrl: "https://x", callId: "c1" }).bot_name).toBe("Ama (Mates)");
     expect(request.metadata).toEqual({ callId: "c1" });
     expect(request.output_media.camera).toEqual({ kind: "webpage", config: { url: "https://agents.askorin.app/meet-bot?m=c1&t=x" } });
     expect(request.variant.google_meet).toBe("web_4_core");

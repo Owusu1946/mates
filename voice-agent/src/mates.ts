@@ -12,7 +12,7 @@ import { greeting, mateInstructions, meetingInstructions } from './prompts.ts';
 /** Who's on the call and how to reach the outside world; the session's single source of state. */
 export type CallState = {
   api: CallApi;
-  context: Pick<CallContext, 'memories' | 'recent' | 'chatTitle'>;
+  context: Pick<CallContext, 'memories' | 'recent' | 'chatTitle' | 'brief'>;
   userName?: string;
   /** Everyone who has joined, by id. */
   roster: Map<string, CallMate>;

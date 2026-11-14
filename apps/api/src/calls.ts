@@ -14,6 +14,9 @@ import { recentTurns } from "./missions.js";
 import { CHAT_MODEL } from "./models.js";
 import { keytermsFor } from "./transcription.js";
 import { pushToUser } from "./delivery.js";
+import { recordActivity } from "./habits/activity.js";
+import { onActivityEvent } from "./habits/nudges.js";
+import { briefForMeeting } from "./habits/prep.js";
 import { installFor, mateIdentity, slackApi } from "./slack.js";
 import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
 import { perMinute, price } from "./usage/prices.js";
@@ -176,6 +179,8 @@ export async function callContext(userId: string, callId: string) {
     memories: remembered,
     recent,
     keyterms: keytermsFor(roster.map((m) => m.name)),
+    // A meeting that was prepped: who's there and what's open, so the mate knows the room.
+    brief: call.kind === "meeting" && call.meeting?.url ? await briefForMeeting(userId, call.meeting.url).catch(() => null) : null,
   };
 }
 
@@ -353,6 +358,10 @@ async function finishCall(userId: string, call: typeof calls.$inferSelect, trans
   const userText = transcript.filter((l) => l.speaker === (meeting ? "Meeting" : "You")).map((l) => l.text).join("\n");
   const mateText = transcript.filter((l) => l.speaker !== "You").map((l) => `${l.speaker}: ${l.text}`).join("\n");
   await rememberCall(userId, call.chatId, summary, userText, mateText, call.kind).catch(() => console.warn("call_memory_failed", { callId: call.id }));
+  // Habits: calls and meetings are logged, and anything the user usually does after one is offered.
+  const prep = meeting && call.meeting?.url ? await briefForMeeting(userId, call.meeting.url).catch(() => null) : null;
+  await recordActivity([{ userId, kind: call.kind, label: prep?.split("\n")[0]?.replace(/^Meeting: /, "") ?? (meeting ? "Meeting" : `Call with ${rows[0]?.name ?? "a mate"}`), chatId: call.chatId, mateId: call.leadMateId, ref: call.id, timezone: call.meeting?.timezone }]);
+  await onActivityEvent(userId, call.kind, null, call.id).catch(() => console.warn("habit_follow_up_failed", { callId: call.id }));
 }
 
 /** A meeting's notes reach the owner wherever they are: a push, and the Slack thread it was asked from. */
