@@ -36,6 +36,8 @@ import {
   interests,
   activityEvents,
   meetingPreps,
+  planGrants,
+  billingEvents,
 } from "./db/schema.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
@@ -82,6 +84,9 @@ export const ACCOUNT_TABLES = [
   interests,
   activityEvents,
   meetingPreps,
+  // Billing: their plan grants and the store events about them (the revenue ledger is kept, anonymised).
+  planGrants,
+  billingEvents,
   profiles,
 ] as const;
 
