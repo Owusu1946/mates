@@ -41,10 +41,15 @@ export const profiles = pgTable(
     habitsMinedAt: timestamp("habits_mined_at", { withTimezone: true }),
     prepsSyncedAt: timestamp("preps_synced_at", { withTimezone: true }),
     observerTriggers: jsonb("observer_triggers").$type<{ toolkit: string; slug: string; triggerId: string }[]>().notNull().default([]),
-    /** The paid plan. Null means the server's DEFAULT_PLAN (see src/usage/plans.ts). */
+    /**
+     * The plan in force: the best of the person's active grants (plan_grants), kept here so every
+     * reader stays a single column. Null means the server's DEFAULT_PLAN (see src/usage/plans.ts).
+     */
     plan: text("plan").$type<PlanId>(),
-    /** Who set the plan: us by hand for now, the store's webhook once payments exist. */
-    planSource: text("plan_source").$type<"manual" | "revenuecat">(),
+    /** Which grant that plan comes from. */
+    planSource: text("plan_source").$type<GrantKind>(),
+    /** When the winning grant (or the next one to lapse) runs out; the dispatcher works the plan out again then. */
+    planExpiresAt: timestamp("plan_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -896,3 +901,43 @@ export const meetingPreps = pgTable("meeting_preps", {
   uniqueIndex("meeting_preps_event_idx").on(t.clerkUserId, t.eventId),
   index("meeting_preps_due_idx").on(t.status, t.startsAt),
 ]);
+
+// ---- Billing: who has which plan, and why ---------------------------------------------------------
+
+export type GrantKind = "manual" | "grandfather" | "revenuecat";
+
+/**
+ * Every reason someone has a plan, one row per kind: set by us (manual), the existing-user grace
+ * period (grandfather), or a store subscription (revenuecat). The best active one is the plan in
+ * force (profiles.plan), so a subscription ending falls back to what they had, never to nothing.
+ */
+export const planGrants = pgTable("plan_grants", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  kind: text("kind").$type<GrantKind>().notNull(),
+  plan: text("plan").$type<PlanId>().notNull(),
+  /** Null: until revoked. */
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  environment: text("environment").$type<"production" | "sandbox">(),
+  productId: text("product_id"),
+  store: text("store"),
+  /** For store grants: when RevenueCat produced the state this came from, so older state never wins. */
+  syncedAt: timestamp("synced_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.kind] })]);
+
+/**
+ * RevenueCat's webhook events, kept as they arrive: answered at once, then processed (and retried
+ * by the dispatcher) from here, each event exactly once by its id.
+ */
+export const billingEvents = pgTable("billing_events", {
+  id: text("id").primaryKey(),
+  clerkUserId: text("clerk_user_id"),
+  type: text("type").notNull(),
+  environment: text("environment"),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: text("status").$type<"pending" | "done" | "failed">().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+}, (t) => [index("billing_events_status_idx").on(t.status, t.receivedAt), index("billing_events_user_idx").on(t.clerkUserId)]);

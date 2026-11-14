@@ -9,6 +9,8 @@ import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
 import { checkWatch, dispatchWatches } from "../watches.js";
 import { dispatchHabits } from "../habits/dispatch.js";
+import { expireGrants } from "../usage/grants.js";
+import { processBillingEvents } from "../usage/revenuecat.js";
 import { mineHabits } from "../habits/miner.js";
 import { runPrep, syncPreps } from "../habits/prep.js";
 
@@ -118,6 +120,9 @@ export const routineDispatcher = schedules.task({
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
     await dispatchWatches().catch((error) => console.warn("watch_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
+    // Billing: store events not yet processed (or failed and due a retry), and plans whose grant lapsed.
+    await processBillingEvents().catch((error) => console.warn("billing_events_failed", { message: error instanceof Error ? error.message : String(error) }));
+    await expireGrants().catch((error) => console.warn("grant_expiry_failed", { message: error instanceof Error ? error.message : String(error) }));
     await dispatchHabits().catch((error) => console.warn("habits_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await publishOutbox();
     await deliverFindings();

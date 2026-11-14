@@ -1,10 +1,10 @@
 # In-app purchase progress and handoff
 
-Last updated: 2026-11-13
+Last updated: 2026-11-14
 
 ## Status
 
-**Backend sync is in progress and is not ready for deployment.** The existing foundation is the usage and plan system described in [usage.md](usage.md). Follow the implementation handover in [in-app-purchases.md](in-app-purchases.md), together with the decisions and corrections below.
+**Backend sync is done** (`fix/billing-safe`): grants, ordered and sandbox-safe syncs, a stored webhook with retries, revenue accounting and the grace-period script. It's safe to deploy with the RevenueCat keys unset; turn them on only on staging first. The existing foundation is the usage and plan system described in [usage.md](usage.md). Follow the implementation handover in [in-app-purchases.md](in-app-purchases.md), together with the decisions and corrections below.
 
 Update this document after each reviewed batch with its status, changed files, checks, unresolved issues, and any setup needed from Ken. Samuel reviews each batch and handles all commits and pushes.
 
@@ -22,8 +22,8 @@ Update this document after each reviewed batch with its status, changed files, c
 
 | Batch | Status | Handoff |
 | --- | --- | --- |
-| Backend subscription sync | Handed off to Ken | Routes and initial reconciliation exist but are unsafe to deploy; resolve the backend handoff below before enabling billing. |
-| Revenue accounting and rollout | Not started | Idempotent transaction/refund handling and a safe grandfather cohort and cutoff procedure. |
+| Backend subscription sync | Done (Ken) | Plan grants, ordered and sandbox-safe sync, a stored webhook with dispatcher retries. See usage.md, "Plans and where they come from" and "Payments". |
+| Revenue accounting and rollout | Done in code (Ken) | Purchases, renewals, plan changes and refunds go to `plan_periods`, keyed by transaction id. `scripts/grandfather.ts` gives the existing users their grace period. Still to do: check the figures against staging. |
 | Mobile purchase foundation | Ready for review | SDK, optional keys, Clerk identity, purchase and restore helpers added; real purchase testing awaits a development build and safe staging backend. |
 | Paywall and integration | In progress | Initial paywall and usage navigation added; product mapping and purchase flow require Test Store / iOS sandbox verification after Ken's backend fixes. |
 | iOS sandbox and release | Not started | New development build, sandbox purchase and lifecycle checks, then coordinated rollout. |
@@ -73,8 +73,31 @@ Ken manages the RevenueCat dashboard. Before any test purchase or restore, conne
 
 The Test Store key is public by design. RevenueCat secret keys and webhook authorization values belong only in Ken's server configuration, never in mobile `.env` files or this document.
 
+## Deploy and cutoff (Ken)
+
+**Deploy the backend:** this is safe now, and it changes nobody's access.
+1. Run `pnpm --filter @expojet/api db:migrate`. Migration 0030 copies every existing plan into a manual grant.
+2. Deploy the API and the worker.
+3. Keep `REVENUECAT_SECRET_KEY` and `REVENUECAT_WEBHOOK_AUTH` **unset on production** until staging has passed. Until then, sync answers `503 BILLING_UNAVAILABLE` and the webhook answers 401.
+
+**Staging:**
+1. Set up a separate Railway API and worker on a Neon branch.
+2. Set `REVENUECAT_SECRET_KEY`, `REVENUECAT_WEBHOOK_AUTH` and `REVENUECAT_ALLOW_SANDBOX=true`.
+3. Add a RevenueCat webhook pointing at `https://<staging-host>/webhooks/revenuecat`, with the same authorization value.
+
+**Go live:**
+1. Set the two RevenueCat variables on the production API.
+2. Add the production webhook: `https://mates-production.up.railway.app/webhooks/revenuecat`.
+3. Ship the app build.
+
+**Enforcement cutoff:** the 30-day grace period.
+1. Run `pnpm exec tsx scripts/grandfather.ts --until <start + 30 days> --dry-run` in `apps/api` to see the count, then run it again without `--dry-run`.
+2. Set `DEFAULT_PLAN=none` and `USAGE_ENFORCE=on` on **both** the API and the worker.
+3. The existing users keep Starter until the date, then fall back to the default. Anyone who subscribed keeps their plan.
+
 ## Work log
 
+- 2026-11-14: Ken finished the backend batch on `fix/billing-safe`: plan grants (manual, grandfather, revenuecat; the best active one wins, never "none"), sync from RevenueCat's subscriptions with sandbox kept separate, promotional grants and unknown products handled, ordering by RevenueCat's `request_date`, a stored webhook with dispatcher retries, revenue and refund accounting, and `scripts/grandfather.ts`. 26 new tests; `pnpm typecheck && pnpm test` pass.
 - 2026-11-13: Added Test Store setup details and optional public key placeholders to the mobile environment example. Dashboard setup and sandbox transactions remain outstanding.
 - 2026-11-13: Added an initial paywall, plan selection, store prices, restore and management links, and navigation from usage. The paywall expects the documented iOS product IDs; configure matching Test Store IDs for early testing. No end-to-end purchase or visual device verification has been performed.
 - 2026-11-13: Added the mobile SDK, optional iOS, Android and Test Store public keys, Clerk identity handling, and purchase / restore helpers. The paywall and real purchase testing remain. Backend sync is unsafe until Ken resolves the issues below.

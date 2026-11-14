@@ -211,6 +211,13 @@
       "when": 1794601273944,
       "tag": "0029_violet_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794649099239,
+      "tag": "0030_sticky_mongoose",
+      "breakpoints": true
     }
   ]
 }

@@ -1,15 +1,17 @@
 import { timingSafeEqual } from "node:crypto";
 import { getDb } from "../db/client.js";
-import { planPeriods, profiles } from "../db/schema.js";
+import { planPeriods } from "../db/schema.js";
+import { grant, revoke } from "./grants.js";
 import { planSpec, type PlanId } from "./plans.js";
 
 /** Where "See plans" goes until in-app purchases exist. */
 export const upgradeUrl = () => process.env.UPGRADE_URL ?? "https://agents.askorin.app/#pricing";
 
 /**
- * Puts someone on a plan. With `period`, also records what they paid for it (list price by default,
- * or the store's real amounts), so revenue and margins can be worked out. The store's webhook will
- * call this too, with its transaction id as `externalId` so a replayed event records nothing twice.
+ * Puts someone on a plan by hand (the /internal route): a manual grant, which stays alongside any
+ * subscription or grace period; the best of them is the plan in force. "none" takes the manual
+ * grant away. With `period`, also records what they paid (list price by default, or real amounts),
+ * so revenue and margins can be worked out; `externalId` makes a replay record nothing twice.
  */
 export async function setPlan(
   userId: string,
@@ -17,14 +19,17 @@ export async function setPlan(
   options: { source?: "manual" | "revenuecat"; period?: { startsAt?: Date; endsAt?: Date; grossMicros?: number; storeFeeMicros?: number; externalId?: string } } = {},
 ) {
   const source = options.source ?? "manual";
-  const db = getDb();
-  await db
-    .insert(profiles)
-    .values({ clerkUserId: userId, plan, planSource: source })
-    .onConflictDoUpdate({ target: profiles.clerkUserId, set: { plan, planSource: source, updatedAt: new Date() } });
+  // Store subscriptions arrive through RevenueCat's sync (applyStoreGrant); here only the ledger.
+  if (source === "manual") await (plan === "none" ? revoke(userId, "manual") : grant(userId, "manual", plan));
   if (!options.period || plan === "none") return;
-  const startsAt = options.period.startsAt ?? new Date();
-  const endsAt = options.period.endsAt ?? new Date(new Date(startsAt).setUTCMonth(startsAt.getUTCMonth() + 1));
+  await recordPeriod(userId, plan, source, options.period);
+}
+
+/** One paid period in the revenue ledger (plan_periods); refunds are negative amounts. */
+export async function recordPeriod(userId: string, plan: PlanId, source: "manual" | "revenuecat", period: { startsAt?: Date; endsAt?: Date; grossMicros?: number; storeFeeMicros?: number; externalId?: string }) {
+  const db = getDb();
+  const startsAt = period.startsAt ?? new Date();
+  const endsAt = period.endsAt ?? new Date(new Date(startsAt).setUTCMonth(startsAt.getUTCMonth() + 1));
   await db
     .insert(planPeriods)
     .values({
@@ -32,10 +37,10 @@ export async function setPlan(
       plan,
       startsAt,
       endsAt,
-      grossMicros: options.period.grossMicros ?? planSpec(plan).priceMicros,
-      storeFeeMicros: options.period.storeFeeMicros ?? 0,
+      grossMicros: period.grossMicros ?? planSpec(plan).priceMicros,
+      storeFeeMicros: period.storeFeeMicros ?? 0,
       source,
-      externalId: options.period.externalId ?? null,
+      externalId: period.externalId ?? null,
     })
     .onConflictDoNothing();
 }
