@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { chatMessages, chats, delegations, mates, memories, profiles } from "./db/schema.js";
 import type { WorkflowCard } from "./integrations.js";
-import { applyOperations, MEMORY_CATEGORIES, MEMORY_MODEL, memoryCard, memorySettings, type MemoryChange } from "./memory.js";
+import { applyOperations, MEMORY_CATEGORIES, MEMORY_MODEL, memorySettings, type MemoryChange } from "./memory.js";
 import { meterOpenRouter, type OpenRouterUsage } from "./usage/openrouter.js";
 
 /**
@@ -143,7 +143,7 @@ const bioOperations = z.object({
 
 /**
  * Turns the bio into memories (updating, not duplicating, on later edits; only memories that came
- * from the bio can be deleted by it). The lead says what it'll keep in mind, once ever.
+ * from the bio can be deleted by it). The lead's chat shows a "Memory updated" chip, once ever.
  */
 export async function memoriesFromBio(userId: string, bio: string): Promise<MemoryChange[]> {
   const settings = await memorySettings(userId);
@@ -183,19 +183,19 @@ export async function memoriesFromBio(userId: string, bio: string): Promise<Memo
   );
   const lead = crew.find((m) => m.isDefault);
   const saved = changes.filter((c) => c.action !== "forgotten");
-  // A fixed id: the welcome appears once ever, whichever save first produced memories.
-  if (lead && saved.length) await postMateMessage(lead.id, "Thanks for telling me about yourself. Here’s what I’ll keep in mind:", saved.map(memoryCard), `about_${lead.id}`);
+  // One quiet chip in the lead's chat, not a card per memory; a fixed id, so it appears once ever.
+  if (lead && saved.length) await postMateMessage(lead.id, "", [{ kind: "memories", phase: "done", label: "Memory updated", memories: { count: saved.length } }], `about_${lead.id}`);
   return changes;
 }
 
-/** A mate's assistant message as stored: text, then any cards. */
+/** A mate's assistant message as stored: text (if any), then any cards. */
 export function mateMessage(messageId: string, text: string, cards: WorkflowCard[] = []) {
   return {
     id: messageId,
     role: "assistant",
     createdAt: new Date().toISOString(),
     content: [
-      { type: "text", text },
+      ...(text ? [{ type: "text", text }] : []),
       ...cards.map((card, i) => ({ type: "tool-call", toolCallId: `${messageId}_${i}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: card })),
     ],
     status: { type: "complete", reason: "stop" },

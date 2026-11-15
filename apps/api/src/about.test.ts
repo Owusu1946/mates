@@ -30,5 +30,9 @@ describe("a new mate's hello", () => {
   it("is stored as a finished assistant message the chat renders", () => {
     const message = mateMessage("hello_1", "Hi");
     expect(message).toMatchObject({ id: "hello_1", role: "assistant", content: [{ type: "text", text: "Hi" }], status: { type: "complete" } });
+    // A chip-only message carries no empty text part.
+    const chip = mateMessage("about_1", "", [{ kind: "memories", phase: "done", label: "Memory updated", memories: { count: 4 } }]);
+    expect(chip.content).toHaveLength(1);
+    expect(chip.content[0]).toMatchObject({ type: "tool-call", result: { kind: "memories", memories: { count: 4 } } });
   });
 });
