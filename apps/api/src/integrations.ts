@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -79,6 +79,8 @@ export type WorkflowCard = {
     expiresAt: string;
     firedAt: string | null;
   };
+  /** A mate checked what another mate knows about the user ("Checked with Esi"). */
+  consult?: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; question: string; found: number };
   /** A brief before a calendar meeting with other people. */
   prep?: {
     prepId: string;
