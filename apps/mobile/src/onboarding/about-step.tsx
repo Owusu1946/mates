@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useToast } from "../components/toast";
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
 import { haptic } from "../haptics";
 import type { Gradient } from "../mates/data";
@@ -18,6 +19,7 @@ export function AboutStep({ mate, onDone }: { mate: { name: string; gradient: Gr
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const save = useSaveAbout();
+  const toast = useToast();
   const [bio, setBio] = useState("");
   const ready = bio.trim().length >= 3;
 
@@ -26,6 +28,7 @@ export function AboutStep({ mate, onDone }: { mate: { name: string; gradient: Gr
     save.mutate({ bio: bio.trim(), wait: true }, {
       onSuccess: () => {
         haptic.success();
+        toast.show({ message: `Saved. ${mate.name} will keep this in mind.`, tone: "success" });
         onDone();
       },
     });

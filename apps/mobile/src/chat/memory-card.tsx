@@ -2,7 +2,8 @@ import { useAuth } from "@clerk/expo";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { ChatIcon } from "./chat-icon";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
 import { CardButton } from "./card-button";
@@ -42,5 +43,23 @@ export function MemoryCard({ state }: { state: WorkflowCard }) {
         <CardButton label="Manage" variant="text" onPress={() => router.push("/(app)/memory")} />
       </View>
     </View>
+  );
+}
+
+/** Several memories saved at once (from "About you"): a quiet chip that opens Memory. */
+export function MemoriesChip({ state }: { state: WorkflowCard }) {
+  const { colors } = useTheme();
+  const router = useRouter();
+  const count = state.memories?.count ?? 0;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${state.label}: ${count} ${count === 1 ? "memory" : "memories"} saved. Open Memory`}
+      onPress={() => router.push("/(app)/memory")}
+      style={({ pressed }) => ({ alignSelf: "center", flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 6, marginVertical: 4, borderRadius: 14, backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.6 : 1 })}
+    >
+      <ChatIcon name="ideas" color={colors.textMuted} size={14} />
+      <Text numberOfLines={1} style={{ color: colors.textMuted, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{state.label}</Text>
+    </Pressable>
   );
 }

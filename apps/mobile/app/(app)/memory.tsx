@@ -12,6 +12,7 @@ import { useMates, type Mate } from "../../src/mates/data";
 import { MateAvatar } from "../../src/mates/mate-avatar";
 import { useAbout, useSaveAbout } from "../../src/onboarding/about-data";
 import { AboutField } from "../../src/onboarding/about-field";
+import { useToast } from "../../src/components/toast";
 
 /** `mateId` null: shared by every mate; set: that mate's own note for its role. */
 type Memory = { id: string; text: string; category: string; source: string; mateId?: string | null; updatedAt: string };
@@ -237,6 +238,7 @@ function AboutCard({ lead, disabled }: { lead: string; disabled: boolean }) {
   const { colors } = useTheme();
   const about = useAbout();
   const save = useSaveAbout();
+  const toast = useToast();
   const [draft, setDraft] = useState<string | null>(null);
   const bio = about.data?.bio ?? "";
   if (draft !== null)
@@ -252,7 +254,13 @@ function AboutCard({ lead, disabled }: { lead: string; disabled: boolean }) {
             strong
             disabled={save.isPending || draft.trim() === bio.trim()}
             onPress={() => {
-              const done = { onSuccess: () => { haptic.success(); setDraft(null); } };
+              const done = {
+                onSuccess: (about: { bio: string }) => {
+                  haptic.success();
+                  setDraft(null);
+                  toast.show({ message: about.bio ? `Saved. ${lead} will keep this in mind.` : "Cleared.", tone: "success" });
+                },
+              };
               // Clearing it: the memories it produced stay unless the user says otherwise.
               if (!draft.trim() && bio.trim())
                 Alert.alert("Clear what you shared?", "Your mates can also forget what they learned from it.", [
