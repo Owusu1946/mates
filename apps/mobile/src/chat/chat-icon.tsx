@@ -44,6 +44,7 @@ import {
   Share08Icon,
   Undo02Icon,
   CubeIcon,
+  SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 
@@ -74,6 +75,7 @@ const icons = {
   globe: Globe02Icon,
   feed: Activity01Icon,
   ideas: AiBrain01Icon,
+  sparkles: SparklesIcon,
   tasks: ClipboardIcon,
   connections: Link01Icon,
   compose: MessageAdd01Icon,

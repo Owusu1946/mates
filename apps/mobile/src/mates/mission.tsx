@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Animated, { SlideInDown } from "react-native-reanimated";
+import Animated, { FadeInDown, SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { runRequest } from "../chat/background-chat";
 import { ChatIcon } from "../chat/chat-icon";
@@ -302,29 +302,51 @@ export function TeamCard({ state }: { state: WorkflowCard }) {
   );
 }
 
-/** A mate the lead just created: open its chat, or rename it. */
+/** New mate cards that already faded in this session: scrolling back shows them still. */
+const shownMates = new Set<string>();
+
+/**
+ * A mate the lead just created, without a box: a slanted "New mate" caption (like the memory
+ * line), the mate's face (still), name and job, and two small actions. It fades up once.
+ */
 export function MateCard({ state }: { state: WorkflowCard }) {
   const { colors } = useTheme();
   const router = useRouter();
   const open = useSafeOpen();
   const refresh = useRefreshCrew();
   const mate = state.mate;
+  const [fresh] = useState(() => !!mate && !shownMates.has(mate.id));
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    if (mate) shownMates.add(mate.id);
+  }, [mate]);
   if (!mate) return null;
   return (
-    <View style={{ padding: 16, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 12, marginVertical: 4 }}>
-      <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>NEW MATE</Text>
+    <Animated.View entering={fresh ? FadeInDown.duration(320).springify().damping(18).withInitialValues({ transform: [{ translateY: 6 }] }) : undefined} style={{ gap: 10, marginVertical: 6 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+        <ChatIcon name="sparkles" color={colors.textMuted} size={13} />
+        <Text style={{ color: colors.textMuted, fontFamily: "DMSans_500Medium_Italic", fontSize: 13 }}>New mate</Text>
+      </View>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <MateAvatar gradient={mate.gradient} shape={mate.shape ?? undefined} size={44} still />
-        <View style={{ flex: 1, gap: 2 }}>
-          <Text style={{ color: colors.text, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{mate.name}</Text>
-          <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 19 }}>{mate.roleDescription}</Text>
+        <MateAvatar gradient={mate.gradient} shape={mate.shape ?? undefined} size={46} still />
+        <View style={{ flex: 1, gap: 1 }}>
+          <Text numberOfLines={1} style={{ color: colors.text, fontSize: 16, fontFamily: "DMSans_600SemiBold", letterSpacing: -0.2 }}>{mate.name}</Text>
+          <Text numberOfLines={2} style={{ color: colors.textMuted, fontSize: 13.5, lineHeight: 18, fontFamily: "DMSans_400Regular" }}>{mate.roleDescription}</Text>
         </View>
       </View>
-      <View style={{ flexDirection: "row", gap: 4, marginLeft: -8 }}>
-        <CardButton label="Open chat" variant="text" onPress={() => void open(mate.chatId)} />
-        <CardButton label="Rename" variant="text" onPress={() => router.push(`/mate/${mate.id}` as never)} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 14, paddingLeft: 58 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open chat with ${mate.name}`}
+          onPress={() => void open(mate.chatId)}
+          style={({ pressed }) => ({ height: 32, paddingHorizontal: 14, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.text, opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}
+        >
+          <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13.5 }}>Open chat</Text>
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Rename ${mate.name}`} hitSlop={8} onPress={() => router.push(`/mate/${mate.id}` as never)} style={({ pressed }) => ({ opacity: pressed ? 0.5 : 1 })}>
+          <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 13.5 }}>Rename</Text>
+        </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
