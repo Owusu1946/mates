@@ -3,6 +3,12 @@ import { getDb } from "../db/client.js";
 import { profiles, usageWindows } from "../db/schema.js";
 import { planSpec, resolvePlan, type PlanId, type WindowKind } from "./plans.js";
 
+/** The plan someone is on now (their best active grant, or the default). */
+export async function userPlan(userId: string): Promise<PlanId> {
+  const [profile] = await getDb().select({ plan: profiles.plan }).from(profiles).where(eq(profiles.clerkUserId, userId));
+  return resolvePlan(profile?.plan);
+}
+
 export type UsageWindowState = { kind: WindowKind; usedPct: number; resetsAt: string | null };
 export type BlockReason = WindowKind | "no_plan";
 export type UsageState = {

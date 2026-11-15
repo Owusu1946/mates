@@ -11,7 +11,8 @@ import type { WorkflowCard } from "./integrations.js";
 import { CHAT_MODEL, CODE_MODEL } from "./models.js";
 import { createRunKey, deleteRunKey, runKeyUsage, type RunKey } from "./openrouter-keys.js";
 import { meterOpenRouter, type MeterContext, type OpenRouterUsage } from "./usage/openrouter.js";
-import { assertUsage, remainingBudget } from "./usage/gate.js";
+import { assertUsage, remainingBudget, userPlan } from "./usage/gate.js";
+import { canCode } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
 import { recordUsage, usdToMicros } from "./usage/record.js";
 
@@ -87,6 +88,9 @@ export function codeCard(run: CodeRun): WorkflowCard {
 
 /** Starts a run from the chat tool. Returns at once with a card; the work happens in the worker. */
 export async function startCodeRun(userId: string, chatId: string | null, raw: { repo?: unknown; task?: unknown; base_branch?: unknown; same_pr?: unknown }) {
+  // The mates' computer is a Pro and Max feature; others are told how to get it, and nothing starts.
+  if (!canCode(await userPlan(userId)))
+    return { error: "Coding runs come with the Pro and Max plans.", upgrade: true, next: "Say briefly that the mates' computer (writing code and opening pull requests) comes with Pro and Max, and that they can upgrade in Settings > Plan & usage. Don't do the coding another way." };
   await assertUsage(userId, "code-runs");
   if (!codingAvailable()) return { error: "The mates' computer isn’t set up on this server yet." };
   const task = typeof raw.task === "string" ? raw.task.trim() : "";
