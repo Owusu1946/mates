@@ -75,6 +75,7 @@ import { ActionApproval } from "./action-approval";
 import { AppLogo } from "../connections/app-connection";
 import { createApiClient } from "../data/api";
 import type { AppConnection } from "@expojet/api-contract";
+import Svg, { Defs, LinearGradient as SvgGradient, Rect, Stop } from "react-native-svg";
 import { GlassContainer, GlassView, isGlassEffectAPIAvailable, isLiquidGlassAvailable } from "expo-glass-effect";
 import { LiquidGlassButton } from "../components/ui/liquid-glass-button";
 import * as Haptics from "expo-haptics";
@@ -951,11 +952,12 @@ function MessagesLoading() {
   );
 }
 
-function ChatBody({ keyboardVisible, loading }: { keyboardVisible: boolean; loading: boolean }) {
+/** `topInset`: the floating header's height, kept clear at the top of the list and empty states. */
+function ChatBody({ keyboardVisible, loading, topInset }: { keyboardVisible: boolean; loading: boolean; topInset: number }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
   return (
-    <View style={{ flex: 1, minHeight: 0 }}>
+    <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0 }}>
       {isEmpty && (loading || isLoading) ? (
         <MessagesLoading />
       ) : isEmpty ? (
@@ -969,7 +971,7 @@ function ChatBody({ keyboardVisible, loading }: { keyboardVisible: boolean; load
             maxWidth: 768,
             alignSelf: "center",
             paddingHorizontal: 12,
-            paddingTop: 20,
+            paddingTop: topInset + 12,
             paddingBottom: 20,
             gap: 18,
           }}
@@ -1820,25 +1822,49 @@ function ChatTitle() {
   const name = chat?.kind === "mate" ? chat.mate?.name ?? chat.title : chat?.kind === "group" ? chat.title : !chat && threadTitle ? threadTitle : leaderName;
   const profile =
     chat?.kind === "mate" && chat.mate ? `/mate/${chat.mate.id}` : chat?.kind === "group" ? `/group/${chat.id}` : null;
+  // A glass capsule like the menu and call buttons beside it, so the name stays legible over
+  // messages scrolling underneath. Same fallbacks: blur, then solid (Android, Reduce Transparency).
   return (
-    <Pressable
+    <LiquidGlassButton
+      pill
       accessibilityRole={profile ? "button" : "header"}
       accessibilityLabel={profile ? `${name}, view profile` : name}
       disabled={!profile}
       onPress={() => profile && router.push(profile as never)}
-      hitSlop={6}
-      style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 8, maxWidth: 220, opacity: pressed ? 0.7 : 1 })}
+      style={{ maxWidth: 230 }}
     >
       {chat?.kind === "group" ? (
-        <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={30} />
+        <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={28} />
       ) : (
-        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={30} />
+        <MateAvatar gradient={chat?.mate?.gradient} shape={chat?.mate?.shape} size={28} still />
       )}
-      <View style={{ flexShrink: 1 }}>
-        <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: 17 }}>{name}</Text>
-        {chat?.kind === "group" && <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>{chat.members.length} mates</Text>}
+      <View style={{ flexShrink: 1, marginLeft: 8 }}>
+        <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_600SemiBold", fontSize: chat?.kind === "group" ? 15 : 16, letterSpacing: -0.2 }}>{name}</Text>
+        {chat?.kind === "group" && <Text numberOfLines={1} style={{ color: colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 11, marginTop: -1 }}>{chat.members.length} mates</Text>}
       </View>
-    </Pressable>
+    </LiquidGlassButton>
+  );
+}
+
+/**
+ * The top fade behind the floating header: solid under the status bar, then easing to clear just
+ * below the buttons, so messages dissolve as they scroll up instead of meeting a hard edge.
+ */
+function TopFade({ height, solid }: { height: number; solid: number }) {
+  const colors = useChatColors();
+  const stop = Math.min(0.9, solid / height);
+  return (
+    <Svg pointerEvents="none" width="100%" height={height} style={{ position: "absolute", top: 0, left: 0, right: 0 }}>
+      <Defs>
+        <SvgGradient id="chat-top-fade" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={colors.background} stopOpacity={1} />
+          <Stop offset={stop} stopColor={colors.background} stopOpacity={0.94} />
+          <Stop offset={(stop + 1) / 2} stopColor={colors.background} stopOpacity={0.6} />
+          <Stop offset="1" stopColor={colors.background} stopOpacity={0} />
+        </SvgGradient>
+      </Defs>
+      <Rect width="100%" height={height} fill="url(#chat-top-fade)" />
+    </Svg>
   );
 }
 
@@ -1856,7 +1882,6 @@ function ChatHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
-          backgroundColor: colors.background,
         }}
       >
         <LiquidGlassButton
@@ -2052,6 +2077,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
   const colors = useChatColors();
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 64);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -2075,10 +2101,20 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
       style={{ flex: 1, backgroundColor: colors.background }}
     >
       <ThreadPrimitive.Root style={{ flex: 1, minHeight: 0 }}>
-        <ChatHeader onOpenMenu={onOpenMenu} />
-        <GroupMissionBanner />
-        <ChatSyncNotice />
-        <ChatBody keyboardVisible={keyboardVisible} loading={starting} />
+        {/* Messages run up under the header; the list's top padding follows the header's height. */}
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} />
+          <View
+            pointerEvents="box-none"
+            onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
+            style={{ position: "absolute", top: 0, left: 0, right: 0 }}
+          >
+            <TopFade height={insets.top + 64 + 20} solid={insets.top} />
+            <ChatHeader onOpenMenu={onOpenMenu} />
+            <GroupMissionBanner />
+            <ChatSyncNotice />
+          </View>
+        </View>
         <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
           <UsageLine colors={colors} />
           <ChatComposer />
