@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -46,9 +46,13 @@ export type WorkflowCard = {
     activity?: { at: string; text: string }[];
     /** Dollars spent on the coding model, once the run has ended. */
     costUsd?: number;
-    pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number };
+    pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number; draft?: boolean };
+    /** Already failing before the change, diff warnings, a failed install, or running out of time. */
+    notes?: { kind: "already_failing" | "still_failing" | "warning" | "install_failed" | "out_of_time"; text: string }[];
     error?: string;
   };
+  /** Connect GitHub so a mate can open pull requests; Continue retries the request. */
+  github?: { mate: string };
   /** The web pages an answer drew on, cited ones first: shown as a Sources pill under the answer. */
   sources?: { id: string; url: string; title: string; domain: string; publishedAt: string | null; favicon: string }[];
   /** A slide deck a mate is building or has built; the app loads the slides by `deckId`. */

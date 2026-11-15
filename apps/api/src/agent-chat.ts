@@ -20,7 +20,7 @@ import { recoverLeakedCalls } from "./tool-recovery.js";
 import { saveUndo } from "./undo.js";
 import { reminderTool, runReminderTool } from "./reminders.js";
 import { joinMeetingTool, meetingsConfigured, runJoinMeeting } from "./meetings.js";
-import { shipCodeTool, startCodeRun } from "./code-runs.js";
+import { codingAvailable, shipCodeTool, startCodeRun } from "./code-runs.js";
 import { deckContext, deckTool, decksEnabled, editDeckTool, startDeck, startDeckEditFromChat } from "./decks.js";
 import { createGroupTool, createMateTool, mateCard, runCreateGroup, runCreateMate } from "./crew-tools.js";
 import { assembleTeam, assembleTeamTool, liveMission, type AssembledTeam, missionContext, missionNoteTool, runMissionNote, teamCard } from "./missions.js";
@@ -360,7 +360,8 @@ export async function createAgentResponse(
     assembleTeamTool,
     createMateTool,
     createGroupTool,
-    shipCodeTool,
+    // Only offered when this server can run it; a user without GitHub connected gets a Connect card.
+    ...(codingAvailable() ? [shipCodeTool] : []),
     ...(decksEnabled() ? [deckTool, editDeckTool] : []),
     ...(mission ? [missionNoteTool] : []),
     ...(memory.enabled ? [memoryTool] : []),
@@ -735,7 +736,10 @@ export async function createAgentResponse(
               if ("card" in result && result.card) {
                 card(`code_${result.runId}`, result.card);
                 messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ started: true, repo: result.repo, branch: result.branch, runId: result.runId, next: "The work continues in the background and a pull request will follow. Tell the user in one short sentence; don't describe steps." }) });
-              } else messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+              } else {
+                if ("needsGitHub" in result && result.needsGitHub) card(call.id, { kind: "github", phase: "waiting", label: "Connect GitHub", github: { mate: execution?.speaker?.name ?? "your mate" } });
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+              }
             } else if (call.function.name === "cooper_make_deck" || call.function.name === "cooper_edit_deck") {
               const making = call.function.name === "cooper_make_deck";
               activity(activityLabel(call.function.name));

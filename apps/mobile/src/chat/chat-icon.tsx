@@ -40,10 +40,12 @@ import {
   UserAdd01Icon,
   ClosedCaptionIcon,
   ArrowDown01Icon,
+  ArrowDown02Icon,
   Presentation01Icon,
   Share08Icon,
   Undo02Icon,
   CubeIcon,
+  SparklesIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 
@@ -57,6 +59,7 @@ const icons = {
   addUser: UserAdd01Icon,
   captions: ClosedCaptionIcon,
   chevronDown: ArrowDown01Icon,
+  arrowDown: ArrowDown02Icon,
   arrowUp: ArrowUp02Icon,
   camera: Camera01Icon,
   chevronLeft: ArrowLeft01Icon,
@@ -74,6 +77,7 @@ const icons = {
   globe: Globe02Icon,
   feed: Activity01Icon,
   ideas: AiBrain01Icon,
+  sparkles: SparklesIcon,
   tasks: ClipboardIcon,
   connections: Link01Icon,
   compose: MessageAdd01Icon,

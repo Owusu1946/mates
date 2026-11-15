@@ -10,6 +10,7 @@ import { useFonts } from "expo-font";
 import {
   DMSans_400Regular,
   DMSans_500Medium,
+  DMSans_500Medium_Italic,
   DMSans_600SemiBold,
   DMSans_700Bold,
 } from "@expo-google-fonts/dm-sans";
@@ -45,6 +46,8 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
+    // The slanted "Memory updated" line in chat.
+    DMSans_500Medium_Italic,
     DMSans_600SemiBold,
     DMSans_700Bold,
   });

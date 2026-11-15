@@ -209,7 +209,8 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
                     key={action.label}
                     accessibilityRole="button"
                     disabled={running}
-                    onPress={() => aui.composer.setText(action.prompt)}
+                    // The chat's own composer: inside a message, aui.composer is that message's edit composer.
+                    onPress={() => aui.thread.composer().setText(action.prompt)}
                     style={({ pressed }) => ({
                       paddingHorizontal: 13,
                       paddingVertical: 10,
