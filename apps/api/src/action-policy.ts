@@ -108,6 +108,8 @@ export function activityLabel(slug: string) {
     cooper_view_attachment: "Looking at your file",
     cooper_set_reminder: "Setting a reminder",
     cooper_assemble_team: "Assembling your team",
+    cooper_create_mate: "Creating your mate",
+    cooper_create_group: "Creating the group",
     cooper_mission_note: "Updating the team's notes",
     cooper_ship_code: "Setting up the computer",
     cooper_make_deck: "Planning the deck",
