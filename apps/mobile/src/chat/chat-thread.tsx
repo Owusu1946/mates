@@ -580,6 +580,12 @@ function UserText({ text }: { text: string }) {
   );
 }
 
+/** A card as shown: in a stopped reply, one still spinning reads "Stopped" instead. */
+function shownCard(card: WorkflowCard | undefined, cancelled: boolean): WorkflowCard | undefined {
+  if (!card || !cancelled || card.phase !== "running") return card;
+  return { ...card, phase: "error", label: "Stopped", detail: undefined };
+}
+
 /** Named for whoever the chat is with; only mounted when a reply fails. */
 function ReplyFailed() {
   return <>{useMateName()} couldn’t reply. Please try again.</>;
@@ -618,6 +624,7 @@ function ChatMessage() {
   );
   // Refused for usage: say so and when it comes back, instead of "couldn't reply · Try again".
   const limit = limitError(useAuiState((state) => state.message.status));
+  const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
   const colors = useChatColors();
   const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
@@ -647,19 +654,21 @@ function ChatMessage() {
           }}
         >
           <MessagePrimitive.Content
-            renderToolCall={({ part }) =>
-              part.result ? (
-                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "mate" ? <MateCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "github" ? <GitHubConnectCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memories" ? <MemoriesChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "consult" ? <ConsultCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "watch" ? <WatchCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "prep" ? <MeetingPrepCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
-                  (part.result as WorkflowCard).kind,
+            renderToolCall={({ part }) => {
+              // A stopped reply: cards that were still spinning read "Stopped".
+              const card = shownCard(part.result as WorkflowCard | undefined, cancelled);
+              return card ? (
+                card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : ["choice", "results"].includes(
+                  card.kind,
                 ) ? (
-                  <AppResponseCard state={part.result as WorkflowCard} />
+                  <AppResponseCard state={card} />
                 ) : (
-                  <ToolWorkflowCard state={part.result as WorkflowCard} />
+                  <ToolWorkflowCard state={card} />
                 )
               ) : (
                 <></>
-              )
-            }
+              );
+            }}
             renderText={({ part }) =>
               user ? (
                 <UserText text={part.text} />
@@ -671,6 +680,11 @@ function ChatMessage() {
         </View>
       )}
       {!user && <ThinkingIndicator />}
+      {!user && cancelled && (
+        <Text accessibilityLiveRegion="polite" style={{ marginTop: 6, paddingHorizontal: 2, color: colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 13.5 }}>
+          Request was cancelled
+        </Text>
+      )}
       {limit ? (
         <ErrorPrimitive.Root style={{ marginTop: 8, paddingHorizontal: 2 }}>
           <LimitReply message={limit.message} colors={colors} />
@@ -1633,13 +1647,13 @@ function ChatComposer() {
                 <Pressable
                   accessibilityLabel="Stop response"
                   accessibilityRole="button"
-                  onPress={async () => {
-                    try {
-                      const id = aui.threadListItem.getState().remoteId;
-                      if (id) await cancelBackgroundChat(getToken, id);
-                      aui.thread.cancelRun();
-                      setStopError(null);
-                    } catch { setStopError("Couldn’t stop the task. Reconnect and try again."); }
+                  onPress={() => {
+                    // Stop on screen at once; the server is told in the background (and the run's
+                    // own client cancels it too). A failure only means the server may finish it.
+                    const id = aui.threadListItem.getState().remoteId;
+                    if (id) void cancelBackgroundChat(getToken, id).catch(() => setStopError("Couldn’t reach the server to stop it. It may still finish."));
+                    aui.thread.cancelRun();
+                    setStopError(null);
                   }}
                   style={{
                     width: 38,

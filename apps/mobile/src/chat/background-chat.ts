@@ -57,6 +57,21 @@ export async function cancelBackgroundChat(getToken: () => Promise<string | null
   }
 }
 
+/**
+ * Asks the server to stop a run, retrying briefly. Not tied to the request's abort signal, which
+ * has already fired by the time someone taps Stop.
+ */
+async function stopRun(getToken: () => Promise<string | null>, id: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await runRequest(getToken, `runs/${id}/cancel`, {});
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 800 * (attempt + 1)));
+    }
+  }
+}
+
 export async function* backgroundChat(getToken: () => Promise<string | null>, input: Record<string, unknown>, signal: AbortSignal): AsyncGenerator<ChatModelRunResult> {
   const chatId = String(input.chatId);
   const storageKey = `cooper:submission:${chatId}:${String(input.requestKey)}`;
@@ -65,13 +80,22 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
     let error: unknown;
     for (let attempt = 0; attempt < 3 && !id; attempt++) {
       try {
-        const data = await runRequest<{ runId: string }>(getToken, "runs", input, signal);
+        // Not aborted with the request: if Stop is tapped mid-send, the run's id still comes back so it can be stopped.
+        const data = await runRequest<{ runId: string }>(getToken, "runs", input);
         id = data.runId;
         await AsyncStorage.setItem(storageKey, id);
       } catch (cause) { error = cause; if (signal.aborted || isUsageLimit(cause)) throw cause; await delay(500 * (attempt + 1), signal); }
     }
     if (!id) throw error;
   }
+  const runId = id;
+  if (signal.aborted) {
+    void stopRun(getToken, runId);
+    return;
+  }
+  // Stop on screen is instant; the server is told right away, in the background.
+  const onAbort = () => void stopRun(getToken, runId);
+  signal.addEventListener("abort", onAbort, { once: true });
   active.set(chatId, id);
   let cursor = -1;
   let failures = 0;
@@ -87,6 +111,10 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
         }
         if (["completed", "waiting", "failed", "cancelled"].includes(run.status)) {
           usageChanged();
+          // Stopped elsewhere (another device, or before this screen saw it): show it as cancelled.
+          if (run.status === "cancelled") {
+            yield { content: run.content as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "cancelled" }, metadata: { custom: { delegationId: id } } };
+          }
           if (run.status === "failed") {
             yield { content: [...run.content, { type: "text", text: run.error ?? "This task couldn’t finish. Earlier findings are saved." }] as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "error" }, metadata: { custom: { delegationId: id } } };
           }
@@ -101,6 +129,7 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
       await delay(600, signal);
     }
   } finally {
+    signal.removeEventListener("abort", onAbort);
     if (active.get(chatId) === id) active.delete(chatId);
   }
 }
