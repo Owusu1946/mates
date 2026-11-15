@@ -1945,17 +1945,35 @@ function BottomFade() {
 /** A small glass arrow above the composer once the user has scrolled up; it eases in and out. */
 function ScrollToBottom({ visible, onPress }: { visible: boolean; onPress: () => void }) {
   const colors = useChatColors();
+  const { isDark } = useTheme();
   const reduced = useReducedMotion();
   const shown = useSharedValue(0);
   useEffect(() => {
     shown.value = reduced ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: visible ? 220 : 160 });
   }, [visible, reduced, shown]);
-  const style = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ translateY: (1 - shown.value) * 8 }, { scale: 0.92 + shown.value * 0.08 }] }));
+  // No opacity here: iOS glass and blur don't draw under a parent with alpha below 1, which left only
+  // the arrow showing. The button scales and rises in instead; hidden, it's shrunk away.
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: (1 - shown.value) * 10 }, { scale: 0.01 + shown.value * 0.99 }] }));
   return (
-    <Animated.View pointerEvents={visible ? "box-none" : "none"} style={[{ position: "absolute", top: -48, left: 0, right: 0, alignItems: "center" }, style]}>
-      <LiquidGlassButton accessibilityLabel="Scroll to the newest message" size={36} onPress={onPress}>
-        <ChatIcon name="arrowDown" color={colors.foreground} size={18} />
-      </LiquidGlassButton>
+    <Animated.View pointerEvents={visible ? "box-none" : "none"} style={[{ position: "absolute", top: -50, left: 0, right: 0, alignItems: "center" }, style]}>
+      {/* A light tint, hairline edge and soft shadow, so it reads over the near-solid fade behind it. */}
+      <View
+        style={{
+          borderRadius: 19,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: isDark ? "rgba(255, 255, 255, 0.16)" : "rgba(0, 0, 0, 0.08)",
+          boxShadow: isDark ? "0 4px 14px rgba(0, 0, 0, 0.45)" : "0 4px 14px rgba(0, 0, 0, 0.12)",
+        }}
+      >
+        <LiquidGlassButton
+          accessibilityLabel="Scroll to the newest message"
+          size={38}
+          tintColor={isDark ? "rgba(39, 39, 42, 0.55)" : "rgba(255, 255, 255, 0.7)"}
+          onPress={onPress}
+        >
+          <ChatIcon name="arrowDown" color={colors.foreground} size={18} />
+        </LiquidGlassButton>
+      </View>
     </Animated.View>
   );
 }
