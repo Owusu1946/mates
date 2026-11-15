@@ -21,14 +21,18 @@ export function useAbout() {
   });
 }
 
-/** Saves the bio. The mates turn it into memories in the background, so this returns at once. */
+/**
+ * Saves the bio. The mates turn it into memories in the background; with `wait` (onboarding) the
+ * server holds the reply for up to ~20s so the lead's welcome is in its chat when it opens.
+ * `forgetLearned` also removes the memories that came from the bio.
+ */
 export function useSaveAbout() {
   const { getToken, userId } = useAuth();
   const api = useMemo(() => createApiClient(getToken), [getToken]);
   const client = useQueryClient();
   return useMutation({
-    mutationFn: async (bio: string) => {
-      const response = await api.v1.about.$put({ json: { bio } });
+    mutationFn: async (input: { bio: string; wait?: boolean; forgetLearned?: boolean }) => {
+      const response = await api.v1.about.$put({ json: input });
       if (!response.ok) throw new Error("Couldn’t save that. Check your connection and try again.");
       return (await response.json()) as About;
     },

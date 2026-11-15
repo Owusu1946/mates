@@ -23,7 +23,7 @@ export function AboutStep({ mate, onDone }: { mate: { name: string; gradient: Gr
 
   const next = () => {
     if (!ready || save.isPending) return;
-    save.mutate(bio.trim(), {
+    save.mutate({ bio: bio.trim(), wait: true }, {
       onSuccess: () => {
         haptic.success();
         onDone();
@@ -47,6 +47,11 @@ export function AboutStep({ mate, onDone }: { mate: { name: string; gradient: Gr
         <AboutField value={bio} onChange={setBio} mateName={mate.name} />
 
         <View style={{ flex: 1 }} />
+        {save.isPending && (
+          <Text accessibilityLiveRegion="polite" style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 14, textAlign: "center" }}>
+            {mate.name} is reading this…
+          </Text>
+        )}
         {save.error && (
           <View style={{ gap: 6, alignItems: "center" }}>
             <Text style={{ color: colors.error, fontSize: 14, textAlign: "center" }}>{save.error.message}</Text>

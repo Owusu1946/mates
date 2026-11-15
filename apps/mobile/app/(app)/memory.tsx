@@ -251,7 +251,17 @@ function AboutCard({ lead, disabled }: { lead: string; disabled: boolean }) {
             label={save.isPending ? "Saving…" : "Save"}
             strong
             disabled={save.isPending || draft.trim() === bio.trim()}
-            onPress={() => save.mutate(draft.trim(), { onSuccess: () => { haptic.success(); setDraft(null); } })}
+            onPress={() => {
+              const done = { onSuccess: () => { haptic.success(); setDraft(null); } };
+              // Clearing it: the memories it produced stay unless the user says otherwise.
+              if (!draft.trim() && bio.trim())
+                Alert.alert("Clear what you shared?", "Your mates can also forget what they learned from it.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Keep what they learned", onPress: () => save.mutate({ bio: "" }, done) },
+                  { text: "Forget that too", style: "destructive", onPress: () => save.mutate({ bio: "", forgetLearned: true }, done) },
+                ]);
+              else save.mutate({ bio: draft.trim() }, done);
+            }}
           />
         </View>
       </View>
