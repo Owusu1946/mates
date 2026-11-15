@@ -557,6 +557,8 @@ export type CodeRunStatus = "queued" | "cloning" | "coding" | "checking" | "push
 export type CodeCheck = { name: string; command: string; passed: boolean; output: string };
 /** One line of what the computer is doing right now ("Editing src/app.ts"). */
 export type CodeActivity = { at: string; text: string };
+/** Things a run wants the person to know: checks already failing on the base, or diff warnings. */
+export type CodeNote = { kind: "already_failing" | "still_failing" | "warning" | "install_failed" | "out_of_time"; text: string };
 
 /** One job on the mates' computer: clone a repo, make a change, check it, open a pull request. */
 export const codeRuns = pgTable("code_runs", {
@@ -581,6 +583,12 @@ export const codeRuns = pgTable("code_runs", {
   prUrl: text("pr_url"),
   summary: text("summary"),
   sandboxId: text("sandbox_id"),
+  /** The run's OpenRouter key, by hash, so a run the worker lost can still be cleaned up. */
+  runKeyHash: text("run_key_hash"),
+  /** Opened as a draft: checks still failing, or the run ran out of time. */
+  draft: boolean("draft").notNull().default(false),
+  installFailed: boolean("install_failed").notNull().default(false),
+  notes: jsonb("notes").$type<CodeNote[]>().notNull().default([]),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -589,6 +597,14 @@ export const codeRuns = pgTable("code_runs", {
   // Two runs pushing to one branch would race; a follow-up waits for the active run to end.
   uniqueIndex("code_runs_active_branch_idx").on(t.repo, t.branch).where(sql`status IN ('queued','cloning','coding','checking','pushing')`),
 ]);
+
+/** A repo's check results on one commit, so later runs on the same base skip re-running them. */
+export const codeCheckBaselines = pgTable("code_check_baselines", {
+  repo: text("repo").notNull(),
+  sha: text("sha").notNull(),
+  results: jsonb("results").$type<CodeCheck[]>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.repo, t.sha] })]);
 
 export type DeckStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
 

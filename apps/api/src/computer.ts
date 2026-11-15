@@ -3,12 +3,19 @@ import { scrub } from "./code-plan.js";
 
 export const WORKDIR = "/work/repo";
 const APP_NAME = "mates-computer";
+/**
+ * The toolchain, pinned: a rebuild must never quietly change the coder's CLI or a package manager.
+ * Bump these on purpose (the image rebuilds once, on the next run). A repo's own `packageManager`
+ * field still wins, through corepack.
+ */
+export const TOOLCHAIN = { opencode: "1.19.5", pnpm: "12.21.0", yarn: "4.18.1", bun: "1.4.4" } as const;
+
 // One image for every repo: git, Node 22 with pnpm/yarn via corepack, bun, Python, and opencode.
 // Modal caches it after the first build, so later runs start in seconds.
 const IMAGE_COMMANDS = [
   "RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip ripgrep && rm -rf /var/lib/apt/lists/*",
-  "RUN corepack enable && corepack prepare pnpm@latest --activate && corepack prepare yarn@stable --activate",
-  "RUN npm install -g bun opencode-ai",
+  `RUN corepack enable && corepack prepare pnpm@${TOOLCHAIN.pnpm} --activate && corepack prepare yarn@${TOOLCHAIN.yarn} --activate`,
+  `RUN npm install -g bun@${TOOLCHAIN.bun} opencode-ai@${TOOLCHAIN.opencode}`,
   "RUN git config --system init.defaultBranch main && git config --system advice.detachedHead false",
 ];
 

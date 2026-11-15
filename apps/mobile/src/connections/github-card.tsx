@@ -17,7 +17,7 @@ export function useGitHub() {
   return useQuery({ queryKey: ["github", userId], enabled: !!userId, queryFn: () => runRequest<GitHubState>(getToken, "github") });
 }
 
-function GitHubMark({ color, size = 26 }: { color: string; size?: number }) {
+export function GitHubMark({ color, size = 26 }: { color: string; size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
@@ -28,26 +28,21 @@ function GitHubMark({ color, size = 26 }: { color: string; size?: number }) {
   );
 }
 
-/** Lets the mates' bot into the user's GitHub so it can ship code and open pull requests. */
-export function GitHubCard({ isDark }: { isDark: boolean }) {
+/**
+ * Installs the mates' bot on GitHub (or, once installed, changes which repos it can reach), then
+ * refreshes what it can see. Shared by Apps & connections and the Connect GitHub card in chat.
+ */
+export function useConnectGitHub(returnPath = "connections") {
   const { getToken } = useAuth();
   const github = useGitHub();
   const [busy, setBusy] = useState(false);
   const toast = useToast();
-  if (!github.data?.configured) return null;
-
-  const foreground = isDark ? "#fafafa" : "#18181b";
-  const muted = isDark ? "#a1a1aa" : "#71717a";
-  const connected = github.data.installations.length > 0;
-  const repos = github.data.repos.length;
-
-  // The same GitHub page installs the bot or, once installed, changes which repos it can reach.
-  const open = async () => {
+  const connect = async () => {
     setBusy(true);
     haptic.light();
     try {
       // GitHub hands back to this link (mates:// in builds, exp:// in Expo Go), closing the sheet.
-      const returnTo = Linking.createURL("connections");
+      const returnTo = Linking.createURL(returnPath);
       const { url } = await runRequest<{ url: string }>(getToken, `github/install?returnTo=${encodeURIComponent(returnTo)}`);
       const result = await WebBrowser.openAuthSessionAsync(url, returnTo);
       if (result.type === "success" && result.url.includes("github=failed")) {
@@ -61,6 +56,18 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
       setBusy(false);
     }
   };
+  return { github, busy, connect };
+}
+
+/** Lets the mates' bot into the user's GitHub so it can ship code and open pull requests. */
+export function GitHubCard({ isDark }: { isDark: boolean }) {
+  const { github, busy, connect: open } = useConnectGitHub();
+  if (!github.data?.configured) return null;
+
+  const foreground = isDark ? "#fafafa" : "#18181b";
+  const muted = isDark ? "#a1a1aa" : "#71717a";
+  const connected = github.data.installations.length > 0;
+  const repos = github.data.repos.length;
 
   return (
     <View style={{ padding: 12, borderRadius: 15, gap: 7, backgroundColor: isDark ? "#202023" : "#f7f7f8" }}>

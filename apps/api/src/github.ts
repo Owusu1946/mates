@@ -181,12 +181,40 @@ export function botIdentity() {
   return identity;
 }
 
-export async function openPullRequest(token: string, input: { repo: string; head: string; base: string; title: string; body: string }) {
+/** GitHub refuses drafts on some plans (e.g. private repos on free accounts). */
+const draftsUnsupported = (error: unknown) => (error as { status?: number }).status === 422 && /draft/i.test(String((error as { message?: string }).message ?? ""));
+
+/**
+ * Opens the branch's pull request, or, when one is already open (a follow-up), appends `update` to
+ * its description, leaves a short comment, and matches its draft state to `draft`. Where drafts
+ * aren't allowed it opens a normal PR; the returned `draft` says what actually happened.
+ */
+export async function openPullRequest(token: string, input: { repo: string; head: string; base: string; title: string; body: string; draft?: boolean; update?: string; comment?: string }) {
   const [owner, repo] = input.repo.split("/") as [string, string];
   const octokit = repoOctokit(token);
+  const wantDraft = !!input.draft;
   const existing = await octokit.pulls.list({ owner, repo, head: `${owner}:${input.head}`, state: "open" });
-  const pull = existing.data[0]
-    ? (await octokit.pulls.get({ owner, repo, pull_number: existing.data[0].number })).data
-    : (await octokit.pulls.create({ owner, repo, head: input.head, base: input.base, title: input.title, body: input.body })).data;
-  return { number: pull.number, url: pull.html_url, title: pull.title, additions: pull.additions, deletions: pull.deletions, files: pull.changed_files };
+  if (existing.data[0]) {
+    const number = existing.data[0].number;
+    let pull = (await octokit.pulls.get({ owner, repo, pull_number: number })).data;
+    if (input.update) pull = (await octokit.pulls.update({ owner, repo, pull_number: number, body: `${pull.body ?? ""}\n\n${input.update}`.trim() })).data;
+    if (input.comment) await octokit.issues.createComment({ owner, repo, issue_number: number, body: input.comment }).catch(() => undefined);
+    let draft = !!pull.draft;
+    if (draft !== wantDraft) {
+      const mutation = wantDraft
+        ? "mutation($id: ID!) { convertPullRequestToDraft(input: { pullRequestId: $id }) { clientMutationId } }"
+        : "mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { clientMutationId } }";
+      draft = await octokit.graphql(mutation, { id: pull.node_id }).then(() => wantDraft, () => draft);
+    }
+    return { number: pull.number, url: pull.html_url, title: pull.title, draft, created: false };
+  }
+  const create = (draft: boolean) => octokit.pulls.create({ owner, repo, head: input.head, base: input.base, title: input.title, body: input.body, draft });
+  try {
+    const { data } = await create(wantDraft);
+    return { number: data.number, url: data.html_url, title: data.title, draft: !!data.draft, created: true };
+  } catch (error) {
+    if (!wantDraft || !draftsUnsupported(error)) throw error;
+    const { data } = await create(false);
+    return { number: data.number, url: data.html_url, title: data.title, draft: false, created: true };
+  }
 }
