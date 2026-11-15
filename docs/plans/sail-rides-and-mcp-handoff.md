@@ -1,7 +1,7 @@
 # Handoff: Sail rides in Mates, on an MCP layer built for user-added servers
 
 **For:** Samuel (and any agent working with you). **From:** Ken. **Date:** 2026-11-15.
-**Status:** ready to build. Phase 1 is in scope; Phase 2 is the design to leave room for.
+**Status:** ready to build. **None of this exists in the code yet:** no `cooper_rides` tool, no `apps/api/src/mcp/` folder, no Rides or location card. Phase 1 is in scope; Phase 2 is the design to leave room for.
 
 Facts below marked **Verified** were checked against Sail's live server on 2026-11-15. Everything else links to its source in [Sources](#sources), so you can confirm it before relying on it.
 
@@ -108,7 +108,7 @@ mate (agent-chat.ts)
 - **Fewer calls:** we resolve places and pick the right Sail tool in code, so the model doesn't chain 3–4 calls (search, resolve, plan) and spend tokens and time.
 - **Our rules:** caching, country checks, hiding cargo and unavailable options, memory and location for "from".
 
-The generic bridge still exists, so a future user-added server works without its own adapter. Sail can also be exposed through the bridge in dev, for debugging.
+Build the generic bridge as well (§3, `bridge.ts`), so a future user-added server works without its own adapter. Sail can also be exposed through the bridge in dev, for debugging.
 
 ### Files to add (`apps/api/src/mcp/`)
 | File | Responsibility |
