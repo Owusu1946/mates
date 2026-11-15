@@ -32,6 +32,7 @@ import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerCo
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
+import { aboutSchema, getAbout, processBio, saveAbout } from "./about.js";
 import { cancelReminder, upcomingReminders } from "./reminders.js";
 import { runUndo } from "./undo.js";
 import { missionForChat, setMissionStatus } from "./missions.js";
@@ -751,8 +752,16 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .post("/v1/reminders/:id/cancel", auth, async (c) =>
       (await cancelReminder(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Reminder not found", c.get("requestId")), 404))
     .get("/v1/memories", auth, async (c) => c.json({ memories: await listMemories(c.get("userId")), settings: await memorySettings(c.get("userId")) }))
+    // "About you": what the user told their lead mate about themselves.
+    .get("/v1/about", auth, async (c) => c.json(await getAbout(c.get("userId"))))
+    .put("/v1/about", auth, validator("json", (value, c) => {
+      const parsed = aboutSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_ABOUT", "Keep it under 4,000 characters", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => c.json(await saveAbout(c.get("userId"), c.req.valid("json"))))
     .patch("/v1/memories/:id", auth, validator("json", (value, c) => {
-      const parsed = memoryInputSchema.partial().safeParse(value);
+      // mateId: null moves a mate's own note into the shared pool.
+      const parsed = memoryInputSchema.partial().extend({ mateId: z.null().optional() }).safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_MEMORY", "Write the memory as a short sentence", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => {
@@ -769,7 +778,12 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const parsed = memorySettingsSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_SETTINGS", "Invalid memory settings", c.get("requestId")), 400);
       return parsed.data;
-    }), async (c) => c.json({ settings: await updateMemorySettings(c.get("userId"), c.req.valid("json")) }))
+    }), async (c) => {
+      const settings = await updateMemorySettings(c.get("userId"), c.req.valid("json"));
+      // Memory back on: a bio saved while it was off becomes memories now (the dispatcher would within a minute).
+      if (c.req.valid("json").memoryEnabled) void processBio(c.get("userId")).catch(() => undefined);
+      return c.json({ settings });
+    })
     .delete("/v1/account", auth, async (c) => {
       try {
         await deleteAccount(c.get("userId"));

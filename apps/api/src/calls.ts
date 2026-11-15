@@ -9,7 +9,7 @@ import { submitRun } from "./durable-runs.js";
 import { embedOne } from "./embeddings.js";
 import type { WorkflowCard } from "./integrations.js";
 import { gradientOf, ROLE_PRESETS, type MateRole } from "./mates.js";
-import { extractMemories, listMemories, memorySettings } from "./memory.js";
+import { extractMemories, memoryFacts } from "./memory.js";
 import { recentTurns } from "./missions.js";
 import { CHAT_MODEL } from "./models.js";
 import { keytermsFor } from "./transcription.js";
@@ -164,9 +164,8 @@ export async function callContext(userId: string, callId: string) {
   if (call.status === "ended") throw new CallError("ENDED");
   const roster = await rosterFor(userId, call.mateIds);
   const [chat] = await getDb().select({ kind: chats.kind, title: chats.title }).from(chats).where(eq(chats.id, call.chatId));
-  const settings = await memorySettings(userId).catch(() => null);
-  const memoryRows = settings?.memoryEnabled ? await listMemories(userId).catch(() => []) : [];
-  const remembered = [...memoryRows].sort((a, b) => b.importance - a.importance).slice(0, 15).map((m) => m.text);
+  // The lead mate on the call knows the bio, the shared memories and its own notes (and the crew's).
+  const remembered = (await memoryFacts(userId, call.leadMateId ?? roster[0]?.id).catch(() => [])).slice(0, 24);
   const recent = (await recentTurns(call.chatId, 10).catch(() => [])).map((t) => ({ role: t.role, content: t.content.slice(0, 600) }));
   if (call.status === "ringing") await getDb().update(calls).set({ status: "live", startedAt: new Date() }).where(eq(calls.id, call.id));
   return {

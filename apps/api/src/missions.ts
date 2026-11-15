@@ -139,7 +139,7 @@ export async function assembleTeam(userId: string, leader: PersonaMate, raw: unk
     const role = (member.role in ROLE_PRESETS ? member.role : "custom") as MateRole;
     const color = (member.color && member.color in MATE_PALETTE ? member.color : palette[(i + 1) % palette.length]) as MateColor;
     try {
-      const mate = await createMate(userId, { name: member.name.replace(/[^\p{L}\p{N} .'_-]/gu, "").trim() || `Mate ${i + 1}`, role, roleDescription: member.description, color });
+      const mate = await createMate(userId, { name: member.name.replace(/[^\p{L}\p{N} .'_-]/gu, "").trim() || `Mate ${i + 1}`, role, roleDescription: member.description, color }, { greet: false });
       memberIds.push(mate.id);
       created.push(mate.name);
     } catch (error) {

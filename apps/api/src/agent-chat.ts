@@ -23,8 +23,8 @@ import { joinMeetingTool, meetingsConfigured, runJoinMeeting } from "./meetings.
 import { shipCodeTool, startCodeRun } from "./code-runs.js";
 import { deckContext, deckTool, decksEnabled, editDeckTool, startDeck, startDeckEditFromChat } from "./decks.js";
 import { assembleTeam, assembleTeamTool, liveMission, type AssembledTeam, missionContext, missionNoteTool, runMissionNote, teamCard } from "./missions.js";
-import type { PersonaMate } from "./mates.js";
-import { memoryCard, memoryContext, memoryTool, runMemoryTool } from "./memory.js";
+import { gradientOf, type PersonaMate } from "./mates.js";
+import { checkWithMate, checkWithMateTool, memoryCard, memoryContext, memoryTool, runMemoryTool } from "./memory.js";
 import { recallContext, recallTool, runRecall } from "./recall.js";
 import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, type Plan } from "./plans.js";
 import { playbookContext } from "./playbooks.js";
@@ -133,7 +133,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -333,7 +333,8 @@ export async function createAgentResponse(
     runId = run!.id;
   }
   const query = await queryVector;
-  const memory = await memoryContext(userId, query).catch(() => ({ enabled: false as const, context: null, settings: null }));
+  // The speaking mate gets its own notes beside the shared ones (and the lead sees the crew's).
+  const memory = await memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 }));
   const recallOn = memory.enabled && memory.settings.historyRecall;
   // A group on a mission shares its goal and notes with every mate who speaks in it.
   // A mate doing a board task already has its brief and inputs, and its reply is saved as the
@@ -360,6 +361,7 @@ export async function createAgentResponse(
     ...(decksEnabled() ? [deckTool, editDeckTool] : []),
     ...(mission ? [missionNoteTool] : []),
     ...(memory.enabled ? [memoryTool] : []),
+    ...(memory.enabled && memory.crew > 1 && execution?.speaker ? [checkWithMateTool] : []),
     ...(recallOn ? [recallTool] : []),
     ...(webOn ? [webSearchTool, webReadTool, ...browserTools.filter((tool) => tool.function.name !== "browser_search")] : browserTools),
   ];
@@ -760,9 +762,15 @@ export async function createAgentResponse(
               const result = await runRecall(userId, args.query).catch(() => ({ error: "Earlier chats are unavailable right now." }));
               messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
             } else if (call.function.name === "cooper_memory") {
-              const { result, change } = await runMemoryTool(userId, execution?.chatId, args).catch(() => ({ result: { error: "Memory is unavailable right now." }, change: undefined }));
+              const { result, change } = await runMemoryTool(userId, execution?.chatId, args, execution?.speaker?.id).catch(() => ({ result: { error: "Memory is unavailable right now." }, change: undefined }));
               if (change) card(call.id, memoryCard(change));
               messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+            } else if (call.function.name === "cooper_check_with_mate") {
+              const checked = await checkWithMate(userId, execution?.speaker?.id, args).catch(() => ({ ok: false, error: "That mate's notes are unavailable right now." }) as const);
+              if (checked.ok) {
+                card(call.id, { kind: "consult", phase: "done", label: `Checked with ${checked.mate.name}`, consult: { mate: { id: checked.mate.id, name: checked.mate.name, color: checked.mate.color, shape: checked.mate.shape, gradient: gradientOf(checked.mate.color) }, question: checked.question, found: checked.notes.length } });
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ mate: checked.mate.name, knows: checked.notes.length ? checked.notes : "Nothing on this yet.", shared: checked.shared, note: `These are ${checked.mate.name}'s own notes about the user. Say you checked with ${checked.mate.name} when you use them.` }) });
+              } else messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: checked.error }) });
             } else if (call.function.name === "cooper_view_attachment") {
               const meta = await attachmentMeta(userId, String(args.id ?? "")).catch(() => null);
               if (meta) viewed.push(meta.id);

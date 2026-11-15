@@ -8,13 +8,20 @@ import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
 import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
 import { useTheme } from "../../src/theme/provider";
+import { useMates, type Mate } from "../../src/mates/data";
+import { MateAvatar } from "../../src/mates/mate-avatar";
+import { useAbout, useSaveAbout } from "../../src/onboarding/about-data";
+import { AboutField } from "../../src/onboarding/about-field";
 
-type Memory = { id: string; text: string; category: string; source: string; updatedAt: string };
+/** `mateId` null: shared by every mate; set: that mate's own note for its role. */
+type Memory = { id: string; text: string; category: string; source: string; mateId?: string | null; updatedAt: string };
+
+const SOURCE_LABEL: Record<string, string> = { auto: "Saved automatically", bio: "From what you shared", briefing: "From a briefing", explicit: "You asked" };
 type Settings = { memoryEnabled: boolean; autoMemory: boolean; historyRecall: boolean };
 
 const font = { regular: "DMSans_400Regular", medium: "DMSans_500Medium", semibold: "DMSans_600SemiBold" };
 
-/** What the mates remember about you: the switches that govern memory, then every saved memory. */
+/** What the mates remember about you: the switches, what you told them, then every saved memory (shared, then each mate's own). */
 export default function MemoryScreen() {
   const { getToken, userId } = useAuth();
   const { colors } = useTheme();
@@ -35,6 +42,15 @@ export default function MemoryScreen() {
   const settings = query.data?.settings ?? { memoryEnabled: true, autoMemory: true, historyRecall: true };
   const memories = query.data?.memories ?? [];
   const shown = search.trim() ? memories.filter((m) => m.text.toLowerCase().includes(search.trim().toLowerCase())) : memories;
+  const crew = useMates().data?.mates ?? [];
+  // Shared first, then each mate's own notes, in crew order (lead first). Notes of a mate that
+  // isn't loaded yet show as shared until it is.
+  const known = new Set(crew.map((m) => m.id));
+  const sections: { mate: Mate | null; rows: Memory[] }[] = [
+    { mate: null, rows: shown.filter((m) => !m.mateId || !known.has(m.mateId)) },
+    ...[...crew].sort((a, b) => Number(b.isDefault) - Number(a.isDefault)).map((mate) => ({ mate, rows: shown.filter((m) => m.mateId === mate.id) })),
+  ].filter((section) => section.rows.length > 0);
+  const grouped = sections.some((section) => section.mate);
 
   const run = async (work: () => Promise<{ ok: boolean }>, message: string) => {
     setError(null);
@@ -50,6 +66,7 @@ export default function MemoryScreen() {
     void run(() => api.v1["memory-settings"].$patch({ json: values }), "Couldn’t update memory settings.");
   };
   const save = (id: string, text: string) => run(() => api.v1.memories[":id"].$patch({ param: { id }, json: { text } }), "Couldn’t save that change.").then(() => setEditing(null));
+  const share = (id: string) => run(() => api.v1.memories[":id"].$patch({ param: { id }, json: { mateId: null } }), "Couldn’t move that memory.");
   const remove = (id: string) => run(() => api.v1.memories[":id"].$delete({ param: { id } }), "Couldn’t delete that memory.");
   const removeAll = () =>
     Alert.alert("Delete all memories?", "Your mates will forget everything they’ve saved about you. This can’t be undone.", [
@@ -62,12 +79,17 @@ export default function MemoryScreen() {
     haptic.light();
     const edit = () => setEditing({ id: memory.id, text: memory.text });
     const del = () => void remove(memory.id);
+    const toShared = () => void share(memory.id);
+    // A mate's own note can be shared with every mate.
+    const actions = [{ text: "Edit", onPress: edit }, ...(memory.mateId ? [{ text: "Share with all mates", onPress: toShared }] : []), { text: "Delete", onPress: del, destructive: true }];
     if (Platform.OS === "ios")
-      ActionSheetIOS.showActionSheetWithOptions({ options: ["Edit", "Delete", "Cancel"], destructiveButtonIndex: 1, cancelButtonIndex: 2 }, (i) => (i === 0 ? edit() : i === 1 ? del() : undefined));
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: [...actions.map((a) => a.text), "Cancel"], destructiveButtonIndex: actions.length - 1, cancelButtonIndex: actions.length },
+        (i) => actions[i]?.onPress(),
+      );
     else
       Alert.alert("Memory", memory.text.slice(0, 120), [
-        { text: "Edit", onPress: edit },
-        { text: "Delete", style: "destructive", onPress: del },
+        ...actions.map((a) => ({ text: a.text, onPress: a.onPress, style: "destructive" in a ? ("destructive" as const) : undefined })),
         { text: "Cancel", style: "cancel" },
       ]);
   };
@@ -100,6 +122,8 @@ export default function MemoryScreen() {
         </View>
         <ChatIcon name="next" color={colors.textMuted} size={16} />
       </Pressable>
+
+      <AboutCard disabled={off} lead={crew.find((m) => m.isDefault)?.name ?? "your mate"} />
 
       {(error || query.isError) && (
         <Text accessibilityLiveRegion="polite" style={{ color: colors.error, fontFamily: font.medium, fontSize: 14 }}>
@@ -158,9 +182,18 @@ export default function MemoryScreen() {
           <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 14, paddingHorizontal: 4, paddingVertical: 8 }}>No memories match “{search.trim()}”.</Text>
         )}
 
-        {shown.length > 0 && (
+        {sections.map((section) => (
+          <View key={section.mate?.id ?? "shared"} style={{ gap: 8 }}>
+            {grouped && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 4, paddingTop: 6 }}>
+                {section.mate ? <MateAvatar gradient={section.mate.gradient} shape={section.mate.shape} size={20} still /> : <ChatIcon name="ideas" color={colors.textMuted} size={16} />}
+                <Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 14 }}>
+                  {section.mate ? `${section.mate.name}’s notes` : "Shared with every mate"}
+                </Text>
+              </View>
+            )}
           <Group>
-            {shown.map((memory) =>
+            {section.rows.map((memory) =>
               editing?.id === memory.id ? (
                 <View key={memory.id} style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 10 }}>
                   <TextInput
@@ -182,7 +215,7 @@ export default function MemoryScreen() {
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text selectable style={{ color: colors.text, fontFamily: font.regular, fontSize: 16, lineHeight: 23 }}>{memory.text}</Text>
                     <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>
-                      {memory.source === "auto" ? "Saved automatically" : "You asked"} · {new Date(memory.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                      {SOURCE_LABEL[memory.source] ?? "You asked"} · {new Date(memory.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                     </Text>
                   </View>
                   <Pressable accessibilityRole="button" accessibilityLabel="Memory options" hitSlop={8} onPress={() => options(memory)} style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.5 : 1 })}>
@@ -192,9 +225,63 @@ export default function MemoryScreen() {
               ),
             )}
           </Group>
-        )}
+          </View>
+        ))}
       </View>
     </ScrollView>
+  );
+}
+
+/** "About you": what the user told their mates in their own words, editable by typing or talking. */
+function AboutCard({ lead, disabled }: { lead: string; disabled: boolean }) {
+  const { colors } = useTheme();
+  const about = useAbout();
+  const save = useSaveAbout();
+  const [draft, setDraft] = useState<string | null>(null);
+  const bio = about.data?.bio ?? "";
+  if (draft !== null)
+    return (
+      <View style={{ gap: 10 }}>
+        <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 17, paddingHorizontal: 4 }}>About you</Text>
+        <AboutField value={draft} onChange={setDraft} mateName={lead} autoFocus />
+        {save.error && <Text style={{ color: colors.error, fontFamily: font.medium, fontSize: 14 }}>{save.error.message}</Text>}
+        <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8 }}>
+          <SmallButton label="Cancel" onPress={() => setDraft(null)} />
+          <SmallButton
+            label={save.isPending ? "Saving…" : "Save"}
+            strong
+            disabled={save.isPending || draft.trim() === bio.trim()}
+            onPress={() => {
+              const done = { onSuccess: () => { haptic.success(); setDraft(null); } };
+              // Clearing it: the memories it produced stay unless the user says otherwise.
+              if (!draft.trim() && bio.trim())
+                Alert.alert("Clear what you shared?", "Your mates can also forget what they learned from it.", [
+                  { text: "Cancel", style: "cancel" },
+                  { text: "Keep what they learned", onPress: () => save.mutate({ bio: "" }, done) },
+                  { text: "Forget that too", style: "destructive", onPress: () => save.mutate({ bio: "", forgetLearned: true }, done) },
+                ]);
+              else save.mutate({ bio: draft.trim() }, done);
+            }}
+          />
+        </View>
+      </View>
+    );
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={bio ? "Edit what you shared about yourself" : "Tell your mates about yourself"}
+      disabled={!about.data}
+      onPress={() => setDraft(bio)}
+      style={({ pressed }) => ({ padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface, gap: 6, opacity: pressed ? 0.7 : disabled ? 0.55 : 1 })}
+    >
+      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+        <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 16 }}>About you</Text>
+        <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: 14 }}>{bio ? "Edit" : "Add"}</Text>
+      </View>
+      <Text numberOfLines={bio ? 4 : 2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 14, lineHeight: 20 }}>
+        {bio || `Tell ${lead} about your work, your people and how you like things done. Type or talk.`}
+      </Text>
+    </Pressable>
   );
 }
 

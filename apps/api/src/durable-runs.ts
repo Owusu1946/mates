@@ -243,6 +243,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           preamble,
           speaker: mate,
           boardTask,
+          // The user is in the conversation now: not a routine, watch, habit, call summary or board task.
+          live: !boardTask && !/^(occurrence_|watch_|habit_|call_|manual_|mission_)/.test(run.requestKey),
           // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
           usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : run.requestKey.startsWith("habit_") ? "habit" : "chat",
           checkpoint: async (pendingTool, history) => {
@@ -554,7 +556,9 @@ async function rememberFromRun(
   if (run.chatId?.startsWith("routine_")) return;
   // Explicit saves already happened in the turn; the extractor sees them and won't repeat them.
   try {
-    const changes = await extractMemories({ userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText });
+    // In a mate's own chat, what it learns can be its own note for its role (groups stay shared).
+    const mateId = run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null;
+    const changes = await extractMemories({ userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText, mateId });
     if (!changes.length) return;
     for (const change of changes) mergePayload(content, { cooper: { id: `memory_${id}_${change.id}`, state: memoryCard(change) } });
     await persist("memory.updated", "completed");
