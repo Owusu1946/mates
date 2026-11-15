@@ -30,6 +30,11 @@ export const profiles = pgTable(
     autoMemory: boolean("auto_memory").notNull().default(true),
     /** Lets Cooper search past chats and shared files, like ChatGPT's "reference chat history". */
     historyRecall: boolean("history_recall").notNull().default(true),
+    /** What the user told their lead mate about themselves, in their own words (onboarding or Memory). */
+    bio: text("bio"),
+    bioUpdatedAt: timestamp("bio_updated_at", { withTimezone: true }),
+    /** When a mate was last invited to ask the user about themselves: at most once a day, first week only. */
+    aboutAskedAt: timestamp("about_asked_at", { withTimezone: true }),
     /** Mates learn habits from how you use them and offer to handle them ("What I've noticed"). */
     habitLearning: boolean("habit_learning").notNull().default(true),
     /** Also learn from connected apps (sent mail, calendar), through opt-in Composio triggers. */
@@ -345,8 +350,10 @@ export const memories = pgTable("memories", {
   category: text("category").notNull().default("other"),
   /** 1 = minor detail, 3 = core to who the user is; ranks the always-included profile. */
   importance: integer("importance").notNull().default(2),
-  /** "explicit" when the user asked, "auto" when Cooper chose to remember. */
+  /** "explicit" when the user asked, "auto" when a mate chose to remember, "bio" from the user's own about-me, "briefing" when a new mate was briefed. */
   source: text("source").notNull().default("explicit"),
+  /** Null: shared by every mate. Set: that mate's own note for its role (a money mate's budgets). */
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
   sourceChatId: text("source_chat_id"),
   /** Null until embedded; rows are backfilled on the next read. */
   embedding: vector("embedding", { dimensions: 1536 }),
@@ -356,6 +363,7 @@ export const memories = pgTable("memories", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [
   index("memories_user_idx").on(t.clerkUserId, t.updatedAt),
+  index("memories_user_mate_idx").on(t.clerkUserId, t.mateId),
   index("memories_embedding_idx").using("hnsw", t.embedding.op("vector_cosine_ops")),
 ]);
 
