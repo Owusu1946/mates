@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/expo";
 import { useAuiState } from "@assistant-ui/react-native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { createApiClient } from "../data/api";
 import { readCache, writeCache } from "../data/offline-cache";
 
@@ -79,11 +79,29 @@ export function useChats() {
   });
 }
 
-/** Who the open chat is with, from the sidebar's data. */
+/**
+ * Who the open chat is with, from the sidebar's data. A chat that isn't in the list yet (created
+ * moments ago, e.g. by a mate) triggers one refresh, so it never stays shown as the lead mate.
+ */
 export function useCurrentChat() {
   const remoteId = useAuiState((state) => state.threadListItem.remoteId);
   const chats = useChats();
-  return useMemo(() => chats.data?.find((chat) => chat.id === remoteId) ?? null, [chats.data, remoteId]);
+  const chat = useMemo(() => chats.data?.find((item) => item.id === remoteId) ?? null, [chats.data, remoteId]);
+  const refreshed = useRef<string | null>(null);
+  const missing = !!remoteId && !!chats.data && !chat;
+  useEffect(() => {
+    if (!missing || refreshed.current === remoteId || chats.isFetching) return;
+    refreshed.current = remoteId ?? null;
+    void chats.refetch();
+  }, [missing, remoteId, chats]);
+  return chat;
+}
+
+/** The open thread's own title, for a chat the list hasn't caught up with yet. */
+export function useThreadTitle() {
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId);
+  const title = useAuiState((state) => state.threadListItem.title);
+  return remoteId ? title || null : null;
 }
 
 /** The lead mate's name, for text that names the user's assistant; "Mates" until mates load. */
@@ -96,6 +114,8 @@ export function useLeaderName() {
 export function useMateName() {
   const chat = useCurrentChat();
   const leader = useLeaderName();
+  const title = useThreadTitle();
+  if (!chat && title) return title;
   if (chat?.kind === "mate") return chat.mate?.name ?? chat.title;
   if (chat?.kind === "group") return chat.members.find((member) => member.id === chat.leaderMateId)?.name ?? chat.title;
   return leader;
