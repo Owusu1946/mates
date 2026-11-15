@@ -3,31 +3,19 @@ import type { WorkflowCard } from "@expojet/api-contract";
 import { useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, { Easing, FadeIn, interpolateColor, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming, type SharedValue } from "react-native-reanimated";
+import Animated, { Easing, FadeIn, useAnimatedStyle, useReducedMotion, useSharedValue, withDelay, withTiming } from "react-native-reanimated";
 import { ChatIcon } from "./chat-icon";
 import { createApiClient } from "../data/api";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
+import { ShimmerLetters } from "./shimmer-text";
 
 const ITALIC = "DMSans_500Medium_Italic";
 
 /** Lines that have already played their entrance this session: scrolling back never replays it. */
 const played = new Set<string>();
 
-/** Width of the shimmer's highlight, in letters. */
-const BAND = 4;
 const SHIMMER_MS = 950;
-
-/** One letter of a shimmering label: brightens as the highlight passes over it. */
-function ShimmerLetter({ char, index, progress, total, base, highlight, style }: { char: string; index: number; progress: SharedValue<number>; total: number; base: string; highlight: string; style: object }) {
-  const animated = useAnimatedStyle(() => {
-    // The band travels from before the first letter to past the last.
-    const centre = progress.value * (total + BAND * 2) - BAND;
-    const t = Math.max(0, 1 - Math.abs(index - centre) / BAND);
-    return { color: interpolateColor(t * t * (3 - 2 * t), [0, 1], [base, highlight]) };
-  });
-  return <Animated.Text style={[style, animated]}>{char}</Animated.Text>;
-}
 
 /**
  * A quiet, slanted "✦ Memory updated" line instead of a card. When it appears, the sparkle eases
@@ -68,12 +56,7 @@ function MemoryLine({ id, label, detail, struck, onPress, accessibilityLabel }: 
           <ChatIcon name="sparkles" color={colors.textMuted} size={14} />
         </Animated.View>
         {shimmer ? (
-          // A hair of room on the right, so the last letter's slant isn't clipped.
-          <View style={{ flexDirection: "row", paddingRight: 2 }} accessible={false}>
-            {[...label].map((char, i) => (
-              <ShimmerLetter key={i} char={char} index={i} progress={sweep} total={label.length} base={colors.textMuted} highlight={colors.text} style={text} />
-            ))}
-          </View>
+          <ShimmerLetters text={label} progress={sweep} palette={[colors.textMuted, colors.text]} style={text} />
         ) : (
           <Text style={[text, { textDecorationLine: struck ? "line-through" : "none" }]}>{label}</Text>
         )}
