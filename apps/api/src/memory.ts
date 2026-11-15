@@ -213,7 +213,9 @@ export function composeMemoryContext(input: {
     input.shared.length ? `Shared memories (every mate knows these):\n${input.shared.map(line).join("\n")}` : "No shared memories yet.",
     input.own.length ? `Your own notes as ${input.speaker.name}, for your role:\n${input.own.map(line).join("\n")}` : `You have no notes of your own yet as ${input.speaker.name}.`,
     input.lead && input.crewNotes.length ? `What your crew knows (each mate's own notes; you lead them):\n${input.crewNotes.map((m) => `- [${m.id}] (${nameOf.get(m.mateId ?? "") ?? "a mate"}) ${m.text}`).join("\n")}` : "",
-    `${SAVE_RULE} Give it scope "mine" for details that matter mostly to your role as ${input.speaker.name}, and "shared" (the default) for who the user is, their people and preferences, and anything every mate should know.`,
+    input.lead
+      ? `${SAVE_RULE} As the lead, save everything as shared (the default), so every mate knows it.`
+      : `${SAVE_RULE} Give it scope "mine" for details that matter mostly to your role as ${input.speaker.name}, and "shared" (the default) for who the user is, their people and preferences, and anything every mate should know.`,
     others.length
       ? `Your fellow mates: ${others.map((m) => `${m.name} (${m.roleDescription || m.role})`).join("; ")}. When another mate's focus fits a question about the user better than what you know, use cooper_check_with_mate to look at what they know, and say so naturally ("I checked with ${others[0]!.name}…").`
       : "",
@@ -226,9 +228,10 @@ export function composeMemoryContext(input: {
 /**
  * The memory part of the system prompt, when memory is on. With a speaker, that mate gets the
  * user's bio, the shared memories, its own notes, and (as the lead) what the crew knows. Without
- * one (older callers), every memory in one list, as before.
+ * one (older callers), every memory in one list, as before. `live`: the user is in this chat
+ * now, so the mate may ask them about themselves.
  */
-export async function memoryContext(userId: string, query: number[] | null = null, speaker?: Speaker | null) {
+export async function memoryContext(userId: string, query: number[] | null = null, speaker?: Speaker | null, options: { live?: boolean } = {}) {
   const settings = await memorySettings(userId);
   if (!settings.memoryEnabled) return { enabled: false as const, context: null, settings, crew: 0 };
   await backfillEmbeddings(userId).catch(() => {});
@@ -253,7 +256,8 @@ export async function memoryContext(userId: string, query: number[] | null = nul
     selectMemories(userId, query, eq(memories.mateId, speaker.id), OWN_LIMITS),
     lead ? selectMemories(userId, query, and(isNotNull(memories.mateId), ne(memories.mateId, speaker.id)), CREW_LIMITS) : Promise.resolve([]),
   ]);
-  const askAbout = shouldAskAbout({ bio: about?.bio ?? null, aboutAskedAt: about?.aboutAskedAt ?? null }, leadMate?.createdAt ?? null);
+  // Only a live conversation may ask: a routine, watch or call summary must not, nor use up the day's turn.
+  const askAbout = !!options.live && shouldAskAbout({ bio: about?.bio ?? null, aboutAskedAt: about?.aboutAskedAt ?? null }, leadMate?.createdAt ?? null);
   // Stamped when offered, so a mate is invited to ask at most once a day.
   if (askAbout) void getDb().update(profiles).set({ aboutAskedAt: new Date() }).where(eq(profiles.clerkUserId, userId)).catch(() => undefined);
   const context = composeMemoryContext({ speaker, lead, bio: about?.bio ?? null, shared, own, crewNotes, crew, askAbout });
@@ -427,9 +431,11 @@ export async function extractMemories(input: { userId: string; chatId?: string |
   if (input.userText.trim().length < 3) return [];
   const settings = await memorySettings(input.userId);
   if (!settings.memoryEnabled || !settings.autoMemory) return [];
-  const [mate] = input.mateId
-    ? await getDb().select({ id: mates.id, name: mates.name, role: mates.role, roleDescription: mates.roleDescription }).from(mates).where(and(eq(mates.id, input.mateId), eq(mates.clerkUserId, input.userId)))
+  const [speaking] = input.mateId
+    ? await getDb().select({ id: mates.id, name: mates.name, role: mates.role, roleDescription: mates.roleDescription, isDefault: mates.isDefault }).from(mates).where(and(eq(mates.id, input.mateId), eq(mates.clerkUserId, input.userId)))
     : [];
+  // The lead talks about everything: what it learns is shared, so no mate misses the basics.
+  const mate = speaking && !speaking.isDefault ? speaking : undefined;
   const existing = await getDb()
     .select({ id: memories.id, text: memories.text, category: memories.category, mateId: memories.mateId })
     .from(memories)
@@ -495,14 +501,16 @@ export async function extractMemories(input: { userId: string; chatId?: string |
 
 /**
  * Applies a model's add/update/delete operations: adds go to the shared pool, or to `mateId`'s own
- * notes when scoped "mine" (and there is a mate); updates and deletes only touch ids it was shown.
+ * notes when scoped "mine" (and there is a mate); updates and deletes only touch ids it was shown,
+ * and deletes only those in `deletable` when given.
  */
 export async function applyOperations(
   userId: string,
   operations: { op: "add" | "update" | "delete"; id: string; text: string; category: (typeof MEMORY_CATEGORIES)[number]; importance: number; scope?: "shared" | "mine"; mateId?: string | null }[],
   shown: Set<string>,
-  context: { source: MemorySource; chatId?: string | null; mateId?: string | null },
+  context: { source: MemorySource; chatId?: string | null; mateId?: string | null; deletable?: Set<string> },
 ): Promise<MemoryChange[]> {
+  const deletable = context.deletable ?? shown;
   const changes: MemoryChange[] = [];
   for (const op of operations) {
     const text = op.text.trim().slice(0, MAX_MEMORY_CHARS);
@@ -513,7 +521,7 @@ export async function applyOperations(
     } else if (op.op === "update" && shown.has(op.id) && text) {
       const row = await updateMemory(userId, op.id, { text, category: op.category, importance: op.importance });
       if (row) changes.push({ id: row.id, text: row.text, action: "updated" });
-    } else if (op.op === "delete" && shown.has(op.id)) {
+    } else if (op.op === "delete" && shown.has(op.id) && deletable.has(op.id)) {
       const row = await forgetMemory(userId, op.id);
       if (row) changes.push({ id: row.id, text: row.text, action: "forgotten" });
     }

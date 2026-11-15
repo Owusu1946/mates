@@ -133,7 +133,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -334,7 +334,7 @@ export async function createAgentResponse(
   }
   const query = await queryVector;
   // The speaking mate gets its own notes beside the shared ones (and the lead sees the crew's).
-  const memory = await memoryContext(userId, query, execution?.speaker ?? null).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 }));
+  const memory = await memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 }));
   const recallOn = memory.enabled && memory.settings.historyRecall;
   // A group on a mission shares its goal and notes with every mate who speaks in it.
   // A mate doing a board task already has its brief and inputs, and its reply is saved as the

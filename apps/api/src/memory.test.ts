@@ -52,6 +52,10 @@ describe("each mate's memory", () => {
     const context = composeMemoryContext({ ...base, speaker: { ...crew[0]!, roleDescription: "Your lead mate" }, lead: true, own: [], crewNotes: [{ id: "c2", text: "Saving for a van", category: "finance", mateId: "esi" }] });
     expect(context).toContain("What your crew knows");
     expect(context).toContain("(Esi) Saving for a van");
+    // The lead saves for everyone; only specialists keep notes of their own.
+    expect(context).toContain("As the lead, save everything as shared");
+    expect(context).not.toContain('scope "mine"');
+    expect(composeMemoryContext(base)).toContain('scope "mine"');
   });
 
   it("trims a long bio and invites one question only when asked to", () => {

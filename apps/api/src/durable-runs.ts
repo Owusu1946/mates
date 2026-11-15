@@ -243,6 +243,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           preamble,
           speaker: mate,
           boardTask,
+          // The user is in the conversation now: not a routine, watch, habit, call summary or board task.
+          live: !boardTask && !/^(occurrence_|watch_|habit_|call_|manual_|mission_)/.test(run.requestKey),
           // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
           usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : run.requestKey.startsWith("habit_") ? "habit" : "chat",
           checkpoint: async (pendingTool, history) => {
