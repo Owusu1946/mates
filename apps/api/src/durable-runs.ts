@@ -3,6 +3,7 @@ import { and, desc, eq, gt, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { tasks, idempotencyKeys } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
+import { CANCELLED_STATUS, cancelledMessage, stoppedContent } from "./run-cancel.js";
 import { agentRuns, chatMessages, chats, delegations, findings, missions, runEvents, submissionOutbox } from "./db/schema.js";
 import { chatRequestSchema, requestChatCompletion } from "./chat.js";
 import { createChatStore, chatIdSchema } from "./chats.js";
@@ -119,7 +120,16 @@ export async function runSnapshot(userId: string, id: string, after = 0) {
 export async function cancelRun(userId: string, id: string) {
   const run = await ownedRun(userId, id);
   if (!run) return false;
-  await getDb().update(delegations).set({ cancelRequested: true, ...(run.status === "queued" ? { status: "cancelled" } : {}), updatedAt: new Date() }).where(and(owner(userId, id), inArray(delegations.status, ["queued", "running"])));
+  const [updated] = await getDb()
+    .update(delegations)
+    .set({ cancelRequested: true, ...(run.status === "queued" ? { status: "cancelled", content: stoppedContent(run.content as Record<string, unknown>[]) } : {}), updatedAt: new Date() })
+    .where(and(owner(userId, id), inArray(delegations.status, ["queued", "running"])))
+    .returning({ status: delegations.status });
+  // A run stopped before the worker took it never runs, so its placeholder reply is closed here.
+  if (updated?.status === "cancelled" && run.chatId) {
+    const [row] = await getDb().select({ message: chatMessages.message }).from(chatMessages).where(and(eq(chatMessages.chatId, run.chatId), eq(chatMessages.id, run.assistantMessageId)));
+    if (row) await getDb().update(chatMessages).set({ message: cancelledMessage(row.message as Record<string, unknown>) as typeof row.message }).where(and(eq(chatMessages.chatId, run.chatId), eq(chatMessages.id, run.assistantMessageId)));
+  }
   return true;
 }
 
@@ -168,7 +178,10 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   const persistNow = async (type: string, finalStatus?: string) => {
     sequence++;
     const createdAt = new Date(run.createdAt.getTime() + 1).toISOString();
-    const message = { id: run.assistantMessageId, role: "assistant", createdAt, content: structuredClone(content), metadata: { custom: { delegationId: id, resumed: !!request.resumeRunId } }, status: { type: finalStatus === "failed" ? "incomplete" : finalStatus ? "complete" : "running", ...(finalStatus ? { reason: finalStatus === "failed" ? "error" : "stop" } : {}) } };
+    // Stopped by the person: spinning cards read "Stopped" and the reply is marked cancelled.
+    if (finalStatus === "cancelled" && userCancelled) content = stoppedContent(content);
+    const status = finalStatus === "cancelled" && userCancelled ? CANCELLED_STATUS : { type: finalStatus === "failed" ? "incomplete" : finalStatus ? "complete" : "running", ...(finalStatus ? { reason: finalStatus === "failed" ? "error" : "stop" } : {}) };
+    const message = { id: run.assistantMessageId, role: "assistant", createdAt, content: structuredClone(content), metadata: { custom: { delegationId: id, resumed: !!request.resumeRunId } }, status };
     const statements = [
       getDb().update(delegations).set({ content: structuredClone(content), sequence, updatedAt: new Date(), ...(finalStatus ? { status: finalStatus, error: failure } : {}) }).where(eq(delegations.id, id)),
       getDb().insert(runEvents).values({ delegationId: id, sequence, type, payload: { content: structuredClone(content), status: finalStatus ?? "running", error: failure } }),
