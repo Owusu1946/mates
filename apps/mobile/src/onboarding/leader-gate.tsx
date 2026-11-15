@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { readCache, writeCache } from "../data/offline-cache";
 import { useMates } from "../mates/data";
@@ -17,13 +17,19 @@ export function LeaderGate({ children }: { children: ReactNode }) {
   const mates = useMates();
   const [ready, setReady] = useState(() => readCache<boolean>(READY)?.data === true);
   const leader = mates.data?.mates.find((mate) => mate.isDefault);
+  // Once setup starts it stays until it calls onDone: saving the leader marks it set up, and the
+  // About step after it must not be swapped out for the app.
+  const setup = useRef<typeof leader>(undefined);
 
   useEffect(() => {
     if (leader?.setupAt) writeCache(READY, true);
   }, [leader?.setupAt]);
 
   if (ready) return children;
-  if (mates.data && leader && !leader.setupAt) return <LeaderSetup leader={leader} presets={mates.data.presets} onDone={() => setReady(true)} />;
+  if (mates.data && leader && (!leader.setupAt || setup.current)) {
+    setup.current ??= leader;
+    return <LeaderSetup leader={setup.current} presets={mates.data.presets} onDone={() => setReady(true)} />;
+  }
   // First launch on this device: wait for the mates to know. If they can't load, don't block the app.
   if (!mates.data && !mates.isError) return <View style={{ flex: 1, backgroundColor: colors.background }} />;
   return children;
