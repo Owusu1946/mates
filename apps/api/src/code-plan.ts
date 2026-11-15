@@ -1,4 +1,4 @@
-import type { CodeCheck } from "./db/schema.js";
+import type { CodeCheck, CodeNote } from "./db/schema.js";
 
 /** `mates/add-dark-mode-3f9a1c`: readable in GitHub's branch list, unique per run. */
 export function branchName(task: string, runId: string) {
@@ -80,7 +80,7 @@ const ECONOMY =
  * The coder's brief. A fix round continues the same session, which already holds the task, the
  * rules and what it read, so it gets only the failures: re-sending the rest would pay for it twice.
  */
-export function coderPrompt(input: { task: string; rules: string | null; checks: { command: string }[]; failures?: CodeCheck[]; continued?: boolean }) {
+export function coderPrompt(input: { task: string; rules: string | null; checks: { command: string }[]; failures?: CodeCheck[]; continued?: boolean; installFailed?: boolean }) {
   const failed = input.failures?.length
     ? `These checks failed after your last change. Fix the causes, not the tests:\n\n${input.failures.map((check) => `$ ${check.command}\n${check.output.slice(-2_000)}`).join("\n\n")}`
     : null;
@@ -91,17 +91,100 @@ export function coderPrompt(input: { task: string; rules: string | null; checks:
     ECONOMY,
   ];
   if (input.rules) parts.push(`The repository's own instructions:\n\n${input.rules.slice(0, 6_000)}`);
+  if (input.installFailed)
+    parts.push("The project's dependencies failed to install on this computer, so its checks can't run here. Don't change lockfiles, dependencies or tests to work around that; just make the change carefully.");
   if (input.checks.length) parts.push(`These must pass when you finish: ${input.checks.map((check) => `\`${check.command}\``).join(", ")}. Run each once before you finish and fix what fails.`);
   if (failed) parts.push(failed);
   return parts.join("\n\n");
 }
 
+/** Checks and notes as markdown lines, for the PR description and its updates. */
+function checksMarkdown(checks: CodeCheck[], notes: CodeNote[]) {
+  const lines = checks.length
+    ? checks.map((check) => `- ${check.passed ? "✅" : "❌"} \`${check.command}\``)
+    : [notes.some((note) => note.kind === "install_failed") ? "- Checks were skipped: dependencies didn’t install." : "- No automated checks were found in this repository."];
+  // A failed install shows as the line above; checks still failing already show as ❌.
+  for (const note of notes) if (note.kind !== "install_failed" && note.kind !== "still_failing") lines.push(`- ${note.kind === "warning" ? "⚠️" : note.kind === "out_of_time" ? "⏱️" : "ℹ️"} ${note.text}`);
+  return lines.join("\n");
+}
+
 /** The PR description: what changed, how it was checked, and who asked. */
-export function pullRequestBody(input: { task: string; summary: string; checks: CodeCheck[]; requester: string }) {
-  const checks = input.checks.length
-    ? input.checks.map((check) => `- ${check.passed ? "✅" : "❌"} \`${check.command}\``).join("\n")
-    : "- No automated checks were found in this repository.";
-  return [`## What changed\n\n${input.summary.trim()}`, `## Request\n\n> ${input.task.trim().replace(/\n/g, "\n> ")}`, `## Checks\n\n${checks}`, `---\nOpened by Mates on behalf of ${input.requester}.`].join("\n\n");
+export function pullRequestBody(input: { task: string; summary: string; checks: CodeCheck[]; requester: string; notes?: CodeNote[] }) {
+  return [
+    `## What changed\n\n${input.summary.trim()}`,
+    `## Request\n\n> ${input.task.trim().replace(/\n/g, "\n> ")}`,
+    `## Checks\n\n${checksMarkdown(input.checks, input.notes ?? [])}`,
+    `---\nOpened by Mates on behalf of ${input.requester}.`,
+  ].join("\n\n");
+}
+
+/** A follow-up's section, added to the existing PR description. */
+export function pullRequestUpdate(input: { task: string; summary: string; checks: CodeCheck[]; notes?: CodeNote[]; at: Date }) {
+  return [
+    `## Update · ${input.at.toISOString().slice(0, 10)}`,
+    `> ${input.task.trim().replace(/\n/g, "\n> ")}`,
+    input.summary.trim(),
+    `**Checks**\n\n${checksMarkdown(input.checks, input.notes ?? [])}`,
+  ].join("\n\n");
+}
+
+/** If a frozen install fails (often a stale lockfile), the same manager without the freeze. */
+export function installFallback(manager: PackageManager) {
+  return { pnpm: "pnpm install --no-frozen-lockfile", yarn: "yarn install", bun: "bun install", npm: "npm install" }[manager];
+}
+
+/**
+ * Splits check results against the base commit's: only checks that passed there and fail now are
+ * the change's failures. Ones already failing on the base are reported, never sent to the coder.
+ */
+export function compareWithBaseline(results: CodeCheck[], baseline: CodeCheck[] | null) {
+  const failedBefore = new Set((baseline ?? []).filter((check) => !check.passed).map((check) => check.command));
+  const failing = results.filter((check) => !check.passed);
+  return {
+    failures: failing.filter((check) => !failedBefore.has(check.command)),
+    alreadyFailing: failing.filter((check) => failedBefore.has(check.command)),
+  };
+}
+
+/** Files never allowed in a pushed change, whatever they contain. */
+const BLOCKED_FILES = [
+  { test: (path: string) => /(^|\/)\.env(\.[^/]*)?$/.test(path) && !/\.env\.(example|sample|template)$/.test(path), why: "an environment file" },
+  { test: (path: string) => /(^|\/)(id_rsa|id_ed25519|id_ecdsa|id_dsa)$/.test(path) || /\.(pem|p12|pfx|key)$/.test(path), why: "a private key file" },
+];
+/** Secrets in added lines: the output patterns plus a few more providers. */
+const DIFF_SECRETS = [
+  ...SECRET_PATTERNS,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----/g,
+  /\bAKIA[0-9A-Z]{16}\b/g, // AWS access key id
+  /\bsk_live_[0-9A-Za-z]{20,}\b/g, // Stripe secret key
+  /\bxox[bap]-[0-9A-Za-z-]{10,}\b/g, // Slack tokens
+];
+const LOCKFILES = ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lock", "bun.lockb"];
+const BIG_FILE = 5 * 1024 * 1024;
+
+export type DiffCheck = { blocked: string | null; warnings: string[] };
+
+/**
+ * The last look before a push. `files` are the staged paths with their sizes; `patch` is the
+ * staged diff. A secret, env file or key blocks the push; big files or a lockfile change with no
+ * dependency change only warn.
+ */
+export function checkDiff(files: { path: string; bytes: number }[], patch: string): DiffCheck {
+  for (const file of files) {
+    const rule = BLOCKED_FILES.find((item) => item.test(file.path));
+    if (rule) return { blocked: `The change included ${rule.why} (${file.path}). Nothing was pushed.`, warnings: [] };
+  }
+  let current = "";
+  for (const line of patch.split("\n")) {
+    if (line.startsWith("+++ b/")) current = line.slice(6);
+    else if (line.startsWith("+") && !line.startsWith("+++") && DIFF_SECRETS.some((pattern) => new RegExp(pattern.source).test(line)))
+      return { blocked: `The change included what looks like a secret${current ? ` in ${current}` : ""}. Nothing was pushed.`, warnings: [] };
+  }
+  const warnings: string[] = [];
+  for (const file of files) if (file.bytes > BIG_FILE) warnings.push(`${file.path} is ${Math.round(file.bytes / 1024 / 1024)} MB.`);
+  const names = files.map((file) => file.path.split("/").pop()!);
+  if (names.some((name) => LOCKFILES.includes(name)) && !names.includes("package.json")) warnings.push("A lockfile changed though no package.json did.");
+  return { blocked: null, warnings };
 }
 
 /**
