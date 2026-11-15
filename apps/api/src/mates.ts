@@ -2,8 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chats, groupMembers, mates, memories } from "./db/schema.js";
-import { briefMate } from "./about.js";
+import { chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
+import { briefMate, hasBriefing, mateGreeting, mateMessage } from "./about.js";
 
 /** Avatar gradients, light → dark. "amber" is the lead mate's original look. */
 export const MATE_PALETTE = {
@@ -141,28 +141,34 @@ export async function listMatesAndGroups(userId: string) {
 }
 
 /**
- * Creates a mate and its chat. It is then briefed in the background (its own notes for its role,
- * from what the crew knows), and with `greet` says hello in its chat; never delaying creation.
+ * Creates a mate and its chat, with `greet` its hello already in it (written together, so the
+ * chat never opens before it). It is then briefed in the background: its own notes for its role,
+ * from what the crew knows. Creation never waits for that.
  */
 export async function createMate(userId: string, input: z.infer<typeof mateInputSchema>, options: { greet?: boolean } = {}) {
-  await ensureDefaultMate(userId);
+  const lead = await ensureDefaultMate(userId);
   const [{ count }] = await getDb().select({ count: sql<number>`count(*)::int` }).from(mates).where(eq(mates.clerkUserId, userId));
   if (count >= MAX_MATES) throw new MateError("LIMIT");
   if (await nameTaken(userId, input.name)) throw new MateError("NAME_TAKEN");
   const id = randomUUID();
   const roleDescription = input.roleDescription || ROLE_PRESETS[input.role].brief;
+  const greet = options.greet ?? true;
+  const greeting = greet ? mateGreeting(input, lead.name, await hasBriefing(userId).catch(() => false), ROLE_PRESETS[input.role].label) : null;
   // The mate and its conversation are created together, so a mate never lacks a chat.
   const [[mate]] = await getDb().batch([
     getDb().insert(mates).values({ id, clerkUserId: userId, name: input.name, role: input.role, roleDescription, color: input.color, shape: input.shape ?? randomShape() }).returning(),
     getDb().insert(chats).values({ id: mateChatId(id), clerkUserId: userId, title: input.name, kind: "mate", mateId: id }),
+    ...(greeting ? [getDb().insert(chatMessages).values({ chatId: mateChatId(id), id: `hello_${id}`, parentId: null, message: mateMessage(`hello_${id}`, greeting) })] : []),
   ]);
-  void briefMate(userId, mate!, { greet: options.greet ?? true }).catch((error) => console.warn("mate_briefing_failed", { mateId: id, message: error instanceof Error ? error.message : String(error) }));
+  void briefMate(userId, mate!).catch((error) => console.warn("mate_briefing_failed", { mateId: id, message: error instanceof Error ? error.message : String(error) }));
   return { ...mate!, gradient: gradientOf(mate!.color), chatId: mateChatId(id) };
 }
 
 export async function updateMate(userId: string, id: string, input: z.infer<typeof mateUpdateSchema>) {
   if (!z.string().uuid().safeParse(id).success) throw new MateError("NOT_FOUND");
   if (input.name && (await nameTaken(userId, input.name, id))) throw new MateError("NAME_TAKEN");
+  const [before] = await getDb().select().from(mates).where(and(eq(mates.id, id), eq(mates.clerkUserId, userId)));
+  if (!before) throw new MateError("NOT_FOUND");
   const values = {
     ...input,
     ...(input.role && input.role !== "custom" && !input.roleDescription ? { roleDescription: ROLE_PRESETS[input.role].brief } : {}),
@@ -172,6 +178,12 @@ export async function updateMate(userId: string, id: string, input: z.infer<type
   if (!mate) throw new MateError("NOT_FOUND");
   // The chat title follows the name: recall, the feed and notifications read it.
   if (input.name) await getDb().update(chats).set({ title: input.name }).where(and(eq(chats.id, mateChatId(id)), eq(chats.clerkUserId, userId)));
+  // A new role means new notes: the old ones pass to the lead (nothing lost), then a fresh briefing.
+  if (!mate.isDefault && (mate.role !== before.role || mate.roleDescription !== before.roleDescription)) {
+    const lead = await ensureDefaultMate(userId);
+    await getDb().update(memories).set({ mateId: lead.id, updatedAt: new Date() }).where(and(eq(memories.clerkUserId, userId), eq(memories.mateId, id)));
+    void briefMate(userId, mate).catch((error) => console.warn("mate_briefing_failed", { mateId: id, message: error instanceof Error ? error.message : String(error) }));
+  }
   return { ...mate, gradient: gradientOf(mate.color), chatId: mateChatId(id) };
 }
 
