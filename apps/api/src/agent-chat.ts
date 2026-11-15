@@ -439,6 +439,13 @@ export async function createAgentResponse(
   let hasProgress = false;
   let hasResults = false;
   let lastApp: Awaited<ReturnType<typeof getApp>> = null;
+  // Each action's own app (one call can mix tools, e.g. a Notion page and Calendar events), looked up once per reply.
+  const appsByToolkit = new Map<string, Promise<Awaited<ReturnType<typeof getApp>>>>();
+  const appFor = (toolkit: string) => {
+    if (lastApp?.slug === toolkit) return Promise.resolve(lastApp);
+    if (!appsByToolkit.has(toolkit)) appsByToolkit.set(toolkit, getApp(session, toolkit).catch(() => null));
+    return appsByToolkit.get(toolkit)!;
+  };
   let cancelled = false;
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -1109,12 +1116,13 @@ export async function createAgentResponse(
                     const result = Array.isArray(results) ? results[i] : parsed;
                     const inverse = undoFor(slug, tool.arguments ?? {}, result);
                     const undoId = inverse ? await saveUndo(userId, session.sessionId, inverse).catch(() => null) : null;
+                    const app = await appFor(slug.split("_")[0]!.toLowerCase());
                     recordDone({
                       id: `${call.id}_${i}`,
                       kind: "app",
                       ...describeAction(slug, tool.arguments ?? {}, true),
-                      app: lastApp?.name,
-                      logo: lastApp?.logo,
+                      app: app?.name,
+                      logo: app?.logo,
                       status: "done",
                       links: [...extractLinks(result)].map(([label, url]) => ({ label, url })),
                       ...(undoId ? { undo: { kind: "app" as const, id: undoId } } : {}),
