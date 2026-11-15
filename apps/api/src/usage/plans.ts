@@ -63,6 +63,10 @@ export function planSpec(plan: PlanId) {
   };
 }
 
+/** The mates' computer (coding runs and pull requests) comes with Pro and Max. */
+export const CODING_PLANS: readonly PlanId[] = ["pro", "max"];
+export const canCode = (plan: PlanId) => CODING_PLANS.includes(plan);
+
 /**
  * Watches ("watch for X, then do Y"), from Plus up: how many can be active at once, and how often a
  * web watch may be checked at most. A check is a search plus a short judgement, about $0.0015.

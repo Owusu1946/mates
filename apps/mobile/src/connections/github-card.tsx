@@ -9,6 +9,7 @@ import { CardButton } from "../chat/card-button";
 import { runRequest } from "../chat/background-chat";
 import { haptic } from "../haptics";
 import { useToast } from "../components/toast";
+import { useUsage } from "../usage/use-usage";
 
 type GitHubState = { configured: boolean; installations: { id: number; account: string }[]; repos: { fullName: string; private: boolean }[] };
 
@@ -62,6 +63,9 @@ export function useConnectGitHub(returnPath = "connections") {
 /** Lets the mates' bot into the user's GitHub so it can ship code and open pull requests. */
 export function GitHubCard({ isDark }: { isDark: boolean }) {
   const { github, busy, connect: open } = useConnectGitHub();
+  // Coding runs are a Pro and Max feature: say so here, before anyone connects expecting them.
+  const plan = useUsage().data?.plan.id;
+  const canCode = plan === "pro" || plan === "max";
   if (!github.data?.configured) return null;
 
   const foreground = isDark ? "#fafafa" : "#18181b";
@@ -75,10 +79,11 @@ export function GitHubCard({ isDark }: { isDark: boolean }) {
         <GitHubMark color={foreground} size={22} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={{ color: foreground, fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>GitHub</Text>
-          <Text numberOfLines={1} style={{ color: muted, fontSize: 12, lineHeight: 16 }}>
+          <Text numberOfLines={2} style={{ color: muted, fontSize: 12, lineHeight: 16 }}>
             {connected
               ? `${github.data.installations.map((item) => item.account).join(", ")} · ${repos} repo${repos === 1 ? "" : "s"}`
               : "Not connected"}
+            {plan && !canCode ? " · Coding comes with Pro and Max" : ""}
           </Text>
         </View>
       {busy ? <ActivityIndicator color={foreground} size="small" /> : <CardButton label={connected ? "Choose repos" : "Connect"} variant="outlined" disabled={busy} onPress={() => void open()} />}
