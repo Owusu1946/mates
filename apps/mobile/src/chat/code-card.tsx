@@ -124,11 +124,22 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
           }}
           style={({ pressed }) => ({ padding: 12, borderRadius: 14, gap: 4, backgroundColor: colors.surfaceElevated, opacity: pressed ? 0.7 : 1 })}
         >
-          <Text style={{ color: colors.text, fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>PR #{code.pr.number}</Text>
+          <Text style={{ color: colors.text, fontSize: 15, fontFamily: "DMSans_600SemiBold" }}>
+            {code.pr.draft ? "Draft PR" : "PR"} #{code.pr.number}
+            {code.pr.draft ? <Text style={{ color: colors.textMuted, fontFamily: "DMSans_500Medium" }}>{"  ·  needs attention"}</Text> : null}
+          </Text>
           <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: 14 }}>{code.pr.title}</Text>
           <Text style={{ color: colors.text, fontSize: 14, fontFamily: "DMSans_600SemiBold", marginTop: 4 }}>Open pull request</Text>
         </Pressable>
       )}
+
+      {/* Already failing before the change, diff warnings, a failed install or running out of time. */}
+      {code.notes?.filter((note) => note.kind !== "still_failing").map((note) => (
+        <Text key={note.kind + note.text} style={{ color: note.kind === "warning" ? colors.error : colors.textMuted, fontSize: 13, lineHeight: 18 }}>
+          {note.kind === "warning" ? "⚠️ " : note.kind === "out_of_time" ? "⏱️ " : "ℹ️ "}
+          {note.text.replace(/`/g, "")}
+        </Text>
+      ))}
 
       {code.status === "failed" && <Text style={{ color: colors.error, fontSize: 14, lineHeight: 20 }}>{code.error ?? "The run didn’t finish. Nothing was pushed."}</Text>}
       {code.status === "cancelled" && <Text style={{ color: colors.textMuted, fontSize: 14 }}>Stopped.</Text>}
