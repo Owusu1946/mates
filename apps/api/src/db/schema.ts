@@ -35,6 +35,12 @@ export const profiles = pgTable(
     bioUpdatedAt: timestamp("bio_updated_at", { withTimezone: true }),
     /** When a mate was last invited to ask the user about themselves: at most once a day, first week only. */
     aboutAskedAt: timestamp("about_asked_at", { withTimezone: true }),
+    /** The bio version (its bio_updated_at) last turned into memories; behind bio_updated_at means work is due. */
+    bioProcessedAt: timestamp("bio_processed_at", { withTimezone: true }),
+    /** Failed tries at the current bio version; the dispatcher gives up after a few. */
+    bioAttempts: integer("bio_attempts").notNull().default(0),
+    /** Held while one worker turns the bio into memories, so overlapping saves run one at a time. */
+    bioLeaseUntil: timestamp("bio_lease_until", { withTimezone: true }),
     /** Mates learn habits from how you use them and offer to handle them ("What I've noticed"). */
     habitLearning: boolean("habit_learning").notNull().default(true),
     /** Also learn from connected apps (sent mail, calendar), through opt-in Composio triggers. */
