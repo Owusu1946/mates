@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chats, groupMembers, mates } from "./db/schema.js";
+import { chats, groupMembers, mates, memories } from "./db/schema.js";
+import { briefMate } from "./about.js";
 
 /** Avatar gradients, light → dark. "amber" is the lead mate's original look. */
 export const MATE_PALETTE = {
@@ -139,7 +140,11 @@ export async function listMatesAndGroups(userId: string) {
   };
 }
 
-export async function createMate(userId: string, input: z.infer<typeof mateInputSchema>) {
+/**
+ * Creates a mate and its chat. It is then briefed in the background (its own notes for its role,
+ * from what the crew knows), and with `greet` says hello in its chat; never delaying creation.
+ */
+export async function createMate(userId: string, input: z.infer<typeof mateInputSchema>, options: { greet?: boolean } = {}) {
   await ensureDefaultMate(userId);
   const [{ count }] = await getDb().select({ count: sql<number>`count(*)::int` }).from(mates).where(eq(mates.clerkUserId, userId));
   if (count >= MAX_MATES) throw new MateError("LIMIT");
@@ -151,6 +156,7 @@ export async function createMate(userId: string, input: z.infer<typeof mateInput
     getDb().insert(mates).values({ id, clerkUserId: userId, name: input.name, role: input.role, roleDescription, color: input.color, shape: input.shape ?? randomShape() }).returning(),
     getDb().insert(chats).values({ id: mateChatId(id), clerkUserId: userId, title: input.name, kind: "mate", mateId: id }),
   ]);
+  void briefMate(userId, mate!, { greet: options.greet ?? true }).catch((error) => console.warn("mate_briefing_failed", { mateId: id, message: error instanceof Error ? error.message : String(error) }));
   return { ...mate!, gradient: gradientOf(mate!.color), chatId: mateChatId(id) };
 }
 
@@ -183,6 +189,9 @@ export async function deleteMate(userId: string, id: string) {
   const [mate] = await getDb().select().from(mates).where(and(eq(mates.id, id), eq(mates.clerkUserId, userId)));
   if (!mate) throw new MateError("NOT_FOUND");
   if (mate.isDefault) throw new MateError("DEFAULT_MATE");
+  // What this mate learned stays with the crew: its notes pass to the lead mate.
+  const lead = await ensureDefaultMate(userId);
+  await getDb().update(memories).set({ mateId: lead.id, updatedAt: new Date() }).where(and(eq(memories.clerkUserId, userId), eq(memories.mateId, id)));
   await getDb().delete(mates).where(eq(mates.id, id));
 }
 
