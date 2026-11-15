@@ -61,10 +61,10 @@ import { MemoriesChip, MemoryCard } from "./memory-card";
 import { ConsultCard } from "./consult-card";
 import { PlanCard } from "./plan-card";
 import { MatesList } from "./drawer-mates-list";
-import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateName, useMates, type ChatSummary } from "../mates/data";
+import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateName, useMates, useThreadTitle, type ChatSummary } from "../mates/data";
 import { Glow } from "../onboarding/glow";
 import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
-import { MissionBanner, TeamCard } from "../mates/mission";
+import { MateCard, MissionBanner, TeamCard } from "../mates/mission";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CodeCard } from "./code-card";
 import { DeckCard } from "../decks/deck-card";
@@ -644,7 +644,7 @@ function ChatMessage() {
           <MessagePrimitive.Content
             renderToolCall={({ part }) =>
               part.result ? (
-                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memories" ? <MemoriesChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "consult" ? <ConsultCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "watch" ? <WatchCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "prep" ? <MeetingPrepCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
+                (part.result as WorkflowCard).kind === "approval" ? <ActionApproval state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "speaker" ? <SpeakerLabel state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "team" ? <TeamCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "mate" ? <MateCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "handoff" ? <HandoffCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "note" ? <NoteChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "code" ? <CodeCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "deck" ? <DeckCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "sources" ? <SourcesCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memory" ? <MemoryCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "memories" ? <MemoriesChip state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "consult" ? <ConsultCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "plan" ? <PlanCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "schedule" ? <ScheduleCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "watch" ? <WatchCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "prep" ? <MeetingPrepCard state={part.result as WorkflowCard} /> : (part.result as WorkflowCard).kind === "browser" ? <BrowserCard state={part.result as WorkflowCard} /> : ["choice", "results"].includes(
                   (part.result as WorkflowCard).kind,
                 ) ? (
                   <AppResponseCard state={part.result as WorkflowCard} />
@@ -1815,7 +1815,9 @@ function ChatTitle() {
   const router = useRouter();
   const chat = useCurrentChat();
   const leaderName = useLeaderName();
-  const name = chat?.kind === "mate" ? chat.mate?.name ?? chat.title : chat?.kind === "group" ? chat.title : leaderName;
+  // A chat the list hasn't caught up with yet shows its own title, not the lead's name.
+  const threadTitle = useThreadTitle();
+  const name = chat?.kind === "mate" ? chat.mate?.name ?? chat.title : chat?.kind === "group" ? chat.title : !chat && threadTitle ? threadTitle : leaderName;
   const profile =
     chat?.kind === "mate" && chat.mate ? `/mate/${chat.mate.id}` : chat?.kind === "group" ? `/group/${chat.id}` : null;
   return (

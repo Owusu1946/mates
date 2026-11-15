@@ -13,7 +13,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -101,7 +101,10 @@ export type WorkflowCard = {
   /** A mission note a mate just wrote. */
   note?: { title: string; version: number; author: string; chatId: string };
   /** A team the leader assembled for a mission. */
-  team?: { chatId: string; name: string; members: { id: string; name: string; role: string; color: string; shape?: string; gradient: [string, string, string] }[] };
+  /** A mate the lead just created, with its own chat. */
+  mate?: { id: string; name: string; role: string; roleDescription: string; color: string; shape?: string | null; gradient: [string, string, string]; chatId: string };
+  /** `mission` false: a group to talk in; true or absent (older cards): a team working on a mission. */
+  team?: { chatId: string; name: string; mission?: boolean; members: { id: string; name: string; role: string; color: string; shape?: string; gradient: [string, string, string] }[] };
   plan?: {
     summary: string;
     actions: {

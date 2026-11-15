@@ -1,5 +1,4 @@
 import { useAuth } from "@clerk/expo";
-import { useAui } from "@assistant-ui/react-native";
 import { CardButton } from "../chat/card-button";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,6 +11,7 @@ import { runRequest } from "../chat/background-chat";
 import { ChatIcon } from "../chat/chat-icon";
 import { useTheme } from "../theme/provider";
 import { MateAvatar } from "./mate-avatar";
+import { useOpenChat, useRefreshCrew } from "./open-chat";
 import { StatusPill, type Status } from "./relay";
 
 export type MissionNote = { id: string; title: string; version: number; author: string | null; updatedAt: string; content: string };
@@ -270,14 +270,23 @@ function MissionSheet({ chatId, data, tasks, working, done, status, visible, onC
 }
 
 /** "Team assembled": who the leader created, with a way into their group. */
+/** Opens a chat a mate just created, refreshing the lists first; says so if it can't. */
+function useSafeOpen() {
+  const open = useOpenChat();
+  return (chatId: string) => open(chatId).catch(() => Alert.alert("Couldn’t open this chat", "Try again."));
+}
+
+/** A team (with a mission) or a group (to talk in) the lead just made. */
 export function TeamCard({ state }: { state: WorkflowCard }) {
   const { colors } = useTheme();
-  const aui = useAui();
+  const open = useSafeOpen();
+  const refresh = useRefreshCrew();
   const team = state.team;
+  useEffect(refresh, [refresh]);
   if (!team) return null;
   return (
     <View style={{ padding: 16, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 12, marginVertical: 4 }}>
-      <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>TEAM ASSEMBLED</Text>
+      <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>{team.mission === false ? "NEW GROUP" : "TEAM ASSEMBLED"}</Text>
       <Text style={{ color: colors.text, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{team.name}</Text>
       {team.members.map((member) => (
         <View key={member.id} style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -287,7 +296,34 @@ export function TeamCard({ state }: { state: WorkflowCard }) {
         </View>
       ))}
       <View style={{ alignSelf: "flex-start", marginLeft: -8 }}>
-        <CardButton label={`Open ${team.name}`} variant="text" onPress={() => void aui.threads.switchToThread(team.chatId)} />
+        <CardButton label={`Open ${team.name}`} variant="text" onPress={() => void open(team.chatId)} />
+      </View>
+    </View>
+  );
+}
+
+/** A mate the lead just created: open its chat, or rename it. */
+export function MateCard({ state }: { state: WorkflowCard }) {
+  const { colors } = useTheme();
+  const router = useRouter();
+  const open = useSafeOpen();
+  const refresh = useRefreshCrew();
+  const mate = state.mate;
+  useEffect(refresh, [refresh]);
+  if (!mate) return null;
+  return (
+    <View style={{ padding: 16, borderRadius: 22, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 12, marginVertical: 4 }}>
+      <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>NEW MATE</Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+        <MateAvatar gradient={mate.gradient} shape={mate.shape ?? undefined} size={44} still />
+        <View style={{ flex: 1, gap: 2 }}>
+          <Text style={{ color: colors.text, fontSize: 17, fontFamily: "DMSans_600SemiBold" }}>{mate.name}</Text>
+          <Text numberOfLines={2} style={{ color: colors.textSecondary, fontSize: 14, lineHeight: 19 }}>{mate.roleDescription}</Text>
+        </View>
+      </View>
+      <View style={{ flexDirection: "row", gap: 4, marginLeft: -8 }}>
+        <CardButton label="Open chat" variant="text" onPress={() => void open(mate.chatId)} />
+        <CardButton label="Rename" variant="text" onPress={() => router.push(`/mate/${mate.id}` as never)} />
       </View>
     </View>
   );

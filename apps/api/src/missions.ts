@@ -7,6 +7,7 @@ import { boardView, leaderStepOf } from "./workboard.js";
 import type { WorkflowCard } from "./integrations.js";
 import { createGroup, createMate, gradientOf, MateError, MATE_PALETTE, ROLE_PRESETS, type MateColor, type MateRole, type PersonaMate } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
+import { sameRole } from "./crew-tools.js";
 
 const LIVE = ["running", "needs_input", "paused"] as const;
 /** Rounds in a row with no note written before the leader stops to ask instead of looping. */
@@ -63,7 +64,7 @@ export const assembleTeamTool = {
   function: {
     name: "cooper_assemble_team",
     description:
-      "Create a team of new mates for a big goal (e.g. starting a company), put them in a group led by you, and start a mission they work on in rounds until it's done. Ask the user first if the goal is unclear (e.g. whether they already have a company idea).",
+      "Only for a multi-step goal that several specialists should carry out over time (starting a company, launching a product, planning an event), when the user has asked for that work to be done. Creates the team (reusing mates the user already has for a role), puts them in a group led by you, and starts a mission they work on in rounds. Never use it to create one mate (cooper_create_mate) or a group to talk in (cooper_create_group). Ask first if the goal is unclear.",
     parameters: {
       type: "object",
       properties: {
@@ -131,12 +132,13 @@ export async function assembleTeam(userId: string, leader: PersonaMate, raw: unk
   const memberIds: string[] = [];
   const created: string[] = [];
   for (const [i, member] of args.data.members.entries()) {
-    const same = existing.find((m) => m.name.toLowerCase() === member.name.toLowerCase());
+    const role = (member.role in ROLE_PRESETS ? member.role : "custom") as MateRole;
+    // A mate the user already has, by name or for this role, joins instead of a duplicate.
+    const same = existing.find((m) => m.name.toLowerCase() === member.name.toLowerCase()) ?? sameRole(existing.filter((m) => !memberIds.includes(m.id)), role);
     if (same) {
-      if (same.id !== leader.id) memberIds.push(same.id);
+      if (same.id !== leader.id && !memberIds.includes(same.id)) memberIds.push(same.id);
       continue;
     }
-    const role = (member.role in ROLE_PRESETS ? member.role : "custom") as MateRole;
     const color = (member.color && member.color in MATE_PALETTE ? member.color : palette[(i + 1) % palette.length]) as MateColor;
     try {
       const mate = await createMate(userId, { name: member.name.replace(/[^\p{L}\p{N} .'_-]/gu, "").trim() || `Mate ${i + 1}`, role, roleDescription: member.description, color }, { greet: false });
@@ -155,7 +157,7 @@ export async function assembleTeam(userId: string, leader: PersonaMate, raw: unk
   return { ok: true, group, mission: mission!, members, created, skipped: args.data.members.length - memberIds.length };
 }
 
-export function teamCard(result: { group: { chatId: string; name: string }; members: { id: string; name: string; role: string; color: string; shape?: string }[] }): WorkflowCard {
+export function teamCard(result: { group: { chatId: string; name: string }; members: { id: string; name: string; role: string; color: string; shape?: string }[] }, mission = true): WorkflowCard {
   return {
     kind: "team",
     phase: "done",
@@ -163,6 +165,7 @@ export function teamCard(result: { group: { chatId: string; name: string }; memb
     team: {
       chatId: result.group.chatId,
       name: result.group.name,
+      mission,
       members: result.members.map((m) => ({ id: m.id, name: m.name, role: m.role, color: m.color, shape: m.shape, gradient: gradientOf(m.color) })),
     },
   };
