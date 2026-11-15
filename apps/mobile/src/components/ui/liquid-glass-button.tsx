@@ -32,6 +32,10 @@ export interface LiquidGlassButtonProps {
   disabled?: boolean;
   /** Tints the glass; solid fallbacks use it as their fill. */
   tintColor?: string;
+  /** A capsule as wide as its content (e.g. a title), instead of a circle `size` wide. */
+  pill?: boolean;
+  /** Overrides the default "button" role (e.g. "header" for a title that isn't tappable). */
+  accessibilityRole?: "button" | "header";
 }
 
 export function LiquidGlassButton({
@@ -46,6 +50,8 @@ export function LiquidGlassButton({
   hitSlop = 6,
   disabled = false,
   tintColor,
+  pill = false,
+  accessibilityRole = "button",
 }: LiquidGlassButtonProps) {
   const { isDark, colors } = useTheme();
   const [reduceTransparency, setReduceTransparency] = useState(false);
@@ -84,6 +90,11 @@ export function LiquidGlassButton({
   };
 
   const borderRadius = size / 2;
+  // A circle is `size` square; a pill keeps the height and grows with its content.
+  const box: ViewStyle = pill ? { height: size, minWidth: size } : { width: size, height: size };
+  const inner: ViewStyle = pill
+    ? { height: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", paddingLeft: 6, paddingRight: 14 }
+    : { width: "100%", height: "100%", alignItems: "center", justifyContent: "center" };
 
   // Native iOS Liquid Glass
   if (canUseGlass) {
@@ -95,8 +106,7 @@ export function LiquidGlassButton({
         colorScheme={isDark ? "dark" : "light"}
         style={[
           {
-            width: size,
-            height: size,
+            ...box,
             borderRadius,
             borderCurve: "continuous",
             alignItems: "center",
@@ -106,19 +116,14 @@ export function LiquidGlassButton({
         ]}
       >
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole={accessibilityRole}
           accessibilityLabel={accessibilityLabel}
           accessibilityHint={accessibilityHint}
           testID={testID}
           disabled={disabled}
           hitSlop={hitSlop}
           onPress={handlePress}
-          style={{
-            width: "100%",
-            height: "100%",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
+          style={inner}
         >
           {children}
         </Pressable>
@@ -132,8 +137,7 @@ export function LiquidGlassButton({
       <View
         style={[
           {
-            width: size,
-            height: size,
+            ...box,
             borderRadius,
             borderCurve: "continuous",
             overflow: "hidden",
@@ -153,7 +157,7 @@ export function LiquidGlassButton({
           style={StyleSheet.absoluteFill}
         />
         <Pressable
-          accessibilityRole="button"
+          accessibilityRole={accessibilityRole}
           accessibilityLabel={accessibilityLabel}
           accessibilityHint={accessibilityHint}
           testID={testID}
@@ -161,10 +165,7 @@ export function LiquidGlassButton({
           hitSlop={hitSlop}
           onPress={handlePress}
           style={({ pressed }) => ({
-            width: "100%",
-            height: "100%",
-            alignItems: "center",
-            justifyContent: "center",
+            ...inner,
             opacity: pressed ? 0.7 : 1,
             backgroundColor: pressed
               ? isDark
@@ -182,7 +183,7 @@ export function LiquidGlassButton({
   // Accessible solid fallback for Reduce Transparency or Android / Web
   return (
     <Pressable
-      accessibilityRole="button"
+      accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel}
       accessibilityHint={accessibilityHint}
       testID={testID}
@@ -191,8 +192,8 @@ export function LiquidGlassButton({
       onPress={handlePress}
       style={({ pressed }) => [
         {
-          width: size,
-          height: size,
+          ...box,
+          ...(pill ? { flexDirection: "row" as const, paddingLeft: 6, paddingRight: 14 } : null),
           borderRadius,
           borderCurve: "continuous",
           borderWidth: StyleSheet.hairlineWidth,
