@@ -26,7 +26,10 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type FlatList,
   type GestureResponderEvent,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
@@ -952,18 +955,50 @@ function MessagesLoading() {
   );
 }
 
-/** `topInset`: the floating header's height, kept clear at the top of the list and empty states. */
-function ChatBody({ keyboardVisible, loading, topInset }: { keyboardVisible: boolean; loading: boolean; topInset: number }) {
+/** How far from the newest message (in points) before the scroll-to-bottom button shows. */
+const AWAY_FROM_BOTTOM = 280;
+
+/**
+ * `topInset` and `bottomInset`: the floating header's and composer's heights, kept clear at the
+ * ends of the list (and around the empty states). `onAway` reports whether the user has scrolled
+ * up from the newest message.
+ */
+function ChatBody({
+  keyboardVisible,
+  loading,
+  topInset,
+  bottomInset,
+  listRef,
+  onAway,
+}: {
+  keyboardVisible: boolean;
+  loading: boolean;
+  topInset: number;
+  bottomInset: number;
+  listRef: React.RefObject<FlatList<any> | null>;
+  onAway: (away: boolean) => void;
+}) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
+  const onScroll = useCallback(
+    ({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }: NativeSyntheticEvent<NativeScrollEvent>) =>
+      onAway(contentSize.height - (contentOffset.y + layoutMeasurement.height) > AWAY_FROM_BOTTOM),
+    [onAway],
+  );
+  useEffect(() => {
+    if (isEmpty) onAway(false);
+  }, [isEmpty, onAway]);
   return (
-    <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0 }}>
+    <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0, paddingBottom: isEmpty ? bottomInset : 0 }}>
       {isEmpty && (loading || isLoading) ? (
         <MessagesLoading />
       ) : isEmpty ? (
         <EmptyChat keyboardVisible={keyboardVisible} />
       ) : (
         <ThreadPrimitive.MessagesFlatList
+          ref={listRef}
+          onScroll={onScroll}
+          scrollEventThrottle={64}
           autoScroll
           style={{ flex: 1 }}
           contentContainerStyle={{
@@ -972,7 +1007,7 @@ function ChatBody({ keyboardVisible, loading, topInset }: { keyboardVisible: boo
             alignSelf: "center",
             paddingHorizontal: 12,
             paddingTop: topInset + 12,
-            paddingBottom: 20,
+            paddingBottom: bottomInset + 16,
             gap: 18,
           }}
           keyboardShouldPersistTaps="handled"
@@ -1868,6 +1903,48 @@ function TopFade({ height, solid }: { height: number; solid: number }) {
   );
 }
 
+/**
+ * The bottom fade behind the floating composer: clear where messages are still being read,
+ * deepening behind the composer, so text slips softly underneath it rather than ending at an edge.
+ * It fills the composer's area and reaches a little above it.
+ */
+function BottomFade() {
+  const colors = useChatColors();
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", left: 0, right: 0, top: -28, bottom: 0 }}>
+      <Svg width="100%" height="100%">
+        <Defs>
+          <SvgGradient id="chat-bottom-fade" x1="0" y1="0" x2="0" y2="1">
+            <Stop offset="0" stopColor={colors.background} stopOpacity={0} />
+            <Stop offset="0.35" stopColor={colors.background} stopOpacity={0.72} />
+            <Stop offset="0.7" stopColor={colors.background} stopOpacity={0.9} />
+            <Stop offset="1" stopColor={colors.background} stopOpacity={0.96} />
+          </SvgGradient>
+        </Defs>
+        <Rect width="100%" height="100%" fill="url(#chat-bottom-fade)" />
+      </Svg>
+    </View>
+  );
+}
+
+/** A small glass arrow above the composer once the user has scrolled up; it eases in and out. */
+function ScrollToBottom({ visible, onPress }: { visible: boolean; onPress: () => void }) {
+  const colors = useChatColors();
+  const reduced = useReducedMotion();
+  const shown = useSharedValue(0);
+  useEffect(() => {
+    shown.value = reduced ? (visible ? 1 : 0) : withTiming(visible ? 1 : 0, { duration: visible ? 220 : 160 });
+  }, [visible, reduced, shown]);
+  const style = useAnimatedStyle(() => ({ opacity: shown.value, transform: [{ translateY: (1 - shown.value) * 8 }, { scale: 0.92 + shown.value * 0.08 }] }));
+  return (
+    <Animated.View pointerEvents={visible ? "box-none" : "none"} style={[{ position: "absolute", top: -48, left: 0, right: 0, alignItems: "center" }, style]}>
+      <LiquidGlassButton accessibilityLabel="Scroll to the newest message" size={36} onPress={onPress}>
+        <ChatIcon name="arrowDown" color={colors.foreground} size={18} />
+      </LiquidGlassButton>
+    </Animated.View>
+  );
+}
+
 function ChatHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
   const colors = useChatColors();
   const router = useRouter();
@@ -2078,6 +2155,10 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
   const insets = useSafeAreaInsets();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [headerHeight, setHeaderHeight] = useState(insets.top + 64);
+  const [composerHeight, setComposerHeight] = useState(insets.bottom + 72);
+  const listRef = useRef<FlatList<any>>(null);
+  const [away, setAway] = useState(false);
+  const onAway = useCallback((value: boolean) => setAway((current) => (current === value ? current : value)), []);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -2103,7 +2184,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
       <ThreadPrimitive.Root style={{ flex: 1, minHeight: 0 }}>
         {/* Messages run up under the header; the list's top padding follows the header's height. */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} />
+          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} />
           <View
             pointerEvents="box-none"
             onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
@@ -2114,16 +2195,21 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
             <GroupMissionBanner />
             <ChatSyncNotice />
           </View>
+          {/* The composer floats too: messages pass softly behind it and fade out at the bottom. */}
+          <View
+            pointerEvents="box-none"
+            onLayout={(event) => setComposerHeight(Math.round(event.nativeEvent.layout.height))}
+            style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}
+          >
+            <BottomFade />
+            <ScrollToBottom visible={away} onPress={() => listRef.current?.scrollToEnd({ animated: true })} />
+            <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+              <UsageLine colors={colors} />
+              <ChatComposer />
+            </View>
+            <View style={{ height: keyboardVisible ? 8 : insets.bottom + 6 }} />
+          </View>
         </View>
-        <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-          <UsageLine colors={colors} />
-          <ChatComposer />
-        </View>
-        <View
-          style={{
-            height: keyboardVisible ? 8 : insets.bottom + 6,
-          }}
-        />
       </ThreadPrimitive.Root>
     </KeyboardAvoidingView>
   );
