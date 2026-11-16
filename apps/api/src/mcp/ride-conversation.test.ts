@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { executeRideConversation, ridesEnabled } from "./ride-conversation.js";
 import { createSailAdapter } from "./sail.js";
+import { rideCard } from "./ride-card.js";
 
 function setup(results: unknown[]) {
   const callTool = vi.fn();
@@ -22,6 +23,21 @@ describe("ride conversation", () => {
     const { callTool, run } = setup([]);
     expect(await executeRideConversation({ from: "here", to: "Accra Mall", country: "gh" }, { run })).toMatchObject({ needs: "from" });
     expect(callTool).not.toHaveBeenCalled();
+  });
+
+  it("offers the location card only when the user explicitly requested their location", async () => {
+    const args = { from: "here", to: "Accra Mall", country: "gh" };
+    const result = await executeRideConversation(args);
+    expect(rideCard(args, result, "Check the fare from here to Accra Mall")).toMatchObject({ kind: "ride_location", rideLocation: { destination: "Accra Mall", country: "gh" } });
+    expect(rideCard(args, result, "How much is a ride to Accra Mall?")).toBeUndefined();
+    expect(rideCard({ to: "Accra Mall", country: "gh" }, result, "Use my location to get to Accra Mall")).toBeUndefined();
+  });
+
+  it("rejects coordinate arguments before offering a location card", async () => {
+    const args = { from: "here", to: "5.6, -0.2", country: "gh" };
+    const result = await executeRideConversation(args);
+    expect(result).toEqual({ error: "Please use a place name or address." });
+    expect(rideCard(args, result, "Check the fare from here to the airport")).toBeUndefined();
   });
 
   it("asks for a country when it is unknown", async () => {
@@ -58,6 +74,9 @@ describe("ride conversation", () => {
     expect(result).toMatchObject({ status: "partial", rides: [{ provider: "yango", price: { amount: 40, currency: "GHS" } }], transitStatus: "failed" });
     expect(JSON.stringify(result)).not.toContain("5.556123");
     expect(JSON.stringify(result)).not.toContain("private detail");
+    const card = rideCard({ from: "Osu", to: "Airport", country: "gh" }, result, "Check ride prices from Osu to Airport");
+    expect(card).toMatchObject({ kind: "rides", rides: { country: "gh", from: "Osu", to: "Airport" } });
+    expect(JSON.stringify(card)).not.toContain("5.556123");
   });
 
   it("keeps available rides with no price", async () => {
@@ -70,6 +89,19 @@ describe("ride conversation", () => {
     const onSailCall = vi.fn();
     expect(await executeRideConversation({ from: "Osu", to: "Airport", country: "gh", mode: "rides" }, { run, onSailCall })).toMatchObject({ rides: [{ provider: "yango", name: "Economy", price: null }] });
     expect(onSailCall).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks display truncation separately from an incomplete provider result", async () => {
+    const point = { lat: 5.6, lng: -0.2 };
+    const options = Array.from({ length: 9 }, (_, index) => ({ provider: "yango", name: `Option ${index + 1}`, price: { amount: index + 1, currency: "GHS" }, available: true }));
+    const { run } = setup([
+      { places: [{ placeId: "a", name: "Osu" }] }, { place: { placeId: "a", name: "Osu", ...point } },
+      { places: [{ placeId: "b", name: "Airport" }] }, { place: { placeId: "b", name: "Airport", ...point } },
+      { options },
+    ]);
+    const result = await executeRideConversation({ from: "Osu", to: "Airport", country: "gh", mode: "rides" }, { run });
+    expect(result).toMatchObject({ rides: Array.from({ length: 8 }, (_, index) => ({ name: `Option ${index + 1}` })), ridesTruncated: true });
+    expect(result).not.toHaveProperty("ridesComplete");
   });
 
   it("includes the transit route and stops and flags ride connections", async () => {

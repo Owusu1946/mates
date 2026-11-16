@@ -46,6 +46,7 @@ import {
 import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTriggersTool } from "./watches.js";
 import { habitReplyTool, nudgeContext, pendingNudge, runHabitReply } from "./habits/nudges.js";
 import { ridesTool } from "./mcp/rides-tool.js";
+import { rideCard } from "./mcp/ride-card.js";
 import { executeRideConversation, ridesEnabled } from "./mcp/ride-conversation.js";
 import { recordUsage } from "./usage/record.js";
 
@@ -158,7 +159,7 @@ export async function createAgentResponse(
     { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
     ...modelTurns,
   ];
-  if (ridesOn) messages.push({ role: "system", content: "Use cooper_rides when the user explicitly asks for ride prices or public transit in Ghana or Great Britain. For distance-only questions, answer normally and offer to check rides. Resolve home or work from known memory only when clear; otherwise ask. Do not guess the country, pickup, prices, or availability. If the tool needs clarification, ask the user and wait; do not repeat the tool call. Sail gives estimates and cannot book rides. Do not claim that a ride is booked." });
+  if (ridesOn) messages.push({ role: "system", content: "Use cooper_rides when the user explicitly asks for ride prices or public transit in Ghana or Great Britain. For distance-only questions, answer normally and offer to check rides. If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask. Do not guess the country, pickup, prices, or availability. If the tool needs clarification, ask the user and wait; do not repeat the tool call. Sail gives estimates and cannot book rides. Do not claim that a ride is booked." });
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
@@ -725,7 +726,10 @@ export async function createAgentResponse(
               const result = await executeRideConversation(args, { signal, onSailCall: () => {
                 void recordUsage({ userId, source: "rides", provider: "sail", costMicros: 0, ref: execution?.runId, key: `rides:${runId}:${call.id}` });
               } });
-              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+              const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "");
+              if (state) card(call.id, state);
+              const displayHint = state?.kind === "rides" ? "Travel options are displayed in a card. Summarize briefly without repeating every row." : state?.kind === "ride_location" ? "A location-sharing card is displayed. The user may use it or type a starting place; the location is not yet known." : undefined;
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ...result, ...(displayHint ? { displayHint } : {}) }) });
               if ("needs" in result) rideNeedsClarification = true;
             } else if (call.function.name === "cooper_assemble_team") {
               activity(activityLabel("cooper_assemble_team"));

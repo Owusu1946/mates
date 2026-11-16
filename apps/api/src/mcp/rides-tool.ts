@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createSailAdapter, type RideMode, type TripPoint } from "./sail.js";
 
 export const rideInput = z.object({
-  from: z.string().trim().min(2).max(120).optional().describe("Starting place or address. Use a saved home or work address only when clearly known."),
+  from: z.string().trim().min(2).max(120).optional().describe("Starting place or address. Use 'here' only when the user explicitly requests their current location. Use a saved home or work address only when clearly known."),
   to: z.string().trim().min(2).max(120).describe("Destination."),
   mode: z.enum(["best", "rides", "transit"]).default("best"),
   country: z.enum(["gh", "gb"]).optional().describe("Country containing the journey: gh for Ghana, gb for Great Britain."),

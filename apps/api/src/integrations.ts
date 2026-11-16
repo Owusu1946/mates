@@ -3,6 +3,7 @@ import { OpenAIProvider } from "@composio/openai";
 import { eq } from "drizzle-orm";
 import { getDb } from "./db/client.js";
 import { integrationSessions } from "./db/schema.js";
+import type { RideSummary } from "./mcp/ride-conversation.js";
 
 export type AppConnection = {
   slug: string;
@@ -13,10 +14,12 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
+  rides?: RideSummary;
+  rideLocation?: { destination: string; country: "gh" | "gb"; mode: "best" | "rides" | "transit" };
   routineId?: string;
   routineVersion?: number;
   routineSpec?: Record<string, unknown>;

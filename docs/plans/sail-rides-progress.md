@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 2 in review — named-place ride lookups are wired into chat behind `RIDES_ENABLED`; mobile cards and location consent are not yet built.
+**Status:** Batch 3 in progress — ride and location cards added; device and end-to-end verification remain outstanding.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -21,7 +21,7 @@ Read alongside [Ken's Sail rides and MCP handoff](sail-rides-and-mcp-handoff.md)
 - [x] Confirmed Sail publicly documents a free, read-only MCP server; verify the live tools again before implementation.
 - [ ] Agree on quote-fetch behavior after a distance answer, place disambiguation, and what “order” means in the UI.
 - [ ] Resolve coordinate privacy, retention, and the location resume protocol before building.
-- [ ] Implement and test Phase 1 against the agreed plan; backend chat integration is present behind a flag, while mobile cards and location consent are outstanding.
+- [ ] Implement and test Phase 1 against the agreed plan; chat integration and initial cards are present behind a flag, but device and end-to-end verification are outstanding.
 - [ ] Verify Apple device behavior for Uber, Yango and Bolt; record exact results below.
 - [ ] Have Ken review the backend implementation, deployment, and operating assumptions.
 
@@ -51,6 +51,14 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 - No device location is collected in this batch. A user-provided chat message or model tool arguments may still contain location text and are subject to existing chat retention. The next batch must design and verify the location resume and any persistent card payload before claiming location is not stored.
 - Cards, provider links, a dedicated selection UI, real-user end-to-end testing, and the native location flow remain outstanding. The current text-only flow has not been verified against a running API and Trigger worker.
 - Review fixes: country is required from the conversation rather than inferred from timezone; available rides without a price remain visible; a clarification disables further tools for that response; and Sail usage is recorded only when its lookup starts, using a run/tool-call idempotency key. Ambiguous-place identifiers are not preserved across separate turns yet, so a clarification can require a more specific place name; proper selection remains outstanding.
+
+## Batch 3 work log
+
+- Added SDK-compatible `expo-location`, foreground permission text, a compact rides/trotro card and an explicit share-location card. After user consent, Expo Location reverse-geocoding prepares a nearby address in the composer for the user to review and send; platform geocoding may send coordinates to its provider. It does not put device coordinates in `choice` or a durable job request; a sent address is normal retained chat text and is shared with Sail. This is an intentional change from the handoff's coordinate-based pause/resume approach.
+- Uber opens the `uber://riderequest` scheme with a web fallback, without a prefilled trip. On iOS, Bolt and Yango buttons open their App Store listings; on Android they open a Google Play search. These provider links have not been tested on a device. Every action asks the user to enter the trip in the provider app.
+- The card presents options returned by Sail, expandable transit steps, estimated-price wording, a stale-price warning and a one-time composer refresh prompt. It distinguishes a capped list (“Showing the first 8 ride options”) from an incomplete provider result. `RIDES_ENABLED` still defaults off. No location or provider flow has been verified on a device, and the current development build must be rebuilt for the native location module.
+- A location card is emitted only when the latest user message explicitly asks to use their current location and the model also requests `here`/`my location`. The app requires a user tap before requesting permission. Duplicate taps are guarded while location lookup is running. After preparing an address, the card asks the user to review and send it; preparing the address again after clearing the draft remains a follow-up UX improvement.
+- The flow does not yet implement stable place-ID selection across turns, direct coordinate handoff, or a fully automatic resume. These and the genuine review/deployment checks remain outstanding.
 
 ## Decisions and constraints to resolve
 
@@ -86,9 +94,9 @@ Recommendations below are proposed for discussion, not yet approved implementati
 
 | Provider | Current status | Device result |
 | --- | --- | --- |
-| Uber | Documented deep-link capability; exact behavior and parameters need verification. | Not tested |
-| Yango | A Yandex format is referenced in the handoff; compatibility with Yango is unverified. | Not tested |
-| Bolt | Prefilled ride link not confirmed. | Not tested |
+| Uber | `uber://riderequest`, then `https://m.uber.com/`; trip is not prefilled. Shown on iOS and Android. | Not tested |
+| Yango | iOS App Store listing; Android Google Play search. Trip is not prefilled. | Not tested |
+| Bolt | iOS App Store listing; Android Google Play search. Trip is not prefilled. | Not tested |
 
 ## References
 

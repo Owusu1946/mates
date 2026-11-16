@@ -2,7 +2,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");
 
+// Listed before expo-widgets in app.json. Xcode mods run last-registered first, so this plugin
+// runs after that package creates the widget target and can attach the mascot asset catalog.
 const TARGET_NAME = "ExpoWidgetsTarget";
+const unquote = (value) => typeof value === "string" ? value.replace(/^"|"$/g, "") : "";
 const CATALOG_NAME = "Assets.xcassets";
 const IMAGE_SET_NAME = "MatesMascot.imageset";
 const MATE_MASCOTS = [
@@ -51,13 +54,13 @@ function withMatesWidgetMascot(config) {
   return withXcodeProject(config, (modConfig) => {
     const project = modConfig.modResults;
     const targets = project.pbxNativeTargetSection();
-    const targetEntry = Object.entries(targets).find(([, target]) => target.name === TARGET_NAME);
+    const targetEntry = Object.entries(targets).find(([, target]) => unquote(target?.name) === TARGET_NAME);
     if (!targetEntry) throw new Error(`Could not find the ${TARGET_NAME} Xcode target`);
     const [targetUuid, target] = targetEntry;
 
     const groups = project.hash.project.objects.PBXGroup;
     const targetGroup = Object.entries(groups).find(([, group]) =>
-      group.name === TARGET_NAME && group.path === TARGET_NAME
+      unquote(group?.name) === TARGET_NAME && unquote(group?.path) === TARGET_NAME
     );
     if (!targetGroup) throw new Error(`Could not find the ${TARGET_NAME} Xcode group`);
 
