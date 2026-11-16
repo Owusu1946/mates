@@ -12,7 +12,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AccessibilityInfo,
   Alert,
@@ -65,11 +65,13 @@ import { GitHubConnectCard } from "./github-connect-card";
 import { ConsultCard } from "./consult-card";
 import { PlanCard } from "./plan-card";
 import { MatesList } from "./drawer-mates-list";
-import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateName, useMates, useThreadTitle, type ChatSummary } from "../mates/data";
+import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateActions, useMateName, useMates, useThreadTitle, type ChatSummary } from "../mates/data";
 import { Glow } from "../onboarding/glow";
 import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MateCard, MissionBanner, TeamCard } from "../mates/mission";
+import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
+import { CHIEF_OF_STAFF, mentionMatesForChat, showChiefOfStaff } from "./mention-choices";
 import { CodeCard } from "./code-card";
 import { DeckCard } from "../decks/deck-card";
 import { SourcesCard } from "./sources-card";
@@ -1093,7 +1095,11 @@ function ComposerSurface({
 
 function ChatComposer() {
   const aui = useAui();
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const mates = useMates();
+  const actions = useMateActions();
   const appsQuery = useConnectedMentionApps();
   const currentChat = useCurrentChat();
   const leaderName = useLeaderName();
@@ -1105,6 +1111,9 @@ function ChatComposer() {
         : leaderName;
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
+  const running = useAuiState((state) => state.thread.isRunning);
+  const taggedCollaborator = useRef(false);
+  const sawRunning = useRef(false);
   // Out of usage: the line above says until when; sending waits for the reset.
   const usage = useUsage();
   const outOfUsage = !!usage.data?.enforced && !!usage.data.blocked;
@@ -1330,30 +1339,70 @@ function ChatComposer() {
       const text = composerText.trimEnd();
       aui.composer.setText(`${text}${text ? " " : ""}${tags}`);
     }
+    if (currentChat?.kind === "mate" && /(?:^|\s)@\S/.test(`${composerText} ${tags}`)) taggedCollaborator.current = true;
     aui.composer.send();
     setSelectedApp(null);
     setSearchOn(false);
   };
+  useEffect(() => {
+    const finished = sawRunning.current && !running;
+    sawRunning.current = running;
+    if (!finished || !taggedCollaborator.current) return;
+    taggedCollaborator.current = false;
+    void queryClient.invalidateQueries({ queryKey: ["chats", userId] });
+  }, [queryClient, running, userId]);
   const mentionMatch = composerText.match(/(?:^|\s)@([^\s@]*)$/);
   const mentionQuery = mentionMatch?.[1]?.toLowerCase() ?? "";
-  // In a group, @ first offers its mates; picking one tags them so they answer.
-  const mentionMates = (currentChat?.kind === "group" ? currentChat.members : []).filter((mate) => mate.name.toLowerCase().includes(mentionQuery)).slice(0, 6);
+  const mentionMates = mentionMatesForChat({
+    kind: currentChat?.kind,
+    primaryMateId: currentChat?.mate?.id ?? null,
+    groupMembers: currentChat?.kind === "group" ? currentChat.members : [],
+    ownedMates: mates.data?.mates ?? [],
+    query: mentionQuery,
+  });
+  const mentionChief = showChiefOfStaff(currentChat?.kind, mentionQuery);
   const mentionApps = (appsQuery.data ?? []).filter((app) =>
     `${app.name} ${app.slug}`.toLowerCase().includes(mentionQuery),
   ).slice(0, 6);
   // "Web search" leads the @ menu while the typed word could still be it.
   const mentionWeb = !searchOn && ("web search".includes(mentionQuery) || "search".startsWith(mentionQuery));
+  const collaborators = currentChat?.kind === "mate" ? currentChat.collaborators ?? [] : [];
+  const tagMention = (name: string) => {
+    const at = composerText.lastIndexOf("@");
+    aui.composer.setText(`${composerText.slice(0, Math.max(0, at))}@${name} `);
+  };
+  const removeCollaborator = (mateId: string) => {
+    if (!currentChat) return;
+    const key = ["chats", userId] as const;
+    const previous = queryClient.getQueryData<ChatSummary[]>(key);
+    queryClient.setQueryData<ChatSummary[]>(key, (rows) => rows?.map((row) => row.id === currentChat.id ? { ...row, collaborators: (row.collaborators ?? []).filter((mate) => mate.id !== mateId) } : row));
+    void actions.setCollaborators.mutateAsync({ chatId: currentChat.id, mateIds: collaborators.filter((mate) => mate.id !== mateId).map((mate) => mate.id) }).catch(() => {
+      queryClient.setQueryData(key, previous);
+      toast.show({ message: "Couldn’t remove that mate.", tone: "error" });
+    });
+  };
   const [stopError, setStopError] = useState<string | null>(null);
   const colors = useChatColors();
   return (
     <View style={{ width: "100%", maxWidth: 792, alignSelf: "center" }}>
-      {mentionMatch && (mentionWeb || appsQuery.data || mentionMates.length > 0) && (
+      {collaborators.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 8, paddingHorizontal: 4, paddingBottom: 8 }}>
+          {collaborators.map((mate) => (
+            <Pressable key={mate.id} accessibilityRole="button" accessibilityLabel={`Remove ${mate.name} from this chat`} onPress={() => removeCollaborator(mate.id)} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 4, paddingRight: 8, paddingVertical: 4, borderRadius: 16, backgroundColor: colors.muted }}>
+              <MateAvatar gradient={mate.gradient} shape={mate.shape} size={22} still />
+              <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>{mate.name}</Text>
+              <ChatIcon name="close" color={colors.mutedForeground} size={14} />
+            </Pressable>
+          ))}
+        </ScrollView>
+      )}
+      {mentionMatch && (mentionWeb || mentionChief || appsQuery.data || mentionMates.length > 0) && (
         <View
           style={{
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 72,
+            bottom: collaborators.length ? 112 : 72,
             zIndex: 20,
             maxHeight: 300,
             padding: 8,
@@ -1364,7 +1413,7 @@ function ChatComposer() {
             boxShadow: "0 8px 24px rgba(0, 0, 0, 0.12)",
           }}
         >
-          {mentionWeb || mentionApps.length || mentionMates.length ? (
+          {mentionWeb || mentionChief || mentionApps.length || mentionMates.length ? (
             <ScrollView
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 284 }}
@@ -1398,15 +1447,36 @@ function ChatComposer() {
                   </View>
                 </Pressable>
               )}
+              {mentionChief && (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ask Chief of Staff"
+                  onPress={() => tagMention(CHIEF_OF_STAFF)}
+                  style={({ pressed }) => ({
+                    minHeight: 52,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 12,
+                    paddingHorizontal: 10,
+                    borderRadius: 14,
+                    backgroundColor: pressed ? colors.muted : "transparent",
+                  })}
+                >
+                  <View style={{ width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: colors.muted }}>
+                    <ChatIcon name="sparkles" color={colors.foreground} size={18} />
+                  </View>
+                  <View>
+                    <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 15 }}>Chief of Staff</Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 12 }}>Ask the mates in this chat</Text>
+                  </View>
+                </Pressable>
+              )}
               {mentionMates.map((mate) => (
                 <Pressable
                   key={mate.id}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask ${mate.name}`}
-                  onPress={() => {
-                    const at = composerText.lastIndexOf("@");
-                    aui.composer.setText(`${composerText.slice(0, at)}@${mate.name} `);
-                  }}
+                  onPress={() => tagMention(mate.name)}
                   style={({ pressed }) => ({
                     minHeight: 52,
                     flexDirection: "row",

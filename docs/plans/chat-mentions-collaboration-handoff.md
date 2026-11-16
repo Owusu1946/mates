@@ -1,6 +1,6 @@
 # Handoff: chat mentions and mate collaboration
 
-**For:** Samuel and Ken. **Status:** Batch 1 review fixes are in. Batch 2 (direct-chat mention routing) is implemented locally. The migration is generated but not applied. Mobile picker (Batch 3) is not started.
+**For:** Samuel and Ken. **Status:** Batches 1–3 are implemented locally. The migration is generated but not applied. Batch 4 (broader integration checks) is not started.
 
 ## Goal
 
@@ -80,6 +80,15 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 - Tagged mates answer in order, with the chat's transcript, then the primary mate brings their answers together. `@Chief of Staff` with no other name plans among mates already attached to that chat.
 - Newly tagged mates are attached with `attachCollaborators` (additive, still capped at 19, still excluding the primary and other users' mates). The chat stays `kind: "mate"`.
 - `resolvePersona` includes attached collaborators so later turns can see them. They are not asked to reply unless tagged again.
+
+## Batch 3 implementation notes
+
+- The `@` menu in a direct chat offers Chief of Staff and the user's other mates, and still offers connected apps and Web Search. A group chat still offers its members and does not offer Chief of Staff.
+- Choosing a name only inserts `@Name` into the draft. Sending the message is what attaches the mate, through the server path from Batch 2. Abandoning the draft does not change the chat.
+- Attached collaborators render as chips above the composer. Removing one replaces the list with `PUT /v1/chats/:id/collaborators` and rolls the chip back if that request fails.
+- After a direct-chat send that contained an `@` mention, the chat list refreshes once that run finishes, so a mate attached by the worker shows up without a second send.
+- The draft still names the mate in text (`@Ama`). Routing keeps using that name, which Batch 2 already resolves to an owned mate id. Removing someone uses the id.
+- A remove that lands while a tagged run is still starting can be undone when that run attaches the mate. The chip comes back on the refresh after the run.
 
 ## Privacy and safety
 
