@@ -159,7 +159,16 @@ export async function createAgentResponse(
     { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
     ...modelTurns,
   ];
-  if (ridesOn) messages.push({ role: "system", content: "Use cooper_rides when the user explicitly asks for ride prices or public transit in Ghana or Great Britain. For distance-only questions, answer normally and offer to check rides. If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask. Do not guess the country, pickup, prices, or availability. If the tool needs clarification, ask the user and wait; do not repeat the tool call. Sail gives estimates and cannot book rides. Do not claim that a ride is booked." });
+  if (ridesOn) messages.push({
+    role: "system",
+    content: [
+      "Use cooper_rides for ride-price requests, trotro or public-transport requests, and directions between named places, including ordinary wording like 'How do I get from A to B?'. Use mode best unless the user asks only for rides or only for transit.",
+      "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
+      "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
+      "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
+      "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
+    ].join(" "),
+  });
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
@@ -685,6 +694,7 @@ export async function createAgentResponse(
           const viewed: string[] = [];
           let waitingBrowser = false;
           let waitingAction = false;
+          let directRideReply: string | undefined;
           for (const call of orderedCalls) {
             signal.throwIfAborted();
             let args: Record<string, unknown>;
@@ -728,6 +738,9 @@ export async function createAgentResponse(
               } });
               const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "");
               if (state) card(call.id, state);
+              if (state?.kind === "rides" && "provider" in result) {
+                directRideReply = `I checked ${result.from} to ${result.to}. See the card for ride prices and public transport details.`;
+              }
               const displayHint = state?.kind === "rides" ? "Travel options are displayed in a card. Summarize briefly without repeating every row." : state?.kind === "ride_location" ? "A location-sharing card is displayed. The user may use it or type a starting place; the location is not yet known." : undefined;
               messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ...result, ...(displayHint ? { displayHint } : {}) }) });
               if ("needs" in result) rideNeedsClarification = true;
@@ -1196,6 +1209,16 @@ export async function createAgentResponse(
           if (viewed.length)
             messages.push({ role: "user", content: "[Re-opened attachment(s) to inspect.]", attachments: viewed.map((id) => ({ id })), full: true });
           await execution?.checkpoint(null, messages as unknown as Record<string, unknown>[]);
+          if (directRideReply && orderedCalls.length === 1) {
+            messages.push({ role: "assistant", content: directRideReply });
+            send({ choices: [{ delta: { content: directRideReply } }] });
+            finishActivity();
+            await getDb()
+              .update(agentRuns)
+              .set({ status: "completed", messages: messages as unknown as Record<string, unknown>[], updatedAt: new Date() })
+              .where(eq(agentRuns.id, runId));
+            return;
+          }
           await getDb()
             .update(agentRuns)
             .set({

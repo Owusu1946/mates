@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 4 in progress — Batch 3 review fixes are in; device and end-to-end verification remain outstanding.
+**Status:** Batch 4 in progress — the ordinary named-trip flow now works in the iOS simulator against the local API and live Sail; provider-link, location-permission, and deployment checks remain.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -64,10 +64,13 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 
 ### Completed locally
 
-- `pnpm typecheck` passed across the workspace after the Batch 3 review fixes.
-- `pnpm test` passed: 44 API test files / 367 tests, 12 deck tests, and 17 mobile tests.
+- `pnpm typecheck` passed across the workspace after these flow changes.
+- `pnpm test` passed across the workspace: 371 API tests, 12 deck tests, and 20 mobile tests.
 - `git diff --check` passed.
 - Expo config introspection confirmed the `expo-location` plugin and iOS foreground permission string.
+- Argent iOS simulator check: the ordinary prompt “How can I get to Madina from Accra?” returned Yango estimates and a public-transport fare card without asking for another detail. The assistant now gives a short confirmation directly after the card is ready, avoiding a second model request; this run showed `Worked for 8s` (a previous run showed 15s, and live Sail/network latency varies).
+- The live search returned duplicate “Accra” entries with different addresses. Place matching now selects the exact city-level address when the request is the city name, and the two endpoint searches/resolutions run concurrently. Focused tests cover the ambiguous city result and parallel calls.
+- The code still cannot make live provider data instantaneous; it must fetch current results from Sail. The goal of this change is to avoid unnecessary clarification and an extra model summary turn while keeping prices fresh.
 
 ### Still required before enabling outside a safe test environment
 

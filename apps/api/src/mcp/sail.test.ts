@@ -89,6 +89,43 @@ describe("Sail adapter", () => {
     expect(result.kind).toBe("trip");
     expect(callTool).toHaveBeenLastCalledWith("plan_public_transport", { pickup: { placeId: "p", name: "Osu", ...point }, destination: point });
   });
+
+  it("looks up and resolves named endpoints concurrently, preferring an exact city match", async () => {
+    let activeSearches = 0, maxSearches = 0, activeResolves = 0, maxResolves = 0;
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+    const callTool = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "search_places") {
+        activeSearches++;
+        maxSearches = Math.max(maxSearches, activeSearches);
+        await pause();
+        activeSearches--;
+        return String(args.query).startsWith("Accra")
+          ? { places: [{ placeId: "darkuman", name: "Accra", address: "Accra — Darkuman" }, { placeId: "accra-city", name: "Accra", address: "Accra" }, { placeId: "new-town", name: "Accra New Town", address: "Accra" }, { placeId: "academy", name: "Accra Academy", address: "Accra CMB/Kwashieman Junction" }] }
+          : { places: [{ placeId: "madina", name: "Madina" }] };
+      }
+      if (name === "resolve_place") {
+        activeResolves++;
+        maxResolves = Math.max(maxResolves, activeResolves);
+        await pause();
+        activeResolves--;
+        return { place: { placeId: args.placeId, name: String(args.placeId), ...point } };
+      }
+      return { status: "complete" };
+    });
+
+    const result = await runRideRequest(createSailAdapter({ callTool }), {
+      from: { kind: "search", query: "Accra, Ghana" },
+      to: { kind: "search", query: "Madina, Ghana" },
+      country: "gh",
+      mode: "best",
+    });
+
+    expect(result.kind).toBe("trip");
+    expect(maxSearches).toBe(2);
+    expect(maxResolves).toBe(2);
+    expect(callTool).toHaveBeenCalledWith("resolve_place", { placeId: "accra-city" });
+    expect(callTool).toHaveBeenCalledTimes(5);
+  });
 });
 
 describe("MCP bridge", () => {

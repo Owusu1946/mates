@@ -55,7 +55,10 @@ describe("ride conversation", () => {
   });
 
   it("asks the user to clarify when there are multiple place matches", async () => {
-    const { run } = setup([{ places: [{ placeId: "a", name: "Mall A" }, { placeId: "b", name: "Mall B" }] }]);
+    const { run } = setup([
+      { places: [{ placeId: "a", name: "Mall A" }, { placeId: "b", name: "Mall B" }] },
+      { places: [{ placeId: "airport", name: "Airport" }] },
+    ]);
     const result = await executeRideConversation({ from: "Mall", to: "Airport", country: "gh" }, { run });
     expect(result).toMatchObject({ needs: "from", choices: [{ name: "Mall A" }, { name: "Mall B" }] });
     expect(JSON.stringify(result)).not.toContain("placeId");
@@ -65,8 +68,8 @@ describe("ride conversation", () => {
     const point = { lat: 5.556123, lng: -0.182123 };
     const { run } = setup([
       { places: [{ placeId: "a", name: "Osu" }] },
-      { place: { placeId: "a", name: "Osu", ...point } },
       { places: [{ placeId: "b", name: "Airport" }] },
+      { place: { placeId: "a", name: "Osu", ...point } },
       { place: { placeId: "b", name: "Airport", ...point } },
       { status: "partial", rides: { status: "complete", data: { options: [{ provider: "yango", name: "Economy", price: { amount: 40, currency: "GHS" }, available: true, etaMinutes: 5 }] } }, trotro: { status: "failed", error: { message: "private detail" } } },
     ]);
@@ -82,8 +85,8 @@ describe("ride conversation", () => {
   it("keeps available rides with no price", async () => {
     const point = { lat: 5.6, lng: -0.2 };
     const { run } = setup([
-      { places: [{ placeId: "a", name: "Osu" }] }, { place: { placeId: "a", name: "Osu", ...point } },
-      { places: [{ placeId: "b", name: "Airport" }] }, { place: { placeId: "b", name: "Airport", ...point } },
+      { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Airport" }] },
+      { place: { placeId: "a", name: "Osu", ...point } }, { place: { placeId: "b", name: "Airport", ...point } },
       { options: [{ provider: "yango", name: "Economy", available: true }] },
     ]);
     const onSailCall = vi.fn();
@@ -95,8 +98,8 @@ describe("ride conversation", () => {
     const point = { lat: 5.6, lng: -0.2 };
     const options = Array.from({ length: 9 }, (_, index) => ({ provider: "yango", name: `Option ${index + 1}`, price: { amount: index + 1, currency: "GHS" }, available: true }));
     const { run } = setup([
-      { places: [{ placeId: "a", name: "Osu" }] }, { place: { placeId: "a", name: "Osu", ...point } },
-      { places: [{ placeId: "b", name: "Airport" }] }, { place: { placeId: "b", name: "Airport", ...point } },
+      { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Airport" }] },
+      { place: { placeId: "a", name: "Osu", ...point } }, { place: { placeId: "b", name: "Airport", ...point } },
       { options },
     ]);
     const result = await executeRideConversation({ from: "Osu", to: "Airport", country: "gh", mode: "rides" }, { run });
@@ -107,8 +110,8 @@ describe("ride conversation", () => {
   it("includes the transit route and stops and flags ride connections", async () => {
     const point = { lat: 5.6, lng: -0.2 };
     const { run } = setup([
-      { places: [{ placeId: "a", name: "Osu" }] }, { place: { placeId: "a", name: "Osu", ...point } },
-      { places: [{ placeId: "b", name: "Kaneshie" }] }, { place: { placeId: "b", name: "Kaneshie", ...point } },
+      { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Kaneshie" }] },
+      { place: { placeId: "a", name: "Osu", ...point } }, { place: { placeId: "b", name: "Kaneshie", ...point } },
       { network: "trotro", routes: [{ totalFare: 5, currency: "GHS", steps: [{ type: "ride", instruction: "Board at Circle", route: "Circle to Kaneshie", stopCount: 4 }] }], routesRequiringRideConnection: [{}] },
     ]);
     expect(await executeRideConversation({ from: "Osu", to: "Kaneshie", country: "gh", mode: "transit" }, { run })).toMatchObject({ transitNetwork: "trotro", rideConnectionsAvailable: true, transit: [{ steps: [{ route: "Circle to Kaneshie", stopCount: 4 }] }] });
