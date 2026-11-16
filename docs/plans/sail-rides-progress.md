@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 3 in progress — ride and location cards added; device and end-to-end verification remain outstanding.
+**Status:** Batch 4 in progress — Batch 3 review fixes are in; device and end-to-end verification remain outstanding.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -59,6 +59,26 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 - The card presents options returned by Sail, expandable transit steps, estimated-price wording, a stale-price warning and a one-time composer refresh prompt. It distinguishes a capped list (“Showing the first 8 ride options”) from an incomplete provider result. `RIDES_ENABLED` still defaults off. No location or provider flow has been verified on a device, and the current development build must be rebuilt for the native location module.
 - A location card is emitted only when the latest user message explicitly asks to use their current location and the model also requests `here`/`my location`. The app requires a user tap before requesting permission. Duplicate taps are guarded while location lookup is running. After preparing an address, the card asks the user to review and send it; preparing the address again after clearing the draft remains a follow-up UX improvement.
 - The flow does not yet implement stable place-ID selection across turns, direct coordinate handoff, or a fully automatic resume. These and the genuine review/deployment checks remain outstanding.
+
+## Batch 4 validation and handoff
+
+### Completed locally
+
+- `pnpm typecheck` passed across the workspace after the Batch 3 review fixes.
+- `pnpm test` passed: 44 API test files / 367 tests, 12 deck tests, and 17 mobile tests.
+- `git diff --check` passed.
+- Expo config introspection confirmed the `expo-location` plugin and iOS foreground permission string.
+
+### Still required before enabling outside a safe test environment
+
+- [ ] Build and install a fresh iOS development app with `expo-location`; the existing simulator install has not been checked against this native change.
+- [ ] Set `RIDES_ENABLED=true` in the safe API environment and in `apps/api/.env` before `pnpm --filter @expojet/api worker:deploy`; `trigger.config.ts` now includes the flag in its environment sync list. Verify the value in Trigger.dev after deploy.
+- [ ] With that API and worker, test a named ride lookup, a trotro route, missing country/origin clarification, explicit location permission/denial, and partial or unavailable results.
+- [ ] On a device, verify each provider link with the provider app installed and absent; confirm trip details are not prefilled and Mates never implies it booked a ride.
+- [ ] Confirm that location prompts require an explicit user request, permission is requested only after the card action, the address is reviewed before sending, and no coordinates enter the durable request or card payload.
+- [ ] Have Ken review Sail usage terms, attribution, limits, rollout, and the API/worker configuration before any production flag change.
+
+The simulator is booted and Mates is installed, but this environment has not exercised the new native location module or a live API/worker ride request. Do not treat the local unit suite as end-to-end validation. The local Expo command is `pnpm --filter @muse-clone/mobile ios`; use a safe test API/worker configuration for the interactive checks.
 
 ## Decisions and constraints to resolve
 
