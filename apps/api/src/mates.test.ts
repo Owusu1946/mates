@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collaborationAssignments, directCollaborationPlan, handoffCard, normalisePlan, parseMentions } from "./groups.js";
+import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions } from "./groups.js";
 import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
@@ -50,6 +50,31 @@ describe("group routing", () => {
     expect(directCollaborationPlan("@Ama, what does this cost?", scout.id, [scout, ama])?.mentioned.map((m) => m.id)).toEqual(["m2"]);
     expect(directCollaborationPlan("ask @Chief of Staff", scout.id, [scout, ama])).toMatchObject({ chief: true, mentioned: [] });
     expect(collaborationAssignments([ama], scout.id).assignments.map((a) => a.mateId)).toEqual(["m2", "m1"]);
+  });
+
+  it("mentions up to three other mates, and leaves app names and unknown mates alone", () => {
+    const nova = mate("m4", "Nova");
+    const io = mate("m5", "Io");
+    const owned = [scout, ama, amaLee, nova, io];
+    expect(directCollaborationPlan("@Ama @Ama Lee @Nova @Io please", scout.id, owned)?.mentioned.map((m) => m.id)).toEqual(["m2", "m3", "m4"]);
+    expect(directCollaborationPlan("@Chief of Staff, ask @Ama", scout.id, owned)).toMatchObject({ chief: true, mentioned: [expect.objectContaining({ id: "m2" })] });
+    expect(directCollaborationPlan("@Ama check @Slack and @Web", scout.id, owned)?.mentioned.map((m) => m.id)).toEqual(["m2"]);
+    expect(directCollaborationPlan("ask @Slack to book it", scout.id, owned)).toBeNull();
+    expect(directCollaborationPlan("@Ghost, are you there?", scout.id, owned)).toBeNull();
+  });
+
+  it("keeps an ordinary direct chat and an ordinary resume on the primary mate", () => {
+    const attached = [scout, ama];
+    expect(directCollaborationRoster({ resume: false, hasGroupQueue: false, leader: scout, attached, plan: null })).toBeNull();
+    expect(directCollaborationRoster({ resume: true, hasGroupQueue: false, leader: scout, attached, plan: null })).toBeNull();
+    expect(directCollaborationRoster({ resume: true, hasGroupQueue: true, leader: scout, attached, plan: null })).toEqual(attached);
+    expect(directCollaborationRoster({
+      resume: false,
+      hasGroupQueue: false,
+      leader: scout,
+      attached,
+      plan: { mentioned: [amaLee] },
+    })?.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
   });
 
   it("keeps only real members, and the leader alone when nothing valid remains", () => {

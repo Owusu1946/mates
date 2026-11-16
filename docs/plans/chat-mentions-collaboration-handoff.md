@@ -1,6 +1,6 @@
 # Handoff: chat mentions and mate collaboration
 
-**For:** Samuel and Ken. **Status:** Batches 1–3 are implemented locally. The migration is generated but not applied. Batch 4 (broader integration checks) is not started.
+**For:** Samuel and Ken. **Status:** Batches 1–4 are implemented locally. Migrations `0034_quiet_logan` and `0035_collaborator_removed_at` are generated and not applied. A device pass is still open.
 
 ## Goal
 
@@ -88,7 +88,20 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 - Attached collaborators render as chips above the composer. Removing one replaces the list with `PUT /v1/chats/:id/collaborators` and rolls the chip back if that request fails.
 - After a direct-chat send that contained an `@` mention, the chat list refreshes once that run finishes, so a mate attached by the worker shows up without a second send.
 - The draft still names the mate in text (`@Ama`). Routing keeps using that name, which Batch 2 already resolves to an owned mate id. Removing someone uses the id.
-- A remove that lands while a tagged run is still starting can be undone when that run attaches the mate. The chip comes back on the refresh after the run.
+
+## Batch 4 implementation notes
+
+- Direct-chat routing is covered without calling the model: up to three other owned mates, `@Chief of Staff` plus a name, `@Web` and unknown names such as `@Slack` staying out of the roster, and a resume continuing the collaboration only when that run was already waiting on a handoff.
+- The picker tests cover inserting `@Name` or `@Chief of Staff` into the draft, Web Search taking the `@` token out, and refreshing collaborators only after a tagged run finishes.
+- Removing a mate now marks the row with `removed_at` instead of deleting it. A run that already started from a message sent before that removal does not attach the mate again. A later message that mentions them clears `removed_at`. Active lists ignore removed rows, and the chat stays `kind: "mate"`.
+- Checked with `vitest` for the API routing and attachment tests, `node --test` for the picker, and `tsc --noEmit` in `apps/api` and `apps/mobile`.
+
+## Still open
+
+- Neither migration has been applied. Coordinate with Ken before running them.
+- Not exercised on a simulator: open a direct chat, type `@`, send a mention, leave and come back, remove the chip, and confirm a group chat's `@` menu is unchanged.
+- A mate who fails mid-relay still stops the mates queued behind them, which is the existing group behavior. Text already produced stays in the thread.
+- The product copy does not yet say that a mention shares this conversation with that mate.
 
 ## Privacy and safety
 

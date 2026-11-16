@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
-import { createChatStore } from "./chats.js";
+import { collaboratorAttachPlan, createChatStore } from "./chats.js";
 
 const user = "user_owner";
 const headers = {
@@ -165,5 +165,46 @@ describe("Persistent chats API", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "INTERNAL_ERROR" },
     });
+  });
+});
+
+describe("collaborator attachment", () => {
+  const sent = new Date("2026-11-16T12:00:00.000Z");
+  const ama = "8f4e4120-2958-49ae-aa6f-e4242713dc60";
+  const nova = "1c0b9a2e-6d4f-4a1b-9c33-0e5d7a8b6c21";
+  const primary = "d4a6d498-9aee-4daa-920e-9b837bdd80c3";
+
+  it("adds one or several mates, and does not add the primary mate twice", () => {
+    const plan = collaboratorAttachPlan({ requestedIds: [ama, ama, nova, primary], primaryId: primary, rows: [], sentAt: sent });
+    expect(plan.insert.map((row) => row.mateId)).toEqual([ama, nova]);
+    expect(plan.revive).toEqual([]);
+  });
+
+  it("stops at 19 attached mates", () => {
+    const rows = Array.from({ length: 19 }, (_, position) => ({ mateId: `00000000-0000-4000-8000-${String(position).padStart(12, "0")}`, position, removedAt: null }));
+    const plan = collaboratorAttachPlan({ requestedIds: [ama], primaryId: primary, rows, sentAt: sent });
+    expect(plan.insert).toEqual([]);
+  });
+
+  it("does not undo a removal that happened after the message was sent", () => {
+    const plan = collaboratorAttachPlan({
+      requestedIds: [ama, nova],
+      primaryId: primary,
+      rows: [{ mateId: ama, position: 0, removedAt: new Date("2026-11-16T12:00:05.000Z") }],
+      sentAt: sent,
+    });
+    expect(plan.revive).toEqual([]);
+    expect(plan.insert.map((row) => row.mateId)).toEqual([nova]);
+  });
+
+  it("brings a mate back when a later message mentions them", () => {
+    const plan = collaboratorAttachPlan({
+      requestedIds: [ama],
+      primaryId: primary,
+      rows: [{ mateId: ama, position: 0, removedAt: new Date("2026-11-16T11:00:00.000Z") }],
+      sentAt: sent,
+    });
+    expect(plan.revive.map((row) => row.mateId)).toEqual([ama]);
+    expect(plan.insert).toEqual([]);
   });
 });

@@ -22,6 +22,25 @@ export function directCollaborationPlan(text: string, primaryId: string, owned: 
   return { chief, mentioned };
 }
 
+/**
+ * Who is in the room for this direct-chat run.
+ * Null means the primary mate answers alone: an ordinary message, or a resume that was not a collaboration.
+ * A resume that was waiting continues with the mates already on the chat.
+ */
+export function directCollaborationRoster(input: {
+  resume: boolean;
+  hasGroupQueue: boolean;
+  leader: PersonaMate;
+  attached: PersonaMate[];
+  plan: { mentioned: PersonaMate[] } | null;
+}): PersonaMate[] | null {
+  if (input.resume) return input.hasGroupQueue ? input.attached : null;
+  if (!input.plan) return null;
+  const byId = new Map<string, PersonaMate>([[input.leader.id, input.leader]]);
+  for (const mate of [...input.attached, ...input.plan.mentioned]) byId.set(mate.id, mate);
+  return [...byId.values()];
+}
+
 /** Mentioned mates answer first; the primary mate then brings their answers together. */
 export function collaborationAssignments(mentioned: PersonaMate[], leaderId: string): GroupTurnPlan {
   const assignments = mentioned.slice(0, MAX_ASSIGNED).map((mate) => ({ mateId: mate.id, task: "" }));

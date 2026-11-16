@@ -32,6 +32,34 @@ export const deletedMessagesSchema = z.object({
 });
 export type SavedMessage = z.infer<typeof savedMessageSchema>;
 
+export type CollaboratorRow = { mateId: string; position: number; removedAt: Date | null };
+
+/** Which mentions to persist. A removal newer than the message wins over this run. */
+export function collaboratorAttachPlan(input: {
+  requestedIds: string[];
+  primaryId: string;
+  rows: CollaboratorRow[];
+  sentAt: Date | null;
+  cap?: number;
+}) {
+  const cap = input.cap ?? 19;
+  const requested = [...new Set(input.requestedIds)].filter((mateId) => mateId !== input.primaryId);
+  const byId = new Map(input.rows.map((row) => [row.mateId, row]));
+  let room = Math.max(0, cap - input.rows.filter((row) => row.removedAt === null).length);
+  let position = input.rows.reduce((max, row) => Math.max(max, row.position), -1) + 1;
+  const insert: { mateId: string; position: number }[] = [];
+  const revive: { mateId: string; position: number }[] = [];
+  for (const mateId of requested) {
+    const row = byId.get(mateId);
+    if (row && row.removedAt === null) continue;
+    if (row?.removedAt && (input.sentAt === null || row.removedAt > input.sentAt)) continue;
+    if (room <= 0) continue;
+    room -= 1;
+    (row ? revive : insert).push({ mateId, position: position++ });
+  }
+  return { insert, revive };
+}
+
 export function createChatStore() {
   const owned = (userId: string, id: string) =>
     and(eq(chats.id, id), eq(chats.clerkUserId, userId));
@@ -96,13 +124,18 @@ export function createChatStore() {
       }
 
       await getDb().batch([
-        getDb().delete(chatCollaborators).where(eq(chatCollaborators.chatId, id)),
-        ...(mateIds.length ? [getDb().insert(chatCollaborators).values(mateIds.map((mateId, position) => ({ chatId: id, mateId, position })))] : []),
+        getDb().update(chatCollaborators).set({ removedAt: sql`now()` }).where(eq(chatCollaborators.chatId, id)),
+        ...(mateIds.length
+          ? [getDb().insert(chatCollaborators).values(mateIds.map((mateId, position) => ({ chatId: id, mateId, position, removedAt: null }))).onConflictDoUpdate({
+              target: [chatCollaborators.chatId, chatCollaborators.mateId],
+              set: { removedAt: null, position: sql`excluded.position` },
+            })]
+          : []),
       ]);
       return { ok: true as const, mateIds };
     },
     /** Adds owned mates to a direct chat without removing the ones already attached. */
-    async attachCollaborators(userId: string, id: string, requestedMateIds: string[]) {
+    async attachCollaborators(userId: string, id: string, requestedMateIds: string[], sentAt: Date | null = null) {
       const chat = await this.get(userId, id);
       if (!chat || chat.kind !== "mate" || !chat.mateId) return { ok: false as const, reason: "NOT_FOUND" as const };
       const mateIds = [...new Set(requestedMateIds)].filter((mateId) => mateId !== chat.mateId);
@@ -110,14 +143,14 @@ export function createChatStore() {
       const ownedMates = await getDb().select({ id: mates.id }).from(mates)
         .where(and(eq(mates.clerkUserId, userId), inArray(mates.id, mateIds)));
       if (ownedMates.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
-      const existing = await getDb().select({ mateId: chatCollaborators.mateId, position: chatCollaborators.position }).from(chatCollaborators).where(eq(chatCollaborators.chatId, id));
-      const have = new Set(existing.map((row) => row.mateId));
-      const next = mateIds.filter((mateId) => !have.has(mateId)).slice(0, Math.max(0, 19 - existing.length));
-      if (next.length) {
-        const position = existing.reduce((max, row) => Math.max(max, row.position), -1) + 1;
-        await getDb().insert(chatCollaborators).values(next.map((mateId, index) => ({ chatId: id, mateId, position: position + index }))).onConflictDoNothing();
-      }
-      return { ok: true as const, mateIds: next };
+      const existing = await getDb().select({ mateId: chatCollaborators.mateId, position: chatCollaborators.position, removedAt: chatCollaborators.removedAt }).from(chatCollaborators).where(eq(chatCollaborators.chatId, id));
+      const plan = collaboratorAttachPlan({ requestedIds: mateIds, primaryId: chat.mateId, rows: existing, sentAt });
+      const writes = [
+        ...plan.revive.map((row) => getDb().update(chatCollaborators).set({ removedAt: null, position: row.position }).where(and(eq(chatCollaborators.chatId, id), eq(chatCollaborators.mateId, row.mateId)))),
+        ...(plan.insert.length ? [getDb().insert(chatCollaborators).values(plan.insert.map((row) => ({ chatId: id, mateId: row.mateId, position: row.position }))).onConflictDoNothing()] : []),
+      ];
+      if (writes.length) await getDb().batch(writes as [(typeof writes)[number], ...(typeof writes)[number][]]);
+      return { ok: true as const, mateIds: [...plan.insert, ...plan.revive].map((row) => row.mateId) };
     },
     async delete(userId: string, id: string) {
       return (

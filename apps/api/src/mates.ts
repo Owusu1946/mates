@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { chatCollaborators, chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
@@ -275,7 +275,7 @@ export async function resolvePersona(userId: string, chatId: string | null | und
       .select(personaColumns)
       .from(chatCollaborators)
       .innerJoin(mates, eq(mates.id, chatCollaborators.mateId))
-      .where(eq(chatCollaborators.chatId, chatId))
+      .where(and(eq(chatCollaborators.chatId, chatId), isNull(chatCollaborators.removedAt)))
       .orderBy(asc(chatCollaborators.position));
     return { kind: "mate", chatId, mates: [mate, ...extras.filter((extra) => extra.id !== mate.id)], leaderId: mate.id };
   }
@@ -355,7 +355,7 @@ export async function enrichChats(userId: string, rows: ChatRow[]) {
       .select({ chatId: chatCollaborators.chatId, mateId: chatCollaborators.mateId })
       .from(chatCollaborators)
       .innerJoin(chats, eq(chats.id, chatCollaborators.chatId))
-      .where(eq(chats.clerkUserId, userId))
+      .where(and(eq(chats.clerkUserId, userId), isNull(chatCollaborators.removedAt)))
       .orderBy(asc(chatCollaborators.position)),
     getDb().execute(
       sql`SELECT DISTINCT ON (chat_id) chat_id, message, created_at FROM chat_messages WHERE chat_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) ORDER BY chat_id, created_at DESC`,

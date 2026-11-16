@@ -246,6 +246,13 @@
       "when": 1794843710240,
       "tag": "0034_quiet_logan",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794847258922,
+      "tag": "0035_collaborator_removed_at",
+      "breakpoints": true
     }
   ]
 }

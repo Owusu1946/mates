@@ -71,7 +71,7 @@ import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MateCard, MissionBanner, TeamCard } from "../mates/mission";
 import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
-import { CHIEF_OF_STAFF, mentionMatesForChat, showChiefOfStaff } from "./mention-choices";
+import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, webSearchDraft } from "./mention-choices";
 import { CodeCard } from "./code-card";
 import { DeckCard } from "../decks/deck-card";
 import { SourcesCard } from "./sources-card";
@@ -1345,9 +1345,9 @@ function ChatComposer() {
     setSearchOn(false);
   };
   useEffect(() => {
-    const finished = sawRunning.current && !running;
+    const finished = collaboratorRefreshDue(sawRunning.current, running, taggedCollaborator.current);
     sawRunning.current = running;
-    if (!finished || !taggedCollaborator.current) return;
+    if (!finished) return;
     taggedCollaborator.current = false;
     void queryClient.invalidateQueries({ queryKey: ["chats", userId] });
   }, [queryClient, running, userId]);
@@ -1368,8 +1368,7 @@ function ChatComposer() {
   const mentionWeb = !searchOn && ("web search".includes(mentionQuery) || "search".startsWith(mentionQuery));
   const collaborators = currentChat?.kind === "mate" ? currentChat.collaborators ?? [] : [];
   const tagMention = (name: string) => {
-    const at = composerText.lastIndexOf("@");
-    aui.composer.setText(`${composerText.slice(0, Math.max(0, at))}@${name} `);
+    aui.composer.setText(mentionDraft(composerText, name));
   };
   const removeCollaborator = (mateId: string) => {
     if (!currentChat) return;
@@ -1423,9 +1422,7 @@ function ChatComposer() {
                   accessibilityRole="button"
                   accessibilityLabel="Search the web"
                   onPress={() => {
-                    const at = composerText.lastIndexOf("@");
-                    const prefix = composerText.slice(0, at).trimEnd();
-                    aui.composer.setText(prefix ? `${prefix} ` : "");
+                    aui.composer.setText(webSearchDraft(composerText));
                     setSearchOn(true);
                   }}
                   style={({ pressed }) => ({

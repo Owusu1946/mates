@@ -10,7 +10,7 @@ import { createChatStore, chatIdSchema } from "./chats.js";
 import { createAgentResponse } from "./agent-chat.js";
 import { linkAttachments } from "./attachments.js";
 import { ownedPersonas, personaPreamble, resolvePersona, type Persona, type PersonaMate } from "./mates.js";
-import { handoffCard, collaborationAssignments, directCollaborationPlan, parseMentions, planGroupTurn, speakerCard, type Assignment, type HandoffStatus } from "./groups.js";
+import { handoffCard, collaborationAssignments, directCollaborationPlan, directCollaborationRoster, parseMentions, planGroupTurn, speakerCard, type Assignment, type HandoffStatus } from "./groups.js";
 import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
@@ -441,19 +441,21 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     let directRoster: PersonaMate[] | null = null;
     let directPlan: ReturnType<typeof directCollaborationPlan> = null;
     if (persona.kind === "mate" && !missionInfo) {
+      let hasGroupQueue = false;
       if (request.resumeRunId) {
         const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
-        if (paused?.groupQueue) directRoster = persona.mates;
+        hasGroupQueue = !!paused?.groupQueue;
       } else {
         const owned = await ownedPersonas(run.clerkUserId);
         directPlan = directCollaborationPlan(request.messages.at(-1)?.content ?? "", leader.id, owned);
-        if (directPlan) {
-          if (directPlan.mentioned.length && run.chatId) await createChatStore().attachCollaborators(run.clerkUserId, run.chatId, directPlan.mentioned.map((mate) => mate.id)).catch(() => undefined);
-          const byId = new Map<string, PersonaMate>([[leader.id, leader]]);
-          for (const mate of [...persona.mates, ...directPlan.mentioned]) byId.set(mate.id, mate);
-          directRoster = [...byId.values()];
+        if (directPlan?.mentioned.length && run.chatId) {
+          const [sent] = run.parentId
+            ? await getDb().select({ createdAt: chatMessages.createdAt }).from(chatMessages).where(and(eq(chatMessages.chatId, run.chatId), eq(chatMessages.id, run.parentId)))
+            : [];
+          await createChatStore().attachCollaborators(run.clerkUserId, run.chatId, directPlan.mentioned.map((mate) => mate.id), sent?.createdAt ?? null).catch(() => undefined);
         }
       }
+      directRoster = directCollaborationRoster({ resume: !!request.resumeRunId, hasGroupQueue, leader, attached: persona.mates, plan: directPlan });
     }
     if (persona.kind !== "group" && !directRoster) {
       await consume(await runMate(leader, agentRunId, personaPreamble(leader), { resume: { resumeRunId: request.resumeRunId, choice: request.choice } }));
