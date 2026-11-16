@@ -1,9 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useAuth } from "@clerk/expo";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { View } from "react-native";
 import { router, usePathname } from "expo-router";
 import { readCache, writeCache } from "../data/offline-cache";
 import { useMates } from "../mates/data";
 import { useTheme } from "../theme/provider";
+import { onPlanRequired } from "../chat/background-chat";
 import { useUsage } from "../usage/use-usage";
 import { LeaderSetup } from "./leader-setup";
 
@@ -41,19 +43,26 @@ export function LeaderGate({ children }: { children: ReactNode }) {
 
 /** Opens the blocking paywall after setup when the server says the account has no plan. */
 function PlanAccessGate({ children }: { children: ReactNode }) {
+  const { userId } = useAuth();
   const usage = useUsage();
   const pathname = usePathname();
-  const opened = useRef(false);
+  const openedForUser = useRef<string | null>(null);
+
+  const openPaywall = useCallback(() => {
+    if (!userId || pathname.includes("/paywall") || openedForUser.current === userId) return;
+    openedForUser.current = userId;
+    router.push({ pathname: "/paywall", params: { required: "1" } });
+  }, [pathname, userId]);
+
+  useEffect(() => onPlanRequired(openPaywall), [openPaywall]);
 
   useEffect(() => {
     if (usage.data?.plan.id !== "none") {
-      opened.current = false;
+      if (openedForUser.current === userId) openedForUser.current = null;
       return;
     }
-    if (pathname.includes("/paywall") || opened.current) return;
-    opened.current = true;
-    router.push({ pathname: "/paywall", params: { required: "1" } });
-  }, [pathname, usage.data?.plan.id]);
+    openPaywall();
+  }, [openPaywall, usage.data?.plan.id, userId]);
 
   return children;
 }

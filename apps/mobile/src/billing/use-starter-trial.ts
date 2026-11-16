@@ -1,7 +1,7 @@
 import { useAuth } from "@clerk/expo";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { getCustomerInfo, identifyPurchases } from "./purchases";
+import { getCustomerInfo } from "./purchases";
 import { onUsageChange } from "../chat/background-chat";
 import { useUsage } from "../usage/use-usage";
 
@@ -16,7 +16,6 @@ export function useStarterTrial() {
     queryKey: trialKey(userId),
     queryFn: async () => {
       if (!userId) throw new Error("No signed-in user");
-      await identifyPurchases(userId);
       return getCustomerInfo(userId);
     },
     enabled: !!userId && usage.data?.plan.id === "starter",

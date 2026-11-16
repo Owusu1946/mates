@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, Text, View } from "react-native";
 import Purchases, { type PurchasesPackage } from "react-native-purchases";
-import { checkTrialEligibility, getCustomerInfo, getOfferings, identifyPurchases, purchasePackage, PurchaseSyncError, restorePurchases, showManageSubscriptions } from "../../src/billing/purchases";
+import { checkTrialEligibility, getCustomerInfo, getOfferings, identifyPurchases, purchasePackage, purchaseUserCancelled, PurchaseSyncError, restorePurchases, showManageSubscriptions } from "../../src/billing/purchases";
 import { haptic } from "../../src/haptics";
 import { useToast } from "../../src/components/toast";
 import { useSession } from "../../src/session/provider";
@@ -30,7 +30,7 @@ function matchingPackage(packages: PurchasesPackage[], plan: Plan, period: Perio
   return packages.find((item) => productIds.includes(item.product.identifier));
 }
 
-const starterProductIds = ["mates_starter_monthly", "mates_starter_yearly"];
+const starterProductIds = ["mates_starter_monthly", "mates_starter_yearly", "mates_starter_annual"];
 
 function trialDuration(product: PurchasesPackage["product"]) {
   const intro = product.introPrice;
@@ -91,7 +91,7 @@ export default function PaywallScreen() {
   const currentPlan = usage.data?.plan.id;
   const isCurrentProduct = !!chosen && activeProducts.includes(chosen.product.identifier);
   const required = params.required === "1";
-  const blocking = !leavingForSignOut && !accessGranted && (currentPlan === "none" || (required && !usage.data));
+  const blocking = !leavingForSignOut && !accessGranted && (currentPlan === "none" || required);
   usePreventRemove(blocking, () => {});
   const trialPeriod = chosen ? trialDuration(chosen.product) : null;
   const trialEligible = Platform.OS === "ios" && selected === "starter" && !!chosen && !!trialPeriod &&
@@ -124,7 +124,10 @@ export default function PaywallScreen() {
       haptic.selection();
       toast.show({ message: trialEligible && trialPeriod ? `Your ${trialPeriod} free trial has started.` : "Your plan is active.", tone: "success" });
     } catch (error) {
-      if (typeof error === "object" && error !== null && "userCancelled" in error && error.userCancelled === true) return;
+      if (purchaseUserCancelled(error)) {
+        toast.show({ message: "Purchase cancelled.", tone: "info" });
+        return;
+      }
       toast.show({ message: error instanceof PurchaseSyncError ? "Purchased. Your plan is still updating." : "Purchase failed. Try again.", tone: "error" });
     } finally {
       setBusy(false);
@@ -204,7 +207,7 @@ export default function PaywallScreen() {
         <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 12, lineHeight: 18, textAlign: "center" }}>{trialEligible && chosen ? `Payment is charged to your Apple ID at the end of the ${trialPeriod} trial unless cancelled at least 24 hours before. Then ${chosen.product.priceString} per ${period === "monthly" ? "month" : "year"}; subscriptions renew automatically.` : chosen ? `${chosen.product.priceString} per ${period === "monthly" ? "month" : "year"}. Subscriptions renew automatically until cancelled.` : "Subscriptions renew automatically until cancelled."}</Text>
         <View style={{ flexDirection: "row", justifyContent: "center", flexWrap: "wrap", gap: 18 }}>
           <Pressable accessibilityRole="button" disabled={busy} onPress={() => void restore()}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Restore purchases</Text></Pressable>
-          <Pressable accessibilityRole="link" onPress={() => void manage()}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Manage subscription</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => void manage()}><Text style={{ color: colors.textSecondary, fontFamily: font.medium, fontSize: 13 }}>Manage subscription</Text></Pressable>
         </View>
         <View style={{ flexDirection: "row", justifyContent: "center", gap: 18 }}>
           <Pressable accessibilityRole="link" onPress={() => link("https://agents.askorin.app/terms")}><Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>Terms</Text></Pressable>
