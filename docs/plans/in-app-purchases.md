@@ -119,7 +119,7 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 7. When the owner sends RevenueCat's **App Store Server Notifications URL**: go to *Apps → Mates → App Information → App Store Server Notifications* and paste it for **both Production and Sandbox**, choosing **Version 2**.
 8. *Users and Access → Sandbox*: add sandbox tester accounts for testing (§7).
 
-The owner then does everything in RevenueCat: imports these products, creates the `starter`/`plus`/`pro`/`max` entitlements and the `default` offering (packages `starter_monthly`, `starter_yearly`, … `max_yearly`), and sets up the webhook. **Your code should read offerings and packages by those names.**
+Ken manages RevenueCat: imports these products, maintains the `starter`/`plus`/`pro`/`max` entitlements and current offering, and sets up the webhook. The current project offering is `mates_tiers`. **Read the current offering dynamically and match its products; do not hard-code an offering identifier.**
 
 ---
 
@@ -275,13 +275,9 @@ Copy the mocking style of `apps/api/src/usage/usage.test.ts`: it mocks `../db/cl
 Do these in order, **only after purchases work end to end in sandbox:**
 1. Deploy the API. Then ask the owner to add the RevenueCat variables in Railway and turn on the RevenueCat webhook.
 2. Release the app build that contains the paywall.
-3. **Decide what happens to existing users.** Today everyone without a stored plan is treated as Starter (`DEFAULT_PLAN=starter`). Options:
-   - (a) Give existing users a grace period with `set-plan.ts` or the admin route (`PUT /internal/users/:id/plan` with `{ plan: "starter", recordPayment: false }`), then flip.
-   - (b) Flip straight away.
-
-   **Ask the owner** which one.
+3. Follow [free-trial-handoff.md](free-trial-handoff.md) for existing-user access. Apple's trial eligibility is based on the Apple ID's history in the subscription group, not the Mates account's age. Ken must confirm whether existing users receive a separate backend grace period before enforcement. Do not run the grandfather script or promise a grace period until that decision is recorded.
 4. **The owner** flips `DEFAULT_PLAN=none` on Railway, **and** in the local `.env` used for `worker:deploy`, then runs `pnpm --filter @expojet/api worker:deploy`. The worker reads it too (`trigger.config.ts` syncs it).
-5. From then on, people without a subscription get `402 plan_required`. The app already handles that: "Choose a plan to keep using mates." with a See plans button, which you're pointing at the paywall.
+5. From then on, people without an active plan get `402 plan_required`; the mobile app opens the paywall as described in [free-trial-handoff.md](free-trial-handoff.md).
 
 ---
 

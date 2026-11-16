@@ -12,6 +12,11 @@ const openUsage = () => {
   router.push("/usage");
 };
 
+const openPaywall = () => {
+  haptic.selection();
+  router.push("/paywall");
+};
+
 /** A quiet line above the composer: nearly used, out until a time, or no plan. Nothing otherwise. */
 export function UsageLine({ colors }: { colors: Colors }) {
   const { data } = useUsage();
@@ -27,9 +32,9 @@ export function UsageLine({ colors }: { colors: Colors }) {
     <Pressable
       testID="usage-line"
       accessibilityRole="button"
-      accessibilityHint="Opens plan and usage"
+      accessibilityHint={notice.kind === "no_plan" ? "Opens plans" : "Opens plan and usage"}
       accessibilityLiveRegion="polite"
-      onPress={openUsage}
+      onPress={notice.kind === "no_plan" ? openPaywall : openUsage}
       hitSlop={6}
       style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingHorizontal: 12, paddingBottom: 8, opacity: pressed ? 0.6 : 1 })}
     >
@@ -42,14 +47,14 @@ export function UsageLine({ colors }: { colors: Colors }) {
 }
 
 /** Whether a failed reply was refused for usage, from the error the chat runtime kept. */
-export function limitError(status: unknown): { message: string } | null {
+export function limitError(status: unknown): { message: string; code: "usage_limit" | "plan_required" } | null {
   const error = (status as { type?: string; reason?: string; error?: { code?: unknown; message?: unknown } } | undefined)?.error;
   if (!error || (error.code !== "usage_limit" && error.code !== "plan_required")) return null;
-  return { message: typeof error.message === "string" ? error.message : "You’ve reached your usage limit." };
+  return { code: error.code, message: typeof error.message === "string" ? error.message : "You’ve reached your usage limit." };
 }
 
 /** In place of "couldn't reply · Try again": why, when it comes back, and where to see plans. */
-export function LimitReply({ message, colors }: { message: string; colors: Colors }) {
+export function LimitReply({ message, code, colors }: { message: string; code: "usage_limit" | "plan_required"; colors: Colors }) {
   const { data } = useUsage();
   const resetsAt = data?.blocked?.resetsAt;
   return (
@@ -57,8 +62,8 @@ export function LimitReply({ message, colors }: { message: string; colors: Color
       <Text selectable style={{ color: colors.foreground, fontFamily: font.regular, fontSize: 15, lineHeight: 21 }}>
         {resetsAt ? `${message.replace(/ It resets in .*$/, "")} You can pick this up at ${resetTime(resetsAt)}.` : message}
       </Text>
-      <Pressable accessibilityRole="button" onPress={openUsage} hitSlop={6} style={({ pressed }) => ({ alignSelf: "flex-start", paddingVertical: 2, opacity: pressed ? 0.6 : 1 })}>
-        <Text style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 14 }}>See plans and usage</Text>
+      <Pressable accessibilityRole="button" onPress={code === "plan_required" ? openPaywall : openUsage} hitSlop={6} style={({ pressed }) => ({ alignSelf: "flex-start", paddingVertical: 2, opacity: pressed ? 0.6 : 1 })}>
+        <Text style={{ color: colors.foreground, fontFamily: font.semibold, fontSize: 14 }}>{code === "plan_required" ? "See plans" : "See plans and usage"}</Text>
       </Pressable>
     </View>
   );

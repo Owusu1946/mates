@@ -1,5 +1,6 @@
 import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { env } from "../env";
 import { ApiError, runRequest, usageChanged } from "../chat/background-chat";
 import type { UsageResponse } from "@expojet/api-contract";
@@ -19,6 +20,7 @@ let configured = false;
 let currentUserId: string | null = null;
 let desiredUserId: string | null = null;
 let pending: Promise<unknown> = Promise.resolve();
+const pendingSyncKey = (userId: string) => `billing:pending-sync:${userId}`;
 
 // Serialize SDK calls so a sign-out or account switch cannot overtake a purchase.
 function enqueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -94,9 +96,39 @@ export function getCustomerInfo(userId: string) {
   });
 }
 
+export function checkTrialEligibility(userId: string, productIds: string[]) {
+  return enqueue(async () => {
+    requireIdentity(userId);
+    if (Platform.OS !== "ios") return {};
+    return Purchases.checkTrialOrIntroductoryPriceEligibility(productIds);
+  });
+}
+
+export function showManageSubscriptions(): Promise<void> {
+  return enqueue(async () => {
+    if (!configured) throw new Error("Purchases are unavailable. Please try again.");
+    await Purchases.showManageSubscriptions();
+  });
+}
+
+/** Retries a store-to-server sync that failed after a purchase or restore, once the app opens again. */
+export function retryPendingPurchaseSync(userId: string, getToken: GetToken) {
+  return enqueue(async () => {
+    if (!configured || currentUserId !== userId || desiredUserId !== userId) return false;
+    if (await AsyncStorage.getItem(pendingSyncKey(userId)) !== "1") return false;
+    try {
+      await syncUsage(userId, getToken);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+}
+
 async function syncUsage(userId: string, getToken: GetToken): Promise<UsageResponse> {
   requireIdentity(userId);
   const usage = await runRequest<UsageResponse>(getToken, "billing/sync", {}, undefined, { quietNotFound: true });
+  await AsyncStorage.removeItem(pendingSyncKey(userId)).catch(() => {});
   usageChanged();
   return usage;
 }
@@ -108,6 +140,7 @@ export function purchasePackage(userId: string, getToken: GetToken, item: Purcha
     try {
       await syncUsage(userId, getToken);
     } catch (cause) {
+      await AsyncStorage.setItem(pendingSyncKey(userId), "1").catch(() => {});
       throw new PurchaseSyncError("purchase", { cause });
     }
     return result;
@@ -122,6 +155,7 @@ export function restorePurchases(userId: string, getToken: GetToken) {
       const usage = await syncUsage(userId, getToken);
       return { customerInfo, usage };
     } catch (cause) {
+      await AsyncStorage.setItem(pendingSyncKey(userId), "1").catch(() => {});
       throw new PurchaseSyncError("restore", { cause });
     }
   });

@@ -687,7 +687,7 @@ function ChatMessage() {
       )}
       {limit ? (
         <ErrorPrimitive.Root style={{ marginTop: 8, paddingHorizontal: 2 }}>
-          <LimitReply message={limit.message} colors={colors} />
+          <LimitReply message={limit.message} code={limit.code} colors={colors} />
         </ErrorPrimitive.Root>
       ) : (
       <ErrorPrimitive.Root
