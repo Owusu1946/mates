@@ -74,10 +74,16 @@
       ],
       "expo-image",
       "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Mates uses your location when you ask for rides from where you are."
+        }
+      ],
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc",
-      "expo-widgets",
       "./plugins/with-mates-widget-mascot",
+      "expo-widgets",
       [
         "expo-build-properties",
         {

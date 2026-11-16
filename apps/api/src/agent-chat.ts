@@ -45,6 +45,10 @@ import {
 } from "./workflow-results.js";
 import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTriggersTool } from "./watches.js";
 import { habitReplyTool, nudgeContext, pendingNudge, runHabitReply } from "./habits/nudges.js";
+import { ridesTool } from "./mcp/rides-tool.js";
+import { rideCard } from "./mcp/ride-card.js";
+import { executeRideConversation, rideResultReply, ridesEnabled } from "./mcp/ride-conversation.js";
+import { recordUsage } from "./usage/record.js";
 
 type ToolCall = {
   id: string;
@@ -142,6 +146,7 @@ export async function createAgentResponse(
   const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
+  const ridesOn = ridesEnabled();
   const forced = forcedSearch(lastUserText);
   const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
   const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
@@ -154,6 +159,17 @@ export async function createAgentResponse(
     { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
     ...modelTurns,
   ];
+  if (ridesOn) messages.push({
+    role: "system",
+    content: [
+      "Use cooper_rides for ride-price requests, trotro or public-transport requests, and directions between named places, including ordinary wording like 'How do I get from A to B?'. Use mode best unless the user asks only for rides or only for transit.",
+      "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
+      "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
+      "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
+      "Only present ride or transit options when Sail provides a numeric price and currency. Omit unpriced trotro or public-transport results without mentioning that they were unavailable. Keep the chat reply to a short takeaway from priced options; the card contains the breakdown.",
+      "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
+    ].join(" "),
+  });
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
@@ -360,6 +376,7 @@ export async function createAgentResponse(
     assembleTeamTool,
     createMateTool,
     createGroupTool,
+    ...(ridesOn ? [ridesTool] : []),
     // Only offered when this server can run it; a user without GitHub connected gets a Connect card.
     ...(codingAvailable() ? [shipCodeTool] : []),
     ...(decksEnabled() ? [deckTool, editDeckTool] : []),
@@ -434,6 +451,7 @@ export async function createAgentResponse(
   const browserExecutions = new Map<string, number>();
   let searchUnavailable = messages.some(m => m.role === "tool" && m.content?.includes('"searchUnavailable":true'));
   let finishWithResults = false;
+  let rideNeedsClarification = false;
   /** Set once the person runs out of usage mid-run: one last step, without tools, to wrap up. */
   let outOfUsage = false;
   let hasProgress = false;
@@ -531,7 +549,7 @@ export async function createAgentResponse(
                 model,
                 stream: true,
                 messages: provider,
-                tools: finishWithResults || outOfUsage || turn === 31 ? [] : tools,
+                tools: finishWithResults || rideNeedsClarification || outOfUsage || turn === 31 ? [] : tools,
                 ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),
                 parallel_tool_calls: false,
               })),
@@ -677,18 +695,26 @@ export async function createAgentResponse(
           const viewed: string[] = [];
           let waitingBrowser = false;
           let waitingAction = false;
+          let directRideReply: string | undefined;
           for (const call of orderedCalls) {
             signal.throwIfAborted();
-            const args = JSON.parse(call.function.arguments || "{}") as Record<
-              string,
-              unknown
-            >;
+            let args: Record<string, unknown>;
+            try {
+              args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
+            } catch {
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: "Those tool arguments were invalid. Please try again." }) });
+              continue;
+            }
             if (waiting) {
               messages.push({
                 role: "tool",
                 tool_call_id: call.id,
                 content: "Deferred until the requested app is connected.",
               });
+              continue;
+            }
+            if (rideNeedsClarification) {
+              messages.push({ role: "tool", tool_call_id: call.id, content: "Ask the user for the missing trip information before calling more tools." });
               continue;
             }
             if (hasResults && finishWithResults) {
@@ -702,7 +728,24 @@ export async function createAgentResponse(
             }
             await execution?.checkpoint({ id: call.id, name: call.function.name }, messages as unknown as Record<string, unknown>[]);
             if (["cooper_recall", "cooper_view_attachment"].includes(call.function.name)) activity(activityLabel(call.function.name));
-            if (call.function.name === "cooper_assemble_team") {
+            if (call.function.name === "cooper_rides") {
+              if (!ridesOn) {
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: "Ride information is unavailable." }) });
+                continue;
+              }
+              activity(activityLabel("cooper_rides"));
+              const result = await executeRideConversation(args, { signal, onSailCall: () => {
+                void recordUsage({ userId, source: "rides", provider: "sail", costMicros: 0, ref: execution?.runId, key: `rides:${runId}:${call.id}` });
+              } });
+              const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "");
+              if (state) card(call.id, state);
+              if (state?.kind === "rides" && "provider" in result) {
+                directRideReply = rideResultReply(result);
+              }
+              const displayHint = state?.kind === "rides" ? "Travel options are displayed in a card. Summarize briefly without repeating every row." : state?.kind === "ride_location" ? "A location-sharing card is displayed. The user may use it or type a starting place; the location is not yet known." : undefined;
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ...result, ...(displayHint ? { displayHint } : {}) }) });
+              if ("needs" in result) rideNeedsClarification = true;
+            } else if (call.function.name === "cooper_assemble_team") {
               activity(activityLabel("cooper_assemble_team"));
               const result: AssembledTeam = execution?.speaker
                 ? await assembleTeam(userId, execution.speaker, args).catch(() => ({ ok: false, error: "The team couldn't be assembled. Try again." }))
@@ -1167,6 +1210,16 @@ export async function createAgentResponse(
           if (viewed.length)
             messages.push({ role: "user", content: "[Re-opened attachment(s) to inspect.]", attachments: viewed.map((id) => ({ id })), full: true });
           await execution?.checkpoint(null, messages as unknown as Record<string, unknown>[]);
+          if (directRideReply && orderedCalls.length === 1) {
+            messages.push({ role: "assistant", content: directRideReply });
+            send({ choices: [{ delta: { content: directRideReply } }] });
+            finishActivity();
+            await getDb()
+              .update(agentRuns)
+              .set({ status: "completed", messages: messages as unknown as Record<string, unknown>[], updatedAt: new Date() })
+              .where(eq(agentRuns.id, runId));
+            return;
+          }
           await getDb()
             .update(agentRuns)
             .set({

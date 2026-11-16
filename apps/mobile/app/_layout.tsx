@@ -6,6 +6,8 @@ import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import { AppState } from "react-native";
+import { notificationPresentation } from "../src/data/notification-presentation";
 import { useFonts } from "expo-font";
 import {
   DMSans_400Regular,
@@ -27,12 +29,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 SplashScreen.setOptions({ fade: false });
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => notificationPresentation(notification.request.content.data, AppState.currentState),
 });
 
 /** Plays the splash until we know where to send the user. */

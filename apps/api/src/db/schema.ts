@@ -757,8 +757,8 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep";
-export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides";
+export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail";
 
 /**
  * The two refilling allowances. A window starts with the first use after the last one ended and

@@ -57,6 +57,8 @@ import { ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
 import { WorkingDots } from "./activity-line";
 import { AppResponseCard } from "./app-results";
+import { RidesCard } from "./rides-card";
+import { RideLocationCard } from "./ride-location-card";
 import { BrowserCard } from "./browser-card";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useAuth } from "@clerk/expo";
@@ -680,7 +682,7 @@ function ChatMessage() {
               // A stopped reply: cards that were still spinning read "Stopped".
               const card = shownCard(part.result as WorkflowCard | undefined, cancelled);
               return card ? (
-                card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : ["choice", "results"].includes(
+                card.kind === "rides" ? <RidesCard state={card} /> : card.kind === "ride_location" ? <RideLocationCard state={card} /> : card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : ["choice", "results"].includes(
                   card.kind,
                 ) ? (
                   <AppResponseCard state={card} />
