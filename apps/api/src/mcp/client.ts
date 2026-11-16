@@ -27,13 +27,24 @@ export interface McpConnection {
 
 /** Each operation has its own short-lived transport; no request data is cached. */
 export async function withMcp<T>(server: SystemServer, run: (connection: McpConnection) => Promise<T>, signal?: AbortSignal): Promise<T> {
-  const abort = signal ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]) : AbortSignal.timeout(TIMEOUT_MS);
   const client = new Client({ name: "mates", version: "1.0.0" });
   const transport = new StreamableHTTPClientTransport(new URL(server.url), {
-    fetch: (input, init) => boundedFetch(input, { ...init, signal: init?.signal ? AbortSignal.any([abort, init.signal]) : abort }),
+    fetch: boundedFetch,
   });
+  async function request<R>(operation: (abort: AbortSignal) => Promise<R>): Promise<R> {
+    signal?.throwIfAborted();
+    const timeout = AbortSignal.timeout(server.timeoutMs ?? TIMEOUT_MS);
+    const abort = signal ? AbortSignal.any([signal, timeout]) : timeout;
+    try {
+      return await operation(abort);
+    } catch {
+      signal?.throwIfAborted();
+      if (timeout.aborted) throw new Error(`${server.name} is taking too long. Please try again.`);
+      throw new Error(`${server.name} could not complete this request.`);
+    }
+  }
   try {
-    await client.connect(transport, { signal: abort });
+    await request((abort) => client.connect(transport, { signal: abort }));
     return await run({
       async listTools() {
         const all: Awaited<ReturnType<Client["listTools"]>>["tools"] = [];
@@ -42,7 +53,7 @@ export async function withMcp<T>(server: SystemServer, run: (connection: McpConn
         do {
           if (cursor && seen.has(cursor)) throw new Error("Repeated MCP cursor");
           if (cursor) seen.add(cursor);
-          const page = await client.listTools(cursor ? { cursor } : undefined, { signal: abort });
+          const page = await request((abort) => client.listTools(cursor ? { cursor } : undefined, { signal: abort }));
           all.push(...page.tools.filter((tool) => server.tools.includes(tool.name)));
           if (seen.size > 100) throw new Error("Too many MCP pages");
           cursor = page.nextCursor;
@@ -51,8 +62,8 @@ export async function withMcp<T>(server: SystemServer, run: (connection: McpConn
       },
       async callTool(name, args) {
         if (!server.tools.includes(name)) throw new Error("Tool is not allowed");
-        const result = await client.callTool({ name, arguments: args }, undefined, { signal: abort });
-        if (result.isError) throw new Error("Sail could not complete this request");
+        const result = await request((abort) => client.callTool({ name, arguments: args }, undefined, { signal: abort }));
+        if (result.isError) throw new Error(`${server.name} could not complete this request.`);
         return result.structuredContent ?? result.content;
       },
     });

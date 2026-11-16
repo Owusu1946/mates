@@ -38,10 +38,11 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 
 ## Batch 1 work log
 
-- Added the official MCP TypeScript SDK, a fixed Sail allow-list, a short-lived client with a 15-second deadline, pagination and a 64 KB streaming response limit, and a deterministic tool-name bridge.
+- Added the official MCP TypeScript SDK, a fixed Sail allow-list, a short-lived client with a 15-second deadline per request, pagination and a 64 KB streaming response limit, and a deterministic tool-name bridge. Transport and protocol failures are mapped to concise errors without exposing upstream response bodies.
 - Added the curated ride tool and adapter with input validation, explicit place choices, ride filtering and nested partial-result handling. A live `search_places` check found that some results omit coordinates; these must be resolved before planning. Live tool discovery, place resolution, an Accra Mall search, transit planning, and an Osu-to-airport comparison were checked on 2026-11-16; returned providers and prices are time-dependent.
 - No coordinates or trip results are cached. The generic bridge is not exposed to user-added servers, and it is not a complete Phase 2 security or schema-sanitization solution.
 - Focused tests cover tool discovery, allow-listing, oversized responses, failures, partial results, place resolution and ambiguity. No coordinate or quote cache is included in this batch: retention, user isolation and freshness must be decided before introducing one. The original handoff's cache and general user-server policy remain follow-up work; the bridge must not be exposed to untrusted user-added servers without the Phase 2 security design. Chat integration, a real-device test and a successful end-to-end run are still outstanding.
+- Review follow-up: preserve valid transit when a ride branch is malformed, drop invalid ride entries individually, bias a place search with a known endpoint, and support JSON text content when structured content is missing. The model-facing schema allows an omitted origin, but handling “here”, home/work, and converting model arguments into validated internal requests belongs to the next integration batch.
 
 ## Decisions and constraints to resolve
 

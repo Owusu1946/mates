@@ -6,4 +6,4 @@ export const sailServer = {
   tools: ["search_places", "resolve_place", "plan_trip", "compare_rides", "plan_public_transport"],
 } as const;
 
-export type SystemServer = { id: string; name: string; url: string; tools: readonly string[] };
+export type SystemServer = { id: string; name: string; url: string; tools: readonly string[]; timeoutMs?: number };

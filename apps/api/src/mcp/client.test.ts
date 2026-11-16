@@ -42,7 +42,7 @@ describe("MCP client", () => {
 
   it("does not expose the server's tool-error text", async () => {
     mockServer(() => ({ isError: true, content: [{ type: "text", text: "sensitive internal detail" }] }));
-    await expect(withMcp(server, (client) => client.callTool("allowed", {}))).rejects.toThrow("Sail could not complete this request");
+    await expect(withMcp(server, (client) => client.callTool("allowed", {}))).rejects.toThrow("Test could not complete this request");
   });
 
   it("rejects an already-aborted request", async () => {
@@ -50,5 +50,44 @@ describe("MCP client", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(withMcp(server, (client) => client.listTools(), controller.signal)).rejects.toThrow();
+  });
+
+  it("does not leak an HTTP error body", async () => {
+    mockServer(() => ({ tools: [] }));
+    const fetchMock = vi.mocked(fetch);
+    const original = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url, init) => {
+      const message = JSON.parse(String(init?.body)) as { method: string };
+      return message.method === "tools/call" ? new Response("private coordinates", { status: 500 }) : original(url, init);
+    });
+    await expect(withMcp(server, (client) => client.callTool("allowed", {}))).rejects.toThrow("Test could not complete this request");
+  });
+
+  it("applies a separate timeout to each call", async () => {
+    mockServer(() => ({ content: [{ type: "text", text: "ok" }] }));
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const message = JSON.parse(String(init?.body)) as { method: string };
+      if (message.method === "tools/call") await new Promise((resolve) => setTimeout(resolve, 35));
+      return original(url, init);
+    });
+    await expect(withMcp({ ...server, timeoutMs: 60 }, async (client) => {
+      await client.callTool("allowed", {});
+      await client.callTool("allowed", {});
+      return true;
+    })).resolves.toBe(true);
+  });
+
+  it("returns a concise timeout when a request stalls", async () => {
+    mockServer(() => ({ content: [] }));
+    const original = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const message = JSON.parse(String(init?.body)) as { method: string };
+      if (message.method !== "tools/call") return original(url, init);
+      return await new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason), { once: true });
+      });
+    });
+    await expect(withMcp({ ...server, timeoutMs: 30 }, (client) => client.callTool("allowed", {}))).rejects.toThrow("Test is taking too long");
   });
 });
