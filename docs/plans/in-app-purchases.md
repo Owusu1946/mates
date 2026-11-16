@@ -107,12 +107,12 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 - **One subscription group on iOS** ("Mates") with all eight products, ranked Max > Pro > Plus > Starter. Apple then handles upgrades and downgrades as plan changes, not as second subscriptions.
 - **On Google Play**, one subscription per plan with a monthly and a yearly base plan is fine. Product ids can use the `:base-plan` form RevenueCat shows; keep the table above as the naming.
 - **One RevenueCat Offering**, `default`, with packages `$rc_monthly` / `$rc_annual` for each plan. A simpler alternative is one offering per plan. Either works; the paywall reads offerings.
-- **No free trial.** It was decided against, so don't add introductory offers.
+- **Free trial on Starter only** (changed 2026-11-15): Starter monthly and yearly get Apple's free introductory offer; the other plans don't. See [free-trial-handoff.md](free-trial-handoff.md).
 
 **Your App Store Connect steps.** The bundle ID is `app.askorin.mates`.
 1. *Business → Agreements*: make sure the **Paid Apps** agreement is active, with bank and tax details filled in. Purchases fail without it.
 2. *Apps → Mates → Monetization → Subscriptions*: create one subscription group, **Mates**.
-3. In it, create the **8 subscriptions** from the table above, with the exact product IDs, durations and prices. Give each a display name, a description (English) and a review screenshot (the paywall, once built). **No introductory offers.**
+3. In it, create the **8 subscriptions** from the table above, with the exact product IDs, durations and prices. Give each a display name, a description (English) and a review screenshot (the paywall, once built). Only the two Starter products get an introductory offer (a free trial); see [free-trial-handoff.md](free-trial-handoff.md).
 4. Rank the group, highest first: **Max, Pro, Plus, Starter**. This makes upgrades and downgrades work properly.
 5. *Users and Access → Integrations → In-App Purchase*: generate a key. Download the **.p8** (it can only be downloaded once) and note its **Key ID** and the **Issuer ID**. Send these to the owner.
 6. *Users and Access → Integrations → App Store Connect API*: create a key with **App Manager** access, so RevenueCat can import the products. Download its **.p8** and note its **Key ID**. Send these to the owner.

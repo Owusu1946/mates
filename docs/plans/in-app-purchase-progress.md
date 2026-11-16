@@ -11,9 +11,9 @@ Update this document after each reviewed batch with its status, changed files, c
 ## Scope and decisions
 
 - Release iOS purchases first. Structure the integration so Android can be connected later; Google Play setup and Android sandbox testing are deferred.
-- Use RevenueCat's `react-native-purchases` SDK and a custom paywall. Offer the four documented plans, with monthly and yearly products and no free trial.
+- Use RevenueCat's `react-native-purchases` SDK and a custom paywall. Offer the four documented plans, with monthly and yearly products. Starter has Apple's free trial (changed 2026-11-15; see [free-trial-handoff.md](free-trial-handoff.md)).
 - RevenueCat subscription state informs the API's existing plan and usage system. Store secrets only in the API environment; the app receives only the public platform SDK key.
-- Existing users receive Starter access for 30 days after paid enforcement begins. Capture the existing-user cohort before changing `DEFAULT_PLAN`, and explicitly transition that cohort at the cutoff: the current manual plan assignment has no automatic expiry. Confirm the actual cutoff and process with Ken before rollout.
+- (Superseded 2026-11-15: existing users get Apple's free trial on Starter instead; see [free-trial-handoff.md](free-trial-handoff.md).) Existing users receive Starter access for 30 days after paid enforcement begins. Capture the existing-user cohort before changing `DEFAULT_PLAN`, and explicitly transition that cohort at the cutoff: the current manual plan assignment has no automatic expiry. Confirm the actual cutoff and process with Ken before rollout.
 - The RevenueCat public keys in the mobile environment schema should be optional during development. A missing iOS key should produce a clear billing-unavailable state.
 - Configure purchase identity from Clerk's authenticated user. Run asynchronous login from an effect, handle errors and account changes, and wait for the correct identity before purchases or restores.
 - The usage screen's external “See plans” link must open the paywall. Usage notices already open `/usage`.
