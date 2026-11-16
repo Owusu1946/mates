@@ -50,6 +50,8 @@ import Animated, {
 import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar";
 import { RichText } from "../components/rich-text/rich-text";
 import { useTheme } from "../theme/provider";
+import * as WebBrowser from "expo-web-browser";
+import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
@@ -537,7 +539,25 @@ function UserText({ text }: { text: string }) {
           lineHeight: 22,
         }}
       >
-        {visibleText}
+        {/* Links show as typed (so copying keeps them whole), quietly underlined; a tap opens them. */}
+        {linkify(visibleText).map((segment, i) =>
+          segment.url ? (
+            <Text
+              key={i}
+              accessibilityRole="link"
+              suppressHighlighting={false}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                void WebBrowser.openBrowserAsync(segment.url!).catch(() => undefined);
+              }}
+              style={{ textDecorationLine: "underline", textDecorationColor: colors.mutedForeground }}
+            >
+              {segment.text}
+            </Text>
+          ) : (
+            segment.text
+          ),
+        )}
       </Text>
       {routedApp && (
         <View
