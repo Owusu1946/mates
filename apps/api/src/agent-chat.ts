@@ -45,6 +45,9 @@ import {
 } from "./workflow-results.js";
 import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTriggersTool } from "./watches.js";
 import { habitReplyTool, nudgeContext, pendingNudge, runHabitReply } from "./habits/nudges.js";
+import { ridesTool } from "./mcp/rides-tool.js";
+import { executeRideConversation, ridesEnabled } from "./mcp/ride-conversation.js";
+import { recordUsage } from "./usage/record.js";
 
 type ToolCall = {
   id: string;
@@ -142,6 +145,7 @@ export async function createAgentResponse(
   const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
+  const ridesOn = ridesEnabled();
   const forced = forcedSearch(lastUserText);
   const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
   const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
@@ -154,6 +158,7 @@ export async function createAgentResponse(
     { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
     ...modelTurns,
   ];
+  if (ridesOn) messages.push({ role: "system", content: "Use cooper_rides when the user explicitly asks for ride prices or public transit in Ghana or Great Britain. For distance-only questions, answer normally and offer to check rides. Resolve home or work from known memory only when clear; otherwise ask. Do not guess the country, pickup, prices, or availability. If the tool needs clarification, ask the user and wait; do not repeat the tool call. Sail gives estimates and cannot book rides. Do not claim that a ride is booked." });
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
@@ -360,6 +365,7 @@ export async function createAgentResponse(
     assembleTeamTool,
     createMateTool,
     createGroupTool,
+    ...(ridesOn ? [ridesTool] : []),
     // Only offered when this server can run it; a user without GitHub connected gets a Connect card.
     ...(codingAvailable() ? [shipCodeTool] : []),
     ...(decksEnabled() ? [deckTool, editDeckTool] : []),
@@ -434,6 +440,7 @@ export async function createAgentResponse(
   const browserExecutions = new Map<string, number>();
   let searchUnavailable = messages.some(m => m.role === "tool" && m.content?.includes('"searchUnavailable":true'));
   let finishWithResults = false;
+  let rideNeedsClarification = false;
   /** Set once the person runs out of usage mid-run: one last step, without tools, to wrap up. */
   let outOfUsage = false;
   let hasProgress = false;
@@ -531,7 +538,7 @@ export async function createAgentResponse(
                 model,
                 stream: true,
                 messages: provider,
-                tools: finishWithResults || outOfUsage || turn === 31 ? [] : tools,
+                tools: finishWithResults || rideNeedsClarification || outOfUsage || turn === 31 ? [] : tools,
                 ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),
                 parallel_tool_calls: false,
               })),
@@ -679,16 +686,23 @@ export async function createAgentResponse(
           let waitingAction = false;
           for (const call of orderedCalls) {
             signal.throwIfAborted();
-            const args = JSON.parse(call.function.arguments || "{}") as Record<
-              string,
-              unknown
-            >;
+            let args: Record<string, unknown>;
+            try {
+              args = JSON.parse(call.function.arguments || "{}") as Record<string, unknown>;
+            } catch {
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: "Those tool arguments were invalid. Please try again." }) });
+              continue;
+            }
             if (waiting) {
               messages.push({
                 role: "tool",
                 tool_call_id: call.id,
                 content: "Deferred until the requested app is connected.",
               });
+              continue;
+            }
+            if (rideNeedsClarification) {
+              messages.push({ role: "tool", tool_call_id: call.id, content: "Ask the user for the missing trip information before calling more tools." });
               continue;
             }
             if (hasResults && finishWithResults) {
@@ -702,7 +716,18 @@ export async function createAgentResponse(
             }
             await execution?.checkpoint({ id: call.id, name: call.function.name }, messages as unknown as Record<string, unknown>[]);
             if (["cooper_recall", "cooper_view_attachment"].includes(call.function.name)) activity(activityLabel(call.function.name));
-            if (call.function.name === "cooper_assemble_team") {
+            if (call.function.name === "cooper_rides") {
+              if (!ridesOn) {
+                messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ error: "Ride information is unavailable." }) });
+                continue;
+              }
+              activity(activityLabel("cooper_rides"));
+              const result = await executeRideConversation(args, { signal, onSailCall: () => {
+                void recordUsage({ userId, source: "rides", provider: "sail", costMicros: 0, ref: execution?.runId, key: `rides:${runId}:${call.id}` });
+              } });
+              messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+              if ("needs" in result) rideNeedsClarification = true;
+            } else if (call.function.name === "cooper_assemble_team") {
               activity(activityLabel("cooper_assemble_team"));
               const result: AssembledTeam = execution?.speaker
                 ? await assembleTeam(userId, execution.speaker, args).catch(() => ({ ok: false, error: "The team couldn't be assembled. Try again." }))

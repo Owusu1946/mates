@@ -133,6 +133,8 @@ export default function FeedScreen() {
 
   const items = feed.data?.items ?? [];
   const attentionItems = items.filter((item) => ["waiting", "needs_input", "failed"].includes(item.status));
+  const attentionDots = Math.min(attentionItems.length, 4);
+  const activeAttentionDot = attentionDots > 0 ? attentionPage % attentionDots : 0;
   const activityItems = items.filter((item) => !attentionItems.includes(item));
   const inProgressItems = items.filter((item) => ACTIVE.includes(item.status));
   const run = result.data?.run;
@@ -228,7 +230,7 @@ export default function FeedScreen() {
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setAttentionPage(Math.round(event.nativeEvent.contentOffset.x / screenWidth))}>
           {attentionItems.map((item) => <View key={item.id} style={{ width: screenWidth - 44, marginLeft: 22, marginRight: 22, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "FAILED" : "NEEDS YOUR INPUT"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 5 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable><Pressable onPress={() => item.status === "failed" ? open(item) : item.chatId ? void openChat(item.chatId) : open(item)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.semibold, fontSize: 12, marginTop: 10 }}>{item.status === "failed" ? "View details ↗" : item.chatId ? "Reply in chat ↗" : "View request ↗"}</Text></Pressable></View>)}
         </ScrollView>
-        {attentionItems.length > 1 && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 2 }}>{attentionItems.map((item, index) => <View key={item.id} style={{ width: index === attentionPage ? 14 : 5, height: 5, borderRadius: 3, backgroundColor: index === attentionPage ? colors.textMuted : colors.border }} />)}</View>}
+        {attentionItems.length > 1 && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 2 }}>{Array.from({ length: attentionDots }, (_, index) => <View key={index} style={{ width: index === activeAttentionDot ? 14 : 5, height: 5, borderRadius: 3, backgroundColor: index === activeAttentionDot ? colors.textMuted : colors.border }} />)}</View>}
       </View>}
 
       {feed.isSuccess && items.length === 0 && (

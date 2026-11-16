@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 1 ready for review — shared client, bridge and curated Sail adapter are present; not wired into chat.
+**Status:** Batch 2 in review — named-place ride lookups are wired into chat behind `RIDES_ENABLED`; mobile cards and location consent are not yet built.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -21,7 +21,7 @@ Read alongside [Ken's Sail rides and MCP handoff](sail-rides-and-mcp-handoff.md)
 - [x] Confirmed Sail publicly documents a free, read-only MCP server; verify the live tools again before implementation.
 - [ ] Agree on quote-fetch behavior after a distance answer, place disambiguation, and what “order” means in the UI.
 - [ ] Resolve coordinate privacy, retention, and the location resume protocol before building.
-- [ ] Implement and test Phase 1 against the agreed plan; the initial backend foundation is present but chat and mobile work have not started.
+- [ ] Implement and test Phase 1 against the agreed plan; backend chat integration is present behind a flag, while mobile cards and location consent are outstanding.
 - [ ] Verify Apple device behavior for Uber, Yango and Bolt; record exact results below.
 - [ ] Have Ken review the backend implementation, deployment, and operating assumptions.
 
@@ -41,8 +41,16 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 - Added the official MCP TypeScript SDK, a fixed Sail allow-list, a short-lived client with a 15-second deadline per request, pagination and a 64 KB streaming response limit, and a deterministic tool-name bridge. Transport and protocol failures are mapped to concise errors without exposing upstream response bodies.
 - Added the curated ride tool and adapter with input validation, explicit place choices, ride filtering and nested partial-result handling. A live `search_places` check found that some results omit coordinates; these must be resolved before planning. Live tool discovery, place resolution, an Accra Mall search, transit planning, and an Osu-to-airport comparison were checked on 2026-11-16; returned providers and prices are time-dependent.
 - No coordinates or trip results are cached. The generic bridge is not exposed to user-added servers, and it is not a complete Phase 2 security or schema-sanitization solution.
-- Focused tests cover tool discovery, allow-listing, oversized responses, failures, partial results, place resolution and ambiguity. No coordinate or quote cache is included in this batch: retention, user isolation and freshness must be decided before introducing one. The original handoff's cache and general user-server policy remain follow-up work; the bridge must not be exposed to untrusted user-added servers without the Phase 2 security design. Chat integration, a real-device test and a successful end-to-end run are still outstanding.
+- Focused tests cover tool discovery, allow-listing, oversized responses, failures, partial results, place resolution and ambiguity. No coordinate or quote cache is included in this batch: retention, user isolation and freshness must be decided before introducing one. The original handoff's cache and general user-server policy remain follow-up work; the bridge must not be exposed to untrusted user-added servers without the Phase 2 security design. A real-device test and a successful end-to-end run are still outstanding.
 - Review follow-up: preserve valid transit when a ride branch is malformed, drop invalid ride entries individually, bias a place search with a known endpoint, and support JSON text content when structured content is missing. The model-facing schema allows an omitted origin, but handling “here”, home/work, and converting model arguments into validated internal requests belongs to the next integration batch.
+
+## Batch 2 work log
+
+- Added the `RIDES_ENABLED` flag, agent tool registration and activity label, with zero-cost Sail usage events. The flag defaults off and must be configured for the process running the agent, including the Trigger worker.
+- Added a compact text-based conversation result, filtering raw coordinates and upstream error details out of tool results. The user can give named places; an unresolved home/work/current location asks for a place instead of guessing. Ambiguous places prompt for clarification in the conversation.
+- No device location is collected in this batch. A user-provided chat message or model tool arguments may still contain location text and are subject to existing chat retention. The next batch must design and verify the location resume and any persistent card payload before claiming location is not stored.
+- Cards, provider links, a dedicated selection UI, real-user end-to-end testing, and the native location flow remain outstanding. The current text-only flow has not been verified against a running API and Trigger worker.
+- Review fixes: country is required from the conversation rather than inferred from timezone; available rides without a price remain visible; a clarification disables further tools for that response; and Sail usage is recorded only when its lookup starts, using a run/tool-call idempotency key. Ambiguous-place identifiers are not preserved across separate turns yet, so a clarification can require a more specific place name; proper selection remains outstanding.
 
 ## Decisions and constraints to resolve
 

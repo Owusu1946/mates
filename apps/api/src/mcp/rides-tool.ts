@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { createSailAdapter, type RideMode, type TripPoint } from "./sail.js";
 
-const input = z.object({
-  from: z.string().trim().min(2).max(120).optional().describe("Starting place, home, work, or here."),
+export const rideInput = z.object({
+  from: z.string().trim().min(2).max(120).optional().describe("Starting place or address. Use a saved home or work address only when clearly known."),
   to: z.string().trim().min(2).max(120).describe("Destination."),
   mode: z.enum(["best", "rides", "transit"]).default("best"),
-  country: z.enum(["gh", "gb"]).default("gh"),
+  country: z.enum(["gh", "gb"]).optional().describe("Country containing the journey: gh for Ghana, gb for Great Britain."),
 });
-const { $schema: _schema, ...parameters } = z.toJSONSchema(input, { io: "input" });
+const { $schema: _schema, ...parameters } = z.toJSONSchema(rideInput, { io: "input" });
 
 export const ridesTool = {
   type: "function" as const,
