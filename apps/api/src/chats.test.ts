@@ -122,6 +122,27 @@ describe("Persistent chats API", () => {
     expect(response.status).toBe(400);
     expect(store.setCollaborators).not.toHaveBeenCalled();
   });
+  it("returns 404 for a chat that is not an owned mate chat", async () => {
+    const { app } = setup();
+    const response = await app.request("/v1/chats/unknown_chat/collaborators", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ mateIds: [] }),
+    });
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({ error: { code: "NOT_FOUND" } });
+  });
+  it("accepts an empty collaborator list", async () => {
+    const { app, store } = setup();
+    const response = await app.request("/v1/chats/chat_1/collaborators", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ mateIds: [] }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ mateIds: [] });
+    expect(store.setCollaborators).toHaveBeenCalledWith(user, "chat_1", []);
+  });
   it("does not accept mates the chat owner cannot use", async () => {
     const { app, store } = setup();
     store.setCollaborators = vi.fn(async (_userId: string, _id: string, _mateIds: string[]) => ({ ok: false as const, reason: "INVALID_MATES" as const }));

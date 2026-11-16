@@ -90,9 +90,9 @@ export function createChatStore() {
       const mateIds = [...new Set(requestedMateIds)];
       if (mateIds.includes(chat.mateId)) return { ok: false as const, reason: "INVALID_MATES" as const };
       if (mateIds.length) {
-        const owned = await getDb().select({ id: mates.id }).from(mates)
+        const ownedMates = await getDb().select({ id: mates.id }).from(mates)
           .where(and(eq(mates.clerkUserId, userId), inArray(mates.id, mateIds)));
-        if (owned.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
+        if (ownedMates.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
       }
 
       await getDb().batch([
@@ -100,6 +100,24 @@ export function createChatStore() {
         ...(mateIds.length ? [getDb().insert(chatCollaborators).values(mateIds.map((mateId, position) => ({ chatId: id, mateId, position })))] : []),
       ]);
       return { ok: true as const, mateIds };
+    },
+    /** Adds owned mates to a direct chat without removing the ones already attached. */
+    async attachCollaborators(userId: string, id: string, requestedMateIds: string[]) {
+      const chat = await this.get(userId, id);
+      if (!chat || chat.kind !== "mate" || !chat.mateId) return { ok: false as const, reason: "NOT_FOUND" as const };
+      const mateIds = [...new Set(requestedMateIds)].filter((mateId) => mateId !== chat.mateId);
+      if (!mateIds.length) return { ok: true as const, mateIds: [] as string[] };
+      const ownedMates = await getDb().select({ id: mates.id }).from(mates)
+        .where(and(eq(mates.clerkUserId, userId), inArray(mates.id, mateIds)));
+      if (ownedMates.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
+      const existing = await getDb().select({ mateId: chatCollaborators.mateId, position: chatCollaborators.position }).from(chatCollaborators).where(eq(chatCollaborators.chatId, id));
+      const have = new Set(existing.map((row) => row.mateId));
+      const next = mateIds.filter((mateId) => !have.has(mateId)).slice(0, Math.max(0, 19 - existing.length));
+      if (next.length) {
+        const position = existing.reduce((max, row) => Math.max(max, row.position), -1) + 1;
+        await getDb().insert(chatCollaborators).values(next.map((mateId, index) => ({ chatId: id, mateId, position: position + index }))).onConflictDoNothing();
+      }
+      return { ok: true as const, mateIds: next };
     },
     async delete(userId: string, id: string) {
       return (

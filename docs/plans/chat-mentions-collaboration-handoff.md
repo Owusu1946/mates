@@ -1,6 +1,6 @@
 # Handoff: chat mentions and mate collaboration
 
-**For:** Samuel and Ken. **Status:** Batch 1 implemented locally on `feat/chat-mentions-collaboration`; no commit or push has been made.
+**For:** Samuel and Ken. **Status:** Batch 1 review fixes are in. Batch 2 (direct-chat mention routing) is implemented locally. The migration is generated but not applied. Mobile picker (Batch 3) is not started.
 
 ## Goal
 
@@ -73,6 +73,13 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 - Added Drizzle migration `apps/api/drizzle/0034_quiet_logan.sql` and API route coverage for authentication, malformed IDs, and invalid collaborator results.
 - The mobile picker, submission-boundary call, orchestration, and speaker rendering are not implemented yet. Batch 3 must call this endpoint only after the user sends a message; abandoning an unsent draft must not persist collaborator changes.
 - Before running the migration in a deployed environment, coordinate with Ken on who owns applying it. This batch only generates the migration; it does not apply it.
+
+## Batch 2 implementation notes
+
+- A direct mate chat still runs as that mate alone. It uses the group handoff path only when the latest message tags another owned mate, tags `@Chief of Staff`, or resumes a collaboration that was waiting.
+- Tagged mates answer in order, with the chat's transcript, then the primary mate brings their answers together. `@Chief of Staff` with no other name plans among mates already attached to that chat.
+- Newly tagged mates are attached with `attachCollaborators` (additive, still capped at 19, still excluding the primary and other users' mates). The chat stays `kind: "mate"`.
+- `resolvePersona` includes attached collaborators so later turns can see them. They are not asked to reply unless tagged again.
 
 ## Privacy and safety
 

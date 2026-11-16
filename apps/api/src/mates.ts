@@ -270,7 +270,14 @@ export async function resolvePersona(userId: string, chatId: string | null | und
   if (!chat) return fallback;
   if (chat.kind === "mate" && chat.mateId) {
     const [mate] = await getDb().select(personaColumns).from(mates).where(eq(mates.id, chat.mateId));
-    return mate ? { kind: "mate", chatId, mates: [mate], leaderId: mate.id } : fallback;
+    if (!mate) return fallback;
+    const extras = await getDb()
+      .select(personaColumns)
+      .from(chatCollaborators)
+      .innerJoin(mates, eq(mates.id, chatCollaborators.mateId))
+      .where(eq(chatCollaborators.chatId, chatId))
+      .orderBy(asc(chatCollaborators.position));
+    return { kind: "mate", chatId, mates: [mate, ...extras.filter((extra) => extra.id !== mate.id)], leaderId: mate.id };
   }
   if (chat.kind === "group") {
     const members = await getDb()
@@ -289,6 +296,11 @@ export async function resolvePersona(userId: string, chatId: string | null | und
     if (mate) return { kind: "mate", chatId, mates: [mate], leaderId: mate.id };
   }
   return fallback;
+}
+
+/** Every mate this person owns, for mention routing in a direct chat. */
+export async function ownedPersonas(userId: string): Promise<PersonaMate[]> {
+  return getDb().select(personaColumns).from(mates).where(eq(mates.clerkUserId, userId));
 }
 
 /** Opens every system prompt: who this mate is. The rest of Cooper's rules follow unchanged. */

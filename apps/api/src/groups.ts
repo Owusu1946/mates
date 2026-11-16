@@ -9,6 +9,28 @@ export type Assignment = { mateId: string; task: string };
 export type GroupTurnPlan = { handoff: string; assignments: Assignment[] };
 const MAX_ASSIGNED = 3;
 
+const CHIEF = /(?:^|\s)@chief of staff\b/i;
+
+/**
+ * A direct chat stays with its primary mate unless the user tags another mate or Chief of Staff.
+ * Mentioned mates are other owned mates, in tag order, at most three.
+ */
+export function directCollaborationPlan(text: string, primaryId: string, owned: PersonaMate[]) {
+  const chief = CHIEF.test(text);
+  const mentioned = parseMentions(text, owned).filter((mate) => mate.id !== primaryId).slice(0, MAX_ASSIGNED);
+  if (!chief && !mentioned.length) return null;
+  return { chief, mentioned };
+}
+
+/** Mentioned mates answer first; the primary mate then brings their answers together. */
+export function collaborationAssignments(mentioned: PersonaMate[], leaderId: string): GroupTurnPlan {
+  const assignments = mentioned.slice(0, MAX_ASSIGNED).map((mate) => ({ mateId: mate.id, task: "" }));
+  if (!assignments.some((assignment) => assignment.mateId === leaderId)) {
+    assignments.push({ mateId: leaderId, task: "Bring the other mates' answers together for the user." });
+  }
+  return { handoff: "", assignments };
+}
+
 /** Members tagged as `@Name` (names may contain spaces), in the order they were tagged. */
 export function parseMentions(text: string, members: PersonaMate[]) {
   const lower = text.toLowerCase();
