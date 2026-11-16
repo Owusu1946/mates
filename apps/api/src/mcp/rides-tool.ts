@@ -35,6 +35,13 @@ function matchPlace(places: SearchPlace[], query: string): SearchPlace[] {
   if (exactAddressName.length === 1) return exactAddressName;
   // Also accept an exact place name or an explicit general listing.
   const exact = places.filter((place) => normalize(place.name) === requested);
+  // For a broad area such as Osu, Sail can return both a specific station and
+  // the area itself. Prefer the one attached directly to its parent city.
+  const parentCity = exact.filter((place) => {
+    const address = normalize(place.address ?? "");
+    return address.split(" ").length === 1 && !/[0-9,/#()–—-]/.test(address);
+  });
+  if (parentCity.length === 1) return parentCity;
   if (exact.length === 1) return exact;
   const general = places.filter((place) => {
     const name = normalize(place.name);
@@ -47,8 +54,13 @@ function matchPlace(places: SearchPlace[], query: string): SearchPlace[] {
 function placeResult(places: SearchPlace[], query: string): { place: SearchPlace } | { choices: Choice[] } | { notFound: true } {
   const matches = matchPlace(places, query);
   if (!matches.length) return { notFound: true };
-  if (matches.length > 1) return { choices: matches.slice(0, 3).map(({ placeId, name, address }) => ({ placeId, name, ...(address ? { address } : {}) })) };
-  return { place: matches[0]! };
+  if (matches.length === 1) return { place: matches[0]! };
+  const normalizedQuery = query.toLocaleLowerCase();
+  if (/\bairport\b/i.test(normalizedQuery)) {
+    const airports = matches.filter((place) => /\bairport\b/i.test(place.name) && !/\b(?:control tower|immigration|hotel|parking)\b/i.test(place.name));
+    if (airports.length === 1) return { place: airports[0]! };
+  }
+  return { choices: matches.slice(0, 3).map(({ placeId, name, address }) => ({ placeId, name, ...(address ? { address } : {}) })) };
 }
 
 async function pointFor(sail: Sail, match: SearchPlace): Promise<TripPoint> {

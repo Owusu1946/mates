@@ -23,18 +23,56 @@ function summarize(result: unknown, mode: "best" | "rides" | "transit") {
     return provider && name ? [{ provider, name, price: amount !== undefined && currency ? { amount, currency } : null, ...(number(option.etaMinutes) !== undefined ? { etaMinutes: number(option.etaMinutes) } : {}), ...(option.available === undefined ? { availability: "unknown" } : {}) }] : [];
   }) : [];
   const options = allOptions.slice(0, 8);
-  const routes = Array.isArray(transitData.routes) ? transitData.routes.slice(0, 2).map((value) => {
+  const routes = Array.isArray(transitData.routes) ? transitData.routes.slice(0, 2).flatMap((value) => {
     const route = object(value), duration = object(route.durationRangeMinutes);
+    const fare = number(route.totalFare), currency = text(route.currency, 3);
+    if (fare === undefined || !currency) return [];
     const steps = Array.isArray(route.steps) ? route.steps.slice(0, 12).flatMap((step) => {
       const item = object(step), instruction = text(item.instruction, 250), routeName = text(item.route);
       return instruction || routeName ? [{ ...(instruction ? { instruction } : {}), ...(routeName ? { route: routeName } : {}), ...(text(item.type) ? { type: text(item.type) } : {}), ...(number(item.fare) !== undefined ? { fare: number(item.fare) } : {}), ...(number(item.stopCount) !== undefined ? { stopCount: number(item.stopCount) } : {}) }] : [];
     }) : [];
-    return { ...(number(route.totalFare) !== undefined ? { fare: number(route.totalFare) } : {}), ...(text(route.currency, 3) ? { currency: text(route.currency, 3) } : {}), ...(number(duration.min) !== undefined && number(duration.max) !== undefined ? { minutes: { min: number(duration.min), max: number(duration.max) } } : {}), steps };
+    return [{ fare, currency, ...(number(duration.min) !== undefined && number(duration.max) !== undefined ? { minutes: { min: number(duration.min), max: number(duration.max) } } : {}), steps }];
   }) : [];
-  return { provider: "Sail", mode, ...(text(root.status) ? { status: text(root.status) } : {}), ...(mode !== "transit" ? { rides: options, ...(text(rideBranch.status) ? { ridesStatus: text(rideBranch.status) } : {}), ...(rideData.complete === false ? { ridesComplete: false } : {}), ...(allOptions.length > options.length ? { ridesTruncated: true } : {}) } : {}), ...(mode !== "rides" ? { transit: routes, ...(text(transitData.network) ? { transitNetwork: text(transitData.network) } : {}), ...(text(transitBranch.status) ? { transitStatus: text(transitBranch.status) } : {}), ...(Array.isArray(transitData.routesRequiringRideConnection) && transitData.routesRequiringRideConnection.length ? { rideConnectionsAvailable: true } : {}) } : {}), note: "Estimates can change. A null price means no price was provided, not that the ride is unavailable. Mates cannot book a ride. Report missing or incomplete results honestly." };
+  return { provider: "Sail", mode, ...(text(root.status) ? { status: text(root.status) } : {}), ...(mode !== "transit" ? { rides: options, ...(text(rideBranch.status) ? { ridesStatus: text(rideBranch.status) } : {}), ...(rideData.complete === false ? { ridesComplete: false } : {}), ...(allOptions.length > options.length ? { ridesTruncated: true } : {}) } : {}), ...(mode !== "rides" ? { transit: routes, ...(routes.length && text(transitData.network, 30) ? { transitNetwork: text(transitData.network, 30) } : {}) } : {}), note: "Only routes with a fare are included. Estimates can change. Mates cannot book a ride." };
 }
 
 export type RideSummary = ReturnType<typeof summarize> & { from: string; to: string; country: "gh" | "gb"; fetchedAt: string };
+
+function formatRidePrice(amount: number, currency: string) {
+  try { return new Intl.NumberFormat("en-GH", { style: "currency", currency }).format(amount); }
+  catch { return `${currency} ${amount.toFixed(2)}`; }
+}
+
+/** Build a short, factual chat reply from the same priced results shown in the card. */
+export function rideResultReply(result: RideSummary) {
+  const pricedRides = (result.rides ?? []).flatMap((ride) => ride.price ? [{ ...ride, amount: ride.price.amount, currency: ride.price.currency }] : []);
+  const cheapestRide = pricedRides.reduce<(typeof pricedRides)[number] | undefined>(
+    (cheapest, ride) => !cheapest || ride.amount < cheapest.amount ? ride : cheapest,
+    undefined,
+  );
+  const pickupTimes = pricedRides.flatMap((ride) => ride.etaMinutes === undefined ? [] : [ride.etaMinutes]);
+  const minPickup = Math.min(...pickupTimes);
+  const maxPickup = Math.max(...pickupTimes);
+  const pickupSummary = pickupTimes.length
+    ? minPickup === maxPickup ? `, with pickup around ${minPickup} min` : `, with pickups around ${minPickup}–${maxPickup} min`
+    : "";
+  const rideSentence = cheapestRide
+    ? `${cheapestRide.provider} ${cheapestRide.name} has the lowest estimate at ${formatRidePrice(cheapestRide.amount, cheapestRide.currency)}${pickupSummary}.`
+    : "";
+  const pricedTransit = (result.transit ?? []).filter((route) => route.fare !== undefined && Boolean(route.currency));
+  const cheapestTransit = pricedTransit.reduce<(typeof pricedTransit)[number] | undefined>(
+    (cheapest, route) => !cheapest || (route.fare ?? Infinity) < (cheapest.fare ?? Infinity) ? route : cheapest,
+    undefined,
+  );
+  const transitLabel = result.transitNetwork === "trotro" ? "Trotro" : result.transitNetwork === "bus" ? "Bus" : "Public transport";
+  const transitSentence = cheapestTransit?.fare !== undefined && cheapestTransit.currency
+    ? `${transitLabel} is estimated at ${formatRidePrice(cheapestTransit.fare, cheapestTransit.currency)}.`
+    : "";
+  const summary = [rideSentence, transitSentence].filter(Boolean).join(" ");
+  if (summary) return `${result.from} to ${result.to}: ${summary} See the card for the breakdown.`;
+  if ((result.rides ?? []).length) return `I found ride options from ${result.from} to ${result.to}, but no prices were available. See the card for details.`;
+  return `I couldn't find priced options from ${result.from} to ${result.to}.`;
+}
 
 /** This batch supports named places; location consent and explicit place-selection cards come later. */
 export async function executeRideConversation(args: unknown, context: { signal?: AbortSignal; run?: RunSail; onSailCall?: () => void } = {}) {

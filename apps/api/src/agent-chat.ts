@@ -47,7 +47,7 @@ import { runWatchTool, watchInstructions, watchTool, watchTriggers, watchTrigger
 import { habitReplyTool, nudgeContext, pendingNudge, runHabitReply } from "./habits/nudges.js";
 import { ridesTool } from "./mcp/rides-tool.js";
 import { rideCard } from "./mcp/ride-card.js";
-import { executeRideConversation, ridesEnabled } from "./mcp/ride-conversation.js";
+import { executeRideConversation, rideResultReply, ridesEnabled } from "./mcp/ride-conversation.js";
 import { recordUsage } from "./usage/record.js";
 
 type ToolCall = {
@@ -166,6 +166,7 @@ export async function createAgentResponse(
       "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
       "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
       "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
+      "Only present ride or transit options when Sail provides a numeric price and currency. Omit unpriced trotro or public-transport results without mentioning that they were unavailable. Keep the chat reply to a short takeaway from priced options; the card contains the breakdown.",
       "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
     ].join(" "),
   });
@@ -739,7 +740,7 @@ export async function createAgentResponse(
               const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "");
               if (state) card(call.id, state);
               if (state?.kind === "rides" && "provider" in result) {
-                directRideReply = `I checked ${result.from} to ${result.to}. See the card for ride prices and public transport details.`;
+                directRideReply = rideResultReply(result);
               }
               const displayHint = state?.kind === "rides" ? "Travel options are displayed in a card. Summarize briefly without repeating every row." : state?.kind === "ride_location" ? "A location-sharing card is displayed. The user may use it or type a starting place; the location is not yet known." : undefined;
               messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ...result, ...(displayHint ? { displayHint } : {}) }) });

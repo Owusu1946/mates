@@ -53,6 +53,39 @@ describe("Sail adapter", () => {
     expect(callTool).toHaveBeenCalledTimes(1);
   });
 
+  it("uses the broad area match for Osu instead of asking about a specific station", async () => {
+    const callTool = vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "search_places") {
+        return args.query === "Osu"
+          ? { places: [
+              { placeId: "osu-station", name: "Osu", address: "37 Lorry Park - Osu (37 Station)", location: point },
+              { placeId: "osu-area", name: "Osu", address: "Accra", location: point },
+              { placeId: "osu-shell", name: "Osu Shell", address: "37 Lorry Park - Osu (37 Station)", location: point },
+            ] }
+          : { places: [
+              { placeId: "control-tower", name: "Kotoka International Airport Control Tower", address: "Accra" },
+              { placeId: "immigration", name: "Ghana Immigration Kotoka International Airport", address: "Airport Bypass Road, Accra" },
+              { placeId: "airport", name: "Accra International Airport", address: "KA PMB 36 KIA, Accra" },
+            ] };
+      }
+      if (name === "resolve_place") return { place: { placeId: args.placeId, name: String(args.placeId), ...point } };
+      return {};
+    });
+
+    const result = await runRideRequest(createSailAdapter({ callTool }), {
+      from: { kind: "search", query: "Osu" },
+      to: { kind: "search", query: "Kotoka Airport" },
+      country: "gh",
+      mode: "best",
+    });
+
+    expect(result.kind).toBe("trip");
+    expect(callTool).toHaveBeenCalledWith("plan_trip", {
+      pickup: expect.objectContaining({ name: "Osu", address: "Accra", placeId: "osu-area" }),
+      destination: expect.objectContaining({ name: "airport", placeId: "airport" }),
+    });
+  });
+
   it("biases destination search using the known origin", async () => {
     const callTool = vi.fn().mockResolvedValueOnce({ places: [] });
     const result = await runRideRequest(createSailAdapter({ callTool }), { from: { kind: "point", point }, to: { kind: "search", query: "Mall" }, country: "gh", mode: "best" });

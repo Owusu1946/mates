@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { executeRideConversation, ridesEnabled } from "./ride-conversation.js";
+import { executeRideConversation, rideResultReply, ridesEnabled } from "./ride-conversation.js";
 import { createSailAdapter } from "./sail.js";
 import { rideCard } from "./ride-card.js";
 
@@ -74,7 +74,8 @@ describe("ride conversation", () => {
       { status: "partial", rides: { status: "complete", data: { options: [{ provider: "yango", name: "Economy", price: { amount: 40, currency: "GHS" }, available: true, etaMinutes: 5 }] } }, trotro: { status: "failed", error: { message: "private detail" } } },
     ]);
     const result = await executeRideConversation({ from: "Osu", to: "Airport", country: "gh" }, { run });
-    expect(result).toMatchObject({ status: "partial", rides: [{ provider: "yango", price: { amount: 40, currency: "GHS" } }], transitStatus: "failed" });
+    expect(result).toMatchObject({ status: "partial", rides: [{ provider: "yango", price: { amount: 40, currency: "GHS" } }], transit: [] });
+    expect(result).not.toHaveProperty("transitStatus");
     expect(JSON.stringify(result)).not.toContain("5.556123");
     expect(JSON.stringify(result)).not.toContain("private detail");
     const card = rideCard({ from: "Osu", to: "Airport", country: "gh" }, result, "Check ride prices from Osu to Airport");
@@ -107,14 +108,39 @@ describe("ride conversation", () => {
     expect(result).not.toHaveProperty("ridesComplete");
   });
 
-  it("includes the transit route and stops and flags ride connections", async () => {
+  it("includes priced transit steps without exposing ride-connection caveats", async () => {
     const point = { lat: 5.6, lng: -0.2 };
     const { run } = setup([
       { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Kaneshie" }] },
       { place: { placeId: "a", name: "Osu", ...point } }, { place: { placeId: "b", name: "Kaneshie", ...point } },
       { network: "trotro", routes: [{ totalFare: 5, currency: "GHS", steps: [{ type: "ride", instruction: "Board at Circle", route: "Circle to Kaneshie", stopCount: 4 }] }], routesRequiringRideConnection: [{}] },
     ]);
-    expect(await executeRideConversation({ from: "Osu", to: "Kaneshie", country: "gh", mode: "transit" }, { run })).toMatchObject({ transitNetwork: "trotro", rideConnectionsAvailable: true, transit: [{ steps: [{ route: "Circle to Kaneshie", stopCount: 4 }] }] });
+    const result = await executeRideConversation({ from: "Osu", to: "Kaneshie", country: "gh", mode: "transit" }, { run });
+    expect(result).toMatchObject({ transitNetwork: "trotro", transit: [{ fare: 5, currency: "GHS", steps: [{ route: "Circle to Kaneshie", stopCount: 4 }] }] });
+    expect(result).not.toHaveProperty("rideConnectionsAvailable");
+  });
+
+  it("builds a short summary from available prices and omits unpriced transit", async () => {
+    const point = { lat: 5.6, lng: -0.2 };
+    const { run } = setup([
+      { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Airport" }] },
+      { place: { placeId: "a", name: "Osu", ...point } }, { place: { placeId: "b", name: "Airport", ...point } },
+      {
+        rides: { status: "complete", data: { options: [
+          { provider: "Yango", name: "Comfort", price: { amount: 52, currency: "GHS" }, available: true, etaMinutes: 7 },
+          { provider: "Yango", name: "Economy", price: { amount: 40, currency: "GHS" }, available: true, etaMinutes: 8 },
+        ] } },
+        trotro: { status: "complete", data: { network: "trotro", routes: [{ steps: [{ instruction: "Board at Circle" }] }] } },
+      },
+    ]);
+    const result = await executeRideConversation({ from: "Osu", to: "Airport", country: "gh" }, { run });
+    expect("provider" in result).toBe(true);
+    if (!("provider" in result)) throw new Error("Expected ride summary");
+    const reply = rideResultReply(result);
+    expect(reply).toContain("Yango Economy has the lowest estimate");
+    expect(reply).toContain("pickups around 7–8 min");
+    expect(reply).not.toMatch(/trotro|public transport/i);
+    expect(result.transit).toEqual([]);
   });
 
   it("returns a safe message when Sail fails", async () => {

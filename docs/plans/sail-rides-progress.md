@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 4 in progress — the ordinary named-trip flow now works in the iOS simulator against the local API and live Sail; provider-link, location-permission, and deployment checks remain.
+**Status:** Batch 4 in progress — the ordinary named-trip flow now works in the iOS simulator against the local API and live Sail; location-permission and deployment checks remain.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -8,9 +8,9 @@ Read alongside [Ken's Sail rides and MCP handoff](sail-rides-and-mcp-handoff.md)
 
 ## Product direction
 
-- Let a user ask for ride prices or public transit between two places, for example Spintex to Accra Mall. Show only options Sail actually returns, with approximate prices, timing and attribution.
+- Let a user ask for ride prices or public transit between two places, for example Spintex to Accra Mall. Show only options Sail returns with a price; hide unpriced transit routes.
 - In a distance or travel-time conversation, offer to check rides or trotro as a useful next step, carrying the confirmed origin and destination forward. Whether to fetch prices automatically or only after a tap is still to be decided.
-- Treat “order me an Uber” as an intent to help the user book: compare or select an available service, then open the provider's app or website when the user chooses. Do not claim a ride is booked or request one without an authorized booking integration. Sail's public MCP tools are read-only.
+- Keep this feature focused on comparing ride recommendations and prices. Do not open provider apps or imply that Mates can book a ride. Sail's public MCP tools are read-only.
 - Support trotro alongside ride-hailing where Sail returns a route; make steps accessible without crowding the answer. Samuel confirmed “troski” means trotro, not a separate service.
 - Support named places and saved home/work when clear. For “from here,” request the phone's location only when needed and after a clear user action; allow a typed starting point instead.
 
@@ -22,7 +22,7 @@ Read alongside [Ken's Sail rides and MCP handoff](sail-rides-and-mcp-handoff.md)
 - [ ] Agree on quote-fetch behavior after a distance answer, place disambiguation, and what “order” means in the UI.
 - [ ] Resolve coordinate privacy, retention, and the location resume protocol before building.
 - [ ] Implement and test Phase 1 against the agreed plan; chat integration and initial cards are present behind a flag, but device and end-to-end verification are outstanding.
-- [ ] Verify Apple device behavior for Uber, Yango and Bolt; record exact results below.
+- [ ] Verify ride and priced trotro results on an Apple device; provider app handoff is out of scope.
 - [ ] Have Ken review the backend implementation, deployment, and operating assumptions.
 
 ## Proposed implementation batches
@@ -31,7 +31,7 @@ These are review checkpoints, not permission to commit or push. Samuel reviews e
 
 1. **MCP foundation and Sail adapter:** use the official MCP SDK, fixed system-server configuration, allow-listed tools, validated responses, limits/timeouts, and a testable curated ride tool. Follow the original handoff's shared-layer scope, including the bridge; agree with Ken before deferring any part. No user-added server feature in Phase 1.
 2. **Agent integration and conversation:** intent routing, place resolution and choice, safe summaries, typed result/card contract, ride and transit cases, explicit unavailable/partial results, and feature flag. Ensure distance follow-ups retain the relevant trip context.
-3. **Location and ride cards:** permission and fallback UX, validated resume, provider links, accessible compact ride/transit cards and stale quote handling. A native build is needed for location configuration.
+3. **Location and ride cards:** permission and fallback UX, validated resume, accessible compact ride/transit cards and stale quote handling. A native build is needed for location configuration.
 4. **End-to-end validation and handoff:** run automated checks and real-device tests; document provider support, deployment, rollout and remaining work.
 
 Exact boundaries can change after review. No commits, pushes, builds or deployments were performed by the agent.
@@ -55,8 +55,7 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 ## Batch 3 work log
 
 - Added SDK-compatible `expo-location`, foreground permission text, a compact rides/trotro card and an explicit share-location card. After user consent, Expo Location reverse-geocoding prepares a nearby address in the composer for the user to review and send; platform geocoding may send coordinates to its provider. It does not put device coordinates in `choice` or a durable job request; a sent address is normal retained chat text and is shared with Sail. This is an intentional change from the handoff's coordinate-based pause/resume approach.
-- Uber opens the `uber://riderequest` scheme with a web fallback, without a prefilled trip. On iOS, Bolt and Yango buttons open their App Store listings; on Android they open a Google Play search. These provider links have not been tested on a device. Every action asks the user to enter the trip in the provider app.
-- The card presents options returned by Sail, expandable transit steps, estimated-price wording, a stale-price warning and a one-time composer refresh prompt. It distinguishes a capped list (“Showing the first 8 ride options”) from an incomplete provider result. `RIDES_ENABLED` still defaults off. No location or provider flow has been verified on a device, and the current development build must be rebuilt for the native location module.
+- The card presents available ride options and their prices, with expandable trotro/public transport steps only when Sail returns a priced route. It has no provider app links and hides unpriced transit results. `RIDES_ENABLED` still defaults off. No location flow has been verified on a device, and the current development build must be rebuilt for the native location module.
 - A location card is emitted only when the latest user message explicitly asks to use their current location and the model also requests `here`/`my location`. The app requires a user tap before requesting permission. Duplicate taps are guarded while location lookup is running. After preparing an address, the card asks the user to review and send it; preparing the address again after clearing the draft remains a follow-up UX improvement.
 - The flow does not yet implement stable place-ID selection across turns, direct coordinate handoff, or a fully automatic resume. These and the genuine review/deployment checks remain outstanding.
 
@@ -69,6 +68,10 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 - `git diff --check` passed.
 - Expo config introspection confirmed the `expo-location` plugin and iOS foreground permission string.
 - Argent iOS simulator check: the ordinary prompt “How can I get to Madina from Accra?” returned Yango estimates and a public-transport fare card without asking for another detail. The assistant now gives a short confirmation directly after the card is ready, avoiding a second model request; this run showed `Worked for 8s` (a previous run showed 15s, and live Sail/network latency varies).
+- The ride result card now shows up to eight returned ride options without a redundant “Ride options” heading or “Show more” control. Priced Trotro/public transport remains expandable; unpriced routes, provider links, and ride-connection caveats are omitted.
+- The assistant gives a short, deterministic takeaway from the lowest priced ride and pickup-time range, then points to the card for the breakdown. A priced trotro/bus fare is included when present; missing transit prices are filtered out before summarization. This avoids an extra model response after the live lookup.
+- “Try again” sends a fresh request when the composer is empty; when there is already a draft, it adds the request there and shows a brief confirmation instead of sending the draft unexpectedly.
+- Argent verified an Osu → Kotoka Airport request after the place-match adjustment: it selected the broad Osu area rather than 37 Station, and avoided Sail's Control Tower and Immigration matches for the airport query. Sail returned Yango quotes; it returned no priced transit route, so the UI hides that section.
 - The live search returned duplicate “Accra” entries with different addresses. Place matching now selects the exact city-level address when the request is the city name, and the two endpoint searches/resolutions run concurrently. Focused tests cover the ambiguous city result and parallel calls.
 - The code still cannot make live provider data instantaneous; it must fetch current results from Sail. The goal of this change is to avoid unnecessary clarification and an extra model summary turn while keeping prices fresh.
 
@@ -77,7 +80,7 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 - [ ] Build and install a fresh iOS development app with `expo-location`; the existing simulator install has not been checked against this native change.
 - [ ] Set `RIDES_ENABLED=true` in the safe API environment and in `apps/api/.env` before `pnpm --filter @expojet/api worker:deploy`; `trigger.config.ts` now includes the flag in its environment sync list. Verify the value in Trigger.dev after deploy.
 - [ ] With that API and worker, test a named ride lookup, a trotro route, missing country/origin clarification, explicit location permission/denial, and partial or unavailable results.
-- [ ] On a device, verify each provider link with the provider app installed and absent; confirm trip details are not prefilled and Mates never implies it booked a ride.
+- [ ] On a device, verify ride quotes and confirm unpriced trotro results stay hidden.
 - [ ] Confirm that location prompts require an explicit user request, permission is requested only after the card action, the address is reviewed before sending, and no coordinates enter the durable request or card payload.
 - [ ] Have Ken review Sail usage terms, attribution, limits, rollout, and the API/worker configuration before any production flag change.
 
@@ -91,7 +94,7 @@ Recommendations below are proposed for discussion, not yet approved implementati
 - **Retention:** keep the precise coordinates out of durable chat messages, logs, memory, analytics and shared caches where feasible. Prefer a short-lived, user-and-run-bound location value for retries/resume and expire it promptly; verify lifecycle and deletion in code. The route card may retain human-readable places and prices, and opening a provider later may require re-resolving places or asking again. Do not claim zero retention until the data flow is proven.
 - **Distance follow-up:** offer a subtle “Check rides” action after answering a distance question; fetch automatically when the user explicitly requests prices, without an extra tap. Include trotro where available.
 - **Ambiguity:** ask a short place choice when multiple meaningful matches remain, especially for imprecise pickup; proceed with a clear match.
-- **Handoff to providers:** show “Open Uber/Yango/Bolt” only for a verified route or truthful fallback; the user confirms in the provider app. Never say a ride was booked by Mates.
+- **Provider handoff:** out of scope. Show ride recommendations and prices only; Mates does not open provider apps or book rides.
 - **Phase 1 MCP scope:** implement a lean shared client, registry and Sail adapter and the handoff's bridge, but leave user-server UI, credential storage, OAuth and production approval machinery to Phase 2. Review security before activating arbitrary servers.
 
 - **Location retention:** the original handoff says coordinates are never stored, but proposes putting them in run messages and card payloads. Existing agent runs persist messages. Decide which data must be persisted for resume/history, its retention and deletion, and ensure the privacy text reflects the actual design. Avoid placing coordinates in logs or unscoped shared caches.
@@ -99,7 +102,7 @@ Recommendations below are proposed for discussion, not yet approved implementati
 - **Ambiguous places:** define how to detect multiple plausible matches and ask the user; do not silently choose an unrelated top result. Decide how to handle a broad origin such as “Spintex” when precise pickup is required.
 - **Offer vs fetch:** decide whether a distance answer automatically fetches a quote, offers a “Check rides” action, or does so only when requested. Do not imply a live quote unless it was fetched.
 - **Availability and freshness:** support no results, one provider, partial or stale data, provider outages and transient failures. Do not promise all providers or fixed pricing; distinguish a ride estimate from a confirmed price.
-- **Links:** Uber offers documented deep links; confirm exact parameters and device behavior. Yango and Bolt prefilled links are unverified. Prefer a truthful provider-app or website fallback; don't promise a prefilled ride where unsupported. Verify opening behavior before claiming an app-install fallback works.
+- **Links:** no provider app or store links are shown in this feature.
 - **Transit data:** preserve the route, boarding and transfer details Sail actually returns, and label timetabled estimates appropriately. Don't represent every transit journey as a ride-hailing booking.
 - **Shared MCP security:** treat tool outputs and descriptions as untrusted. Bound responses and timeouts; scope caches to prevent cross-user leakage. User-added servers, credentials, authorization, SSRF protections and tool reapproval remain Phase 2 and need their own security review before use.
 - **Sail operating terms:** Ken to confirm attribution, commercial/production usage, request limits, provider coverage, and any supported booking or partner API.
@@ -113,13 +116,9 @@ Recommendations below are proposed for discussion, not yet approved implementati
 - Manual iOS device tests for location permission/denial, provider handoff, app-not-installed behavior, stale estimates, transit steps, and testing with the API and worker in a safe environment.
 - Run `pnpm typecheck && pnpm test`. Do not treat a successful local MCP response as proof of production access, booking support, or provider coverage.
 
-## Provider link findings
+## Provider link decision
 
-| Provider | Current status | Device result |
-| --- | --- | --- |
-| Uber | `uber://riderequest`, then `https://m.uber.com/`; trip is not prefilled. Shown on iOS and Android. | Not tested |
-| Yango | iOS App Store listing; Android Google Play search. Trip is not prefilled. | Not tested |
-| Bolt | iOS App Store listing; Android Google Play search. Trip is not prefilled. | Not tested |
+Provider links are not part of the intended experience. The card compares the recommendations and prices returned by Sail; any booking happens outside Mates and is not represented as a Mates action.
 
 ## References
 
