@@ -1,6 +1,6 @@
 # Sail rides progress and handoff
 
-**Status:** Batch 1 in progress — shared client, bridge and initial Sail adapter added; not wired into chat.  
+**Status:** Batch 1 ready for review — shared client, bridge and curated Sail adapter are present; not wired into chat.
 **Branch:** `feat/sail-rides-integration`  
 **Last updated:** 2026-11-16
 
@@ -39,9 +39,9 @@ Exact boundaries can change after review. No commits, pushes, builds or deployme
 ## Batch 1 work log
 
 - Added the official MCP TypeScript SDK, a fixed Sail allow-list, a short-lived client with a 15-second deadline, pagination and a 64 KB streaming response limit, and a deterministic tool-name bridge.
-- Added an initial Sail adapter with input validation and ride filtering. A live `search_places` check found that some results omit coordinates; these must be resolved before planning. Live tool discovery, an Accra Mall search, and an Osu-to-airport ride comparison succeeded on 2026-11-16; returned providers and prices are time-dependent.
+- Added the curated ride tool and adapter with input validation, explicit place choices, ride filtering and nested partial-result handling. A live `search_places` check found that some results omit coordinates; these must be resolved before planning. Live tool discovery, place resolution, an Accra Mall search, transit planning, and an Osu-to-airport comparison were checked on 2026-11-16; returned providers and prices are time-dependent.
 - No coordinates or trip results are cached. The generic bridge is not exposed to user-added servers, and it is not a complete Phase 2 security or schema-sanitization solution.
-- Remaining before this batch is complete: validate all Sail output shapes and edge cases against live responses, complete the curated tool and place resolution behavior, review timeout/response-size and error behavior, add relevant coverage, and decide whether a bounded cache is appropriate. Do not wire this foundation into users' chat until reviewed.
+- Focused tests cover tool discovery, allow-listing, oversized responses, failures, partial results, place resolution and ambiguity. No coordinate or quote cache is included in this batch: retention, user isolation and freshness must be decided before introducing one. The original handoff's cache and general user-server policy remain follow-up work; the bridge must not be exposed to untrusted user-added servers without the Phase 2 security design. Chat integration, a real-device test and a successful end-to-end run are still outstanding.
 
 ## Decisions and constraints to resolve
 
