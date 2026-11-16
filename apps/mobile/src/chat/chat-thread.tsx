@@ -50,6 +50,8 @@ import Animated, {
 import { EmptyChatAvatar } from "../components/polygon-avatar/empty-chat-avatar";
 import { RichText } from "../components/rich-text/rich-text";
 import { useTheme } from "../theme/provider";
+import * as WebBrowser from "expo-web-browser";
+import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
@@ -537,7 +539,25 @@ function UserText({ text }: { text: string }) {
           lineHeight: 22,
         }}
       >
-        {visibleText}
+        {/* Links show as typed (so copying keeps them whole), quietly underlined; a tap opens them. */}
+        {linkify(visibleText).map((segment, i) =>
+          segment.url ? (
+            <Text
+              key={i}
+              accessibilityRole="link"
+              suppressHighlighting={false}
+              onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+                void WebBrowser.openBrowserAsync(segment.url!).catch(() => undefined);
+              }}
+              style={{ textDecorationLine: "underline", textDecorationColor: colors.mutedForeground }}
+            >
+              {segment.text}
+            </Text>
+          ) : (
+            segment.text
+          ),
+        )}
       </Text>
       {routedApp && (
         <View
@@ -622,6 +642,8 @@ function ChatMessage() {
   const hasContent = useAuiState((state) =>
     state.message.content.some((part) => part.type !== "text" || part.text.trim().length > 0),
   );
+  // A reply that's only a chip or card ("Memory updated", "New mate") has nothing to copy, rate or regenerate.
+  const hasText = useAuiState((state) => state.message.content.some((part) => part.type === "text" && part.text.trim().length > 0));
   // Refused for usage: say so and when it comes back, instead of "couldn't reply · Try again".
   const limit = limitError(useAuiState((state) => state.message.status));
   const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
@@ -723,7 +745,7 @@ function ChatMessage() {
         </ActionBarPrimitive.Reload>
       </ErrorPrimitive.Root>
       )}
-      {!editing && !running && <MessageActions user={user} />}
+      {!editing && !running && (user || hasText) && <MessageActions user={user} />}
     </MessagePrimitive.Root>
   );
 }
@@ -1510,6 +1532,55 @@ function ChatComposer() {
               backgroundColor: "transparent",
             }}
           >
+            {/* A picked app (@) or web search gets its own strip, like attachments, so the text keeps the full width. */}
+            {(selectedApp || searchOn) && (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, paddingHorizontal: 2 }}>
+                {selectedApp && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 6,
+                      paddingLeft: 2,
+                      paddingRight: 8,
+                      paddingVertical: 4,
+                      borderRadius: 18,
+                      backgroundColor: "transparent",
+                    }}
+                  >
+                    <AppLogo name={selectedApp.name} logo={selectedApp.logo} size={28} />
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        maxWidth: 90,
+                        color: colors.foreground,
+                        fontFamily: "DMSans_500Medium",
+                        fontSize: 13,
+                      }}
+                    >
+                      {selectedApp.name}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${selectedApp.name}`}
+                      hitSlop={6}
+                      onPress={() => setSelectedApp(null)}
+                    >
+                      <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {searchOn && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 8, paddingRight: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: colors.muted }}>
+                    <ChatIcon name="globe" color={colors.foreground} size={15} />
+                    <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Search</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Turn off web search" hitSlop={6} onPress={() => setSearchOn(false)}>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
             {/* Attachments get their own strip so the input row keeps its full width. */}
             {(attachments.length > 0 || uploads.length > 0) && (
               <ScrollView
@@ -1557,50 +1628,6 @@ function ChatComposer() {
               >
                 <ChatIcon name="add" color={colors.foreground} size={23} />
               </Pressable>
-              {selectedApp && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingLeft: 2,
-                    paddingRight: 8,
-                    paddingVertical: 4,
-                    borderRadius: 18,
-                    backgroundColor: "transparent",
-                  }}
-                >
-                  <AppLogo name={selectedApp.name} logo={selectedApp.logo} size={28} />
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      maxWidth: 90,
-                      color: colors.foreground,
-                      fontFamily: "DMSans_500Medium",
-                      fontSize: 13,
-                    }}
-                  >
-                    {selectedApp.name}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${selectedApp.name}`}
-                    hitSlop={6}
-                    onPress={() => setSelectedApp(null)}
-                  >
-                    <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
-                  </Pressable>
-                </View>
-              )}
-              {searchOn && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 8, paddingRight: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: colors.muted }}>
-                  <ChatIcon name="globe" color={colors.foreground} size={15} />
-                  <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Search</Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Turn off web search" hitSlop={6} onPress={() => setSearchOn(false)}>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
-                  </Pressable>
-                </View>
-              )}
               {/* Grows with its content between min and max height; no height state per keystroke. */}
               <ComposerTextInput
                 maxLength={8000}
