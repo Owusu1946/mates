@@ -19,6 +19,8 @@ export type ChatSummary = {
   updatedAt: string;
   mate: MateSummary | null;
   members: MateSummary[];
+  /** Added with direct-chat collaboration; optional for cached payloads from older app sessions. */
+  collaborators?: MateSummary[];
   leaderMateId: string | null;
   preview: { from: string; text: string; at: string } | null;
 };

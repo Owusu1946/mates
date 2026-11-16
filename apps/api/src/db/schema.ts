@@ -446,6 +446,13 @@ export const groupMembers = pgTable("group_members", {
   position: integer("position").notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.chatId, t.mateId] }), index("group_members_mate_idx").on(t.mateId)]);
 
+/** Mates a user has brought into an existing one-to-one chat, without making it a group chat. */
+export const chatCollaborators = pgTable("chat_collaborators", {
+  chatId: text("chat_id").notNull().references(() => chats.id, { onDelete: "cascade" }),
+  mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),
+  position: integer("position").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.chatId, t.mateId] }), index("chat_collaborators_mate_idx").on(t.mateId)]);
+
 /** A goal a group of mates works on by itself, round after round, until the leader finishes it. */
 export const missions = pgTable("missions", {
   id: uuid("id").defaultRandom().primaryKey(),

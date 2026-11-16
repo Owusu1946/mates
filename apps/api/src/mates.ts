@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
+import { chatCollaborators, chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
 import { briefMate, hasBriefing, mateGreeting, mateMessage } from "./about.js";
 
 /** Avatar gradients, light → dark. "amber" is the lead mate's original look. */
@@ -331,7 +331,7 @@ const publicMate = (m: PersonaMate) => ({ id: m.id, name: m.name, role: m.role, 
 export async function enrichChats(userId: string, rows: ChatRow[]) {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
-  const [mateRows, memberRows, latest] = await Promise.all([
+  const [mateRows, memberRows, collaboratorRows, latest] = await Promise.all([
     getDb().select(personaColumns).from(mates).where(eq(mates.clerkUserId, userId)),
     getDb()
       .select({ chatId: groupMembers.chatId, mateId: groupMembers.mateId })
@@ -339,6 +339,12 @@ export async function enrichChats(userId: string, rows: ChatRow[]) {
       .innerJoin(chats, eq(chats.id, groupMembers.chatId))
       .where(eq(chats.clerkUserId, userId))
       .orderBy(asc(groupMembers.position)),
+    getDb()
+      .select({ chatId: chatCollaborators.chatId, mateId: chatCollaborators.mateId })
+      .from(chatCollaborators)
+      .innerJoin(chats, eq(chats.id, chatCollaborators.chatId))
+      .where(eq(chats.clerkUserId, userId))
+      .orderBy(asc(chatCollaborators.position)),
     getDb().execute(
       sql`SELECT DISTINCT ON (chat_id) chat_id, message, created_at FROM chat_messages WHERE chat_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) ORDER BY chat_id, created_at DESC`,
     ),
@@ -348,11 +354,13 @@ export async function enrichChats(userId: string, rows: ChatRow[]) {
   return rows.map((row) => {
     const mate = row.mateId ? mateById.get(row.mateId) : undefined;
     const members = row.kind === "group" ? memberRows.filter((m) => m.chatId === row.id).flatMap((m) => mateById.get(m.mateId) ?? []) : [];
+    const collaborators = row.kind === "mate" ? collaboratorRows.filter((m) => m.chatId === row.id).flatMap((m) => mateById.get(m.mateId) ?? []) : [];
     const message = newest.get(row.id);
     return {
       ...row,
       mate: mate ? publicMate(mate) : null,
       members: members.map(publicMate),
+      collaborators: collaborators.map(publicMate),
       preview: message ? { ...previewOf(message.message, mate ?? members.find((m) => m.id === row.leaderMateId)), at: new Date(message.created_at).toISOString() } : null,
     };
   });

@@ -1,6 +1,6 @@
 # Handoff: chat mentions and mate collaboration
 
-**For:** Samuel and Ken. **Status:** planning only; no feature code has been implemented.
+**For:** Samuel and Ken. **Status:** Batch 1 implemented locally on `feat/chat-mentions-collaboration`; no commit or push has been made.
 
 ## Goal
 
@@ -27,7 +27,7 @@ Let someone bring another mate into an existing one-to-one conversation by menti
 
 Target **four reviewable commits**. Samuel reviews each batch and handles commits and pushes unless the backend work is explicitly handed to Ken.
 
-1. **Chat collaboration API and persistence**
+1. **Chat collaboration API and persistence** — implemented locally; ready for review.
    - Define how collaborator mate IDs attach to and detach from a direct chat.
    - Enforce chat ownership and verify each mate belongs to the signed-in user.
    - Reuse `group_members` only if its invariants support direct chats safely; otherwise add a focused collaborator relation. Do not change a direct chat's kind or create a new chat.
@@ -64,6 +64,15 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 - Decide whether the picker attaches a mate immediately on selection or only when the message is sent. Preferred behavior: attach atomically with message submission so abandoning a draft does not alter the chat.
 - Confirm the intended display for collaborators (for example, small avatars with an edit/remove affordance) before polishing the UI.
 - Agree with Ken who owns the two backend batches and the database migration, if one is needed.
+
+## Batch 1 implementation notes
+
+- Added `chat_collaborators` rather than overloading `group_members`; direct chats keep `kind: "mate"` and their existing primary `mateId`.
+- Added authenticated `PUT /v1/chats/:id/collaborators` with a replacement list (`{ mateIds: string[] }`). An empty list removes all collaborators. The store accepts only an owned mate chat and mate IDs owned by the same Clerk user, and excludes the primary mate.
+- The chat list now includes collaborator summaries for mate chats. The mobile `ChatSummary` type accepts this field while remaining compatible with older cached payloads.
+- Added Drizzle migration `apps/api/drizzle/0034_quiet_logan.sql` and API route coverage for authentication, malformed IDs, and invalid collaborator results.
+- The mobile picker, submission-boundary call, orchestration, and speaker rendering are not implemented yet. Batch 3 must call this endpoint only after the user sends a message; abandoning an unsent draft must not persist collaborator changes.
+- Before running the migration in a deployed environment, coordinate with Ken on who owns applying it. This batch only generates the migration; it does not apply it.
 
 ## Privacy and safety
 

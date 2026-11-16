@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chats, chatMessages, delegations } from "./db/schema.js";
+import { chats, chatCollaborators, chatMessages, delegations, mates } from "./db/schema.js";
 import { enrichChats, ensureDefaultMate } from "./mates.js";
 
 export const chatIdSchema = z
@@ -12,6 +12,9 @@ export const chatIdSchema = z
 export const chatMetadataSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   status: z.enum(["regular", "archived"]).optional(),
+});
+export const chatCollaboratorsSchema = z.object({
+  mateIds: z.array(z.string().uuid()).max(19),
 });
 export const savedMessageSchema = z.object({
   parentId: z.string().max(160).nullable(),
@@ -79,6 +82,24 @@ export function createChatStore() {
             .returning()
         )[0] ?? null
       );
+    },
+    async setCollaborators(userId: string, id: string, requestedMateIds: string[]) {
+      const chat = await this.get(userId, id);
+      if (!chat || chat.kind !== "mate" || !chat.mateId) return { ok: false as const, reason: "NOT_FOUND" as const };
+
+      const mateIds = [...new Set(requestedMateIds)];
+      if (mateIds.includes(chat.mateId)) return { ok: false as const, reason: "INVALID_MATES" as const };
+      if (mateIds.length) {
+        const owned = await getDb().select({ id: mates.id }).from(mates)
+          .where(and(eq(mates.clerkUserId, userId), inArray(mates.id, mateIds)));
+        if (owned.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
+      }
+
+      await getDb().batch([
+        getDb().delete(chatCollaborators).where(eq(chatCollaborators.chatId, id)),
+        ...(mateIds.length ? [getDb().insert(chatCollaborators).values(mateIds.map((mateId, position) => ({ chatId: id, mateId, position })))] : []),
+      ]);
+      return { ok: true as const, mateIds };
     },
     async delete(userId: string, id: string) {
       return (
