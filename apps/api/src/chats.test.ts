@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createApp } from "./app.js";
-import { collaboratorAttachPlan, createChatStore } from "./chats.js";
+import { collaboratorAttachPlan, createChatStore, mayApplyAttach } from "./chats.js";
 
 const user = "user_owner";
 const headers = {
@@ -206,5 +206,13 @@ describe("collaborator attachment", () => {
     });
     expect(plan.revive.map((row) => row.mateId)).toEqual([ama]);
     expect(plan.insert).toEqual([]);
+  });
+
+  it("treats a removal newer than the message as blocking the attach write", () => {
+    const sent = new Date("2026-11-16T12:00:00.000Z");
+    expect(mayApplyAttach(new Date("2026-11-16T12:00:05.000Z"), sent)).toBe(false);
+    expect(mayApplyAttach(new Date("2026-11-16T11:00:00.000Z"), sent)).toBe(true);
+    expect(mayApplyAttach(null, sent)).toBe(true);
+    expect(mayApplyAttach(sent, null)).toBe(false);
   });
 });

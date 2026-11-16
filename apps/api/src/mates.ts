@@ -326,7 +326,7 @@ type StoredMessage = { role?: string; content?: { type?: string; text?: unknown;
 /** One-line sidebar preview of a chat's newest message. */
 export function previewOf(message: StoredMessage, persona?: { name: string }) {
   const parts = message.content ?? [];
-  const text = parts.filter((p) => p.type === "text" && typeof p.text === "string").map((p) => String(p.text)).join(" ").replace(/\s+/g, " ").trim();
+  const text = parts.filter((p) => p.type === "text" && typeof p.text === "string").map((p) => String(p.text)).join(" ").replace(/@([^\n{}]{1,80}?)\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}/gi, "@$1").replace(/\s+/g, " ").trim();
   const speaker = [...parts].reverse().find((p) => p.result?.kind === "speaker")?.result?.mate?.name;
   const from = message.role === "user" ? "you" : speaker ?? persona?.name ?? "Mate";
   if (text) return { from, text: text.slice(0, 120) };

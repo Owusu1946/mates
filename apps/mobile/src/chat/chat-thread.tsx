@@ -71,7 +71,7 @@ import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MateCard, MissionBanner, TeamCard } from "../mates/mission";
 import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
-import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, webSearchDraft } from "./mention-choices";
+import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, visibleMentionText, webSearchDraft } from "./mention-choices";
 import { CodeCard } from "./code-card";
 import { DeckCard } from "../decks/deck-card";
 import { SourcesCard } from "./sources-card";
@@ -510,13 +510,14 @@ function useConnectedMentionApps() {
 
 function UserText({ text }: { text: string }) {
   const colors = useChatColors();
+  const shown = visibleMentionText(text);
   const appsQuery = useConnectedMentionApps();
   const routedApp = (appsQuery.data ?? [])
-    .filter((app) => text.endsWith(`@${app.name}`))
+    .filter((app) => shown.endsWith(`@${app.name}`))
     .sort((a, b) => b.name.length - a.name.length)[0];
   const visibleText = routedApp
-    ? text.slice(0, -(`@${routedApp.name}`.length)).trimEnd()
-    : text;
+    ? shown.slice(0, -(`@${routedApp.name}`.length)).trimEnd()
+    : shown;
   const likelyLong = visibleText.length > 240 || visibleText.split("\n").length > 6;
   const [collapsible, setCollapsible] = useState(likelyLong);
   const [expanded, setExpanded] = useState(false);
@@ -1367,17 +1368,25 @@ function ChatComposer() {
   // "Web search" leads the @ menu while the typed word could still be it.
   const mentionWeb = !searchOn && ("web search".includes(mentionQuery) || "search".startsWith(mentionQuery));
   const collaborators = currentChat?.kind === "mate" ? currentChat.collaborators ?? [] : [];
-  const tagMention = (name: string) => {
-    aui.composer.setText(mentionDraft(composerText, name));
+  const tagMention = (name: string, id?: string) => {
+    aui.composer.setText(mentionDraft(composerText, name, id));
   };
+  const collaboratorRemoval = useRef(Promise.resolve());
   const removeCollaborator = (mateId: string) => {
     if (!currentChat) return;
-    const key = ["chats", userId] as const;
-    const previous = queryClient.getQueryData<ChatSummary[]>(key);
-    queryClient.setQueryData<ChatSummary[]>(key, (rows) => rows?.map((row) => row.id === currentChat.id ? { ...row, collaborators: (row.collaborators ?? []).filter((mate) => mate.id !== mateId) } : row));
-    void actions.setCollaborators.mutateAsync({ chatId: currentChat.id, mateIds: collaborators.filter((mate) => mate.id !== mateId).map((mate) => mate.id) }).catch(() => {
-      queryClient.setQueryData(key, previous);
-      toast.show({ message: "Couldn’t remove that mate.", tone: "error" });
+    const chatId = currentChat.id;
+    collaboratorRemoval.current = collaboratorRemoval.current.catch(() => undefined).then(async () => {
+      const key = ["chats", userId] as const;
+      const previous = queryClient.getQueryData<ChatSummary[]>(key);
+      const listed = previous?.find((row) => row.id === chatId)?.collaborators ?? collaborators;
+      const mateIds = listed.filter((mate) => mate.id !== mateId).map((mate) => mate.id);
+      queryClient.setQueryData<ChatSummary[]>(key, (rows) => rows?.map((row) => row.id === chatId ? { ...row, collaborators: (row.collaborators ?? []).filter((mate) => mate.id !== mateId) } : row));
+      try {
+        await actions.setCollaborators.mutateAsync({ chatId, mateIds });
+      } catch {
+        queryClient.setQueryData(key, previous);
+        toast.show({ message: "Couldn’t remove that mate.", tone: "error" });
+      }
     });
   };
   const [stopError, setStopError] = useState<string | null>(null);
@@ -1473,7 +1482,7 @@ function ChatComposer() {
                   key={mate.id}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask ${mate.name}`}
-                  onPress={() => tagMention(mate.name)}
+                  onPress={() => tagMention(mate.name, mate.id)}
                   style={({ pressed }) => ({
                     minHeight: 52,
                     flexDirection: "row",

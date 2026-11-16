@@ -10,7 +10,7 @@ import { createChatStore, chatIdSchema } from "./chats.js";
 import { createAgentResponse } from "./agent-chat.js";
 import { linkAttachments } from "./attachments.js";
 import { ownedPersonas, personaPreamble, resolvePersona, type Persona, type PersonaMate } from "./mates.js";
-import { handoffCard, collaborationAssignments, directCollaborationPlan, directCollaborationRoster, parseMentions, planGroupTurn, speakerCard, type Assignment, type HandoffStatus } from "./groups.js";
+import { handoffCard, collaborationAssignments, directCollaborationPlan, directCollaborationRoster, parseMentions, planGroupTurn, queuedSpeaker, speakerCard, visibleMentionText, withQueuedSpeakers, type Assignment, type HandoffStatus } from "./groups.js";
 import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
@@ -247,9 +247,10 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
    * leader coordinating its team: no tools at all, so it can only plan, review and report.
    */
   type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; boardTask?: boolean; signal?: AbortSignal };
-  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, boardTask = false, signal: turnSignal = signal }: MateTurn = {}) =>
-    process.env.COMPOSIO_API_KEY && !coordinator
-      ? createAgentResponse(turns, turnSignal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
+  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, boardTask = false, signal: turnSignal = signal }: MateTurn = {}) => {
+    const spoken = turns.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn);
+    return process.env.COMPOSIO_API_KEY && !coordinator
+      ? createAgentResponse(spoken, turnSignal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
           runId: agentRunId,
           chatId: run.chatId ?? undefined,
           timezone: request.timezone,
@@ -265,7 +266,8 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
           },
         })
-      : requestChatCompletion(turns, turnSignal, run.clerkUserId, undefined, undefined, preamble);
+      : requestChatCompletion(spoken, turnSignal, run.clerkUserId, undefined, undefined, preamble);
+  };
   const leaderOf = () => persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
   const steps = new Map<string, string>();
   let board: BoardTask[] = [];
@@ -384,7 +386,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     leaderStatus(board.some((t) => t.status === "review") ? `${leader.name} is reviewing the team’s work…` : board.length ? `${leader.name} is lining up the next step…` : `${leader.name} is planning the work…`, "running");
     showBoard();
     await persist("progress");
-    const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
+    const decision = await decideRound({ mission, members: persona.mates, leaderId: leader.id, tasks: board, turns: request.messages.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn), meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
     if (decision) {
       board = await applyDecision(mission.id, board, decision);
       leaderStatus(decision.reviews.length ? `${leader.name} reviewed the team’s work` : `${leader.name} planned the next step`, "done");
@@ -440,12 +442,13 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     // or a previous collaboration turn is waiting to resume.
     let directRoster: PersonaMate[] | null = null;
     let directPlan: ReturnType<typeof directCollaborationPlan> = null;
+    let pausedQueue: { mateId: string; task: string; assignments: { mateId: string; task: string }[]; replies: { name: string; text: string }[] } | null = null;
+    if (request.resumeRunId) {
+      const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
+      pausedQueue = paused?.groupQueue ?? null;
+    }
     if (persona.kind === "mate" && !missionInfo) {
-      let hasGroupQueue = false;
-      if (request.resumeRunId) {
-        const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
-        hasGroupQueue = !!paused?.groupQueue;
-      } else {
+      if (!request.resumeRunId) {
         const owned = await ownedPersonas(run.clerkUserId);
         directPlan = directCollaborationPlan(request.messages.at(-1)?.content ?? "", leader.id, owned);
         if (directPlan?.mentioned.length && run.chatId) {
@@ -455,13 +458,16 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           await createChatStore().attachCollaborators(run.clerkUserId, run.chatId, directPlan.mentioned.map((mate) => mate.id), sent?.createdAt ?? null).catch(() => undefined);
         }
       }
-      directRoster = directCollaborationRoster({ resume: !!request.resumeRunId, hasGroupQueue, leader, attached: persona.mates, plan: directPlan });
+      directRoster = directCollaborationRoster({ resume: !!request.resumeRunId, hasGroupQueue: !!pausedQueue, leader, attached: persona.mates, plan: directPlan });
     }
     if (persona.kind !== "group" && !directRoster) {
       await consume(await runMate(leader, agentRunId, personaPreamble(leader), { resume: { resumeRunId: request.resumeRunId, choice: request.choice } }));
     } else {
-      const speaking = directRoster ?? persona.mates;
-      const byId = new Map(speaking.map((m) => [m.id, m]));
+      let speaking = directRoster ?? persona.mates;
+      if (pausedQueue) {
+        const queuedIds = [pausedQueue.mateId, ...pausedQueue.assignments.map((assignment) => assignment.mateId)];
+        speaking = withQueuedSpeakers(speaking, queuedIds, await ownedPersonas(run.clerkUserId));
+      }
       const textSince = (from: number) => content.slice(from).filter((p) => p.type === "text").map((p) => String(p.text)).join("\n").trim();
       let replies: { name: string; text: string }[] = [];
       let mentioned: PersonaMate[] = [];
@@ -474,8 +480,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         await runTaskResume(pausedTask, { resumeRunId: request.resumeRunId, choice: request.choice });
       } else if (request.resumeRunId) {
         // A paused mate continues where it stopped, then the hand-offs queued behind it run.
-        const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
-        const queue = paused?.groupQueue;
+        const queue = pausedQueue;
         replies = queue?.replies ?? [];
         steps = [
           { assignment: { mateId: queue?.mateId ?? leader.id, task: queue?.task ?? "" }, runId: request.resumeRunId, resume: { resumeRunId: request.resumeRunId, choice: request.choice } },
@@ -491,7 +496,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         mentioned = directPlan.mentioned;
         const plan = directPlan.mentioned.length
           ? collaborationAssignments(directPlan.mentioned, leader.id)
-          : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
+          : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn), meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
         if (plan.handoff) {
           mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
           mergePayload(content, { choices: [{ delta: { content: plan.handoff } }] });
@@ -503,7 +508,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
         mentioned = parseMentions(request.messages.at(-1)?.content ?? "", speaking);
         const plan = mentioned.length
           ? { handoff: "", assignments: mentioned.map((mate) => ({ mateId: mate.id, task: "" })) }
-          : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
+          : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn), meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
         if (plan.handoff) {
           mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
           mergePayload(content, { choices: [{ delta: { content: plan.handoff } }] });
@@ -513,19 +518,30 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
       }
       // The relay: who the leader handed to, in order, and each one's live status. A single mate
       // answering an ordinary message needs no card; missions always show it.
-      const relay = steps.map((step) => ({ mate: byId.get(step.assignment.mateId) ?? leader, task: step.assignment.task, status: "queued" as HandoffStatus }));
+      const speakers = steps.map((step) => queuedSpeaker(speaking, step.assignment.mateId));
+      const relay = speakers.flatMap((mate, index) => mate ? [{ mate, task: steps[index]!.assignment.task, status: "queued" as HandoffStatus }] : []);
+      const relayIndex = new Map<number, number>();
+      speakers.forEach((mate, index) => { if (mate) relayIndex.set(index, relayIndex.size); });
       const showRelay = relay.length > 1 || (relay.length === 1 && (relay[0]!.mate.id !== leader.id || !!missionInfo));
       const relayId = `handoff_${id}`;
-      const setRelay = async (i: number, status: HandoffStatus) => {
-        if (!showRelay) return;
-        relay[i]!.status = status;
+      const setRelay = async (stepIndex: number, status: HandoffStatus) => {
+        const at = relayIndex.get(stepIndex);
+        if (!showRelay || at === undefined) return;
+        relay[at]!.status = status;
         mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round) } });
         await persist("progress");
       };
       if (showRelay) mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round) } });
       for (const [i, step] of steps.entries()) {
         signal.throwIfAborted();
-        const mate = byId.get(step.assignment.mateId) ?? leader;
+        const mate = speakers[i];
+        if (!mate) {
+          // The queued mate is gone. Skipping keeps the primary mate from answering in their place.
+          await getDb().update(agentRuns).set({ status: "failed", groupQueue: null, updatedAt: new Date() }).where(eq(agentRuns.id, step.runId));
+          mergePayload(content, { choices: [{ delta: { content: "A mate queued for this reply is no longer available, so that step was skipped." } }] });
+          await persist("progress");
+          continue;
+        }
         await setRelay(i, "working");
         agentRunId = step.runId;
         await getDb().update(delegations).set({ agentRunId }).where(eq(delegations.id, id));

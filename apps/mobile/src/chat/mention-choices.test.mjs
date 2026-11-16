@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mentionMatesForChat, showChiefOfStaff, mentionDraft, webSearchDraft, collaboratorRefreshDue } from "./mention-choices.ts";
+import { mentionMatesForChat, showChiefOfStaff, mentionDraft, webSearchDraft, collaboratorRefreshDue, visibleMentionText } from "./mention-choices.ts";
 
 const ama = { id: "ama", name: "Ama" };
 const scout = { id: "scout", name: "Scout" };
@@ -25,6 +25,8 @@ test("legacy chats do not offer mates", () => {
 
 test("choosing a mention only rewrites the draft", () => {
   assert.equal(mentionDraft("hey @sc", "Scout"), "hey @Scout ");
+  assert.equal(mentionDraft("@sc", "Scout", "8f4e4120-2958-49ae-aa6f-e4242713dc60"), "@Scout{8f4e4120-2958-49ae-aa6f-e4242713dc60} ");
+  assert.equal(visibleMentionText("@Scout{8f4e4120-2958-49ae-aa6f-e4242713dc60} please"), "@Scout please");
   assert.equal(mentionDraft("@chi", "Chief of Staff"), "@Chief of Staff ");
   assert.equal(webSearchDraft("hey @web"), "hey ");
   assert.equal(webSearchDraft("@search"), "");

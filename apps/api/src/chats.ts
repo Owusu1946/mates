@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { chats, chatCollaborators, chatMessages, delegations, mates } from "./db/schema.js";
@@ -58,6 +58,12 @@ export function collaboratorAttachPlan(input: {
     (row ? revive : insert).push({ mateId, position: position++ });
   }
   return { insert, revive };
+}
+
+/** Whether an attach write may still clear or skip a removal, using the row's current timestamp rather than the one read earlier. */
+export function mayApplyAttach(currentRemovedAt: Date | null, sentAt: Date | null) {
+  if (currentRemovedAt === null) return true;
+  return sentAt !== null && currentRemovedAt.getTime() <= sentAt.getTime();
 }
 
 export function createChatStore() {
@@ -145,8 +151,12 @@ export function createChatStore() {
       if (ownedMates.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
       const existing = await getDb().select({ mateId: chatCollaborators.mateId, position: chatCollaborators.position, removedAt: chatCollaborators.removedAt }).from(chatCollaborators).where(eq(chatCollaborators.chatId, id));
       const plan = collaboratorAttachPlan({ requestedIds: mateIds, primaryId: chat.mateId, rows: existing, sentAt });
+      // The guard re-checks removed_at in the write. A removal that landed after the read does not match, so it is not cleared.
+      const stillYours = sentAt
+        ? or(isNull(chatCollaborators.removedAt), lte(chatCollaborators.removedAt, sentAt))
+        : isNull(chatCollaborators.removedAt);
       const writes = [
-        ...plan.revive.map((row) => getDb().update(chatCollaborators).set({ removedAt: null, position: row.position }).where(and(eq(chatCollaborators.chatId, id), eq(chatCollaborators.mateId, row.mateId)))),
+        ...plan.revive.map((row) => getDb().update(chatCollaborators).set({ removedAt: null, position: row.position }).where(and(eq(chatCollaborators.chatId, id), eq(chatCollaborators.mateId, row.mateId), stillYours))),
         ...(plan.insert.length ? [getDb().insert(chatCollaborators).values(plan.insert.map((row) => ({ chatId: id, mateId: row.mateId, position: row.position }))).onConflictDoNothing()] : []),
       ];
       if (writes.length) await getDb().batch(writes as [(typeof writes)[number], ...(typeof writes)[number][]]);

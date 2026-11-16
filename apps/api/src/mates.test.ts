@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions } from "./groups.js";
+import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions, queuedSpeaker, visibleMentionText, withQueuedSpeakers } from "./groups.js";
 import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
@@ -75,6 +75,21 @@ describe("group routing", () => {
       attached,
       plan: { mentioned: [amaLee] },
     })?.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("routes a picked mention by id when two mates share a name", () => {
+    const first = mate("8f4e4120-2958-49ae-aa6f-e4242713dc60", "Ama");
+    const second = mate("1c0b9a2e-6d4f-4a1b-9c33-0e5d7a8b6c21", "Ama");
+    expect(directCollaborationPlan(`@Ama{${second.id}} what does this cost?`, scout.id, [scout, first, second])?.mentioned.map((m) => m.id)).toEqual([second.id]);
+    expect(visibleMentionText(`Ask @Ama{${second.id}} today`)).toBe("Ask @Ama today");
+  });
+
+  it("finishes a waiting turn as the removed mate and never substitutes the primary mate", () => {
+    const removed = mate("8f4e4120-2958-49ae-aa6f-e4242713dc60", "Ama");
+    const room = withQueuedSpeakers([scout], [removed.id, "missing"], [scout, removed]);
+    expect(room.map((m) => m.id)).toEqual(["m1", removed.id]);
+    expect(queuedSpeaker(room, removed.id)?.id).toBe(removed.id);
+    expect(queuedSpeaker([scout], removed.id)).toBeNull();
   });
 
   it("keeps only real members, and the leader alone when nothing valid remains", () => {

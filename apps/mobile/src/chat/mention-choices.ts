@@ -19,10 +19,18 @@ export function mentionMatesForChat<G extends MentionMate, O extends MentionMate
   return source.filter((mate) => mate.name.toLowerCase().includes(query)).slice(0, 6);
 }
 
-/** Replaces the in-progress `@` token with the chosen name. Nothing is attached until that message is sent. */
-export function mentionDraft(text: string, name: string) {
+/** Replaces the in-progress `@` token. A picked mate keeps its id so a duplicate name or a later rename cannot reroute the message. */
+export function mentionDraft(text: string, name: string, id?: string) {
   const at = text.lastIndexOf("@");
-  return `${text.slice(0, Math.max(0, at))}@${name} `;
+  const tag = id ? `@${name}{${id}}` : `@${name}`;
+  return `${text.slice(0, Math.max(0, at))}${tag} `;
+}
+
+const MENTION_ID = String.raw`@([^\n{}]{1,80}?)\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}`;
+
+/** The draft a person reads. The stored message still carries the mate id. */
+export function visibleMentionText(text: string) {
+  return text.replace(new RegExp(MENTION_ID, "gi"), "@$1");
 }
 
 /** Web Search takes the `@` token out of the draft. It is not a mate. */
