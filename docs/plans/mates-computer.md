@@ -12,7 +12,7 @@ The user wants their mates to have a personal computer: connect GitHub, say "shi
   1. mint GitHub installation token: this one repo only, contents+pull_requests write, 1h
   2. mint OpenRouter key with a $ cap for this run (provisioning API), deleted afterwards
   3. Modal sandbox (2 CPU / 4 GB, 60-min timeout) from our image: git, node 22, pnpm/yarn/bun, python, opencode
-  4. clone (shallow) → branch mates/<slug>-<short id> from the default (or given) base
+  4. clone (shallow) → branch `mates/<kind>/<few words>-<4 chars>` (e.g. `mates/fix/login-redirect-3f9a`; the mate can suggest the kind and words, the server cleans them) from the default (or given) base
   5. detect stack + checks (package.json scripts typecheck/lint/test, AGENTS.md / CLAUDE.md / CONTRIBUTING)
   6. opencode run "<task + repo rules + checks to pass>"  (streams JSON events → progress)
   7. run the checks ourselves; failures go back to opencode, up to 3 fix rounds
