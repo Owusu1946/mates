@@ -1,6 +1,7 @@
 import { useAui, useAuiState } from "@assistant-ui/react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, type TextInputProps } from "react-native";
+import { preserveMentionIds, visibleMentionText } from "./mention-choices";
 
 /**
  * The composer's text field, holding its own text so a keystroke is never overwritten.
@@ -10,10 +11,11 @@ import { Platform, StyleSheet, TextInput, type TextInputProps } from "react-nati
  * owns its value and mirrors it to the store. Store changes are applied only when they did not
  * come from this field's own typing: clearing on send, an inserted mention, dictation.
  */
-export function ComposerTextInput({ onSubmitWeb, ...props }: Omit<TextInputProps, "value" | "onChangeText"> & { onSubmitWeb?: () => void }) {
+export function ComposerTextInput({ onSubmitWeb, concealMentionIds = false, ...props }: Omit<TextInputProps, "value" | "onChangeText"> & { onSubmitWeb?: () => void; concealMentionIds?: boolean }) {
   const aui = useAui();
   const storeText = useAuiState((state) => state.composer.text);
-  const [text, setText] = useState(storeText);
+  const [text, setText] = useState(concealMentionIds ? visibleMentionText(storeText) : storeText);
+  const rawText = useRef(storeText);
   // Values typed here that the store has not echoed back yet, oldest first.
   const pending = useRef<string[]>([]);
 
@@ -33,18 +35,21 @@ export function ComposerTextInput({ onSubmitWeb, ...props }: Omit<TextInputProps
       return;
     }
     pending.current = [];
-    setText(storeText);
+    rawText.current = storeText;
+    setText(concealMentionIds ? visibleMentionText(storeText) : storeText);
     // Store was cleared externally (e.g. after send) — reset height so the field collapses.
     if (!storeText) setContentHeight(minHeight);
-  }, [storeText, minHeight]);
+  }, [storeText, minHeight, concealMentionIds]);
 
   const onChangeText = useCallback(
     (value: string) => {
       setText(value);
-      pending.current.push(value);
-      aui.composer.setText(value);
+      const raw = concealMentionIds ? preserveMentionIds(rawText.current, value) : value;
+      rawText.current = raw;
+      pending.current.push(raw);
+      aui.composer.setText(raw);
     },
-    [aui],
+    [aui, concealMentionIds],
   );
 
   return (

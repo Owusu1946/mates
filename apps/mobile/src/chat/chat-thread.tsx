@@ -1679,6 +1679,7 @@ function ChatComposer() {
               )}
               {/* Grows with its content between min and max height; no height state per keystroke. */}
               <ComposerTextInput
+                concealMentionIds
                 maxLength={8000}
                 multiline
                 blurOnSubmit={false}

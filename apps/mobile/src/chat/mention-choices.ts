@@ -33,6 +33,32 @@ export function visibleMentionText(text: string) {
   return text.replace(new RegExp(MENTION_ID, "gi"), "@$1");
 }
 
+/** Keep picked IDs when editing text around a mention; editing the mention itself makes it plain text. */
+export function preserveMentionIds(previous: string, nextVisible: string) {
+  const oldVisible = visibleMentionText(previous);
+  let prefix = 0;
+  while (prefix < oldVisible.length && prefix < nextVisible.length && oldVisible[prefix] === nextVisible[prefix]) prefix++;
+  let suffix = 0;
+  while (suffix < oldVisible.length - prefix && suffix < nextVisible.length - prefix && oldVisible[oldVisible.length - 1 - suffix] === nextVisible[nextVisible.length - 1 - suffix]) suffix++;
+  const oldEnd = oldVisible.length - suffix;
+  const shift = nextVisible.length - oldVisible.length;
+  const tokens: { start: number; visible: string; raw: string }[] = [];
+  let removed = 0;
+  for (const match of previous.matchAll(new RegExp(MENTION_ID, "gi"))) {
+    const start = (match.index ?? 0) - removed;
+    const visible = `@${match[1]}`;
+    const end = start + visible.length;
+    if (end <= prefix || start >= oldEnd) tokens.push({ start: start >= oldEnd ? start + shift : start, visible, raw: match[0] });
+    removed += match[0].length - visible.length;
+  }
+  let result = nextVisible;
+  for (const token of tokens.reverse()) {
+    if (result.slice(token.start, token.start + token.visible.length) === token.visible)
+      result = `${result.slice(0, token.start)}${token.raw}${result.slice(token.start + token.visible.length)}`;
+  }
+  return result;
+}
+
 /** Web Search takes the `@` token out of the draft. It is not a mate. */
 export function webSearchDraft(text: string) {
   const at = text.lastIndexOf("@");

@@ -129,7 +129,10 @@ export function createChatStore() {
         if (ownedMates.length !== mateIds.length) return { ok: false as const, reason: "INVALID_MATES" as const };
       }
 
-      await getDb().batch([
+      const allOwnedMates = await getDb().select({ id: mates.id }).from(mates).where(eq(mates.clerkUserId, userId));
+      const removedMateIds = allOwnedMates.map((mate) => mate.id).filter((mateId) => mateId !== chat.mateId && !mateIds.includes(mateId));
+      const writes = [
+        ...(removedMateIds.length ? [getDb().insert(chatCollaborators).values(removedMateIds.map((mateId) => ({ chatId: id, mateId, removedAt: sql`now()` }))).onConflictDoNothing()] : []),
         getDb().update(chatCollaborators).set({ removedAt: sql`now()` }).where(eq(chatCollaborators.chatId, id)),
         ...(mateIds.length
           ? [getDb().insert(chatCollaborators).values(mateIds.map((mateId, position) => ({ chatId: id, mateId, position, removedAt: null }))).onConflictDoUpdate({
@@ -137,7 +140,8 @@ export function createChatStore() {
               set: { removedAt: null, position: sql`excluded.position` },
             })]
           : []),
-      ]);
+      ];
+      await getDb().batch(writes as [(typeof writes)[number], ...(typeof writes)[number][]]);
       return { ok: true as const, mateIds };
     },
     /** Adds owned mates to a direct chat without removing the ones already attached. */

@@ -10,11 +10,11 @@ Let someone bring another mate into an existing one-to-one conversation by menti
 
 - A direct chat stays `kind: "mate"` with its primary `mateId`. Extra mates live in `chat_collaborators`, not `group_members`. Removing one sets `removed_at` instead of deleting the row.
 - The `@` menu in a direct chat offers Chief of Staff, the user's other mates, connected apps, and Web Search. A group chat offers its members and does not offer Chief of Staff.
-- Picking a mate inserts `@Name{id}` into the draft. The id is hidden in the transcript. Sending the message is what attaches the mate. Abandoning the draft does not change the chat.
+- Picking a mate keeps `@Name{id}` in the stored draft for routing, while the composer and transcript show `@Name`. Sending the message is what attaches the mate. Abandoning the draft does not change the chat.
 - The worker resolves a picked mention by that id, then falls back to the name for a mention someone typed. `@Web` and unknown names do not become mates.
 - A direct chat runs as its primary mate unless the message tags another owned mate, tags `@Chief of Staff`, or resumes a collaboration that was waiting.
 - Removing a mate drops them from later messages. A turn that is already waiting still finishes as that mate. If that mate no longer exists, the step is skipped and the primary mate does not take their place.
-- An attach write re-checks `removed_at`, so a removal that lands after the read is not cleared. Chip removals on the phone run one at a time, each from the list left by the previous one.
+- Removing collaborators first writes removal markers for the user's other mates, including ones with no previous row. An in-flight first attach then conflicts with that marker instead of restoring a removed chip. Existing-row attaches also re-check `removed_at`. Chip removals on the phone run one at a time.
 
 ## Product direction
 
@@ -85,7 +85,7 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 ## Batch 3 implementation notes
 
 - The `@` menu in a direct chat offers Chief of Staff and the user's other mates, and still offers connected apps and Web Search. A group chat still offers its members and does not offer Chief of Staff.
-- Choosing a mate inserts `@Name{id}` into the draft and does not attach anyone until the message is sent. Abandoning the draft does not change the chat. The transcript shows `@Name`.
+- Choosing a mate stores `@Name{id}` for routing and does not attach anyone until the message is sent. The composer and transcript show `@Name`; abandoning the draft does not change the chat.
 - Attached collaborators render as chips above the composer. Removing one replaces the list with `PUT /v1/chats/:id/collaborators` and rolls the chip back if that request fails.
 - After a direct-chat send that contained an `@` mention, the chat list refreshes once that run finishes, so a mate attached by the worker shows up without a second send.
 - The draft names the mate as `@Ama{id}`. Routing uses that id. A typed `@Ama` with no id still matches by name, so two mates with the same name stay ambiguous unless the person picked one from the menu. Removing someone uses the id.
@@ -97,7 +97,7 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 - Removing a mate marks the row with `removed_at`. A later message that mentions them clears it. Active lists ignore removed rows, and the chat stays `kind: "mate"`.
 - A waiting collaborator who is removed still speaks that turn, looked up by the queued id. The primary mate is not substituted. A mate who no longer exists is skipped.
 - The attach update only clears `removed_at` when that timestamp is still older than the message. Chip removals are serialized against the cache.
-- Checked on 16 Nov 2026 with `pnpm typecheck && pnpm test` from the repo root. Both passed: API 348 tests, mobile 21 tests, decks 12 tests.
+- Checked on 17 Nov 2026 with `pnpm typecheck && pnpm test` from the repo root. Both passed: API 348 tests, mobile 22 tests, decks 12 tests.
 
 ## Still open
 
