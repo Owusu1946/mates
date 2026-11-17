@@ -10,7 +10,7 @@ Let someone bring another mate into an existing one-to-one conversation by menti
 
 - A direct chat stays `kind: "mate"` with its primary `mateId`. Extra mates live in `chat_collaborators`, not `group_members`. Removing one sets `removed_at` instead of deleting the row.
 - The `@` menu in a direct chat offers Chief of Staff, the user's other mates, connected apps, and Web Search. A group chat offers its members and does not offer Chief of Staff.
-- Picking a mate keeps `@Name{id}` in the stored draft for routing, while the composer and transcript show `@Name`. Sending the message is what attaches the mate. Abandoning the draft does not change the chat.
+- Picking a mate adds a removable chip inside the composer. Sending appends `@Name{id}` for routing; the transcript shows `@Name`. Abandoning the draft does not change the chat.
 - The worker resolves a picked mention by that id, then falls back to the name for a mention someone typed. `@Web` and unknown names do not become mates.
 - A direct chat runs as its primary mate unless the message tags another owned mate, tags `@Chief of Staff`, or resumes a collaboration that was waiting.
 - Removing a mate drops them from later messages. A turn that is already waiting still finishes as that mate. If that mate no longer exists, the step is skipped and the primary mate does not take their place.
@@ -85,15 +85,15 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 ## Batch 3 implementation notes
 
 - The `@` menu in a direct chat offers Chief of Staff and the user's other mates, and still offers connected apps and Web Search. A group chat still offers its members and does not offer Chief of Staff.
-- Choosing a mate stores `@Name{id}` for routing and does not attach anyone until the message is sent. The composer and transcript show `@Name`; abandoning the draft does not change the chat.
+- Choosing a mate shows a compact chip with an avatar, name, and remove button. Mate, Chief of Staff, app, and Web Search chips share a strip above the text input, leaving the typing row its full width. Sending adds `@Name{id}` for routing and attaches the mate. Abandoning the draft does not change the chat.
 - Attached collaborators render as chips above the composer. Removing one replaces the list with `PUT /v1/chats/:id/collaborators` and rolls the chip back if that request fails.
 - After a direct-chat send that contained an `@` mention, the chat list refreshes once that run finishes, so a mate attached by the worker shows up without a second send.
-- The draft names the mate as `@Ama{id}`. Routing uses that id. A typed `@Ama` with no id still matches by name, so two mates with the same name stay ambiguous unless the person picked one from the menu. Removing someone uses the id.
+- The send path adds `@Ama{id}` for a picked mate. Routing uses that id. A typed `@Ama` with no id still matches by name, so two mates with the same name stay ambiguous unless the person picked one from the menu. Removing someone uses the id.
 
 ## Batch 4 implementation notes
 
 - Direct-chat routing is covered without calling the model: up to three other owned mates, `@Chief of Staff` plus a name, `@Web` and unknown names such as `@Slack` staying out of the roster, and a resume continuing the collaboration only when that run was already waiting on a handoff.
-- The picker tests cover inserting `@Name` or `@Chief of Staff` into the draft, Web Search taking the `@` token out, and refreshing collaborators only after a tagged run finishes.
+- The mention helper tests cover forming `@Name{id}` for routing, Web Search taking the `@` token out, and refreshing collaborators only after a tagged run finishes.
 - Removing a mate marks the row with `removed_at`. A later message that mentions them clears it. Active lists ignore removed rows, and the chat stays `kind: "mate"`.
 - A waiting collaborator who is removed still speaks that turn, looked up by the queued id. The primary mate is not substituted. A mate who no longer exists is skipped.
 - The attach update only clears `removed_at` when that timestamp is still older than the message. Chip removals are serialized against the cache.

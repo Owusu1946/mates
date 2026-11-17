@@ -65,7 +65,7 @@ import { GitHubConnectCard } from "./github-connect-card";
 import { ConsultCard } from "./consult-card";
 import { PlanCard } from "./plan-card";
 import { MatesList } from "./drawer-mates-list";
-import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateActions, useMateName, useMates, useThreadTitle, type ChatSummary } from "../mates/data";
+import { DEFAULT_GRADIENT, useChats, useCurrentChat, useLeaderName, useMateActions, useMateName, useMates, useThreadTitle, type ChatSummary, type MateSummary } from "../mates/data";
 import { Glow } from "../onboarding/glow";
 import { GroupAvatar, MateAvatar } from "../mates/mate-avatar";
 import { MateCard, MissionBanner, TeamCard } from "../mates/mission";
@@ -1103,6 +1103,7 @@ function ChatComposer() {
   const actions = useMateActions();
   const appsQuery = useConnectedMentionApps();
   const currentChat = useCurrentChat();
+  const previousChatId = useRef(currentChat?.id);
   const leaderName = useLeaderName();
   const currentMateName =
     currentChat?.kind === "mate"
@@ -1119,6 +1120,14 @@ function ChatComposer() {
   const usage = useUsage();
   const outOfUsage = !!usage.data?.enforced && !!usage.data.blocked;
   const [selectedApp, setSelectedApp] = useState<AppConnection | null>(null);
+  const [selectedMates, setSelectedMates] = useState<MateSummary[]>([]);
+  const [selectedChief, setSelectedChief] = useState(false);
+  useEffect(() => {
+    if (previousChatId.current === currentChat?.id) return;
+    previousChatId.current = currentChat?.id;
+    setSelectedMates([]);
+    setSelectedChief(false);
+  }, [currentChat?.id]);
   // Picked from the @ menu: the next message always searches the web (sent as "@Web").
   const [searchOn, setSearchOn] = useState(false);
   const [reduceTransparency, setReduceTransparency] = useState(false);
@@ -1335,7 +1344,12 @@ function ChatComposer() {
     isGlassEffectAPIAvailable();
   const sendMessage = () => {
     if (!canSend || uploads.length || outOfUsage) return;
-    const tags = [selectedApp ? `@${selectedApp.name}` : null, searchOn ? "@Web" : null].filter(Boolean).join(" ");
+    const tags = [
+      ...selectedMates.map((mate) => mentionDraft("", mate.name, mate.id).trim()),
+      selectedChief ? `@${CHIEF_OF_STAFF}` : null,
+      selectedApp ? `@${selectedApp.name}` : null,
+      searchOn ? "@Web" : null,
+    ].filter(Boolean).join(" ");
     if (tags) {
       const text = composerText.trimEnd();
       aui.composer.setText(`${text}${text ? " " : ""}${tags}`);
@@ -1343,6 +1357,8 @@ function ChatComposer() {
     if (currentChat?.kind === "mate" && /(?:^|\s)@\S/.test(`${composerText} ${tags}`)) taggedCollaborator.current = true;
     aui.composer.send();
     setSelectedApp(null);
+    setSelectedMates([]);
+    setSelectedChief(false);
     setSearchOn(false);
   };
   useEffect(() => {
@@ -1368,8 +1384,13 @@ function ChatComposer() {
   // "Web search" leads the @ menu while the typed word could still be it.
   const mentionWeb = !searchOn && ("web search".includes(mentionQuery) || "search".startsWith(mentionQuery));
   const collaborators = currentChat?.kind === "mate" ? currentChat.collaborators ?? [] : [];
-  const tagMention = (name: string, id?: string) => {
-    aui.composer.setText(mentionDraft(composerText, name, id));
+  const selectMate = (mate: MateSummary) => {
+    aui.composer.setText(webSearchDraft(composerText));
+    setSelectedMates((current) => current.some((item) => item.id === mate.id) ? current : [...current, mate]);
+  };
+  const selectChief = () => {
+    aui.composer.setText(webSearchDraft(composerText));
+    setSelectedChief(true);
   };
   const collaboratorRemoval = useRef(Promise.resolve());
   const removeCollaborator = (mateId: string) => {
@@ -1410,7 +1431,7 @@ function ChatComposer() {
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: collaborators.length ? 112 : 72,
+            bottom: (collaborators.length ? 112 : 72) + (selectedMates.length || selectedChief || selectedApp || searchOn ? 38 : 0),
             zIndex: 20,
             maxHeight: 300,
             padding: 8,
@@ -1457,7 +1478,7 @@ function ChatComposer() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Ask Chief of Staff"
-                  onPress={() => tagMention(CHIEF_OF_STAFF)}
+                  onPress={selectChief}
                   style={({ pressed }) => ({
                     minHeight: 52,
                     flexDirection: "row",
@@ -1482,7 +1503,7 @@ function ChatComposer() {
                   key={mate.id}
                   accessibilityRole="button"
                   accessibilityLabel={`Ask ${mate.name}`}
-                  onPress={() => tagMention(mate.name, mate.id)}
+                  onPress={() => selectMate(mate)}
                   style={({ pressed }) => ({
                     minHeight: 52,
                     flexDirection: "row",
@@ -1609,6 +1630,51 @@ function ChatComposer() {
                 ))}
               </ScrollView>
             )}
+            {(selectedMates.length > 0 || selectedChief || selectedApp || searchOn) && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={{ gap: 6, paddingHorizontal: 4, paddingTop: 2 }}
+              >
+                {selectedMates.map((mate) => (
+                  <View key={mate.id} style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 5, paddingRight: 5, paddingVertical: 4, borderRadius: 16, backgroundColor: colors.muted }}>
+                    <MateAvatar gradient={mate.gradient} shape={mate.shape} size={20} still />
+                    <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13, maxWidth: 130 }}>{mate.name}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${mate.name} from draft`} hitSlop={8} onPress={() => setSelectedMates((current) => current.filter((item) => item.id !== mate.id))} style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+                      <ChatIcon name="close" color={colors.mutedForeground} size={14} />
+                    </Pressable>
+                  </View>
+                ))}
+                {selectedChief && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 16, backgroundColor: colors.muted }}>
+                    <ChatIcon name="sparkles" color={colors.foreground} size={16} />
+                    <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Chief of Staff</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Remove Chief of Staff from draft" hitSlop={8} onPress={() => setSelectedChief(false)} style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+                      <ChatIcon name="close" color={colors.mutedForeground} size={14} />
+                    </Pressable>
+                  </View>
+                )}
+                {selectedApp && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingLeft: 5, paddingRight: 5, paddingVertical: 4, borderRadius: 16, backgroundColor: colors.muted }}>
+                    <AppLogo name={selectedApp.name} logo={selectedApp.logo} size={20} />
+                    <Text numberOfLines={1} style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13, maxWidth: 130 }}>{selectedApp.name}</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${selectedApp.name} from draft`} hitSlop={8} onPress={() => setSelectedApp(null)} style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+                      <ChatIcon name="close" color={colors.mutedForeground} size={14} />
+                    </Pressable>
+                  </View>
+                )}
+                {searchOn && (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 16, backgroundColor: colors.muted }}>
+                    <ChatIcon name="globe" color={colors.foreground} size={16} />
+                    <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Web Search</Text>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Turn off web search" hitSlop={8} onPress={() => setSearchOn(false)} style={{ width: 22, height: 22, alignItems: "center", justifyContent: "center" }}>
+                      <ChatIcon name="close" color={colors.mutedForeground} size={14} />
+                    </Pressable>
+                  </View>
+                )}
+              </ScrollView>
+            )}
             <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10 }}>
               <Pressable
                 accessibilityLabel={isPlusMenuOpen ? "Close options" : "More options"}
@@ -1633,50 +1699,6 @@ function ChatComposer() {
               >
                 <ChatIcon name="add" color={colors.foreground} size={23} />
               </Pressable>
-              {selectedApp && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 6,
-                    paddingLeft: 2,
-                    paddingRight: 8,
-                    paddingVertical: 4,
-                    borderRadius: 18,
-                    backgroundColor: "transparent",
-                  }}
-                >
-                  <AppLogo name={selectedApp.name} logo={selectedApp.logo} size={28} />
-                  <Text
-                    numberOfLines={1}
-                    style={{
-                      maxWidth: 90,
-                      color: colors.foreground,
-                      fontFamily: "DMSans_500Medium",
-                      fontSize: 13,
-                    }}
-                  >
-                    {selectedApp.name}
-                  </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Remove ${selectedApp.name}`}
-                    hitSlop={6}
-                    onPress={() => setSelectedApp(null)}
-                  >
-                    <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
-                  </Pressable>
-                </View>
-              )}
-              {searchOn && (
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingLeft: 8, paddingRight: 8, paddingVertical: 5, borderRadius: 16, backgroundColor: colors.muted }}>
-                  <ChatIcon name="globe" color={colors.foreground} size={15} />
-                  <Text style={{ color: colors.foreground, fontFamily: "DMSans_500Medium", fontSize: 13 }}>Search</Text>
-                  <Pressable accessibilityRole="button" accessibilityLabel="Turn off web search" hitSlop={6} onPress={() => setSearchOn(false)}>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 18, lineHeight: 20 }}>×</Text>
-                  </Pressable>
-                </View>
-              )}
               {/* Grows with its content between min and max height; no height state per keystroke. */}
               <ComposerTextInput
                 concealMentionIds
@@ -1684,7 +1706,7 @@ function ChatComposer() {
                 multiline
                 blurOnSubmit={false}
                 onSubmitWeb={sendMessage}
-                placeholder={selectedApp ? "" : searchOn ? "Search the web…" : `Ask ${currentMateName}…`}
+                placeholder={searchOn ? "Search the web…" : selectedApp ? `Ask ${selectedApp.name}…` : `Ask ${currentMateName}…`}
                 placeholderTextColor={colors.mutedForeground}
                 style={{
                   flex: 1,
