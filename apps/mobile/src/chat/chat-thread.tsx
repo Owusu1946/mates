@@ -999,6 +999,13 @@ function MessagesLoading() {
 
 /** How far from the newest message (in points) before the scroll-to-bottom button shows. */
 const AWAY_FROM_BOTTOM = 280;
+/**
+ * Space between messages, as padding inside each row rather than `gap` on the list: FlatList
+ * estimates the rows it hasn't drawn from the rows it has measured, and a `gap` isn't part of any
+ * row, so long chats came out thousands of pixels short and scrolling jumped as rows were drawn.
+ */
+const MESSAGE_GAP = 18;
+const KEEP_POSITION = { minIndexForVisible: 0 };
 
 /**
  * `topInset` and `bottomInset`: the floating header's and composer's heights, kept clear at the
@@ -1012,6 +1019,9 @@ function ChatBody({
   bottomInset,
   listRef,
   onAway,
+  onContentSizeChange,
+  onScrollBeginDrag,
+  away,
 }: {
   keyboardVisible: boolean;
   loading: boolean;
@@ -1019,6 +1029,9 @@ function ChatBody({
   bottomInset: number;
   listRef: React.RefObject<FlatList<any> | null>;
   onAway: (away: boolean) => void;
+  onContentSizeChange: () => void;
+  onScrollBeginDrag: () => void;
+  away: boolean;
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
@@ -1030,6 +1043,15 @@ function ChatBody({
   useEffect(() => {
     if (isEmpty) onAway(false);
   }, [isEmpty, onAway]);
+  // One row renderer for the life of the list: a new one each render redraws every message.
+  const renderMessage = useCallback(
+    () => (
+      <View style={{ paddingBottom: MESSAGE_GAP }}>
+        <ChatMessage />
+      </View>
+    ),
+    [],
+  );
   return (
     <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0, paddingBottom: isEmpty ? bottomInset : 0 }}>
       {isEmpty && (loading || isLoading) ? (
@@ -1040,8 +1062,19 @@ function ChatBody({
         <ThreadPrimitive.MessagesFlatList
           ref={listRef}
           onScroll={onScroll}
+          onContentSizeChange={onContentSizeChange}
+          onScrollBeginDrag={onScrollBeginDrag}
           scrollEventThrottle={64}
           autoScroll
+          // Draw far more of the chat than FlatList's defaults, so fewer rows are guessed at: message
+          // heights vary a lot (a line of text, a rides card, a deck), so guesses are poor.
+          initialNumToRender={30}
+          maxToRenderPerBatch={20}
+          windowSize={41}
+          // Holding the top message still while rows above it are drawn is for reading back. At the
+          // bottom, auto-scroll keeps the latest message in view; with both on, they take turns
+          // moving the list and it swings up and down as rows are measured.
+          maintainVisibleContentPosition={away ? KEEP_POSITION : undefined}
           style={{ flex: 1 }}
           contentContainerStyle={{
             width: "100%",
@@ -1049,14 +1082,14 @@ function ChatBody({
             alignSelf: "center",
             paddingHorizontal: 12,
             paddingTop: topInset + 12,
-            paddingBottom: bottomInset + 16,
-            gap: 18,
+            // The last row brings its own gap.
+            paddingBottom: bottomInset + 16 - MESSAGE_GAP,
           }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          {() => <ChatMessage />}
+          {renderMessage}
         </ThreadPrimitive.MessagesFlatList>
       )}
     </View>
@@ -2364,6 +2397,23 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
   const listRef = useRef<FlatList<any>>(null);
   const [away, setAway] = useState(false);
   const onAway = useCallback((value: boolean) => setAway((current) => (current === value ? current : value)), []);
+  // "Scroll to bottom" first lands where FlatList estimates the end is; the rows drawn there then
+  // change the real height. For a moment after the tap, follow the content to its true end, unless
+  // the user starts scrolling themselves.
+  const settleUntil = useRef(0);
+  const scrollToBottom = useCallback(() => {
+    settleUntil.current = Date.now() + 1500;
+    listRef.current?.scrollToEnd({ animated: true });
+    setTimeout(() => {
+      if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false });
+    }, 450);
+  }, []);
+  const followToEnd = useCallback(() => {
+    if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false });
+  }, []);
+  const stopFollowing = useCallback(() => {
+    settleUntil.current = 0;
+  }, []);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -2389,7 +2439,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
       <ThreadPrimitive.Root style={{ flex: 1, minHeight: 0 }}>
         {/* Messages run up under the header; the list's top padding follows the header's height. */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} />
+          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} onContentSizeChange={followToEnd} onScrollBeginDrag={stopFollowing} away={away} />
           <View
             pointerEvents="box-none"
             onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
@@ -2407,7 +2457,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
             style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}
           >
             <BottomFade />
-            <ScrollToBottom visible={away} onPress={() => listRef.current?.scrollToEnd({ animated: true })} />
+            <ScrollToBottom visible={away} onPress={scrollToBottom} />
             <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
               <UsageLine colors={colors} />
               <ChatComposer />
