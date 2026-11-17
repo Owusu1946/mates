@@ -15,6 +15,7 @@ export function ComposerTextInput({ onSubmitWeb, concealMentionIds = false, ...p
   const aui = useAui();
   const storeText = useAuiState((state) => state.composer.text);
   const [text, setText] = useState(concealMentionIds ? visibleMentionText(storeText) : storeText);
+  const displayedText = useRef(text);
   const rawText = useRef(storeText);
   // Values typed here that the store has not echoed back yet, oldest first.
   const pending = useRef<string[]>([]);
@@ -36,20 +37,23 @@ export function ComposerTextInput({ onSubmitWeb, concealMentionIds = false, ...p
     }
     pending.current = [];
     rawText.current = storeText;
-    setText(concealMentionIds ? visibleMentionText(storeText) : storeText);
-    // Store was cleared externally (e.g. after send) — reset height so the field collapses.
-    if (!storeText) setContentHeight(minHeight);
+    const next = concealMentionIds ? visibleMentionText(storeText) : storeText;
+    if (next.length < displayedText.current.length) setContentHeight(minHeight);
+    displayedText.current = next;
+    setText(next);
   }, [storeText, minHeight, concealMentionIds]);
 
   const onChangeText = useCallback(
     (value: string) => {
+      if (value.length < displayedText.current.length) setContentHeight(minHeight);
+      displayedText.current = value;
       setText(value);
       const raw = concealMentionIds ? preserveMentionIds(rawText.current, value) : value;
       rawText.current = raw;
       pending.current.push(raw);
       aui.composer.setText(raw);
     },
-    [aui, concealMentionIds],
+    [aui, concealMentionIds, minHeight],
   );
 
   return (
@@ -59,7 +63,9 @@ export function ComposerTextInput({ onSubmitWeb, concealMentionIds = false, ...p
       onChangeText={onChangeText}
       onContentSizeChange={(e) => {
         props.onContentSizeChange?.(e);
-        const h = Math.min(Math.max(e.nativeEvent.contentSize.height, minHeight), maxHeight);
+        const h = displayedText.current
+          ? Math.min(Math.max(e.nativeEvent.contentSize.height, minHeight), maxHeight)
+          : minHeight;
         setContentHeight(h);
       }}
       style={[props.style, { height: Math.max(contentHeight, minHeight) }]}
