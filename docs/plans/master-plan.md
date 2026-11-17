@@ -34,18 +34,20 @@ Mates already does things they don't:
 **The plan:** launch as *the AI team that knows your life and gets real things done in Ghana*, with three promises no competitor keeps today:
 1. **It speaks up only when it matters, and never leaves you hanging.**
 2. **It asks once, then remembers what you allowed.**
-3. **It handles life here:** bills and airtime with MoMo, power cuts, rides and calls to local businesses.
+3. **It handles life here:** bills and airtime with MoMo, power cuts, rides, calls to local businesses and your language.
 
 Then expand to the rest of Africa from a base nobody else has.
 
-**What must happen before launch** (section 7) comes down to four things:
-1. Finish and ship the fixes in flight (P1–P5, P8, P9).
+**What must happen before launch** (section 7) comes down to five things:
+1. Finish and ship the fixes in flight (P1–P5, P8, P9), and make crashes visible (P6).
 2. Turn on what's built but dark (habits, rides).
-3. Build three Ghana superpowers:
+3. Build the Ghana superpowers:
    - **bills and airtime with MoMo** (C1);
    - **power-cut alerts** (C2);
-   - **mates that call local businesses** (C3).
-4. Let Ghanaians pay us with MoMo on the web (P13).
+   - **mates that call local businesses** (C3);
+   - **Twi and local languages** (C4) and **the local pack** (C7).
+4. Ship Android (D1) and let Ghanaians pay us with MoMo, through Google Play and on the web (P13).
+5. Register with Ghana's Data Protection Commission (P10).
 
 ---
 
@@ -139,9 +141,11 @@ These are the board's **P** items. Status is on the board.
 | P3 | Habits reach the worker (PR #97) | Set `HABITS_ENABLED` on the API and in `apps/api/.env`, then deploy the worker after pulling |
 | P4 | Freeze hidden screens, for the iPhone 13 Routines crash (PR #98) | Needs a check on a 4 GB iPhone |
 | P5 | Short branch names for coding runs (PR #99) | Deploy the worker |
+| P6 | Sentry in TestFlight builds | The DSN is only in local `.env`, which EAS cloud builds don't read; add it to the EAS production env so crashes and memory kills are reported |
 | P7 | Turn on rides in production | |
 | P8 | Feedback buttons that work | 👍 saves; 👎 asks what went wrong; stored for review |
 | P9 | Camera preview white flash | |
+| P10 | Register with Ghana's Data Protection Commission | Act 843 s. 27; spot checks began 5 Oct 2026 ([DPC](https://dpc.gov.gh/registration)) |
 
 ---
 
@@ -173,7 +177,8 @@ Every feature below is checked against these.
    - One place shows everything mates did.
 6. **Local by default.**
    - Cedis.
-   - Ghanaian places, services, prices and errands (bills, light, rides, government offices).
+   - Ghanaian places, services and phone formats.
+   - Twi, Ga, Ewe and Pidgin understood.
 7. **Fast.** The first visible response arrives within a second (a shimmer status line), with a useful answer in seconds. Long work moves to the background and reports back.
 
 ---
@@ -195,6 +200,7 @@ Every feature on the [board](https://claude.ai/artifact/MG9ZeS3y18jYftzqHtCzux) 
 | # | Feature | What it does | Why it wins | Effort | Priority |
 |---|---|---|---|---|---|
 | A1 | **Permission grants** (replaces roadmap 01's four-way rules) | Keep today's default: a mate acts when *you asked in chat*. Actions started by watches, routines or proactive items, and anything in the always-ask categories (spending, sharing outside, deleting, calling or texting someone new), show a card with **Allow once · For this task · Always for this person/app · Not now**. Grants are stored and matched exactly | Fixes Dots' and Grok's re-asking complaint and matches Muse's model. Gives the 95% of people uncomfortable with autonomy a gentle start | M | **L** |
+| A2 | **"What mates did"** | One screen with every action, filterable by mate and app, each row with **Undo** where we stored an inverse (`undo.ts` exists) | Visible accountability; answers "who is responsible?" (26% of people's worry) | M | **L** |
 | A3 | **Memory you own** | "What do you know about me?" works everywhere, and every memory shows where it came from. **Import** from ChatGPT, Claude or Gemini (roadmap 07, about $0.002 each). **Export** everything | We already lead; import removes the switching cost on day one | S | **L** (import, export) |
 | A4 | **Quiet hours and the noise budget** | Per mate: quiet hours, a daily push cap, "only urgent" mode | Principle 1. Grok Bot users have to contact support to stop check-ins; ours are a switch | S | **L** |
 | A6 | **Outbound check** (a light version of Muse's Sentinel) | Before any send, share or payment, a cheap separate model checks: does this match what was asked, is the recipient new, does it carry secrets or sensitive data? A failure becomes "ask" | Defence against prompt injection and mistakes. About $0.0005 per consequential action | M | L+30 |
@@ -219,18 +225,21 @@ This is the moat.
 | C1 | **Pay bills, buy airtime and data, with MoMo** | "Buy GH¢50 of ECG for the house", "Get Mum 5GB on MTN", "Pay the DStv". The mate looks up the meter or account (showing the name on it), then sends a **MoMo payment prompt to your phone**. You approve with your PIN, and it pays and gives you the token or receipt | **Hubtel**: Direct Receive Money to collect (the customer approves on their phone), Commission Services to pay ECG prepaid and postpaid, Ghana Water, airtime and data on all networks, and DStv, GOtv and StarTimes, plus refunds and a status API. We **earn commission** on each payment. The PIN prompt is a built-in, regulator-grade approval ([Hubtel docs](https://code.hubtel.com/docs/api)) | L | **L** (Ghana) |
 | C2 | **Light-off alerts (dumsor)** | "Light goes off in East Legon 6pm–midnight tonight", in the morning brief and as a heads-up an hour before. "Is there light at the house?" uses crowd reports | Parse ECG's published load-management notices (as Odumsor and the 3News tool already do), plus crowd reports from Mates users who opt in. 2,500+ areas indexed publicly ([Odumsor](https://odumsor.com/about), [3News](https://3news.com/tools/dumsor)) | M | **L** |
 | C3 | **Mates call businesses for you** (roadmap 08, Ghana-first) | "Call Chez Afrique, book 4 at 8". The card shows the number and what it will say, you tap Call, it states it's an AI assistant, and you get a live transcript, listen-in and take-over, then the outcome. Blocked: emergency, premium-rate and personal numbers you didn't give it | LiveKit SIP outbound trunk plus our existing voice agent in an outbound mode. **Ghana numbers are available from Telnyx (from $30/month)**, with voice from about $0.002/min plus trunk. US and UK business numbers too. Matches what the launch films promise | M–L | **L** |
+| C4 | **Speak Twi, Ga, Ewe, Fante, Hausa, Pidgin** | Dictation and voice calls understand local languages and code-switching; mates can reply in Twi by voice | **Khaya** (GhanaNLP/Algorine): speech recognition and text-to-speech in 32 African languages, API from $14.95/month, Enterprise $749/month for 200k calls. Abena AI for Twi-English code-switching. Run language ID first. Whisper and the big chat models don't list Twi ([Khaya](https://www.khaya.ai/features/automatic-speech-recognition), [TechTrendi](https://techtrendi.com/blog/ai-twi-ga-ewe-ghana-language-tools-guide)) | M | **L** (Twi input); L+30 (voice replies) |
 | C5 | **Rides, end to end** | Today: compare Yango, Bolt, Uber and trotro. Add: "Open in Yango with this pickup" deep links, and **commute in the brief** ("Leave by 7:10; Bolt is GH¢38 now") | Sail plus deep links | S | **L** |
 | C6 | **Government errands, guided** | "Renew my passport": steps, fees (GH¢350 regular, GH¢700 expedited, GH¢2,000 premium), nearest centre, document checklist, reminders, and form-filling with the browser where allowed. The same for DVLA, Ghana Card and GRA | A Ghana knowledge pack (skills, roadmap 06) plus browser handoff for logins ([passport portal](https://passport.mfa.gov.gh/)) | M | L+30 |
+| C7 | **Local knowledge, cedis everywhere** | Prices in GH¢, Ghanaian phone formats, local places (Places API), school terms and holidays, Akan day names | Shared prompt pack and checks | S | **L** |
 
 ### D. Everywhere you are
 Replacing "WhatsApp first".
 
 | # | Feature | What it does | How | Effort | Priority |
 |---|---|---|---|---|---|
-| D2 | **Call your mate from any phone** | A Ghana number (+233) you can dial from a basic phone. Your mate answers by caller ID and can do anything a voice call can | Same telephony as C3, inbound. About half of Ghanaian adults don't use a smartphone as their main phone ([Findex via MediaWura](https://mediawura.com/blog/ghana-digital-marketing-statistics)), so this reaches them | S once C3 exists | L+30 |
+| D1 | **Android app** | Same app, Play Store | Expo already builds Android; needs QA, Android-specific UI passes, and **Google Play Billing with MTN MoMo and Telecel Cash**. 70% of Ghana's mobile web is Android ([StatCounter via Marketing Parasite](https://marketingparasite.com/blog/ghana-digital-marketing-statistics/)) | M | **L** |
+| D2 | **Call your mate from any phone** | A Ghana number (+233) you can dial from a basic phone, in English or Twi. Your mate answers by caller ID and can do anything a voice call can | Same telephony as C3, inbound. About half of Ghanaian adults don't use a smartphone as their main phone ([Findex via MediaWura](https://mediawura.com/blog/ghana-digital-marketing-statistics)), so this reaches them | S once C3 exists | L+30 |
 | D3 | **SMS** | Alerts (light-off, bills due, task blocked) and replies by text when you have no data | Hubtel SMS (a local, cheap sender ID). Not a full chat at first: alerts and short replies | S | L+30 |
 | D4 | **Siri AI and Shortcuts** (roadmap 05, upgraded) | "Hey Siri, ask Kwabena to pay the light bill", with multi-turn follow-ups; Mates actions in Shortcuts and Spotlight | App Intents `@AppIntent(.tool)`. Developer Preview now; App Store submission opens in spring 2027 | M | **Build now, ship spring** |
-| D5 | **Share sheet** | Share a link, photo, PDF or voice note from any app to a mate, with a note | `expo-apple-targets` share extension (iOS) | M | L+30 |
+| D5 | **Share sheet** | Share a link, photo, PDF or voice note from any app to a mate, with a note | `expo-apple-targets` share extension; Android `ACTION_SEND` | M | L+30 |
 | D6 | **The mate's own email** (roadmap 04) | `kwabena.k7x2@mates.askorin.app`: forward receipts, bills and travel; CC it to schedule | Cloudflare Email Routing to start (free), SES later | M | L+30 |
 | D7 | **Telegram** | Chat with your mates in Telegram | Telegram allows AI bots. Cheap; small audience in Ghana, so a low priority | S | L+90 |
 | D8 | **Microsoft Teams** (roadmap 10) | Mention a mate in a Teams channel or chat, like Slack | Azure Bot + Microsoft 365 Agents SDK on our API; reuse the Slack design | M | Later |
@@ -266,12 +275,13 @@ What nobody else has: double down on it.
 - **Tax:** from 15 October 2026 Ghana collects 20% real-time VAT on foreign digital services paid with Ghanaian cards or MoMo, so a foreign-billed $8 becomes about $9.60 ([BizStack Africa](https://bizstackafrica.com/guides/pay-for-software-ghana-mtn-momo)).
 
 ### The plan
-1. **Web checkout with MoMo (P13),** through Hubtel or Paystack (both take MTN, Telecel and AT):
+1. **Android with Google Play Billing (D1).** Google Play takes MTN MoMo and Telecel Cash, so this is the simplest route for Ghanaian subscribers.
+2. **Web checkout with MoMo (P13),** through Hubtel or Paystack (both take MTN, Telecel and AT):
    - A plan bought on the web works in the iPhone app after sign-in. That's allowed for multi-platform services, as long as the iOS app doesn't point people to the web to pay.
    - Promote the web checkout outside the app: site, SMS, social.
    - Keep Apple's in-app purchase for people with working cards.
-2. **Commission on payments (C1)** is a second revenue line that grows with usage, not seats.
-3. Pricing stays as it is for now (Starter, Plus, Pro, Max in USD). Local cedi prices, a free tier, an Android app with Google Play's MoMo billing and a Ghanaian billing entity are **not in this plan** (section 12); revisit after launch.
+3. **Commission on payments (C1)** is a second revenue line that grows with usage, not seats.
+4. Pricing stays as it is for now (Starter, Plus, Pro, Max in USD). Local cedi prices, a free tier and a Ghanaian billing entity are **not in this plan** (section 12); revisit after launch.
 
 ---
 
@@ -282,24 +292,25 @@ In order, highest value per day first.
 
 **Week 1–2: solid ground**
 1. Merge and ship P1–P5. Run migrations 0034 and 0035 before P1's merge; deploy the worker after P3 and P5.
-2. Check P4 on an iPhone 13 (long chat, then Routines).
+2. Sentry in TestFlight builds (P6), then check P4 on an iPhone 13 (long chat, then Routines).
 3. Rides (P7, done) and habits (B1) on in production.
 4. Feedback buttons (P8) and the camera flash (P9).
+5. Register with the Data Protection Commission (P10).
 
 **Week 2–4: trust and daily habit**
 
-5. Permission grants (A1).
-6. Morning brief v2 (B2), the return trip (B3), quiet hours and noise budget (A4), restraint tests (B4).
-7. Memory import and export (A3).
-8. Ask my mates (E1) on top of P1, and meetings polish (E5).
+6. Permission grants (A1) and "What mates did" (A2).
+7. Morning brief v2 (B2), the return trip (B3), quiet hours and noise budget (A4), restraint tests (B4).
+8. Memory import and export (A3).
+9. Ask my mates (E1) on top of P1, and meetings polish (E5).
 
-**Week 3–6: Ghana superpowers**
+**Week 3–6: Ghana superpowers and reach**
 
-9. Light-off alerts (C2) in the brief.
-10. Bills, airtime and data with MoMo through Hubtel (C1): ECG prepaid first, then airtime and data, then water and TV.
-11. Mates call businesses (C3): Ghana and US numbers, approval card, live transcript, outcome.
-12. Rides end to end (C5).
-13. Web checkout with MoMo (P13).
+10. Light-off alerts (C2) in the brief.
+11. Bills, airtime and data with MoMo through Hubtel (C1): ECG prepaid first, then airtime and data, then water and TV.
+12. Mates call businesses (C3): Ghana and US numbers, approval card, live transcript, outcome.
+13. Twi dictation through Khaya (C4), the local pack (C7) and rides end to end (C5).
+14. Android release with Play Billing (D1), and the web checkout with MoMo (P13).
 
 **Launch gate.** Don't launch until all of these hold:
 - **Crash-free sessions** of 99.5% or more, with no app closures on a 4 GB iPhone.
@@ -310,6 +321,7 @@ In order, highest value per day first.
 
 ### Phase 1: launch + 30 days
 - Outbound check (A6).
+- Twi voice replies (C4).
 - Proactive from connected apps (B5).
 - Tasks with states (B6).
 - Government errands, guided (C6).
@@ -348,11 +360,12 @@ In order, highest value per day first.
 
 | Risk | Mitigation |
 |---|---|
-| Muse launches in Ghana (free, inside WhatsApp) | Go deeper on local actions (bills, MoMo, light, calls), which Muse doesn't do. Make the crew the identity |
+| Muse launches in Ghana (free, inside WhatsApp) | Go deeper on local actions (bills, MoMo, light, calls, Twi), which Muse doesn't do. Make the crew the identity |
 | MoMo payment failures and reversals (timeouts, pending callbacks) | Hubtel status checks and refunds; idempotent orders; "pending" shown honestly; daily caps; reconciliation job |
-| Regulation: payments and data | Use only payment providers on the Bank of Ghana's licensed list (check Hubtel and Paystack against it before signing); watch the Data Protection Bill 2025 (automated decisions must be explainable and contestable) |
+| Regulation: payments and data | Use only payment providers on the Bank of Ghana's licensed list (check Hubtel and Paystack against it before signing); DPC registration (P10); watch the Data Protection Bill 2025 (automated decisions must be explainable and contestable) |
 | AI phone calls misused | Always disclose; approval per call; blocked categories; per-day caps; a call log; business-number checks |
 | Model and telephony costs eat margin | Usage meter already in place; cheap models for sweeps and checks; cap minutes per plan; commission revenue offsets |
+| Local-language quality | Language ID first; confirm intent in English when confidence is low; never act on low-confidence transcripts |
 | Noise drives people away | Noise budget, per-item feedback, auto-quieting when taps drop |
 | Not enough engineers for all of this | Section 7 is sequenced so each step ships alone; cut from the bottom of each phase, never the launch gate |
 
@@ -378,25 +391,20 @@ Use these to improve usefulness, not to push automation people didn't ask for (t
 
 ## 11. Decisions needed from Ken
 1. **Hubtel or Paystack** for MoMo collections, bill payments and the web checkout (C1, P13)? *Recommend: Hubtel*, for bills, airtime, verification and payouts in one API, plus commission.
-2. **Default proactive volume:** confirm one unprompted push a day plus urgent alerts (A4).
-3. **Second country after Ghana:** Nigeria or Kenya.
+2. **Khaya plan** for Twi (C4): Basic $14.95/month to test, then Standard or Enterprise ($749/month) at launch volume.
+3. **Default proactive volume:** confirm one unprompted push a day plus urgent alerts (A4).
+4. **Second country after Ghana:** Nigeria or Kenya.
 
 ---
 
 ## 12. Not in this plan
-Removed from the board on 17 November 2026. Kept here so the decision is on record and easy to revisit.
+Removed from the board on 17 November 2026. Kept here so the decision is on record and easy to revisit. (Android, Sentry, DPC registration, "What mates did", Twi and the local pack were restored the same day.)
 
 | Item | Note |
 |---|---|
-| Android app, with Google Play's MoMo billing | 70% of Ghana's mobile web is Android; revisit soon after launch |
-| Twi and local languages (Khaya) | |
-| Local pack: cedis, phone formats, holidays | |
 | Low-data mode | |
 | Send money to people | |
-| "What mates did" activity screen | A1 and C3 mention it; their call and grant logs will need a home |
 | Privacy pledge page | |
-| Sentry in TestFlight builds | Without it, crashes and memory kills in TestFlight stay invisible, which also makes the launch gate's crash-free target hard to measure |
-| Registration with Ghana's Data Protection Commission | A legal requirement under Act 843 (s. 27) for anyone processing personal data in Ghana; tracked outside this plan |
 | Paywall and free trial | Covered by Sammy's handoff ([free-trial-handoff.md](free-trial-handoff.md)) |
 | Recutting the launch films | Not needed if C3 ships |
 | Cedi pricing and a free tier; a Ghanaian billing entity and VAT | Revisit after launch |
