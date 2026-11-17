@@ -1045,6 +1045,11 @@ function ChatBody({
           onScroll={onScroll}
           scrollEventThrottle={64}
           autoScroll
+          // Draw far more of the chat than FlatList's defaults, so fewer rows are guessed at: message
+          // heights vary a lot (a line of text, a rides card, a deck), so guesses are poor.
+          initialNumToRender={30}
+          maxToRenderPerBatch={20}
+          windowSize={41}
           style={{ flex: 1 }}
           contentContainerStyle={{
             width: "100%",
