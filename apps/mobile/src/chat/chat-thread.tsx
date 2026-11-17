@@ -996,6 +996,12 @@ function MessagesLoading() {
 
 /** How far from the newest message (in points) before the scroll-to-bottom button shows. */
 const AWAY_FROM_BOTTOM = 280;
+/**
+ * Space between messages, as padding inside each row rather than `gap` on the list: FlatList
+ * estimates the rows it hasn't drawn from the rows it has measured, and a `gap` isn't part of any
+ * row, so long chats came out thousands of pixels short and scrolling jumped as rows were drawn.
+ */
+const MESSAGE_GAP = 18;
 
 /**
  * `topInset` and `bottomInset`: the floating header's and composer's heights, kept clear at the
@@ -1046,14 +1052,18 @@ function ChatBody({
             alignSelf: "center",
             paddingHorizontal: 12,
             paddingTop: topInset + 12,
-            paddingBottom: bottomInset + 16,
-            gap: 18,
+            // The last row brings its own gap.
+            paddingBottom: bottomInset + 16 - MESSAGE_GAP,
           }}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          {() => <ChatMessage />}
+          {() => (
+            <View style={{ paddingBottom: MESSAGE_GAP }}>
+              <ChatMessage />
+            </View>
+          )}
         </ThreadPrimitive.MessagesFlatList>
       )}
     </View>
