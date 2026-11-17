@@ -1,14 +1,67 @@
 import type { CodeCheck, CodeNote } from "./db/schema.js";
 
-/** `mates/add-dark-mode-3f9a1c`: readable in GitHub's branch list, unique per run. */
-export function branchName(task: string, runId: string) {
-  const slug = task
+/** The kinds of change a branch can be, as most teams name them (`fix/…`, `docs/…`). */
+export const BRANCH_TYPES = ["feat", "fix", "docs", "refactor", "test", "chore", "perf"] as const;
+export type BranchType = (typeof BRANCH_TYPES)[number];
+
+const SLUG_WORDS = 5;
+const SLUG_CHARS = 28;
+/** Words that make a sentence read well and a branch name long. */
+const FILLER = new Set(
+  "a an the to of for in on at by from with into and or but so as is are be been it its this that these those there here i we you me my our your us please can could would should will just also some any all make sure need want lets let".split(" "),
+);
+
+/** The task's likely kind of change, when the mate didn't say. Checked in order: a README fix is docs. */
+export function branchType(task: string): BranchType {
+  const text = task.toLowerCase();
+  if (/\b(readme|docs?|documentation|changelog|jsdoc|docstrings?)\b/.test(text)) return "docs";
+  if (/\b(fix(es|ed|ing)?|bugs?|broken|crash(es|ing)?|errors?|regression|typos?)\b/.test(text)) return "fix";
+  if (/\b(tests?|specs?|coverage)\b/.test(text)) return "test";
+  if (/\b(refactor\w*|clean ?up|rename|restructure|simplify)\b/.test(text)) return "refactor";
+  if (/\b(perf|performance|faster|speed up|optimi[sz]e\w*)\b/.test(text)) return "perf";
+  if (/\b(bump|upgrade|dependenc(y|ies)|deps|lint(er|ing)?|ci|config)\b/.test(text)) return "chore";
+  return "feat";
+}
+
+/**
+ * At most five meaningful words, about 28 characters, cut only between words: ASCII letters,
+ * digits and dashes, so it's always a safe git ref and a safe shell argument.
+ */
+export function branchSlug(text: string, type?: BranchType) {
+  const words = text
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/, "");
-  return `mates/${slug || "change"}-${runId.replace(/-/g, "").slice(0, 6)}`;
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word && !FILLER.has(word));
+  // "fix/fix-login" says it twice.
+  if (type && words[0] === type) words.shift();
+  const kept: string[] = [];
+  for (const word of words) {
+    if (kept.length === SLUG_WORDS) break;
+    const next = [...kept, word].join("-");
+    if (next.length > SLUG_CHARS) {
+      if (!kept.length) kept.push(word.slice(0, SLUG_CHARS));
+      break;
+    }
+    kept.push(word);
+  }
+  return kept.join("-");
+}
+
+/**
+ * `mates/fix/login-redirect-3f9a`: the kind of change, a few words, and four characters of the run
+ * so names never collide. The mate can suggest the name ("fix/login redirect"); whatever it sends
+ * is cleaned the same way, and the task fills in anything missing.
+ */
+export function branchName(task: string, runId: string, suggested?: unknown) {
+  const hint = typeof suggested === "string" ? suggested.trim().toLowerCase() : "";
+  const [head, ...rest] = hint.split("/");
+  const hinted = BRANCH_TYPES.find((type) => type === head?.trim());
+  const type = hinted ?? branchType(task);
+  const firstSentence = task.split(/\n|(?<=[.!?])\s/)[0] ?? task;
+  const slug = branchSlug(hinted ? rest.join(" ") : hint, type) || branchSlug(firstSentence, type) || "change";
+  return `mates/${type}/${slug}-${runId.replace(/-/g, "").slice(0, 4)}`;
 }
 
 /** The bot only ever proposes changes: it never pushes to the branch a PR would merge into. */
