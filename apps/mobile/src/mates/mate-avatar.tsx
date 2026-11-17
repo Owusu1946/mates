@@ -1,3 +1,4 @@
+import { useIsFocused } from "expo-router";
 import { View } from "react-native";
 import { PolygonAvatar } from "../components/polygon-avatar/polygon-avatar";
 import { shapeOf, type PolygonState } from "../components/polygon-avatar/polygon-avatar-core";
@@ -5,9 +6,12 @@ import { DEFAULT_GRADIENT, type Gradient } from "./data";
 
 /** A mate's face in its silhouette. Lists pass `still` so dozens of rows cost one frame each. */
 export function MateAvatar({ gradient, shape, size, still = false, state = "idle" }: { gradient?: Gradient; shape?: string; size: number; still?: boolean; state?: PolygonState }) {
+  // The face draws itself every frame outside React, so freezing its screen alone wouldn't stop it:
+  // it rests while its screen is behind another one, and picks up again when you come back.
+  const focused = useIsFocused();
   return (
     <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
-      <PolygonAvatar state={state} size={size} gradient={gradient ?? DEFAULT_GRADIENT} shape={shapeOf(shape)} paused={still} frameRate={size >= 120 ? 60 : 30} title={null} />
+      <PolygonAvatar state={state} size={size} gradient={gradient ?? DEFAULT_GRADIENT} shape={shapeOf(shape)} paused={still || !focused} frameRate={size >= 120 ? 60 : 30} title={null} />
     </View>
   );
 }
