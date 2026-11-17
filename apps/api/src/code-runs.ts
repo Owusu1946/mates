@@ -57,6 +57,7 @@ export const shipCodeTool = {
         task: { type: "string", description: "The full change to make, with every detail the user gave. Written for an engineer who can't ask questions." },
         base_branch: { type: "string", description: "Branch to start from and open the PR against. Omit for the repo's default branch." },
         same_pr: { type: "boolean", description: "True to push to the latest pull request from this chat for this repo instead of opening a new one." },
+        branch: { type: "string", description: "A short branch name: the kind of change, a slash, then 2-5 key words, e.g. \"fix/login redirect\" or \"docs/readme install steps\". Kinds: feat, fix, docs, refactor, test, chore, perf." },
       },
       required: ["repo", "task"],
     },
@@ -87,7 +88,7 @@ export function codeCard(run: CodeRun): WorkflowCard {
 }
 
 /** Starts a run from the chat tool. Returns at once with a card; the work happens in the worker. */
-export async function startCodeRun(userId: string, chatId: string | null, raw: { repo?: unknown; task?: unknown; base_branch?: unknown; same_pr?: unknown }) {
+export async function startCodeRun(userId: string, chatId: string | null, raw: { repo?: unknown; task?: unknown; base_branch?: unknown; same_pr?: unknown; branch?: unknown }) {
   // The mates' computer is a Pro and Max feature; others are told how to get it, and nothing starts.
   if (!canCode(await userPlan(userId)))
     return { error: "Coding runs come with the Pro and Max plans.", upgrade: true, next: "Say briefly that the mates' computer (writing code and opening pull requests) comes with Pro and Max, and that they can upgrade in Settings > Plan & usage. Don't do the coding another way." };
@@ -124,7 +125,7 @@ export async function startCodeRun(userId: string, chatId: string | null, raw: {
     installationId: repo.installationId,
     repo: repo.fullName,
     baseBranch: previous?.baseBranch ?? (base || repo.defaultBranch),
-    branch: previous ? previous.branch : branchName(task, id),
+    branch: previous ? previous.branch : branchName(task, id, raw.branch),
     task,
   };
   const [run] = await getDb().insert(codeRuns).values(values).onConflictDoNothing().returning();
