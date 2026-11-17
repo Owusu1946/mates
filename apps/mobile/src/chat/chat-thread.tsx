@@ -1037,6 +1037,15 @@ function ChatBody({
   useEffect(() => {
     if (isEmpty) onAway(false);
   }, [isEmpty, onAway]);
+  // One row renderer for the life of the list: a new one each render redraws every message.
+  const renderMessage = useCallback(
+    () => (
+      <View style={{ paddingBottom: MESSAGE_GAP }}>
+        <ChatMessage />
+      </View>
+    ),
+    [],
+  );
   return (
     <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0, paddingBottom: isEmpty ? bottomInset : 0 }}>
       {isEmpty && (loading || isLoading) ? (
@@ -1070,11 +1079,7 @@ function ChatBody({
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}
         >
-          {() => (
-            <View style={{ paddingBottom: MESSAGE_GAP }}>
-              <ChatMessage />
-            </View>
-          )}
+          {renderMessage}
         </ThreadPrimitive.MessagesFlatList>
       )}
     </View>
