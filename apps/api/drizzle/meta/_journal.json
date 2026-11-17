@@ -239,6 +239,20 @@
       "when": 1794773542704,
       "tag": "0033_daily_sir_ram",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794843710240,
+      "tag": "0034_quiet_logan",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794847258922,
+      "tag": "0035_collaborator_removed_at",
+      "breakpoints": true
     }
   ]
 }

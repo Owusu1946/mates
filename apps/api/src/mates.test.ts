@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handoffCard, normalisePlan, parseMentions } from "./groups.js";
+import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions, queuedSpeaker, visibleMentionText, withQueuedSpeakers } from "./groups.js";
 import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
@@ -42,6 +42,54 @@ describe("group routing", () => {
     expect(parseMentions("hey @Ama.", [scout, ama, amaLee]).map((m) => m.name)).toEqual(["Ama"]);
     expect(parseMentions("email me at scout@example.com", [scout])).toEqual([]);
     expect(parseMentions("@Scouts unite", [scout])).toEqual([]);
+  });
+
+  it("keeps a direct chat with its primary mate unless someone else or Chief of Staff is tagged", () => {
+    expect(directCollaborationPlan("check the fare", scout.id, [scout, ama])).toBeNull();
+    expect(directCollaborationPlan("@Scout, you take this", scout.id, [scout, ama])).toBeNull();
+    expect(directCollaborationPlan("@Ama, what does this cost?", scout.id, [scout, ama])?.mentioned.map((m) => m.id)).toEqual(["m2"]);
+    expect(directCollaborationPlan("ask @Chief of Staff", scout.id, [scout, ama])).toMatchObject({ chief: true, mentioned: [] });
+    expect(collaborationAssignments([ama], scout.id).assignments.map((a) => a.mateId)).toEqual(["m2", "m1"]);
+  });
+
+  it("mentions up to three other mates, and leaves app names and unknown mates alone", () => {
+    const nova = mate("m4", "Nova");
+    const io = mate("m5", "Io");
+    const owned = [scout, ama, amaLee, nova, io];
+    expect(directCollaborationPlan("@Ama @Ama Lee @Nova @Io please", scout.id, owned)?.mentioned.map((m) => m.id)).toEqual(["m2", "m3", "m4"]);
+    expect(directCollaborationPlan("@Chief of Staff, ask @Ama", scout.id, owned)).toMatchObject({ chief: true, mentioned: [expect.objectContaining({ id: "m2" })] });
+    expect(directCollaborationPlan("@Ama check @Slack and @Web", scout.id, owned)?.mentioned.map((m) => m.id)).toEqual(["m2"]);
+    expect(directCollaborationPlan("ask @Slack to book it", scout.id, owned)).toBeNull();
+    expect(directCollaborationPlan("@Ghost, are you there?", scout.id, owned)).toBeNull();
+  });
+
+  it("keeps an ordinary direct chat and an ordinary resume on the primary mate", () => {
+    const attached = [scout, ama];
+    expect(directCollaborationRoster({ resume: false, hasGroupQueue: false, leader: scout, attached, plan: null })).toBeNull();
+    expect(directCollaborationRoster({ resume: true, hasGroupQueue: false, leader: scout, attached, plan: null })).toBeNull();
+    expect(directCollaborationRoster({ resume: true, hasGroupQueue: true, leader: scout, attached, plan: null })).toEqual(attached);
+    expect(directCollaborationRoster({
+      resume: false,
+      hasGroupQueue: false,
+      leader: scout,
+      attached,
+      plan: { mentioned: [amaLee] },
+    })?.map((m) => m.id)).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("routes a picked mention by id when two mates share a name", () => {
+    const first = mate("8f4e4120-2958-49ae-aa6f-e4242713dc60", "Ama");
+    const second = mate("1c0b9a2e-6d4f-4a1b-9c33-0e5d7a8b6c21", "Ama");
+    expect(directCollaborationPlan(`@Ama{${second.id}} what does this cost?`, scout.id, [scout, first, second])?.mentioned.map((m) => m.id)).toEqual([second.id]);
+    expect(visibleMentionText(`Ask @Ama{${second.id}} today`)).toBe("Ask @Ama today");
+  });
+
+  it("finishes a waiting turn as the removed mate and never substitutes the primary mate", () => {
+    const removed = mate("8f4e4120-2958-49ae-aa6f-e4242713dc60", "Ama");
+    const room = withQueuedSpeakers([scout], [removed.id, "missing"], [scout, removed]);
+    expect(room.map((m) => m.id)).toEqual(["m1", removed.id]);
+    expect(queuedSpeaker(room, removed.id)?.id).toBe(removed.id);
+    expect(queuedSpeaker([scout], removed.id)).toBeNull();
   });
 
   it("keeps only real members, and the leader alone when nothing valid remains", () => {

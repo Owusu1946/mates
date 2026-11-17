@@ -20,6 +20,7 @@ import {
 } from "./integrations.js";
 import {
   chatIdSchema,
+  chatCollaboratorsSchema,
   chatMetadataSchema,
   createChatStore,
   deletedMessagesSchema,
@@ -837,6 +838,17 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
           404,
         );
       return c.json({ chat });
+    })
+    .put("/v1/chats/:id/collaborators", auth, validator("json", (value, c) => {
+      const parsed = chatCollaboratorsSchema.safeParse(value);
+      if (!parsed.success)
+        return c.json(failure("INVALID_COLLABORATORS", "Choose valid collaborators.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const result = await dependencies.chats.setCollaborators(c.get("userId"), c.req.param("id"), c.req.valid("json").mateIds);
+      if (!result.ok)
+        return c.json(failure(result.reason === "NOT_FOUND" ? "NOT_FOUND" : "INVALID_COLLABORATORS", result.reason === "NOT_FOUND" ? "Mate chat not found." : "One or more mates are unavailable.", c.get("requestId")), result.reason === "NOT_FOUND" ? 404 : 400);
+      return c.json({ mateIds: result.mateIds });
     })
     .patch("/v1/chats/:id", auth, async (c) => {
       const parsed = chatMetadataSchema.safeParse(

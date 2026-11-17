@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
-import { chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
+import { chatCollaborators, chatMessages, chats, groupMembers, mates, memories } from "./db/schema.js";
 import { briefMate, hasBriefing, mateGreeting, mateMessage } from "./about.js";
 
 /** Avatar gradients, light → dark. "amber" is the lead mate's original look. */
@@ -270,7 +270,14 @@ export async function resolvePersona(userId: string, chatId: string | null | und
   if (!chat) return fallback;
   if (chat.kind === "mate" && chat.mateId) {
     const [mate] = await getDb().select(personaColumns).from(mates).where(eq(mates.id, chat.mateId));
-    return mate ? { kind: "mate", chatId, mates: [mate], leaderId: mate.id } : fallback;
+    if (!mate) return fallback;
+    const extras = await getDb()
+      .select(personaColumns)
+      .from(chatCollaborators)
+      .innerJoin(mates, eq(mates.id, chatCollaborators.mateId))
+      .where(and(eq(chatCollaborators.chatId, chatId), isNull(chatCollaborators.removedAt)))
+      .orderBy(asc(chatCollaborators.position));
+    return { kind: "mate", chatId, mates: [mate, ...extras.filter((extra) => extra.id !== mate.id)], leaderId: mate.id };
   }
   if (chat.kind === "group") {
     const members = await getDb()
@@ -289,6 +296,11 @@ export async function resolvePersona(userId: string, chatId: string | null | und
     if (mate) return { kind: "mate", chatId, mates: [mate], leaderId: mate.id };
   }
   return fallback;
+}
+
+/** Every mate this person owns, for mention routing in a direct chat. */
+export async function ownedPersonas(userId: string): Promise<PersonaMate[]> {
+  return getDb().select(personaColumns).from(mates).where(eq(mates.clerkUserId, userId));
 }
 
 /** Opens every system prompt: who this mate is. The rest of Cooper's rules follow unchanged. */
@@ -314,7 +326,7 @@ type StoredMessage = { role?: string; content?: { type?: string; text?: unknown;
 /** One-line sidebar preview of a chat's newest message. */
 export function previewOf(message: StoredMessage, persona?: { name: string }) {
   const parts = message.content ?? [];
-  const text = parts.filter((p) => p.type === "text" && typeof p.text === "string").map((p) => String(p.text)).join(" ").replace(/\s+/g, " ").trim();
+  const text = parts.filter((p) => p.type === "text" && typeof p.text === "string").map((p) => String(p.text)).join(" ").replace(/@([^\n{}]{1,80}?)\{[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}/gi, "@$1").replace(/\s+/g, " ").trim();
   const speaker = [...parts].reverse().find((p) => p.result?.kind === "speaker")?.result?.mate?.name;
   const from = message.role === "user" ? "you" : speaker ?? persona?.name ?? "Mate";
   if (text) return { from, text: text.slice(0, 120) };
@@ -331,7 +343,7 @@ const publicMate = (m: PersonaMate) => ({ id: m.id, name: m.name, role: m.role, 
 export async function enrichChats(userId: string, rows: ChatRow[]) {
   if (!rows.length) return [];
   const ids = rows.map((row) => row.id);
-  const [mateRows, memberRows, latest] = await Promise.all([
+  const [mateRows, memberRows, collaboratorRows, latest] = await Promise.all([
     getDb().select(personaColumns).from(mates).where(eq(mates.clerkUserId, userId)),
     getDb()
       .select({ chatId: groupMembers.chatId, mateId: groupMembers.mateId })
@@ -339,6 +351,12 @@ export async function enrichChats(userId: string, rows: ChatRow[]) {
       .innerJoin(chats, eq(chats.id, groupMembers.chatId))
       .where(eq(chats.clerkUserId, userId))
       .orderBy(asc(groupMembers.position)),
+    getDb()
+      .select({ chatId: chatCollaborators.chatId, mateId: chatCollaborators.mateId })
+      .from(chatCollaborators)
+      .innerJoin(chats, eq(chats.id, chatCollaborators.chatId))
+      .where(and(eq(chats.clerkUserId, userId), isNull(chatCollaborators.removedAt)))
+      .orderBy(asc(chatCollaborators.position)),
     getDb().execute(
       sql`SELECT DISTINCT ON (chat_id) chat_id, message, created_at FROM chat_messages WHERE chat_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) ORDER BY chat_id, created_at DESC`,
     ),
@@ -348,11 +366,13 @@ export async function enrichChats(userId: string, rows: ChatRow[]) {
   return rows.map((row) => {
     const mate = row.mateId ? mateById.get(row.mateId) : undefined;
     const members = row.kind === "group" ? memberRows.filter((m) => m.chatId === row.id).flatMap((m) => mateById.get(m.mateId) ?? []) : [];
+    const collaborators = row.kind === "mate" ? collaboratorRows.filter((m) => m.chatId === row.id).flatMap((m) => mateById.get(m.mateId) ?? []) : [];
     const message = newest.get(row.id);
     return {
       ...row,
       mate: mate ? publicMate(mate) : null,
       members: members.map(publicMate),
+      collaborators: collaborators.map(publicMate),
       preview: message ? { ...previewOf(message.message, mate ?? members.find((m) => m.id === row.leaderMateId)), at: new Date(message.created_at).toISOString() } : null,
     };
   });

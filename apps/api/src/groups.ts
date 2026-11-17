@@ -9,18 +9,94 @@ export type Assignment = { mateId: string; task: string };
 export type GroupTurnPlan = { handoff: string; assignments: Assignment[] };
 const MAX_ASSIGNED = 3;
 
-/** Members tagged as `@Name` (names may contain spaces), in the order they were tagged. */
+const CHIEF = /(?:^|\s)@chief of staff\b/i;
+
+/**
+ * A direct chat stays with its primary mate unless the user tags another mate or Chief of Staff.
+ * Mentioned mates are other owned mates, in tag order, at most three.
+ */
+export function directCollaborationPlan(text: string, primaryId: string, owned: PersonaMate[]) {
+  const chief = CHIEF.test(text);
+  const mentioned = parseMentions(text, owned).filter((mate) => mate.id !== primaryId).slice(0, MAX_ASSIGNED);
+  if (!chief && !mentioned.length) return null;
+  return { chief, mentioned };
+}
+
+/**
+ * Who is in the room for this direct-chat run.
+ * Null means the primary mate answers alone: an ordinary message, or a resume that was not a collaboration.
+ * A resume that was waiting continues with the mates already on the chat.
+ */
+export function directCollaborationRoster(input: {
+  resume: boolean;
+  hasGroupQueue: boolean;
+  leader: PersonaMate;
+  attached: PersonaMate[];
+  plan: { mentioned: PersonaMate[] } | null;
+}): PersonaMate[] | null {
+  if (input.resume) return input.hasGroupQueue ? input.attached : null;
+  if (!input.plan) return null;
+  const byId = new Map<string, PersonaMate>([[input.leader.id, input.leader]]);
+  for (const mate of [...input.attached, ...input.plan.mentioned]) byId.set(mate.id, mate);
+  return [...byId.values()];
+}
+
+/** Mentioned mates answer first; the primary mate then brings their answers together. */
+export function collaborationAssignments(mentioned: PersonaMate[], leaderId: string): GroupTurnPlan {
+  const assignments = mentioned.slice(0, MAX_ASSIGNED).map((mate) => ({ mateId: mate.id, task: "" }));
+  if (!assignments.some((assignment) => assignment.mateId === leaderId)) {
+    assignments.push({ mateId: leaderId, task: "Bring the other mates' answers together for the user." });
+  }
+  return { handoff: "", assignments };
+}
+
+const MENTION_ID = String.raw`@([^\n{}]{1,80}?)\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}`;
+
+/** The text a person reads. The `{id}` on a picked mention stays in storage and is not shown. */
+export function visibleMentionText(text: string) {
+  return text.replace(new RegExp(MENTION_ID, "gi"), "@$1");
+}
+
+/**
+ * Mates still owed a turn that already started.
+ * Removal drops someone from the next message. It does not hand their waiting turn to the primary mate.
+ * A mate who no longer exists is absent here; callers must skip that step.
+ */
+export function withQueuedSpeakers(roster: PersonaMate[], queuedIds: string[], owned: PersonaMate[]) {
+  const byId = new Map(roster.map((mate) => [mate.id, mate]));
+  for (const id of queuedIds) {
+    if (byId.has(id)) continue;
+    const mate = owned.find((item) => item.id === id);
+    if (mate) byId.set(id, mate);
+  }
+  return [...byId.values()];
+}
+
+/** The mate a queued step named, or null. Never a stand-in. */
+export function queuedSpeaker(roster: readonly PersonaMate[], mateId: string) {
+  return roster.find((mate) => mate.id === mateId) ?? null;
+}
+
+/** Members tagged as `@Name` or `@Name{id}` (names may contain spaces), in the order they were tagged. */
 export function parseMentions(text: string, members: PersonaMate[]) {
-  const lower = text.toLowerCase();
   const found: { mate: PersonaMate; at: number }[] = [];
-  // Longest names first, so "@Ama Lee" wins over "@Ama".
+  const occupied: { start: number; end: number }[] = [];
+  for (const match of text.matchAll(new RegExp(MENTION_ID, "gi"))) {
+    const start = match.index ?? 0;
+    occupied.push({ start, end: start + match[0].length });
+    const mate = members.find((item) => item.id.toLowerCase() === match[2]!.toLowerCase());
+    if (mate && !found.some((item) => item.mate.id === mate.id)) found.push({ mate, at: start });
+  }
+  const lower = text.toLowerCase();
+  // Longest names first, so "@Ama Lee" wins over "@Ama". An id token is not also matched by name.
   for (const mate of [...members].sort((a, b) => b.name.length - a.name.length)) {
-    const tag = `@${mate.name.toLowerCase()}`;
-    let at = lower.indexOf(tag);
-    while (at >= 0) {
-      const next = lower[at + tag.length];
-      const taken = found.some((f) => at >= f.at && at < f.at + f.mate.name.length + 1);
-      if (!taken && (next === undefined || !/[\p{L}\p{N}]/u.test(next))) {
+      const tag = `@${mate.name.toLowerCase()}`;
+      let at = lower.indexOf(tag);
+      while (at >= 0) {
+        const next = lower[at + tag.length];
+        const insideId = occupied.some((span) => at >= span.start && at < span.end);
+        const taken = found.some((f) => at >= f.at && at < f.at + f.mate.name.length + 1);
+        if (!insideId && !taken && (next === undefined || !/[\p{L}\p{N}]/u.test(next))) {
         if (!found.some((f) => f.mate.id === mate.id)) found.push({ mate, at });
         break;
       }

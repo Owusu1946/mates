@@ -1,0 +1,1 @@
+ALTER TABLE "chat_collaborators" ADD COLUMN "removed_at" timestamp with time zone;

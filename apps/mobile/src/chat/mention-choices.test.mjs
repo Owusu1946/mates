@@ -1,0 +1,48 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { mentionMatesForChat, showChiefOfStaff, mentionDraft, webSearchDraft, collaboratorRefreshDue, visibleMentionText, preserveMentionIds } from "./mention-choices.ts";
+
+const ama = { id: "ama", name: "Ama" };
+const scout = { id: "scout", name: "Scout" };
+
+test("a direct chat offers the user's other mates, not itself", () => {
+  const offered = mentionMatesForChat({ kind: "mate", primaryMateId: "scout", groupMembers: [], ownedMates: [scout, ama], query: "" });
+  assert.deepEqual(offered.map((mate) => mate.id), ["ama"]);
+  assert.equal(showChiefOfStaff("mate", ""), true);
+  assert.equal(showChiefOfStaff("mate", "chi"), true);
+  assert.equal(showChiefOfStaff("mate", "ama"), false);
+});
+
+test("a group offers its members and not Chief of Staff", () => {
+  const offered = mentionMatesForChat({ kind: "group", primaryMateId: null, groupMembers: [scout, ama], ownedMates: [scout, ama], query: "sc" });
+  assert.deepEqual(offered.map((mate) => mate.name), ["Scout"]);
+  assert.equal(showChiefOfStaff("group", ""), false);
+});
+
+test("legacy chats do not offer mates", () => {
+  assert.deepEqual(mentionMatesForChat({ kind: "legacy", primaryMateId: null, groupMembers: [], ownedMates: [ama], query: "" }), []);
+});
+
+test("choosing a mention only rewrites the draft", () => {
+  assert.equal(mentionDraft("hey @sc", "Scout"), "hey @Scout ");
+  assert.equal(mentionDraft("@sc", "Scout", "8f4e4120-2958-49ae-aa6f-e4242713dc60"), "@Scout{8f4e4120-2958-49ae-aa6f-e4242713dc60} ");
+  assert.equal(visibleMentionText("@Scout{8f4e4120-2958-49ae-aa6f-e4242713dc60} please"), "@Scout please");
+  assert.equal(mentionDraft("@chi", "Chief of Staff"), "@Chief of Staff ");
+  assert.equal(webSearchDraft("hey @web"), "hey ");
+  assert.equal(webSearchDraft("@search"), "");
+  assert.equal(collaboratorRefreshDue(false, false, true), false);
+  assert.equal(collaboratorRefreshDue(true, true, true), false);
+  assert.equal(collaboratorRefreshDue(true, false, true), true);
+  assert.equal(collaboratorRefreshDue(true, false, false), false);
+});
+
+test("editing around a picked mention keeps its id; editing its name removes the binding", () => {
+  const id = "8f4e4120-2958-49ae-aa6f-e4242713dc60";
+  const raw = `Ask @Ama{${id}} please`;
+  assert.equal(visibleMentionText(raw), "Ask @Ama please");
+  assert.equal(preserveMentionIds(raw, "Ask @Ama please now"), `${raw} now`);
+  assert.equal(preserveMentionIds(raw, "Hey, ask @Ama please"), `Hey, ask @Ama{${id}} please`);
+  assert.equal(preserveMentionIds(raw, "Ask @Amy please"), "Ask @Amy please");
+  const two = `${raw} and @Ben{11111111-2222-3333-4444-555555555555}`;
+  assert.equal(preserveMentionIds(two, "Ask @Ama please and @Bea"), `${raw} and @Bea`);
+});

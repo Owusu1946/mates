@@ -19,6 +19,8 @@ export type ChatSummary = {
   updatedAt: string;
   mate: MateSummary | null;
   members: MateSummary[];
+  /** Added with direct-chat collaboration; optional for cached payloads from older app sessions. */
+  collaborators?: MateSummary[];
   leaderMateId: string | null;
   preview: { from: string; text: string; at: string } | null;
 };
@@ -154,6 +156,10 @@ export function useMateActions() {
     }),
     deleteGroup: useMutation({
       mutationFn: (chatId: string) => after(async () => read(await api.v1.groups[":chatId"].$delete({ param: { chatId } }), "Couldn’t delete the group."))(),
+    }),
+    setCollaborators: useMutation({
+      mutationFn: ({ chatId, mateIds }: { chatId: string; mateIds: string[] }) =>
+        after(async () => read<{ mateIds: string[] }>(await api.v1.chats[":id"].collaborators.$put({ param: { id: chatId }, json: { mateIds } }), "Couldn’t update this chat."))(),
     }),
     refresh,
   };
