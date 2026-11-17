@@ -1015,6 +1015,8 @@ function ChatBody({
   bottomInset,
   listRef,
   onAway,
+  onContentSizeChange,
+  onScrollBeginDrag,
 }: {
   keyboardVisible: boolean;
   loading: boolean;
@@ -1022,6 +1024,8 @@ function ChatBody({
   bottomInset: number;
   listRef: React.RefObject<FlatList<any> | null>;
   onAway: (away: boolean) => void;
+  onContentSizeChange: () => void;
+  onScrollBeginDrag: () => void;
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
@@ -1043,6 +1047,8 @@ function ChatBody({
         <ThreadPrimitive.MessagesFlatList
           ref={listRef}
           onScroll={onScroll}
+          onContentSizeChange={onContentSizeChange}
+          onScrollBeginDrag={onScrollBeginDrag}
           scrollEventThrottle={64}
           autoScroll
           // Draw far more of the chat than FlatList's defaults, so fewer rows are guessed at: message
@@ -2236,6 +2242,23 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
   const listRef = useRef<FlatList<any>>(null);
   const [away, setAway] = useState(false);
   const onAway = useCallback((value: boolean) => setAway((current) => (current === value ? current : value)), []);
+  // "Scroll to bottom" first lands where FlatList estimates the end is; the rows drawn there then
+  // change the real height. For a moment after the tap, follow the content to its true end, unless
+  // the user starts scrolling themselves.
+  const settleUntil = useRef(0);
+  const scrollToBottom = useCallback(() => {
+    settleUntil.current = Date.now() + 1500;
+    listRef.current?.scrollToEnd({ animated: true });
+    setTimeout(() => {
+      if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false });
+    }, 450);
+  }, []);
+  const followToEnd = useCallback(() => {
+    if (Date.now() < settleUntil.current) listRef.current?.scrollToEnd({ animated: false });
+  }, []);
+  const stopFollowing = useCallback(() => {
+    settleUntil.current = 0;
+  }, []);
 
   useEffect(() => {
     const show = Keyboard.addListener(
@@ -2261,7 +2284,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
       <ThreadPrimitive.Root style={{ flex: 1, minHeight: 0 }}>
         {/* Messages run up under the header; the list's top padding follows the header's height. */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} />
+          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} onContentSizeChange={followToEnd} onScrollBeginDrag={stopFollowing} />
           <View
             pointerEvents="box-none"
             onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
@@ -2279,7 +2302,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
             style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}
           >
             <BottomFade />
-            <ScrollToBottom visible={away} onPress={() => listRef.current?.scrollToEnd({ animated: true })} />
+            <ScrollToBottom visible={away} onPress={scrollToBottom} />
             <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
               <UsageLine colors={colors} />
               <ChatComposer />
