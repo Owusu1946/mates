@@ -261,6 +261,7 @@ What nobody else has: double down on it.
 | # | Feature | Status | Priority |
 |---|---|---|---|
 | F1 | Decks (PPTX), code and PRs (Pro and Max) | Shipped; short branch names in PR #99 | — |
+| F5 | **Deck styles, infographics and charts**: decks look the way the user wants, from a mood ("bold and warm"), their brand (colours, fonts, logo) or plain instructions. 8 tested style presets with contrast and font fit enforced in code; restyle by chat or a style sheet without rewriting text; a saved brand kit. New infographic layouts (timeline, comparison, funnel, cycle, 2x2 matrix, icon grid, KPI gauges, pyramid) and charts (donut, area, combo, waterfall, scatter), all editable in PowerPoint | Not started; builds on F1. One extra cheap model call per deck for the style | **L** |
 | F2 | Images: make and edit (roadmap 12); needs object storage first | Not started; about $0.04 per image | L+90 |
 | F3 | Pages: shareable docs a mate keeps updated (Grok Bot's Pages) | Not started | Later |
 | F4 | Persistent cloud computer (roadmap 13) | Not started; about $0.17 per running hour | Later |
@@ -311,6 +312,7 @@ In order, highest value per day first.
 12. Mates call businesses (C3): Ghana and US numbers, approval card, live transcript, outcome.
 13. Twi dictation through Khaya (C4), the local pack (C7) and rides end to end (C5).
 14. Android release with Play Billing (D1), and the web checkout with MoMo (P13).
+15. Deck styles, infographics and charts (F5): presets and restyle first, then the brand kit, then the new layouts and chart types.
 
 **Launch gate.** Don't launch until all of these hold:
 - **Crash-free sessions** of 99.5% or more, with no app closures on a 4 GB iPhone.
