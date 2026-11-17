@@ -1,6 +1,8 @@
 import { router, Stack } from "expo-router";
 import { useEffect, useState } from "react";
-import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Linking, Platform, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
+import { showManageSubscriptions } from "../../src/billing/purchases";
+import { formatTrialEnd, useStarterTrial } from "../../src/billing/use-starter-trial";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { haptic } from "../../src/haptics";
 import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
@@ -15,6 +17,8 @@ const HIGH_PCT = 90;
 export default function UsageScreen() {
   const { colors } = useTheme();
   const query = useUsage();
+  const trial = useStarterTrial();
+  const trialEnd = formatTrialEnd(trial.expirationDate);
   const pull = usePullToRefresh(() => query.refetch());
   const usage = query.data;
   // Keep the relative reset time current while the screen is open.
@@ -79,6 +83,7 @@ export default function UsageScreen() {
             <View style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 18, paddingVertical: 18, borderRadius: 22, borderCurve: "continuous", backgroundColor: colors.surface }}>
               <View style={{ flex: 1 }}>
                 <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 17 }}>{usage.plan.label}</Text>
+                {trialEnd ? <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, marginTop: 3 }}>Free trial · ends {trialEnd}</Text> : null}
                 {noPlan && <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, marginTop: 3 }}>Choose a plan to continue</Text>}
               </View>
               <Pressable
@@ -93,11 +98,24 @@ export default function UsageScreen() {
                 <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 15 }}>See plans</Text>
               </Pressable>
             </View>
+            {!noPlan ? <Pressable accessibilityRole="button" onPress={() => void manageSubscription()} hitSlop={8} style={{ alignSelf: "flex-start", paddingHorizontal: 4, paddingVertical: 6 }}>
+              <Text style={{ color: colors.primary, fontFamily: font.medium, fontSize: 14 }}>Manage subscription</Text>
+            </Pressable> : null}
           </>
         )}
       </ScrollView>
     </>
   );
+}
+
+async function manageSubscription() {
+  try {
+    if (Platform.OS === "ios") return await showManageSubscriptions();
+    await Linking.openURL("https://play.google.com/store/account/subscriptions");
+  } catch {
+    const url = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
+    await Linking.openURL(url).catch(() => undefined);
+  }
 }
 
 function SectionTitle({ children }: { children: string }) {

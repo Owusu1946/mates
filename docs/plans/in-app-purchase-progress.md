@@ -1,6 +1,6 @@
 # In-app purchase progress and handoff
 
-Last updated: 2026-11-14
+Last updated: 2026-11-16
 
 ## Status
 
@@ -13,37 +13,33 @@ Update this document after each reviewed batch with its status, changed files, c
 - Release iOS purchases first. Structure the integration so Android can be connected later; Google Play setup and Android sandbox testing are deferred.
 - Use RevenueCat's `react-native-purchases` SDK and a custom paywall. Offer the four documented plans, with monthly and yearly products. Starter has Apple's free trial (changed 2026-11-15; see [free-trial-handoff.md](free-trial-handoff.md)).
 - RevenueCat subscription state informs the API's existing plan and usage system. Store secrets only in the API environment; the app receives only the public platform SDK key.
-- (Superseded 2026-11-15: existing users get Apple's free trial on Starter instead; see [free-trial-handoff.md](free-trial-handoff.md).) Existing users receive Starter access for 30 days after paid enforcement begins. Capture the existing-user cohort before changing `DEFAULT_PLAN`, and explicitly transition that cohort at the cutoff: the current manual plan assignment has no automatic expiry. Confirm the actual cutoff and process with Ken before rollout.
+- Existing Mates users may redeem Apple's Starter introductory offer only when Apple reports their Apple ID eligible. Any separate grace period for existing users remains for Ken to decide; do not assume or grant 30 days unless that decision is confirmed. See [free-trial-handoff.md](free-trial-handoff.md).
 - The RevenueCat public keys in the mobile environment schema should be optional during development. A missing iOS key should produce a clear billing-unavailable state.
 - Configure purchase identity from Clerk's authenticated user. Run asynchronous login from an effect, handle errors and account changes, and wait for the correct identity before purchases or restores.
-- The usage screen's external “See plans” link must open the paywall. Usage notices already open `/usage`.
+- “See plans” from Plan & usage and a `402 plan_required` action open the in-app paywall. Usage-limit notices still open `/usage`.
 
 ## Review batches
 
 | Batch | Status | Handoff |
 | --- | --- | --- |
 | Backend subscription sync | Done (Ken) | Plan grants, ordered and sandbox-safe sync, a stored webhook with dispatcher retries. See usage.md, "Plans and where they come from" and "Payments". |
-| Revenue accounting and rollout | Done in code (Ken) | Purchases, renewals, plan changes and refunds go to `plan_periods`, keyed by transaction id. `scripts/grandfather.ts` gives the existing users their grace period. Still to do: check the figures against staging. |
-| Mobile purchase foundation | Ready for review | SDK, optional keys, Clerk identity, purchase and restore helpers added; real purchase testing awaits a development build and safe staging backend. |
-| Paywall and integration | In progress | Initial paywall and usage navigation added; product mapping and purchase flow require Test Store / iOS sandbox verification after Ken's backend fixes. |
+| Revenue accounting and rollout | Done in code (Ken) | Purchases, renewals, plan changes and refunds go to `plan_periods`, keyed by transaction id. Whether to run `scripts/grandfather.ts` for a new grace period remains a rollout decision; see [free-trial-handoff.md](free-trial-handoff.md). Still to do: check the figures against staging. |
+| Mobile purchase foundation | Implemented | SDK, optional keys, Clerk identity, purchase and restore helpers are in place. A failed post-purchase sync is retried on the next authenticated app open. |
+| Trial-aware paywall and access gate | Implemented; review next | Apple eligibility controls Starter trial copy; the no-plan gate, 402 navigation, trial status, and subscription management are wired. Requires iOS sandbox verification. |
 | iOS sandbox and release | Not started | New development build, sandbox purchase and lifecycle checks, then coordinated rollout. |
 
 ## Ken / backend owner
 
-### Backend handoff: required before deployment
+### Remaining backend and rollout decisions
 
-- **Manual and purchased access:** `profiles.plan` and `plan_source` currently hold only one grant. A RevenueCat sync can overwrite a manual or grandfathered grant, and a paid upgrade can erase the grant that should remain after cancellation. Design durable storage for both grants, their precedence, and the agreed 30-day expiry; migrate existing manual assignments and keep the usage API contract intact.
-- **Concurrent reconciliation:** overlapping webhook and client sync requests can write older RevenueCat state after newer state. Coordinate updates per user across API instances and cover delayed and out-of-order requests with tests.
-- **Sandbox isolation:** RevenueCat customers can have sandbox and production receipts. The current v1 subscriber lookup joins entitlement and subscription data by product identifier; this has not been validated for mixed environments. Ensure production sync cannot grant test access or revoke a valid production subscription. RevenueCat's v2 customer subscription listing supports an environment filter; evaluate its pagination, entitlement mapping and credentials before choosing an approach.
-- **Webhook handling:** retain authentication and idempotency, reconcile both sides of transfers (whose environment may be absent), and ensure timely responses with durable retryable processing. An unrecognized entitlement must not silently revoke access. Add route tests for successful sync, sandbox handling, failures, transfers and retries.
-- **Revenue accounting and rollout:** implement transaction and refund/reversal accounting, then capture the existing-user cohort before enforcement and define how its 30-day grant expires. Validate reporting against the existing finance views.
-- The current endpoints and tests are a starting point only. No backend deployment, RevenueCat configuration, or live purchase testing has been performed.
+- Confirm whether existing users receive a separate backend grace period before paid enforcement. Apple's introductory-offer eligibility does not grant every Mates account a trial. Do not assume the previous 30-day grant without Ken's decision.
+- Validate staging revenue figures and the production/staging environment configuration before launch.
 
-- Own backend environment configuration, deployment and worker changes. No production deployment, `DEFAULT_PLAN` change, RevenueCat dashboard change, or store submission has been performed.
+- Ken owns backend environment configuration, deployment and worker changes. Samuel has configured the App Store products and RevenueCat App Store app; production deployment and the `DEFAULT_PLAN` enforcement change are not confirmed here.
 - Configure the RevenueCat secret API key and webhook authorization in the appropriate API environment. Permit sandbox events only against a development or staging API. Never put secrets in mobile `EXPO_PUBLIC_*` variables or this document.
 - Confirm the RevenueCat account's webhook access and set up the RevenueCat project, products, entitlements, offering and webhook as described in the handover. Agree the offering layout and product mapping before end-to-end testing; the app should read offerings dynamically.
 - Coordinate App Store Connect products, keys and notification setup with Samuel. The iOS public SDK key is needed for the app; exchange Apple `.p8` keys and server secrets privately, never in this document or chat.
-- Before enabling enforcement, confirm staging results, the captured existing-user cohort, its 30-day cutoff, and matching `DEFAULT_PLAN` / `USAGE_ENFORCE` configuration for the API and worker.
+- Before enabling enforcement, confirm staging results and whether an existing-user grace period was approved. If so, capture and grant that cohort with the agreed expiry before changing `DEFAULT_PLAN`; otherwise do not run the grandfather script. Confirm matching `DEFAULT_PLAN` / `USAGE_ENFORCE` configuration for API and worker.
 
 ## Audit corrections to carry into implementation
 
@@ -54,7 +50,7 @@ Update this document after each reviewed batch with its status, changed files, c
 
 ## RevenueCat Test Store setup
 
-Ken manages the RevenueCat dashboard. Before any test purchase or restore, connect the app to a **staging API and staging database** with sandbox processing enabled; the current backend sync must first be fixed. The app calls the API after both operations, and must not use production data for Test Store tests.
+Ken manages the RevenueCat dashboard. Before any test purchase or restore, connect the app to a **staging API and staging database** with sandbox processing enabled. The backend sync implementation is complete, but Ken must confirm staging and worker configuration. Never use production data for Test Store tests.
 
 1. Create the Test Store in the Mates RevenueCat project and copy its public SDK key. Configure the key locally as `EXPO_PUBLIC_REVENUECAT_TEST_KEY`; do not commit `.env` values. The app selects this key in development when it is present.
 2. Create the entitlements `starter`, `plus`, `pro`, and `max`. Attach each plan's monthly and yearly Test Store products to the corresponding entitlement, then add the products to an offering.
@@ -90,26 +86,25 @@ The Test Store key is public by design. RevenueCat secret keys and webhook autho
 2. Add the production webhook: `https://mates-production.up.railway.app/webhooks/revenuecat`.
 3. Ship the app build.
 
-**Enforcement cutoff:** the 30-day grace period.
-1. Run `pnpm exec tsx scripts/grandfather.ts --until <start + 30 days> --dry-run` in `apps/api` to see the count, then run it again without `--dry-run`.
-2. Set `DEFAULT_PLAN=none` and `USAGE_ENFORCE=on` on **both** the API and the worker.
-3. The existing users keep Starter until the date, then fall back to the default. Anyone who subscribed keeps their plan.
+**Enforcement cutoff:** follow the decision in [free-trial-handoff.md](free-trial-handoff.md). If Ken confirms a grace period, capture and grant the cohort before changing `DEFAULT_PLAN`; otherwise, do not run the grandfather script. Set `DEFAULT_PLAN=none` and `USAGE_ENFORCE=on` on both API and worker only at the agreed launch cutoff.
 
 ## Work log
 
 - 2026-11-14: Ken finished the backend batch on `fix/billing-safe`: plan grants (manual, grandfather, revenuecat; the best active one wins, never "none"), sync from RevenueCat's subscriptions with sandbox kept separate, promotional grants and unknown products handled, ordering by RevenueCat's `request_date`, a stored webhook with dispatcher retries, revenue and refund accounting, and `scripts/grandfather.ts`. 26 new tests; `pnpm typecheck && pnpm test` pass.
+- 2026-11-16: Implemented the Starter trial and access-flow batch on `feat/starter-trial-paywall`. The paywall checks Apple eligibility per Starter product, derives trial duration and renewal price from RevenueCat product metadata, uses paid copy for unknown/ineligible results, and includes renewal terms, Restore, Terms, Privacy and Manage subscription. A no-plan account is routed to a blocking paywall after lead setup; `402 plan_required` opens it immediately; Restore and sign-out remain reachable. Purchase/restore refresh usage, mates and chats; failed store-to-server sync is retried on the next authenticated app open. Plan & usage and Settings show active trial expiry and subscription management. `pnpm typecheck` and `pnpm test` pass. App Store Connect offer setup, sandbox lifecycle checks and Ken's existing-user grace-period decision remain outstanding.
+- 2026-11-16: Applied review follow-ups: included the legacy Test Store yearly Starter SKU in the eligibility lookup, corrected Manage subscription VoiceOver semantics, made the gate deduplicate per signed-in user, and made `402 plan_required` dispatch an immediate paywall request. Updated `in-app-purchases.md` to remove stale `default` offering and navigation guidance.
 - 2026-11-13: Added Test Store setup details and optional public key placeholders to the mobile environment example. Dashboard setup and sandbox transactions remain outstanding.
-- 2026-11-13: Added an initial paywall, plan selection, store prices, restore and management links, and navigation from usage. The paywall expects the documented iOS product IDs; configure matching Test Store IDs for early testing. No end-to-end purchase or visual device verification has been performed.
+- 2026-11-13: Added the initial paywall, plan selection, store prices, restore and management links, and navigation from usage. Product IDs match the current Test Store and App Store products; sandbox lifecycle and visual device verification remain outstanding.
 - 2026-11-13: Added the mobile SDK, optional iOS, Android and Test Store public keys, Clerk identity handling, and purchase / restore helpers. The paywall and real purchase testing remain. Backend sync is unsafe until Ken resolves the issues below.
 - 2026-11-13: Samuel requested that Ken take over the unfinished backend and rollout work. The API implementation remains unsafe to deploy; the backend handoff above lists the unresolved issues.
 - 2026-11-13: Added initial RevenueCat webhook and authenticated sync routes, environment placeholders and unit tests. `pnpm typecheck && pnpm test` passed. Do not deploy: manual/grandfathered plan precedence, concurrent sync ordering, and mixed sandbox/production receipts require resolution; route-level tests are still needed. Revenue accounting is not implemented.
-- 2026-11-13: Audited the existing plans, usage implementation and Expo / RevenueCat guidance. Agreed on iOS first, Android later, four review batches, and a 30-day existing-user grace period. No IAP code, external configuration, deployment or store testing has been completed.
+- 2026-11-13 (superseded 2026-11-15): Audited the plans and agreed on iOS first, Android later, and staged review batches. Existing-user trial eligibility and any separate grace period are now governed by [free-trial-handoff.md](free-trial-handoff.md); no 30-day grant is assumed.
 
 ## Checks and open items
 
-- [ ] Implement and review each batch; record the actual checks and results here.
-- [ ] Run `pnpm typecheck` and `pnpm test` from the repository root after changes, as required by `AGENTS.md`.
+- [ ] Review the trial-aware paywall and access-flow batch; record the review outcome here.
+- [x] Run `pnpm typecheck` and `pnpm test` from the repository root after changes, as required by `AGENTS.md` (2026-11-16).
 - [ ] Confirm RevenueCat webhook access and product / offering setup with Ken.
 - [ ] Configure iOS sandbox products and a tester; build a fresh development client.
 - [ ] Verify purchase, plan change, restore, cancellation / expiry, refund handling and usage refresh against staging.
-- [ ] Agree and execute the grandfather cohort and cutoff procedure before production enforcement.
+- [ ] Confirm whether existing users receive a separate grace period; execute the agreed procedure before production enforcement.

@@ -45,7 +45,7 @@ Each person has a `plan` stored in the database (`profiles.plan`): `starter`, `p
 - **Never trust the phone about payments.** The server decides the plan, from RevenueCat's servers. The app only shows what the server says (`GET /v1/usage`).
 - **Run `pnpm typecheck && pnpm test` from the repo root before every commit** (from `AGENTS.md`).
 - **Small, signed commits.** No secrets in commits.
-- **Apple rule (App Store guideline 3.1.1):** on iOS, buttons that unlock paid features must use in-app purchase. Today "See plans" opens our website's pricing page (`upgradeUrl`). That will get the iOS app **rejected** once real plans exist. On the phone it must open **your paywall**. (Details in §6.4.)
+- **Apple rule (App Store guideline 3.1.1):** on iOS, buttons that unlock paid features must use in-app purchase. The mobile app's "See plans" actions open the in-app paywall; the API's `upgradeUrl` remains for the web app. (Details in §6.4.)
 - **This needs a new dev build.** `react-native-purchases` is a native module, so Expo Go and the current builds won't have it.
 
 ---
@@ -62,8 +62,8 @@ Each person has a `plan` stored in the database (`profiles.plan`): `starter`, `p
 | Constant-time key check | `apps/api/src/usage/billing.ts` → `adminAuthorized()` | Copy this pattern for the webhook's auth check |
 | Usage endpoint the app reads | `GET /v1/usage` in `apps/api/src/app.ts` | Returns `{ plan, windows, blocked, enforced, upgradeUrl, remainingMicros }` |
 | Usage hook in the app | `apps/mobile/src/usage/use-usage.ts` → `useUsage()` | React Query, key `["usage", userId]` |
-| Usage screen | `apps/mobile/app/(app)/usage.tsx` | Has the **"See plans" / "Compare plans" button** you'll repoint |
-| Limit notices | `apps/mobile/src/usage/usage-notice.tsx` | The line above the composer and the limit reply. They open `/usage`. |
+| Usage screen | `apps/mobile/app/(app)/usage.tsx` | The **"See plans"** button opens the in-app paywall |
+| Limit notices | `apps/mobile/src/usage/usage-notice.tsx` | No-plan and `402 plan_required` open the paywall; usage-limit notices open `/usage`. |
 | Settings row | `apps/mobile/app/(app)/settings.tsx` | The "Plan & usage" row |
 | DB tables | `apps/api/src/db/schema.ts` | `profiles` (`plan`, `planSource`), `planPeriods`, `usageEvents`, `usageWindows`, `usageDaily`, `fixedCosts` |
 | Finance views | migration `apps/api/drizzle/0027_*.sql` | `v_revenue_month`, `v_user_margin`, `v_plan_margin`, `v_profit_month`. They already read `plan_periods`. |
@@ -106,7 +106,7 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 - **Entitlement ids must equal our plan ids exactly** (`starter`, `plus`, `pro`, `max`). The server turns entitlements into a plan by name.
 - **One subscription group on iOS** ("Mates") with all eight products, ranked Max > Pro > Plus > Starter. Apple then handles upgrades and downgrades as plan changes, not as second subscriptions.
 - **On Google Play**, one subscription per plan with a monthly and a yearly base plan is fine. Product ids can use the `:base-plan` form RevenueCat shows; keep the table above as the naming.
-- **One RevenueCat Offering**, `default`, with packages `$rc_monthly` / `$rc_annual` for each plan. A simpler alternative is one offering per plan. Either works; the paywall reads offerings.
+- **RevenueCat offering:** use the project's current offering (`mates_tiers` as of 2026-11-16). The app reads the current offering dynamically and matches package products; do not hard-code an offering ID.
 - **Free trial on Starter only** (changed 2026-11-15): Starter monthly and yearly get Apple's free introductory offer; the other plans don't. See [free-trial-handoff.md](free-trial-handoff.md).
 
 **Your App Store Connect steps.** The bundle ID is `app.askorin.mates`.
@@ -119,7 +119,7 @@ Prices come from the landing page (`apps/web/src/components/Pricing.astro`). A y
 7. When the owner sends RevenueCat's **App Store Server Notifications URL**: go to *Apps → Mates → App Information → App Store Server Notifications* and paste it for **both Production and Sandbox**, choosing **Version 2**.
 8. *Users and Access → Sandbox*: add sandbox tester accounts for testing (§7).
 
-The owner then does everything in RevenueCat: imports these products, creates the `starter`/`plus`/`pro`/`max` entitlements and the `default` offering (packages `starter_monthly`, `starter_yearly`, … `max_yearly`), and sets up the webhook. **Your code should read offerings and packages by those names.**
+Ken manages RevenueCat: imports these products, maintains the `starter`/`plus`/`pro`/`max` entitlements and current offering, and sets up the webhook. The current project offering is `mates_tiers`. **Read the current offering dynamically and match its products; do not hard-code an offering identifier.**
 
 ---
 
@@ -275,13 +275,9 @@ Copy the mocking style of `apps/api/src/usage/usage.test.ts`: it mocks `../db/cl
 Do these in order, **only after purchases work end to end in sandbox:**
 1. Deploy the API. Then ask the owner to add the RevenueCat variables in Railway and turn on the RevenueCat webhook.
 2. Release the app build that contains the paywall.
-3. **Decide what happens to existing users.** Today everyone without a stored plan is treated as Starter (`DEFAULT_PLAN=starter`). Options:
-   - (a) Give existing users a grace period with `set-plan.ts` or the admin route (`PUT /internal/users/:id/plan` with `{ plan: "starter", recordPayment: false }`), then flip.
-   - (b) Flip straight away.
-
-   **Ask the owner** which one.
+3. Follow [free-trial-handoff.md](free-trial-handoff.md) for existing-user access. Apple's trial eligibility is based on the Apple ID's history in the subscription group, not the Mates account's age. Ken must confirm whether existing users receive a separate backend grace period before enforcement. Do not run the grandfather script or promise a grace period until that decision is recorded.
 4. **The owner** flips `DEFAULT_PLAN=none` on Railway, **and** in the local `.env` used for `worker:deploy`, then runs `pnpm --filter @expojet/api worker:deploy`. The worker reads it too (`trigger.config.ts` syncs it).
-5. From then on, people without a subscription get `402 plan_required`. The app already handles that: "Choose a plan to keep using mates." with a See plans button, which you're pointing at the paywall.
+5. From then on, people without an active plan get `402 plan_required`; the mobile app opens the paywall as described in [free-trial-handoff.md](free-trial-handoff.md).
 
 ---
 
@@ -345,8 +341,9 @@ EXPO_PUBLIC_REVENUECAT_ANDROID_KEY=goog_xxxxxxxx
 
 | File | Today | Change to |
 |---|---|---|
-| `apps/mobile/app/(app)/usage.tsx` | the `see-plans` button calls `Linking.openURL(usage.upgradeUrl)` | `router.push("/paywall")` |
-| `apps/mobile/src/usage/usage-notice.tsx` | `openUsage` → `/usage` | Keep it: the usage screen is the right first stop. Optionally go straight to `/paywall` when `kind === "no_plan"`. |
+| `apps/mobile/app/(app)/usage.tsx` | The `see-plans` button | Opens `/paywall` with `router.push` |
+| `apps/mobile/src/usage/usage-notice.tsx` | No-plan notice / `402 plan_required` | Opens `/paywall`; usage-limit notices still open `/usage` |
+| `apps/mobile/src/onboarding/leader-gate.tsx` | `plan.id === "none"` after setup or an API `402` | Opens a blocking paywall, once per signed-in user |
 
 Keep `upgradeUrl` in the API: the web landing page uses it. The phone just stops using it.
 

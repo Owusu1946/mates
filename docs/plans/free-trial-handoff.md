@@ -2,16 +2,16 @@
 
 **For:** Samuel. **From:** Ken. **Date:** 2026-11-15.
 
-This **replaces** the "No free trial" decision in [in-app-purchases.md](in-app-purchases.md). Everything else there still stands: the products, the entitlements, the `default` offering, identity, and the purchase and restore helpers.
+This **replaces** the "No free trial" decision in [in-app-purchases.md](in-app-purchases.md). The products, entitlements, identity, and purchase/restore helpers remain as documented. The app reads RevenueCat's current offering dynamically; in this project that is `mates_tiers`, not the old `default` offering.
 
 ## What we're doing
-Every user, both new sign-ups and people already on the app, gets **one free trial of Starter from Apple**. It converts to paid Starter ($8/month or $80/year) unless they cancel or switch plans. When there's no trial or subscription, the app shows the paywall and chat is locked.
+Users Apple marks eligible can redeem **one free trial of Starter**. New and existing Mates accounts may qualify; Mates account age does not determine eligibility. The offer converts to the selected paid Starter subscription unless the user cancels. When there is no active plan, the app shows the paywall and chat is locked once paid-plan enforcement is enabled.
 
 ## Decisions
 | Topic | Decision |
 |---|---|
 | Which plan has the trial | **Starter only** (`mates_starter_monthly` and `mates_starter_yearly`). Plus, Pro and Max have **no** introductory offer. |
-| Who gets it | Apple decides: **one introductory offer per Apple ID per subscription group**. Everyone is eligible until they've used it. |
+| Who gets it | Apple decides eligibility: **one introductory offer per Apple ID per subscription group**. Existing Mates users may qualify, but the app must not promise a trial unless Apple's eligibility check returns eligible. |
 | Trial length | **Ken to confirm: 1 week or 1 month.** Apple has no exact "30 days"; 1 month is closest. Use the same length on both Starter products. |
 | Existing users | **Ken to confirm:** straight to the paywall when they open the updated app, or a short grace period first. Build for "straight to the paywall"; a grace period is a backend grant on Ken's side and needs no app change. |
 | Paywall | **Blocking:** no plan means no chat until they start the trial or subscribe. |
@@ -32,10 +32,10 @@ Bundle ID `app.askorin.mates`, subscription group **Mates**.
 **RevenueCat** is run by Ken. Nothing new is needed there: products refresh from App Store Connect, and the trial comes through as an ordinary active `starter` entitlement with an expiry. Tell Ken once the offers are live, so he can check that the products show the intro price.
 
 ## 2. The paywall screen (`apps/mobile/app/(app)/paywall.tsx`)
-Build on what's there, and keep reading the `default` offering and its packages, as the handover says.
+Build on what's there, and keep reading RevenueCat's current offering and its packages. The current project offering is `mates_tiers`; use its products dynamically rather than hard-coding the offering identifier.
 
 **Layout:**
-- **Hero, for users eligible for the trial:** "Try Starter free for 7 days" (or "for 1 month"), then "Then $8/month. Cancel anytime in Settings."
+- **Hero, for users eligible for a free trial:** derive its duration from the selected product's free `introPrice` (for example, "Try Starter free for 1 week"), then show its localized renewal price. Never hard-code the price or promise a trial when eligibility is unknown or ineligible.
 - **Main button:**
   - **Start free trial** when eligible, which buys the Starter package;
   - **Subscribe** when they've already used it.
@@ -43,13 +43,13 @@ Build on what's there, and keep reading the `default` offering and its packages,
 - **Other plans:** Plus, Pro and Max as paid options below, with price, period and a one-line difference. Use the budgets and features shown on the landing page (`apps/web/src/components/Pricing.astro`).
 - **Required by Apple:** **Restore purchases**, plus links to **Terms of Use** and **Privacy Policy**, and the auto-renewal text near the button: "Payment is charged to your Apple ID at the end of the free trial unless cancelled at least 24 hours before. Subscriptions renew automatically."
 
-**Eligibility:** call `Purchases.checkTrialOrIntroductoryPriceEligibility(["mates_starter_monthly", "mates_starter_yearly"])`. `INTRO_ELIGIBILITY_STATUS_ELIGIBLE` shows the trial copy. Anything else (including unknown) shows the plain paid copy, so we never promise a trial Apple won't give. Prices and the trial length come from the package's product (`product.introPrice`), never hard-coded.
+**Eligibility:** call `Purchases.checkTrialOrIntroductoryPriceEligibility` for the Starter monthly and yearly product IDs on iOS. Show trial copy only when the selected product returns `INTRO_ELIGIBILITY_STATUS_ELIGIBLE` and its `introPrice` is free. Ineligible, unknown, unsupported-platform, missing-offer, or failed checks use ordinary paid copy. Read the localized renewal price and offer duration from the selected package's product; never hard-code them.
 
 **After buying:**
 - **Sync:** use the existing `purchasePackage`, which already syncs with the API (`POST /v1/billing/sync`).
 - **Refresh:** refresh the usage query (`["usage", userId]`) and the mates and chats lists.
 - **Leave:** close the paywall and land in the lead mate's chat.
-- **Confirm:** a success toast, e.g. "Your free week has started."
+- **Confirm:** a success toast using the selected product's trial duration when available (for example, "Your free trial has started."). Do not hard-code a week.
 
 **Errors:**
 - **Cancelling** the Apple sheet does nothing: no error is shown.
@@ -62,11 +62,11 @@ The rule is simple: **the plan from `GET /v1/usage` is `"none"`** (`usage.plan.i
 
 **Show it:**
 1. **New users,** right after onboarding: after the About step in `src/onboarding/leader-setup.tsx` / `about-step.tsx`, when `onDone` runs, check usage and open the paywall if the plan is `"none"`.
-2. **Existing users,** on app open: in `LeaderGate` (`src/onboarding/leader-gate.tsx`) or the app layout, if the plan is `"none"`, show the paywall over the app.
+2. **Existing users,** on app open: in `LeaderGate` (`src/onboarding/leader-gate.tsx`) or the app layout, after usage has loaded, if the plan is `"none"`, show the paywall over the app. Avoid duplicate presentation while it is already open.
 3. **Any refused request:** when an API call fails with `402 plan_required` (see `isOutOfUsage` in `src/chat/background-chat.ts` and `src/usage/usage-notice.tsx`), open the paywall rather than only showing the message.
 4. **Plan & usage** (`app/(app)/usage.tsx`): "See plans" already opens it. Keep that.
 
-The paywall is **blocking** when the plan is `"none"`: there's no close button, but **Restore purchases** and **Sign out** stay reachable. When opened from Plan & usage by someone who already has a plan, it closes normally.
+The paywall is **blocking** when the plan is `"none"`: disable dismissal and back navigation, but keep **Restore purchases** and **Sign out** reachable. When opened from Plan & usage by someone who already has a plan, it closes normally.
 
 ## 4. Showing the trial
 - **Where:** in Plan & usage and Settings, show "**Free trial** · ends Nov 27" while it's running.
@@ -93,7 +93,7 @@ To test eligibility again, use a new sandbox tester, or *Settings → App Store 
 
 ## 6. Ken's side (not yours)
 - **At launch:**
-  - **Don't run the grandfather script** (everyone uses Apple's trial), unless a grace period is chosen for existing users.
+  - Do not run the grandfather script unless Ken confirms a separate grace period for existing users. Apple's trial eligibility is based on Apple ID subscription-group history, not Mates account age.
   - Set `DEFAULT_PLAN=none` and `USAGE_ENFORCE=on` on **both** the API and the worker.
 - **Backend tidy-ups:**
   - skip $0 trial events in revenue accounting;

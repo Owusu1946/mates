@@ -19,10 +19,16 @@ export const isUsageLimit = (error: unknown): error is ApiError =>
   error instanceof ApiError && (error.code === "usage_limit" || error.code === "plan_required");
 
 const usageListeners = new Set<() => void>();
+const planRequiredListeners = new Set<() => void>();
 /** Told when usage may have changed: a run finished, or the API said someone's out of usage. */
 export function onUsageChange(listener: () => void) {
   usageListeners.add(listener);
   return () => void usageListeners.delete(listener);
+}
+/** Notifies the app shell immediately when a request is refused for having no plan. */
+export function onPlanRequired(listener: () => void) {
+  planRequiredListeners.add(listener);
+  return () => void planRequiredListeners.delete(listener);
 }
 export const usageChanged = () => usageListeners.forEach((listener) => listener());
 
@@ -41,6 +47,7 @@ export async function runRequest<T>(getToken: () => Promise<string | null>, path
       });
     }
     const error = new ApiError(value?.error?.message ?? "Couldn’t reach your mate. Please try again.", response.status, value?.error?.code ?? "unknown", value?.error ?? {});
+    if (error.code === "plan_required") planRequiredListeners.forEach((listener) => listener());
     if (isUsageLimit(error)) usageChanged();
     throw error;
   }

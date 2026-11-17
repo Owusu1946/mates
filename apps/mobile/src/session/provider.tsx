@@ -6,7 +6,7 @@ import { env } from "../env";
 import type { SessionState } from "./types";
 import { disableNotifications } from "../data/notifications";
 import { clearCache } from "../data/offline-cache";
-import { identifyPurchases } from "../billing/purchases";
+import { identifyPurchases, retryPendingPurchaseSync } from "../billing/purchases";
 
 const SessionContext = createContext<SessionState | null>(null);
 function ClerkSession({ children }: PropsWithChildren) {
@@ -14,8 +14,12 @@ function ClerkSession({ children }: PropsWithChildren) {
   const { user } = useUser();
   useEffect(() => {
     if (!auth.isLoaded) return;
-    void identifyPurchases(auth.isSignedIn ? auth.userId : null).catch((error) => console.warn("purchase_identity_failed", error));
-  }, [auth.isLoaded, auth.isSignedIn, auth.userId]);
+    const userId = auth.isSignedIn ? auth.userId : null;
+    void (async () => {
+      await identifyPurchases(userId);
+      if (userId) await retryPendingPurchaseSync(userId, auth.getToken);
+    })().catch((error) => console.warn("purchase_identity_failed", error));
+  }, [auth.isLoaded, auth.isSignedIn, auth.userId, auth.getToken]);
   const value = useMemo<SessionState>(() => ({
     status: !auth.isLoaded ? "loading" : auth.isSignedIn ? "authenticated" : "unauthenticated",
     user: auth.isSignedIn && user ? { id: user.id, displayName: user.fullName ?? user.primaryEmailAddress?.emailAddress ?? undefined } : null,

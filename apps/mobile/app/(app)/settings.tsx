@@ -6,6 +6,8 @@ import Constants from "expo-constants";
 import { router, Stack } from "expo-router";
 import { useState } from "react";
 import { Alert, Linking, Platform } from "react-native";
+import { showManageSubscriptions } from "../../src/billing/purchases";
+import { formatTrialEnd, useStarterTrial } from "../../src/billing/use-starter-trial";
 import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
 import { useSession } from "../../src/session/provider";
@@ -26,6 +28,8 @@ function useSettings() {
   const { user } = useUser();
   const theme = useTheme();
   const usage = useUsage().data;
+  const trial = useStarterTrial();
+  const trialEnd = formatTrialEnd(trial.expirationDate);
   const [deleting, setDeleting] = useState(false);
 
   const deleteAccount = async () => {
@@ -50,8 +54,18 @@ function useSettings() {
     name: user?.fullName || user?.firstName || "Your account",
     email: user?.primaryEmailAddress?.emailAddress ?? "",
     version: Constants.expoConfig?.version ?? "—",
-    usageSummary: usageSummary(usage),
+    usageSummary: usageSummary(usage, trialEnd),
+    hasPlan: usage?.plan.id !== undefined && usage.plan.id !== "none",
     openUsage: () => router.push("/usage"),
+    openManage: async () => {
+      try {
+        if (Platform.OS === "ios") return await showManageSubscriptions();
+        await Linking.openURL("https://play.google.com/store/account/subscriptions");
+      } catch {
+        const url = Platform.OS === "ios" ? "https://apps.apple.com/account/subscriptions" : "https://play.google.com/store/account/subscriptions";
+        await Linking.openURL(url).catch(() => Alert.alert("Couldn’t open subscriptions", "Try again from your store account."));
+      }
+    },
     setTheme: (value: ThemeMode) => {
       haptic.selection();
       theme.setMode(value);
@@ -84,9 +98,10 @@ type Settings = ReturnType<typeof useSettings>;
  * The row's short value, one line like Settings' own: the plan, with a percentage only once an
  * allowance is nearly used ("Starter · 85%"), or "Limit reached". The detail lives a tap away.
  */
-function usageSummary(usage: Usage | undefined) {
+function usageSummary(usage: Usage | undefined, trialEnd: string | null) {
   if (!usage) return "";
   if (usage.plan.id === "none") return "No plan";
+  if (trialEnd && usage.plan.id === "starter") return `Free trial · ends ${trialEnd}`;
   if (usage.enforced && usage.blocked) return "Limit reached";
   const fullest = Math.max(0, ...usage.windows.map((w) => w.usedPct));
   return fullest >= NEARLY_USED_PCT ? `${usage.plan.label} · ${fullest}%` : usage.plan.label;
@@ -127,6 +142,7 @@ function IosSettings({ s }: { s: Settings }) {
 
         <Section>
           <LinkRow title="Plan & usage" icon="gauge.with.dots.needle.50percent" color="#34C759" value={s.usageSummary} onPress={s.openUsage} />
+          {s.hasPlan ? <LinkRow title="Manage subscription" icon="creditcard" color="#007AFF" onPress={() => void s.openManage()} /> : null}
         </Section>
 
         <Section title="Mates">
@@ -179,6 +195,7 @@ function AndroidSettings({ s }: { s: Settings }) {
         </FieldGroup.Section>
         <FieldGroup.Section>
           {row("Plan & usage", s.openUsage, title, s.usageSummary)}
+          {s.hasPlan ? row("Manage subscription", () => void s.openManage()) : null}
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
           {row("Memory", s.openMemory)}
