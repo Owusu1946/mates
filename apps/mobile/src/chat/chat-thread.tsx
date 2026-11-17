@@ -1002,6 +1002,7 @@ const AWAY_FROM_BOTTOM = 280;
  * row, so long chats came out thousands of pixels short and scrolling jumped as rows were drawn.
  */
 const MESSAGE_GAP = 18;
+const KEEP_POSITION = { minIndexForVisible: 0 };
 
 /**
  * `topInset` and `bottomInset`: the floating header's and composer's heights, kept clear at the
@@ -1017,6 +1018,7 @@ function ChatBody({
   onAway,
   onContentSizeChange,
   onScrollBeginDrag,
+  away,
 }: {
   keyboardVisible: boolean;
   loading: boolean;
@@ -1026,6 +1028,7 @@ function ChatBody({
   onAway: (away: boolean) => void;
   onContentSizeChange: () => void;
   onScrollBeginDrag: () => void;
+  away: boolean;
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
@@ -1065,6 +1068,10 @@ function ChatBody({
           initialNumToRender={30}
           maxToRenderPerBatch={20}
           windowSize={41}
+          // Holding the top message still while rows above it are drawn is for reading back. At the
+          // bottom, auto-scroll keeps the latest message in view; with both on, they take turns
+          // moving the list and it swings up and down as rows are measured.
+          maintainVisibleContentPosition={away ? KEEP_POSITION : undefined}
           style={{ flex: 1 }}
           contentContainerStyle={{
             width: "100%",
@@ -2289,7 +2296,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
       <ThreadPrimitive.Root style={{ flex: 1, minHeight: 0 }}>
         {/* Messages run up under the header; the list's top padding follows the header's height. */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} onContentSizeChange={followToEnd} onScrollBeginDrag={stopFollowing} />
+          <ChatBody keyboardVisible={keyboardVisible} loading={starting} topInset={headerHeight} bottomInset={composerHeight} listRef={listRef} onAway={onAway} onContentSizeChange={followToEnd} onScrollBeginDrag={stopFollowing} away={away} />
           <View
             pointerEvents="box-none"
             onLayout={(event) => setHeaderHeight(Math.round(event.nativeEvent.layout.height))}
