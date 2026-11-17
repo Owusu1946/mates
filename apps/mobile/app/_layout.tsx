@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { AppState } from "react-native";
+import { enableFreeze } from "react-native-screens";
 import { notificationPresentation } from "../src/data/notification-presentation";
 import { useFonts } from "expo-font";
 import {
@@ -23,6 +24,10 @@ import { SessionProvider, useSession } from "../src/session/provider";
 import { AnimatedSplash } from "../src/splash/animated-splash";
 import { ThemeProvider } from "../src/theme/provider";
 import { ToastProvider } from "../src/components/toast";
+
+// Screens you can't see are frozen: a chat left underneath Routines or Settings stops rendering
+// and animating until you go back to it, and catches up then. Its state and scroll position stay.
+enableFreeze(true);
 
 // The native splash stays up until the animated one has drawn the same first frame over it.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
