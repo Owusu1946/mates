@@ -147,7 +147,9 @@ Usage is metered under the `habit` and `prep` sources, so it shows up in the mar
 ## Deploy
 1. Run `pnpm --filter @expojet/api db:migrate`.
 2. Deploy the API, the worker (`worker:deploy`) and the voice agent.
-3. On Railway, set `HABITS_ENABLED=true` on **both the API and the worker**. Leave it unset to ship dark: nothing is recorded or sent, and the page says it's being switched on.
+3. Set `HABITS_ENABLED=true` in two places, then redeploy both. Leave it unset to ship dark: nothing is recorded or sent, and the page says it's being switched on.
+   - **The API:** its environment variables on Railway.
+   - **The worker:** `apps/api/.env` on the machine you deploy from. `worker:deploy` copies the variables named in `trigger.config.ts` from there (`HABITS_ENABLED` is on that list), so setting it anywhere else does not reach the worker.
 4. "Learn from my apps" uses the same Composio webhook as app watches, so `COMPOSIO_WEBHOOK_SECRET` must already be set.
 5. **No new app build** is needed; the mobile changes are JavaScript only.
 
