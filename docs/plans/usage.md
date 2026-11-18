@@ -122,6 +122,7 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 | `GET /internal/finance/summary?from=YYYY-MM&to=YYYY-MM` | Monthly profit and per-plan margins |
 | `GET /internal/finance/costs?from=YYYY-MM-DD&to=YYYY-MM-DD&groupBy=source\|provider\|model\|plan\|user\|day` | Costs grouped by any dimension |
 | `GET /internal/finance/users/:id` | One person's months, recent costs and where they stand |
+| `GET /internal/finance/latency?from=YYYY-MM-DD&to=YYYY-MM-DD` | Chat p50/p95 for queue, setup, model first token, saved text, completion, and phone first-text layout; split into no-tool and tool turns |
 
 **Scripts** (`apps/api`):
 
@@ -131,6 +132,18 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 | `pnpm exec tsx scripts/usage-report.ts [days]` | Real usage against budgets |
 | `pnpm exec tsx scripts/reconcile-costs.ts [YYYY-MM]` | Metered costs against provider bills |
 | `pnpm exec tsx scripts/rebuild-usage-daily.ts <from> <to>` | Rebuilds the daily totals |
+
+The latency section in `usage-report.ts` requires the `run_timings` table from migration `0036_whole_starbolt`. Apply the migration before using the report; it has not yet been applied in an environment.
+
+## Live chat run updates
+
+`POST /v1/runs` accepts a durable run. Without an SSE `Accept` header, it returns `{ runId, status }` and publishes the run to the worker. One-to-one chats may request `Accept: text/event-stream`; with `LIVE_CHAT_ENABLED=true`, the API starts the shared durable executor and returns the stream on the same response with `X-Run-Id`. The flag defaults off, so a deploy can keep chats on the worker path until rollout checks pass. The API hands long tools to the worker before execution, and transfers at a saved history checkpoint after a disconnect or 60 seconds. A restarted API can requeue stale API-owned runs only when no tool action was in flight; ambiguous actions are marked failed for verification rather than replayed. Group chats stay on the worker-backed JSON path. Clients may also follow an accepted run with:
+
+- `GET /v1/runs/:id/events` — authenticated SSE, replayable with `Last-Event-ID` or `?after=<sequence>`.
+- `GET /v1/runs/:id?after=<sequence>` — authenticated JSON snapshot and event polling fallback.
+- `POST /v1/runs/:id/cancel` — explicit cancellation; closing the SSE connection does not cancel the durable worker run.
+
+SSE frames have numeric sequence IDs and JSON data shaped as `{ version: 1, sequence, type, timestamp, payload }`. Event payloads contain the latest saved content snapshot, not text deltas; clients replace the displayed content for each newer sequence. Supported event types are `progress`, `run.started`, `run.completed`, `run.waiting`, `run.failed`, `run.cancelled`, and `memory.updated`. The mobile client falls back to JSON polling when SSE is unavailable or drops. API and worker execution share the database's atomic queued-to-running claim. Same-process Stop uses an immediate abort; worker-owned cancellation is observed by a 2.5-second poll. Memory, recall, habit analysis, and finding/Slack delivery run in the separate `cooper-post-run` task after the saved reply releases the agent task's per-user slot; a dispatcher sweeps terminal runs whose follow-up task has not been enqueued. Apply migrations `0036_whole_starbolt`, `0037_mysterious_the_hand`, and `0038_special_bloodstrike` before deploying this path. Migration 0038 marks pre-existing terminal runs as already handled so the new task does not replay old follow-ups. See `docs/plans/faster-replies-progress.md` for outstanding validation.
 
 **Account deletion.** Personal rows are deleted. The money ledgers (`usage_events`, `usage_daily`, `plan_periods`) are kept so past months still add up, but their user id is replaced with a random one.
 

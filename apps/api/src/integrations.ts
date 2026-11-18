@@ -164,6 +164,11 @@ export type WorkflowCard = {
   followUps?: { label: string; prompt: string }[];
 };
 let composio: Composio<OpenAIProvider> | undefined;
+const INTEGRATION_CACHE_MS = 10 * 60_000;
+type IntegrationSession = Awaited<ReturnType<ReturnType<typeof getComposio>["use"]>>;
+const sessionCache = new Map<string, { expiresAt: number; value: Promise<IntegrationSession> }>();
+const toolsCache = new Map<string, { expiresAt: number; value: Promise<Awaited<ReturnType<IntegrationSession["tools"]>>> }>();
+const connectedAppsCache = new Map<string, { userId: string; expiresAt: number; value: Promise<AppConnection[]> }>();
 export class IntegrationUnavailable extends Error {
   constructor(configured = true) {
     super(
@@ -189,6 +194,13 @@ export function getComposio() {
   }));
 }
 export async function getIntegrationSession(userId: string) {
+  const cached = sessionCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const value = loadIntegrationSession(userId);
+  sessionCache.set(userId, { expiresAt: Date.now() + INTEGRATION_CACHE_MS, value });
+  try { return await value; } catch (error) { sessionCache.delete(userId); throw error; }
+}
+async function loadIntegrationSession(userId: string) {
   const client = getComposio();
   const [stored] = await getDb()
     .select()
@@ -218,9 +230,42 @@ export async function getIntegrationSession(userId: string) {
   return session;
 }
 type Session = Awaited<ReturnType<typeof getIntegrationSession>>;
+export function invalidateIntegrationCache(userId?: string) {
+  if (userId) {
+    sessionCache.delete(userId);
+    toolsCache.delete(userId);
+    for (const [key, entry] of connectedAppsCache) if (entry.userId === userId) connectedAppsCache.delete(key);
+    return;
+  }
+  sessionCache.clear();
+  toolsCache.clear();
+  connectedAppsCache.clear();
+}
+export async function getIntegrationTools(userId: string, session: Session) {
+  const cached = toolsCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.value;
+  const value = session.tools();
+  toolsCache.set(userId, { expiresAt: Date.now() + INTEGRATION_CACHE_MS, value });
+  try { return await value; } catch (error) { toolsCache.delete(userId); throw error; }
+}
 export async function listApps(
+  userId: string,
   session: Session,
   options: { search?: string; cursor?: string; connected?: boolean } = {},
+) {
+  if (options.connected === true && !options.search && !options.cursor) {
+    const key = `${userId}\0${session.sessionId}`;
+    const cached = connectedAppsCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) return { apps: await cached.value, nextCursor: null };
+    const value = loadApps(session, options);
+    connectedAppsCache.set(key, { userId, expiresAt: Date.now() + INTEGRATION_CACHE_MS, value: value.then(result => result.apps) });
+    try { return await value; } catch (error) { connectedAppsCache.delete(key); throw error; }
+  }
+  return loadApps(session, options);
+}
+async function loadApps(
+  session: Session,
+  options: { search?: string; cursor?: string; connected?: boolean },
 ) {
   const data = await integrationRequest(() =>
     session.toolkits({
@@ -262,6 +307,7 @@ export async function getApp(
     : null;
 }
 export async function disconnectApp(userId: string, slug: string) {
+  invalidateIntegrationCache(userId);
   const accounts = await getComposio().connectedAccounts.list({
     userIds: [userId],
     toolkitSlugs: [slug],

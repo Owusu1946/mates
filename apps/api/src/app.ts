@@ -15,6 +15,7 @@ import {
   getApp,
   getComposio,
   getIntegrationSession,
+  invalidateIntegrationCache,
   IntegrationUnavailable,
   listApps,
 } from "./integrations.js";
@@ -29,7 +30,9 @@ import {
 } from "./chats.js";
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
-import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
+import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
+import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
+import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
@@ -51,6 +54,7 @@ import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installU
 import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, linkUrl as slackLinkUrl, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
 import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
 import { handleInteraction } from "./slack-delivery.js";
+import { enqueueRunFollowups } from "./run-followups.js";
 import { verifySlackSignature } from "./slack-security.js";
 import { handleRecallEvent, leaveMeeting, MeetingError, meetingSession, startMeeting, startMeetingSchema, verifyRecallWebhook } from "./meetings.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
@@ -61,7 +65,7 @@ import {
 } from "./chat.js";
 import { adminAuthorized, setPlan, upgradeUrl } from "./usage/billing.js";
 import { BillingUnavailable, revenueCatAuthorized, revenueCatWebhookSchema, storeEvent, syncFromRevenueCat } from "./usage/revenuecat.js";
-import { financeCosts, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
+import { financeCosts, financeLatency, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
 import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/gate.js";
 import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
@@ -83,6 +87,10 @@ type Dependencies = {
     resumeRunId?: string,
     choice?: string,
   ): Promise<Response>;
+  submitRun(userId: string, input: Parameters<typeof submitRun>[1], options?: { publish?: boolean }): ReturnType<typeof submitRun>;
+  liveChatEnabled(): boolean;
+  executeLiveRun(id: string, signal: AbortSignal, shouldHandoff: () => "disconnect" | "deadline" | null): Promise<void>;
+  runSnapshot(userId: string, id: string, after?: number): ReturnType<typeof runSnapshot>;
   chats: ChatStore;
 };
 
@@ -101,6 +109,14 @@ const defaults: Dependencies = {
     );
   },
   requestChat: requestChatCompletion,
+  submitRun,
+  liveChatEnabled: () => process.env.LIVE_CHAT_ENABLED === "true",
+  async executeLiveRun(id, signal, shouldHandoff) {
+    const result = await executeDelegation(id, signal, { executor: "api", shouldHandoff });
+    if (result !== "finished") return;
+    await enqueueRunFollowups(id).catch(error => console.warn("post_run_enqueue_failed", { id, message: error instanceof Error ? error.message : String(error) }));
+  },
+  runSnapshot,
   chats: createChatStore(),
 };
 
@@ -108,6 +124,71 @@ const failure = (code: string, message: string, requestId: string) => ({
   error: { code, message, requestId },
 });
 const IMPORT_STATUS = { MEMORY_OFF: 409, MEMORY_FULL: 409, NO_FACTS: 422, IMPORT_FAILED: 502 } as const;
+
+type RunSnapshot = NonNullable<Awaited<ReturnType<typeof runSnapshot>>>;
+function runEventResponse(
+  userId: string,
+  id: string,
+  after: number,
+  initial: RunSnapshot,
+  signal: AbortSignal,
+  loadSnapshot: (userId: string, id: string, after?: number) => ReturnType<typeof runSnapshot>,
+  headers: Record<string, string> = {},
+  onDisconnect?: () => void,
+) {
+  let closed = false;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let snapshot = initial;
+      let cursor = after;
+      let lastHeartbeat = Date.now();
+      const encoder = new TextEncoder();
+      const onAbort = () => onDisconnect?.();
+      signal.addEventListener("abort", onAbort, { once: true });
+      try {
+        while (!closed && !signal.aborted) {
+          for (const event of snapshot.events) {
+            if (event.sequence <= cursor) continue;
+            controller.enqueue(encodeRunEvent({
+              version: 1,
+              sequence: event.sequence,
+              type: runEventTypeSchema.parse(event.type),
+              timestamp: new Date(event.timestamp).toISOString(),
+              payload: event.payload,
+            }));
+            cursor = event.sequence;
+          }
+          if (terminalRunStatus(snapshot.run.status) && cursor >= snapshot.run.sequence) break;
+          if (Date.now() - lastHeartbeat >= 15_000) {
+            controller.enqueue(encoder.encode(": keep-alive\n\n"));
+            lastHeartbeat = Date.now();
+          }
+          await new Promise(resolve => setTimeout(resolve, 250));
+          const next = await loadSnapshot(userId, id, cursor);
+          if (!next) break;
+          snapshot = next;
+        }
+      } catch (error) {
+        if (!closed && !signal.aborted) controller.error(error);
+        return;
+      } finally {
+        signal.removeEventListener("abort", onAbort);
+      }
+      if (!closed) controller.close();
+    },
+    cancel() { closed = true; onDisconnect?.(); },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+      ...headers,
+    },
+  });
+}
 
 /** The landing site, wherever it is served: its origins may call the /site routes. */
 const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin) => origin.trim());
@@ -249,7 +330,23 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_RUN", "Invalid run request", c.get("requestId")), 400);
       return parsed.data;
     }), async c => {
-      const run = await submitRun(c.get("userId"), c.req.valid("json"));
+      const userId = c.get("userId");
+      const input = c.req.valid("json");
+      const wantsStream = c.req.header("accept")?.includes("text/event-stream") ?? false;
+      const chat = wantsStream ? await dependencies.chats.get(userId, input.chatId) : null;
+      const liveOneToOne = dependencies.liveChatEnabled() && chat?.kind === "mate";
+      const run = await dependencies.submitRun(userId, input, { publish: !liveOneToOne });
+      if (liveOneToOne) {
+        // API and Trigger compete for the same queued -> running transition, so only one executes.
+        let handoffReason: "disconnect" | "deadline" | null = null;
+        const handoffDeadline = setTimeout(() => { handoffReason ??= "deadline"; }, 60_000);
+        if (run.status === "queued")
+          void dependencies.executeLiveRun(run.id, new AbortController().signal, () => handoffReason).catch(error => console.error("live_run_failed", { id: run.id, message: error instanceof Error ? error.message : String(error) })).finally(() => clearTimeout(handoffDeadline));
+        else clearTimeout(handoffDeadline);
+        const initial = await dependencies.runSnapshot(userId, run.id, 0);
+        if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+        return runEventResponse(userId, run.id, 0, initial, c.req.raw.signal, dependencies.runSnapshot, { "x-run-id": run.id, "access-control-expose-headers": "x-run-id" }, () => { handoffReason ??= "disconnect"; });
+      }
       return c.json({ runId: run.id, status: run.status }, 202);
     })
     .get("/v1/runs", auth, async c => c.json({ runs: await listRuns(c.get("userId"), c.req.query("chatId")) }))
@@ -259,7 +356,23 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const snapshot = await runSnapshot(c.get("userId"), c.req.param("id"), after.data);
       return snapshot ? c.json(snapshot) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
     })
+    .get("/v1/runs/:id/events", auth, async c => {
+      const cursor = parseRunEventCursor(c.req.query("after"), c.req.header("last-event-id"));
+      if (cursor === null) return c.json(failure("INVALID_CURSOR", "Invalid cursor", c.get("requestId")), 400);
+      const userId = c.get("userId");
+      const id = c.req.param("id");
+      const initial = await dependencies.runSnapshot(userId, id, cursor);
+      if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+      return runEventResponse(c.get("userId"), c.req.param("id"), cursor, initial, c.req.raw.signal, dependencies.runSnapshot);
+    })
     .post("/v1/runs/:id/cancel", auth, async c => (await cancelRun(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
+    .post("/v1/runs/:id/first-text", auth, validator("json", (value, c) => {
+      const parsed = z.object({ elapsedMs: z.number().int().min(0).max(600_000) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_TIMING", "Invalid timing sample", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => (await recordClientFirstText(c.get("userId"), c.req.param("id"), c.req.valid("json").elapsedMs))
+      ? c.json({ ok: true })
+      : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
     .post("/v1/schedules/draft", auth, validator("json", (value, c) => {
       const parsed = routineSpecSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_SCHEDULE", "Check the time, timezone and task details", c.get("requestId")), 400);
@@ -396,6 +509,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         return c.json(failure("BAD_SIGNATURE", "Not from Composio", c.get("requestId")), 401);
       }
       const { payload } = event;
+      invalidateIntegrationCache(payload.userId);
       // Answered at once; the judgement and any firing happen after, so Composio never times out.
       // A watch's event is judged; otherwise it may be one of the user's "learn from my apps" observers.
       const appEvent = { triggerId: payload.metadata.id, eventId: payload.id || payload.uuid, slug: payload.triggerSlug, payload: payload.payload ?? {} };
@@ -1012,7 +1126,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/v1/apps", auth, async (c) => {
       const session = await getIntegrationSession(c.get("userId"));
       return c.json(
-        await listApps(session, {
+        await listApps(c.get("userId"), session, {
           search: c.req.query("search")?.slice(0, 120),
           cursor: c.req.query("cursor"),
           connected: c.req.query("connected") === "true" ? true : undefined,
@@ -1061,6 +1175,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const request = await session.authorize(app.slug, {
         callbackUrl: body.data.callbackUrl,
       });
+      invalidateIntegrationCache(c.get("userId"));
       return c.json({
         connected: false,
         connectUrl: request.redirectUrl ?? null,
@@ -1120,6 +1235,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.json({ from, to, groupBy, rows: await financeCosts(from, to, groupBy) });
     })
     .get("/internal/finance/users/:id", async (c) => c.json(await financeUser(c.req.param("id"))))
+    .get("/internal/finance/latency", async (c) => {
+      const day = /^\d{4}-\d{2}-\d{2}$/;
+      const today = new Date().toISOString().slice(0, 10);
+      const from = day.test(c.req.query("from") ?? "") ? c.req.query("from")! : `${today.slice(0, 8)}01`;
+      const to = day.test(c.req.query("to") ?? "") ? c.req.query("to")! : today;
+      return c.json({ from, to, rows: await financeLatency(from, to) });
+    })
     .notFound((c) =>
       c.json(failure("NOT_FOUND", "Route not found", c.get("requestId")), 404),
     )

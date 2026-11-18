@@ -4,7 +4,8 @@ import { tasks, idempotencyKeys } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { CANCELLED_STATUS, cancelledMessage, stoppedContent } from "./run-cancel.js";
-import { agentRuns, chatMessages, chats, delegations, findings, missions, runEvents, submissionOutbox } from "./db/schema.js";
+import { agentRuns, chatMessages, chats, delegations, findings, missions, runEvents, runTimings, submissionOutbox } from "./db/schema.js";
+import { ensureRunTiming, hasVisibleText, markRunTiming, markToolStep } from "./run-timings.js";
 import { chatRequestSchema, requestChatCompletion } from "./chat.js";
 import { createChatStore, chatIdSchema } from "./chats.js";
 import { createAgentResponse } from "./agent-chat.js";
@@ -14,11 +15,11 @@ import { handoffCard, collaborationAssignments, directCollaborationPlan, directC
 import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
-import { extractMemories, memoryCard, memorySettings } from "./memory.js";
-import { recordRunActivity } from "./habits/activity.js";
-import { recordExchange } from "./recall.js";
 import type { agentExecution } from "./trigger/agent.js";
 import { assertUsage, UsageLimitError } from "./usage/gate.js";
+import { RunHandoffRequested, shouldHandoffBeforeTool } from "./run-handoff.js";
+
+const activeExecutions = new Map<string, { executor: "api" | "worker"; cancel(): void }>();
 
 export const submissionSchema = chatRequestSchema.extend({
   chatId: chatIdSchema,
@@ -37,8 +38,8 @@ export async function ownedRun(userId: string, id: string) {
   return (await getDb().select().from(delegations).where(owner(userId, id)))[0];
 }
 
-export async function submitRun(userId: string, input: Submission) {
-  if (!workerConfigured()) throw new Error("WORKER_NOT_CONFIGURED");
+export async function submitRun(userId: string, input: Submission, options: { publish?: boolean } = {}) {
+  if (options.publish !== false && !workerConfigured()) throw new Error("WORKER_NOT_CONFIGURED");
   const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
   const [existing] = await getDb().select().from(delegations).where(and(eq(delegations.clerkUserId, userId), eq(delegations.requestKey, input.requestKey)));
   if (existing) {
@@ -65,6 +66,7 @@ export async function submitRun(userId: string, input: Submission) {
   try {
     await getDb().batch([
       getDb().insert(delegations).values({ id, clerkUserId: userId, chatId: input.chatId, requestKey: input.requestKey, requestHash: hash, request: { ...input, persona } as unknown as Record<string, unknown>, parentId: input.parentId, assistantMessageId: input.assistantMessageId, agentRunId: input.resumeRunId ?? id, content: previousContent }),
+      getDb().insert(runTimings).values({ delegationId: id, submittedAt: sql`now()` }),
       getDb().insert(submissionOutbox).values({ delegationId: id }),
       getDb().insert(chatMessages).values({ chatId: input.chatId, id: input.parentId, message: { id: input.parentId, role: "user", createdAt: new Date().toISOString(), content: [{ type: "text", text: last.content }] } }).onConflictDoNothing(),
       // Database clock, like the user row above: a skewed API clock would sort the reply before its question.
@@ -79,7 +81,8 @@ export async function submitRun(userId: string, input: Submission) {
     throw error;
   }
   await linkAttachments(userId, input.chatId, last.attachments?.map((a) => a.id) ?? []).catch(() => {});
-  await publishOutbox(id).catch(() => { console.warn("run_submission_deferred", { id }); });
+  if (options.publish !== false)
+    await publishOutbox(id).catch(() => { console.warn("run_submission_deferred", { id }); });
   return (await ownedRun(userId, id))!;
 }
 
@@ -97,7 +100,7 @@ export async function publishOutbox(onlyId?: string) {
       continue;
     }
     try {
-      const key = await idempotencyKeys.create(`cooper:${run.id}`, { scope: "global" });
+      const key = await idempotencyKeys.create(`cooper:${run.id}:${run.executionGeneration}`, { scope: "global" });
       const handle = await tasks.trigger<typeof agentExecution>("cooper-agent", { delegationId: run.id }, { idempotencyKey: key, idempotencyKeyTTL: "30d", concurrencyKey: run.clerkUserId, ttl: "1h" });
       await getDb().batch([
         getDb().update(delegations).set({ providerRunId: handle.id }).where(eq(delegations.id, run.id)),
@@ -125,6 +128,7 @@ export async function cancelRun(userId: string, id: string) {
     .set({ cancelRequested: true, ...(run.status === "queued" ? { status: "cancelled", content: stoppedContent(run.content as Record<string, unknown>[]) } : {}), updatedAt: new Date() })
     .where(and(owner(userId, id), inArray(delegations.status, ["queued", "running"])))
     .returning({ status: delegations.status });
+  if (updated?.status === "running") activeExecutions.get(id)?.cancel();
   // A run stopped before the worker took it never runs, so its placeholder reply is closed here.
   if (updated?.status === "cancelled" && run.chatId) {
     const [row] = await getDb().select({ message: chatMessages.message }).from(chatMessages).where(and(eq(chatMessages.chatId, run.chatId), eq(chatMessages.id, run.assistantMessageId)));
@@ -149,30 +153,48 @@ function mergePayload(content: Content, payload: Record<string, unknown>) {
   }
 }
 
-export async function executeDelegation(id: string, workerSignal: AbortSignal) {
-  const [run] = await getDb().update(delegations).set({ status: "running", heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "queued"), eq(delegations.cancelRequested, false))).returning();
-  if (!run) return;
+export async function executeDelegation(
+  id: string,
+  workerSignal: AbortSignal,
+  options: { executor?: "api" | "worker"; shouldHandoff?(): "disconnect" | "deadline" | null } = {},
+): Promise<"finished" | "handed_off" | false> {
+  const executor = options.executor ?? "worker";
+  const [run] = await getDb().update(delegations).set({ status: "running", executionOwner: executor, heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "queued"), eq(delegations.cancelRequested, false))).returning();
+  if (!run) return false;
+  await ensureRunTiming(id, run.createdAt).catch(() => console.warn("run_timing_start_failed", { id }));
+  await markRunTiming(id, "startedAt").catch(() => console.warn("run_timing_start_failed", { id }));
   const request = chatRequestSchema.parse(run.request);
   const abort = new AbortController();
   const signal = AbortSignal.any([abort.signal, workerSignal, AbortSignal.timeout(10 * 60_000)]);
   let monitoring = false;
   let userCancelled = false;
+  let lostOwnership = false;
+  let requestedHandoff: RunHandoffRequested | null = null;
+  const localControl = { executor, cancel: () => { userCancelled = true; abort.abort(new Error("User cancelled")); } };
+  activeExecutions.set(id, localControl);
   const heartbeat = setInterval(async () => {
     if (monitoring) return;
     monitoring = true;
     try {
-      const [current] = await getDb().update(delegations).set({ heartbeatAt: new Date() }).where(eq(delegations.id, id)).returning({ cancel: delegations.cancelRequested, status: delegations.status });
+      const [current] = await getDb().update(delegations).set({ heartbeatAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "running"), eq(delegations.executionOwner, executor))).returning({ cancel: delegations.cancelRequested, status: delegations.status });
       if (current?.cancel) { userCancelled = true; abort.abort(new Error("User cancelled")); }
-      else if (!current || current.status !== "running") abort.abort(new Error("Run no longer active"));
+      else if (!current || current.status !== "running") { lostOwnership = true; abort.abort(new Error("Run no longer active")); }
     } catch { abort.abort(new Error("Run ownership could not be checked")); }
     finally { monitoring = false; }
   }, 2500);
   heartbeat.unref();
   let content: Content = structuredClone(run.content);
+  const initialText = content.filter(part => part.type === "text").map(part => String(part.text ?? "")).join("");
   let sequence = run.sequence;
   let status = "failed";
   let failure: string | null = null;
   let lastFlush = 0;
+  let sawVisibleText = false;
+  let sawResponseToken = false;
+  const timingWrites: Promise<unknown>[] = [];
+  const recordTiming = (promise: Promise<unknown>) => {
+    timingWrites.push(promise.catch(() => console.warn("run_timing_write_failed", { id })));
+  };
   let persisting: Promise<void> = Promise.resolve();
   const persist = (type: string, finalStatus?: string) => (persisting = persisting.catch(() => undefined).then(() => persistNow(type, finalStatus)));
   const persistNow = async (type: string, finalStatus?: string) => {
@@ -194,6 +216,12 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
       } else await getDb().batch([...statements]);
     } else await getDb().batch([...statements]);
     lastFlush = Date.now();
+    const currentText = content.filter(part => part.type === "text").map(part => String(part.text ?? "")).join("");
+    if (!sawVisibleText && hasVisibleText(content) && currentText !== initialText) {
+      sawVisibleText = true;
+      await markRunTiming(id, "firstTextAt").catch(() => console.warn("run_timing_first_text_failed", { id }));
+    }
+    if (finalStatus) await markRunTiming(id, "doneAt").catch(() => console.warn("run_timing_done_failed", { id }));
   };
   // Routine runs claimed in SQL carry no snapshot; they resolve it now.
   const persona = (run.request as { persona?: Persona }).persona ?? (await resolvePersona(run.clerkUserId, run.chatId));
@@ -223,9 +251,15 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           const data = event.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trim()).join("\n");
           if (data && data !== "[DONE]") {
             const payload = JSON.parse(data) as Record<string, unknown>;
+            const handoff = payload.handoff as { reason?: RunHandoffRequested["reason"] } | undefined;
+            if (handoff?.reason) throw new RunHandoffRequested(handoff.reason);
             if (payload.error) {
               errored = true;
               if (target === content) failure = "This request couldn’t finish. Earlier findings have been saved.";
+            }
+            if (!sawResponseToken && (payload.choices as { delta?: { content?: string } }[] | undefined)?.[0]?.delta?.content) {
+              sawResponseToken = true;
+              recordTiming(markRunTiming(id, "firstTokenAt"));
             }
             mergePayload(target, payload);
             if (target === content) {
@@ -257,16 +291,28 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           preamble,
           speaker: mate,
           boardTask,
+          resumeCheckpoint: executor === "worker" && run.resumeCheckpoint,
           // The user is in the conversation now: not a routine, watch, habit, call summary or board task.
           live: !boardTask && !/^(occurrence_|watch_|habit_|call_|manual_|mission_)/.test(run.requestKey),
           // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
           usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : run.requestKey.startsWith("habit_") ? "habit" : "chat",
+          onModelStart: () => recordTiming(markRunTiming(id, "setupDoneAt")),
+          onFirstToken: () => recordTiming(markRunTiming(id, "firstTokenAt")),
+          onToolStep: () => recordTiming(markToolStep(id)),
           checkpoint: async (pendingTool, history) => {
-            await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
+            const requested = options.shouldHandoff?.();
+            const toolName = String(pendingTool?.name ?? "");
+            if (executor === "api" && pendingTool && (requested || shouldHandoffBeforeTool(toolName)))
+              throw new RunHandoffRequested(requested ?? "long_tool");
+            const [owned] = await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "running"), eq(delegations.executionOwner, executor))).returning({ id: delegations.id });
+            if (!owned) { lostOwnership = true; throw new Error("Run ownership changed before the next tool step."); }
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
+            if (executor === "api" && !pendingTool && requested)
+              throw new RunHandoffRequested(requested);
           },
         })
-      : requestChatCompletion(spoken, turnSignal, run.clerkUserId, undefined, undefined, preamble);
+      : requestChatCompletion(spoken, turnSignal, run.clerkUserId, undefined, undefined, preamble,
+          () => recordTiming(markRunTiming(id, "setupDoneAt")));
   };
   const leaderOf = () => persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
   const steps = new Map<string, string>();
@@ -570,8 +616,19 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     const [agent] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, agentRunId));
     status = signal.aborted ? userCancelled ? "cancelled" : "failed" : failure ? "failed" : agent?.status.startsWith("waiting") ? "waiting" : agent?.status === "failed" ? "failed" : "completed";
   } catch (error) {
-    status = userCancelled ? "cancelled" : "failed";
-    if (error instanceof UsageLimitError) {
+    if (lostOwnership) {
+      status = "running";
+    } else if (userCancelled) {
+      status = "cancelled";
+    } else if (executor === "api" && error instanceof RunHandoffRequested) {
+      requestedHandoff = error;
+      status = "queued";
+    } else status = userCancelled ? "cancelled" : "failed";
+    if (lostOwnership) {
+      // A stale executor has lost its lease. Its current work is discarded; the new owner uses the saved checkpoint.
+    } else if (requestedHandoff) {
+      // The last agent history checkpoint is before the next tool call; the worker can safely continue there.
+    } else if (error instanceof UsageLimitError) {
       // A routine or mission round that came due while the person was out of usage: skipped, said
       // plainly in the reply itself. Not a failure, so the app adds no error text under it.
       status = "cancelled";
@@ -585,50 +642,42 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     }
   } finally {
     clearInterval(heartbeat);
-    await persist(`run.${status}`, status);
-    await getDb().update(delegations).set({ pendingTool: null }).where(eq(delegations.id, id));
-    // Rounds post in the group as they go; only the finished mission becomes a Feed item.
-    if (!missionInfo || finishing) await saveFinding(id);
-    // A round's prompt is generated, so there is nothing of the user's to remember or index.
-    if (status === "completed" && !missionInfo) await rememberFromRun(id, run, request.messages.at(-1), content, persist);
-    // What the user asked for themselves feeds habit learning; routines, watches and nudges don't.
-    if (status === "completed" && !missionInfo && !/^(occurrence|watch|habit|manual)_/.test(run.requestKey) && request.messages.at(-1)?.role === "user")
-      void recordRunActivity({ userId: run.clerkUserId, runId: id, agentRunId: run.agentRunId ?? id, chatId: run.chatId, mateId: run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null, userText: request.messages.at(-1)!.content, timezone: request.timezone }).catch(() => undefined);
-    if (run.chatId) await afterRunInChat(run.clerkUserId, run.chatId, !!missionInfo, status).catch(() => console.warn("mission_continue_failed", { id }));
+    await Promise.all(timingWrites);
+    if (activeExecutions.get(id) === localControl) activeExecutions.delete(id);
+    if (lostOwnership) {
+      // The replacement owner is responsible for publishing the next progress event.
+    } else if (requestedHandoff) {
+      await persisting;
+      if (run.agentRunId) await getDb().update(agentRuns).set({ status: "checkpointed", updatedAt: new Date() }).where(and(eq(agentRuns.id, run.agentRunId), eq(agentRuns.status, "running")));
+      const [handedOff] = await getDb().update(delegations).set({ status: "queued", executionOwner: null, executionGeneration: sql`${delegations.executionGeneration} + 1`, resumeCheckpoint: true, pendingTool: null, error: null, updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "running"), eq(delegations.executionOwner, "api"), eq(delegations.cancelRequested, false))).returning({ sequence: delegations.sequence });
+      if (handedOff) {
+        const sequence = handedOff.sequence + 1;
+        await getDb().batch([
+          getDb().update(delegations).set({ sequence }).where(eq(delegations.id, id)),
+          getDb().update(submissionOutbox).set({ submittedAt: null, leaseUntil: null, nextAttemptAt: new Date() }).where(eq(submissionOutbox.delegationId, id)),
+          getDb().insert(runEvents).values({ delegationId: id, sequence, type: "progress", payload: { content: structuredClone(content), status: "queued", handoff: requestedHandoff.reason } }),
+        ]);
+        await publishOutbox(id);
+      } else {
+        const [current] = await getDb().select({ cancel: delegations.cancelRequested, status: delegations.status }).from(delegations).where(eq(delegations.id, id));
+        if (current?.cancel) {
+          userCancelled = true;
+          status = "cancelled";
+          await persist("run.cancelled", "cancelled");
+          await getDb().update(delegations).set({ pendingTool: null, executionOwner: null }).where(and(eq(delegations.id, id), eq(delegations.executionOwner, "api")));
+        } else if (!current || current.status !== "running") lostOwnership = true;
+      }
+    } else {
+      await persist(`run.${status}`, status);
+      await getDb().update(delegations).set({ pendingTool: null, executionOwner: null }).where(and(eq(delegations.id, id), eq(delegations.executionOwner, executor)));
+    }
+    if (!lostOwnership && !requestedHandoff) {
+      // Rounds post in the group as they go; only the finished mission becomes a Feed item.
+      if (!missionInfo || finishing) await saveFinding(id);
+      if (run.chatId) await afterRunInChat(run.clerkUserId, run.chatId, !!missionInfo, status).catch(() => console.warn("mission_continue_failed", { id }));
+    }
   }
-}
-
-/**
- * After the reply is saved: index the exchange for chat-history recall, then let Cooper decide
- * what to keep as memories. Each change lands on the reply as a "Memory updated" card.
- */
-async function rememberFromRun(
-  id: string,
-  run: { clerkUserId: string; chatId: string | null },
-  last: { role: string; content: string; attachments?: unknown[] } | undefined,
-  content: Content,
-  persist: (type: string, finalStatus?: string) => Promise<void>,
-) {
-  if (last?.role !== "user") return;
-  const assistantText = content.filter((p) => p.type === "text").map((p) => String(p.text)).join("\n");
-  const settings = await memorySettings(run.clerkUserId).catch(() => null);
-  if (!settings?.memoryEnabled) return;
-  // Routine results are worth recalling later ("what did yesterday's brief say?").
-  if (settings.historyRecall)
-    await recordExchange({ delegationId: id, userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText }).catch(() => console.warn("recall_index_failed", { id }));
-  // Routine prompts are generated, not said by the user, so there is nothing of theirs to keep.
-  if (run.chatId?.startsWith("routine_")) return;
-  // Explicit saves already happened in the turn; the extractor sees them and won't repeat them.
-  try {
-    // In a mate's own chat, what it learns can be its own note for its role (groups stay shared).
-    const mateId = run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null;
-    const changes = await extractMemories({ userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText, mateId });
-    if (!changes.length) return;
-    for (const change of changes) mergePayload(content, { cooper: { id: `memory_${id}_${change.id}`, state: memoryCard(change) } });
-    await persist("memory.updated", "completed");
-  } catch {
-    console.warn("memory_extraction_failed", { id });
-  }
+  return lostOwnership || requestedHandoff ? "handed_off" : "finished";
 }
 
 export async function saveFinding(id: string) {
@@ -641,7 +690,39 @@ export async function saveFinding(id: string) {
 }
 
 export async function recoverStalledRuns() {
-  const stale = await getDb().update(delegations).set({ status: "failed", error: "Execution was interrupted. Review saved findings and verify external actions before retrying.", updatedAt: new Date() }).where(and(eq(delegations.status, "running"), lte(delegations.heartbeatAt, new Date(Date.now() - 120_000)))).returning({ id: delegations.id });
+  const cutoff = new Date(Date.now() - 120_000);
+  const candidates = await getDb().select().from(delegations).where(and(eq(delegations.status, "running"), lte(delegations.heartbeatAt, cutoff)));
+  const stale: { id: string }[] = [];
+  for (const run of candidates) {
+    if (run.executionOwner === "api" && !run.pendingTool && run.agentRunId) {
+      const [checkpoint] = await getDb().select({ id: agentRuns.id, status: agentRuns.status, messages: agentRuns.messages }).from(agentRuns).where(eq(agentRuns.id, run.agentRunId));
+      if (checkpoint?.status === "running" && checkpoint.messages.length) {
+        const [requeued] = await getDb().update(delegations).set({ status: "queued", executionOwner: null, executionGeneration: sql`${delegations.executionGeneration} + 1`, resumeCheckpoint: true, updatedAt: new Date() }).where(and(eq(delegations.id, run.id), eq(delegations.status, "running"), eq(delegations.executionOwner, "api"), isNull(delegations.pendingTool), lte(delegations.heartbeatAt, cutoff))).returning({ sequence: delegations.sequence });
+        if (requeued) {
+          await getDb().update(agentRuns).set({ status: "checkpointed", updatedAt: new Date() }).where(and(eq(agentRuns.id, checkpoint.id), eq(agentRuns.status, "running")));
+          const sequence = requeued.sequence + 1;
+          await getDb().batch([
+            getDb().update(delegations).set({ sequence }).where(eq(delegations.id, run.id)),
+            getDb().update(submissionOutbox).set({ submittedAt: null, leaseUntil: null, nextAttemptAt: new Date() }).where(eq(submissionOutbox.delegationId, run.id)),
+            getDb().insert(runEvents).values({ delegationId: run.id, sequence, type: "progress", payload: { content: run.content, status: "queued", handoff: "api_recovery" } }),
+          ]);
+          await publishOutbox(run.id);
+        }
+      } else {
+        const [failed] = await getDb().update(delegations).set({ status: "failed", executionOwner: null, error: "Execution stopped before a safe checkpoint. Verify any external action before retrying.", updatedAt: new Date() }).where(and(eq(delegations.id, run.id), eq(delegations.status, "running"), eq(delegations.executionOwner, "api"), lte(delegations.heartbeatAt, cutoff))).returning({ id: delegations.id });
+        if (failed) {
+          await getDb().update(agentRuns).set({ status: "failed", updatedAt: new Date() }).where(and(eq(agentRuns.id, run.agentRunId), eq(agentRuns.status, "running")));
+          stale.push(failed);
+        }
+      }
+    } else {
+      const [failed] = await getDb().update(delegations).set({ status: "failed", executionOwner: null, error: run.pendingTool ? "Execution stopped during a tool action. Verify the external outcome before retrying." : "Execution was interrupted. Review saved findings and verify external actions before retrying.", updatedAt: new Date() }).where(and(eq(delegations.id, run.id), eq(delegations.status, "running"), lte(delegations.heartbeatAt, cutoff))).returning({ id: delegations.id });
+      if (failed) {
+        if (run.agentRunId) await getDb().update(agentRuns).set({ status: "failed", updatedAt: new Date() }).where(and(eq(agentRuns.id, run.agentRunId), eq(agentRuns.status, "running")));
+        stale.push(failed);
+      }
+    }
+  }
   for (const run of stale) await saveFinding(run.id);
   // Expired queued submissions are surfaced instead of stuck indefinitely.
   const expired = await getDb().update(delegations).set({ status: "failed", error: "The worker did not start within one hour. Check worker deployment and submit again.", updatedAt: new Date() }).where(and(eq(delegations.status, "queued"), lte(delegations.createdAt, new Date(Date.now() - 3600_000)))).returning({ id: delegations.id });

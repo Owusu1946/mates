@@ -46,8 +46,9 @@ export const scheduleInstructions = `For requests to do work later or on a repea
 /** The phone's timezone when known; Accra is only the fallback for older clients. */
 export function scheduleContext(timezone?: string) {
   const zone = timezone && IANAZone.isValidZone(timezone) ? timezone : "Africa/Accra";
-  const local = DateTime.now().setZone(zone).toFormat("cccc d LLLL yyyy, HH:mm");
-  return `${scheduleInstructions} The user's timezone is ${zone}; their local time is ${local}. Current UTC time is ${new Date().toISOString()}. Use this exact clock when resolving relative dates and requests such as in five minutes; do not guess today's date. Write times for the user in their timezone and pass that timezone to apps.`;
+  const now = DateTime.now().startOf("minute");
+  const local = now.setZone(zone).toFormat("cccc d LLLL yyyy, HH:mm");
+  return `The user's timezone is ${zone}; their local time is ${local}. Current UTC time is ${now.toUTC().toFormat("yyyy-LL-dd'T'HH:mm'Z'")}. Use this exact clock when resolving relative dates and requests such as in five minutes; do not guess today's date. Write times for the user in their timezone and pass that timezone to apps.`;
 }
 export const scheduleTool = { type: "function" as const, function: { name: "cooper_schedule_draft", description: "Schedule work for later or on a repeat. It is active at once and runs in this chat; the user can pause or cancel it from the card.", parameters: z.toJSONSchema(routineSpecSchema) } };
 
