@@ -29,8 +29,19 @@ export function sortToolsByName<T>(tools: T[]): T[] {
   return [...tools].sort((a, b) => name(a).localeCompare(name(b), "en"));
 }
 
-export function isTrivialChatMessage(text: string): boolean {
-  return /^(?:hi|hello|hey|hiya|yo|good morning|good afternoon|good evening|thanks|thank you|thx|ok|okay|got it|nice|great|cool)[!.?\s]*$/i.test(text.trim());
+/**
+ * A greeting or a thank-you that needs no tools or lookups. Never "ok", "great" or "cool": those
+ * often answer an offer ("Want me to send it?") and must be able to act. Nothing is trivial when
+ * the mate's last message asked something, since any reply to a question may be a yes.
+ */
+export function isTrivialChatMessage(text: string, previousAssistantText = ""): boolean {
+  if (/\?\s*\S{0,3}\s*$/.test(previousAssistantText.trim())) return false;
+  return /^(?:hi|hello|hey|hiya|good morning|good afternoon|good evening|thanks|thank you|thx)(?:\s+(?:there|so much|a lot))?[!.\s]*$/i.test(text.trim());
+}
+
+/** Rides stay offered while a ride conversation is going, so "Osu" can answer Sail's pickup question. */
+export function isTravelConversation(turns: { role: string; content: string }[]): boolean {
+  return turns.slice(-6).some((turn) => isTravelRequest(turn.content));
 }
 
 export function isTravelRequest(text: string): boolean {

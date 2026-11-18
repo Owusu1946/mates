@@ -14,7 +14,7 @@ import {
 import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleInstructions, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
-import { buildPromptMessages, isTrivialChatMessage, isTravelRequest, sortToolsByName } from "./agent-prompt.js";
+import { buildPromptMessages, isTravelConversation, isTrivialChatMessage, sortToolsByName } from "./agent-prompt.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
@@ -148,11 +148,13 @@ export async function createAgentResponse(
   // Embedded once, in parallel with session setup; memory and recall both search with it.
   const lastUserText = turns.filter((t) => t.role === "user").at(-1)?.content ?? "";
   const lastUserTurn = turns.filter((t) => t.role === "user").at(-1);
-  const trivialMessage = isTrivialChatMessage(lastUserText) && !lastUserTurn?.attachments?.length;
+  const previousAssistantText = turns.slice(0, turns.findLastIndex((t) => t.role === "user")).filter((t) => t.role === "assistant").at(-1)?.content ?? "";
+  // Narrowed again once the nudge is known: a pending habit offer needs its reply tool.
+  let trivialMessage = !resumeRunId && isTrivialChatMessage(lastUserText, previousAssistantText) && !lastUserTurn?.attachments?.length;
   const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
-  const ridesOn = ridesEnabled() && isTravelRequest(lastUserText);
+  const ridesOn = ridesEnabled() && isTravelConversation(turns);
   const forced = forcedSearch(lastUserText);
   const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
   const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
@@ -162,6 +164,7 @@ export async function createAgentResponse(
     getIntegrationSession(userId),
     resumeRunId ? null : pendingNudge(userId, execution?.chatId).catch(() => null),
   ]);
+  if (nudge) trivialMessage = false;
   const stableInstructionBlocks = [
     { name: "instructions", text: instructions },
     { name: "plan", text: planInstructions },
@@ -389,7 +392,7 @@ export async function createAgentResponse(
     memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 })),
     execution?.boardTask ? null : liveMission(userId, execution?.chatId).catch(() => null),
     trivialMessage ? [] : getIntegrationTools(userId, session).catch(() => []),
-    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(userId, session, { connected: true }),
+    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(session, { connected: true }),
     execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
     deckContext(userId, execution?.chatId ?? null).catch(() => null),
   ]);
