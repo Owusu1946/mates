@@ -211,6 +211,7 @@ export const runEvents = pgTable("run_events", {
 export const runTimings = pgTable("run_timings", {
   delegationId: uuid("delegation_id").primaryKey().references(() => delegations.id, { onDelete: "cascade" }),
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
   setupDoneAt: timestamp("setup_done_at", { withTimezone: true }),
   firstTokenAt: timestamp("first_token_at", { withTimezone: true }),
   firstTextAt: timestamp("first_text_at", { withTimezone: true }),

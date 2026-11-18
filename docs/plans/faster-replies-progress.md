@@ -3,7 +3,7 @@
 **For:** Samuel and Ken  
 **Branch:** `feat/faster-replies`  
 **Last updated:** 2026-11-18  
-**Status:** Planning and code review complete. Implementation has not started. Samuel handles all commits and pushes.
+**Status:** Slice 1 is implemented locally for Samuel's review. Migration `0036_whole_starbolt` is generated and not applied. Samuel handles all commits and pushes.
 
 ## Goal and scope
 
@@ -33,7 +33,7 @@ Estimate **eight commits**, adjusted if a slice proves too large or too small. K
 
 | # | Slice | Status | Gate |
 | --- | --- | --- | --- |
-| 1 | Per-run timing events and first-text dashboard, including client render timing | Not started | Baseline p50/p95 and setup breakdown visible |
+| 1 | Per-run timing events and first-text finance report, including client text layout timing | Implemented locally; review next | Apply migration to a test environment, then verify real samples and p50/p95 |
 | 2 | Stable prompt prefix, deterministic tool order, cache/session keys, prompt snapshot tests | Not started | Byte-identical stable prefix; measured cache hits |
 | 3 | Prompt block/token audit, selective tools, Composio cache/invalidation, parallel setup | Not started | Plain-message token count and warm setup time measured; answer quality checked |
 | 4 | Typed run event protocol and durable SSE replay/reattach, retaining JSON and polling paths | Not started | Event ordering, cursors, reconnect, and old clients tested |
@@ -66,8 +66,9 @@ The slices are an estimate, not a requirement to force unrelated work into one c
 
 ## Work log
 
+- 2026-11-18: Implemented slice 1 without committing or pushing. Added `run_timings` with submit, execution start, model request, first token, first saved text, and completion timestamps; tool-step count; and the phone's send-to-first-text-layout duration. Added a protected `/internal/finance/latency` endpoint and p50/p95 rows to `apps/api/scripts/usage-report.ts`. Generated migration `0036_whole_starbolt`; it has not been applied anywhere. API typecheck and 401 tests pass. Mobile 31 tests pass. Mobile typecheck still fails on the pre-existing generated `/memory-import` route type. No production sample or device validation yet. The existing finance surface is an authenticated API and terminal report; there is no private web dashboard in this repo.
 - 2026-11-18: Compared the proposal with API, worker, and mobile code; identified current outbox, recovery, cancellation, streaming, and prompt ordering behavior. Ran baseline API and mobile checks above. No faster-replies code, commit, push, or deployment made.
 
 ## Next step
 
-Start with timing instrumentation and a reproducible baseline, then review the first slice with Samuel before the next commit. Record results here after each slice so Ken can continue without relying on chat history.
+Samuel reviews slice 1, applies the generated migration to a test environment when ready, and checks real timing samples. Resolve or regenerate the stale mobile route type before treating typecheck as a release gate. After Samuel commits and asks to proceed, begin slice 2: prompt stability and cache measurement. Record results here after each slice so Ken can continue without relying on chat history.

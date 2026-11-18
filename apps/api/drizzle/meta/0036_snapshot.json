@@ -4536,6 +4536,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "setup_done_at": {
           "name": "setup_done_at",
           "type": "timestamp with time zone",

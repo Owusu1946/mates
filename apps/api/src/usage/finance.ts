@@ -48,14 +48,34 @@ export async function financeUser(userId: string) {
   return { months, recent, usage };
 }
 
+export type LatencyRow = {
+  cohort: "no_tool" | "with_tool";
+  runs: number;
+  device_samples: number;
+  queue_p50_ms: number | null;
+  queue_p95_ms: number | null;
+  setup_p50_ms: number | null;
+  setup_p95_ms: number | null;
+  token_p50_ms: number | null;
+  token_p95_ms: number | null;
+  text_p50_ms: number | null;
+  text_p95_ms: number | null;
+  done_p50_ms: number | null;
+  done_p95_ms: number | null;
+  device_p50_ms: number | null;
+  device_p95_ms: number | null;
+};
+
 /** Completed chat runs only; tool and plain turns have very different latency profiles. */
 export async function financeLatency(fromDay: string, toDay: string) {
-  return rows(sql`
+  return rows<LatencyRow>(sql`
     SELECT CASE WHEN t.tool_steps = 0 THEN 'no_tool' ELSE 'with_tool' END AS cohort,
       count(*)::integer AS runs,
       count(t.client_first_text_ms)::integer AS device_samples,
-      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.submitted_at) * 1000) AS setup_p50_ms,
-      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.submitted_at) * 1000) AS setup_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.started_at - t.submitted_at) * 1000) AS queue_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.started_at - t.submitted_at) * 1000) AS queue_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.started_at) * 1000) AS setup_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.started_at) * 1000) AS setup_p95_ms,
       percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_token_at - t.submitted_at) * 1000) AS token_p50_ms,
       percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_token_at - t.submitted_at) * 1000) AS token_p95_ms,
       percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_text_at - t.submitted_at) * 1000) AS text_p50_ms,

@@ -1,6 +1,7 @@
 CREATE TABLE "run_timings" (
 	"delegation_id" uuid PRIMARY KEY NOT NULL,
 	"submitted_at" timestamp with time zone NOT NULL,
+	"started_at" timestamp with time zone,
 	"setup_done_at" timestamp with time zone,
 	"first_token_at" timestamp with time zone,
 	"first_text_at" timestamp with time zone,

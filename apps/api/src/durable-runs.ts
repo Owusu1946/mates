@@ -155,6 +155,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   const [run] = await getDb().update(delegations).set({ status: "running", heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "queued"), eq(delegations.cancelRequested, false))).returning();
   if (!run) return;
   await ensureRunTiming(id, run.createdAt).catch(() => console.warn("run_timing_start_failed", { id }));
+  await markRunTiming(id, "startedAt").catch(() => console.warn("run_timing_start_failed", { id }));
   const request = chatRequestSchema.parse(run.request);
   const abort = new AbortController();
   const signal = AbortSignal.any([abort.signal, workerSignal, AbortSignal.timeout(10 * 60_000)]);

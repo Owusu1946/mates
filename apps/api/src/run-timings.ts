@@ -1,8 +1,9 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { delegations, runTimings } from "./db/schema.js";
 
-type Stage = "setupDoneAt" | "firstTokenAt" | "firstTextAt" | "doneAt";
+type Stage = "startedAt" | "setupDoneAt" | "firstTokenAt" | "firstTextAt" | "doneAt";
 
 export function hasVisibleText(content: Record<string, unknown>[]) {
   return content.some((part) => part.type === "text" && typeof part.text === "string" && part.text.trim().length > 0);
@@ -24,6 +25,7 @@ export async function markToolStep(id: string) {
 
 /** The mobile client sends elapsed monotonic time, avoiding phone/server clock skew. */
 export async function recordClientFirstText(userId: string, id: string, elapsedMs: number) {
+  if (!z.string().uuid().safeParse(id).success) return false;
   const [owned] = await getDb().select({ id: delegations.id }).from(delegations).where(and(eq(delegations.id, id), eq(delegations.clerkUserId, userId)));
   if (!owned) return false;
   await getDb().update(runTimings).set({ clientFirstTextMs: elapsedMs }).where(and(eq(runTimings.delegationId, id), isNull(runTimings.clientFirstTextMs)));

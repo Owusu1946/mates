@@ -38,17 +38,10 @@ console.log("\nWould-be blocks are logged by the API as usage_would_block while 
 
 const fromDay = new Date(Date.now() - (days - 1) * 86_400_000).toISOString().slice(0, 10);
 const toDay = new Date().toISOString().slice(0, 10);
-const latency = await financeLatency(fromDay, toDay) as {
-  cohort: string; runs: number; device_samples: number;
-  setup_p50_ms: number | null; setup_p95_ms: number | null;
-  token_p50_ms: number | null; token_p95_ms: number | null;
-  text_p50_ms: number | null; text_p95_ms: number | null;
-  done_p50_ms: number | null; done_p95_ms: number | null;
-  device_p50_ms: number | null; device_p95_ms: number | null;
-}[];
+const latency = await financeLatency(fromDay, toDay);
 const pair = (p50: number | null, p95: number | null) => p50 === null || p95 === null ? "—" : `${Math.round(p50)}/${Math.round(p95)} ms`;
 console.log(`Chat latency, p50/p95, ${fromDay} to ${toDay} (completed runs)`);
 for (const row of latency) {
-  console.log(`${row.cohort.padEnd(10)} runs ${String(row.runs).padStart(5)}  setup ${pair(row.setup_p50_ms, row.setup_p95_ms).padStart(15)}  token ${pair(row.token_p50_ms, row.token_p95_ms).padStart(15)}  saved text ${pair(row.text_p50_ms, row.text_p95_ms).padStart(15)}  done ${pair(row.done_p50_ms, row.done_p95_ms).padStart(15)}  phone ${pair(row.device_p50_ms, row.device_p95_ms).padStart(15)} (${row.device_samples} samples)`);
+  console.log(`${row.cohort.padEnd(10)} runs ${String(row.runs).padStart(5)}  queue ${pair(row.queue_p50_ms, row.queue_p95_ms).padStart(15)}  setup ${pair(row.setup_p50_ms, row.setup_p95_ms).padStart(15)}  token ${pair(row.token_p50_ms, row.token_p95_ms).padStart(15)}  saved text ${pair(row.text_p50_ms, row.text_p95_ms).padStart(15)}  done ${pair(row.done_p50_ms, row.done_p95_ms).padStart(15)}  phone ${pair(row.device_p50_ms, row.device_p95_ms).padStart(15)} (${row.device_samples} samples)`);
 }
 if (!latency.length) console.log("No completed chat samples yet. Apply the run_timings migration before collecting them.");
