@@ -23,6 +23,33 @@ describe("API contract", () => {
     expect((await send({ authorization: "Bearer test" }, 600_001)).status).toBe(400);
   });
 
+  it("replays typed run events over SSE and closes after the terminal event", async () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    const snapshots = [
+      { run: { id, status: "running", sequence: 1 }, events: [{ sequence: 1, type: "progress", payload: { status: "running" }, timestamp: new Date("2026-11-18T12:00:00Z") }] },
+      { run: { id, status: "completed", sequence: 2 }, events: [{ sequence: 2, type: "run.completed", payload: { status: "completed" }, timestamp: new Date("2026-11-18T12:00:01Z") }] },
+    ];
+    const runSnapshot = vi.fn(async () => snapshots.shift() ?? null);
+    const app = createApp({ ...deps, runSnapshot: runSnapshot as never });
+    const response = await app.request(`/v1/runs/${id}/events?after=0`, { headers: { authorization: "Bearer test" } });
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(body).toContain("id: 1\nevent: progress");
+    expect(body).toContain('"version":1,"sequence":1');
+    expect(body).toContain("id: 2\nevent: run.completed");
+    expect(runSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("validates the run event cursor before opening the stream", async () => {
+    const runSnapshot = vi.fn(async () => null);
+    const app = createApp({ ...deps, runSnapshot: runSnapshot as never });
+    const response = await app.request("/v1/runs/00000000-0000-4000-8000-000000000001/events?after=-1", { headers: { authorization: "Bearer test" } });
+    expect(response.status).toBe(400);
+    expect(runSnapshot).not.toHaveBeenCalled();
+  });
+
   it("takes Composio trigger events only when they're signed", async () => {
     const saved = { secret: process.env.COMPOSIO_WEBHOOK_SECRET, key: process.env.COMPOSIO_API_KEY };
     const send = () => createApp(deps).request("/v1/composio/webhook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "composio.trigger.message", data: {} }) });

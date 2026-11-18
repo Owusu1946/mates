@@ -31,6 +31,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
+import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
@@ -85,6 +86,7 @@ type Dependencies = {
     resumeRunId?: string,
     choice?: string,
   ): Promise<Response>;
+  runSnapshot(userId: string, id: string, after?: number): ReturnType<typeof runSnapshot>;
   chats: ChatStore;
 };
 
@@ -103,6 +105,7 @@ const defaults: Dependencies = {
     );
   },
   requestChat: requestChatCompletion,
+  runSnapshot,
   chats: createChatStore(),
 };
 
@@ -260,6 +263,59 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!after.success) return c.json(failure("INVALID_CURSOR", "Invalid cursor", c.get("requestId")), 400);
       const snapshot = await runSnapshot(c.get("userId"), c.req.param("id"), after.data);
       return snapshot ? c.json(snapshot) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+    })
+    .get("/v1/runs/:id/events", auth, async c => {
+      const cursor = parseRunEventCursor(c.req.query("after"), c.req.header("last-event-id"));
+      if (cursor === null) return c.json(failure("INVALID_CURSOR", "Invalid cursor", c.get("requestId")), 400);
+      const userId = c.get("userId");
+      const id = c.req.param("id");
+      const initial = await dependencies.runSnapshot(userId, id, cursor);
+      if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+      const requestSignal = c.req.raw.signal;
+      let closed = false;
+      const stream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let snapshot = initial;
+          let after = cursor;
+          let lastHeartbeat = Date.now();
+          const encoder = new TextEncoder();
+          try {
+            while (!closed && !requestSignal.aborted) {
+              for (const event of snapshot.events) {
+                if (event.sequence <= after) continue;
+                controller.enqueue(encodeRunEvent({
+                  version: 1,
+                  sequence: event.sequence,
+                  type: runEventTypeSchema.parse(event.type),
+                  timestamp: new Date(event.timestamp).toISOString(),
+                  payload: event.payload,
+                }));
+                after = event.sequence;
+              }
+              if (terminalRunStatus(snapshot.run.status) && after >= snapshot.run.sequence) break;
+              if (Date.now() - lastHeartbeat >= 15_000) {
+                controller.enqueue(encoder.encode(": keep-alive\n\n"));
+                lastHeartbeat = Date.now();
+              }
+              await new Promise(resolve => setTimeout(resolve, 250));
+              const next = await dependencies.runSnapshot(userId, id, after);
+              if (!next) break;
+              snapshot = next;
+            }
+          } catch (error) {
+            if (!closed && !requestSignal.aborted) controller.error(error);
+            return;
+          }
+          if (!closed) controller.close();
+        },
+        cancel() { closed = true; },
+      });
+      return c.body(stream, 200, {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+      });
     })
     .post("/v1/runs/:id/cancel", auth, async c => (await cancelRun(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
     .post("/v1/runs/:id/first-text", auth, validator("json", (value, c) => {
