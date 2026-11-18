@@ -207,6 +207,18 @@ export const runEvents = pgTable("run_events", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [uniqueIndex("run_events_sequence").on(t.delegationId, t.sequence)]);
 
+/** One row per delegation so latency queries do not scan the full progress event history. */
+export const runTimings = pgTable("run_timings", {
+  delegationId: uuid("delegation_id").primaryKey().references(() => delegations.id, { onDelete: "cascade" }),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull(),
+  setupDoneAt: timestamp("setup_done_at", { withTimezone: true }),
+  firstTokenAt: timestamp("first_token_at", { withTimezone: true }),
+  firstTextAt: timestamp("first_text_at", { withTimezone: true }),
+  doneAt: timestamp("done_at", { withTimezone: true }),
+  clientFirstTextMs: integer("client_first_text_ms"),
+  toolSteps: integer("tool_steps").notNull().default(0),
+}, (t) => [index("run_timings_submitted_idx").on(t.submittedAt)]);
+
 export const routines = pgTable("routines", {
   id: uuid("id").defaultRandom().primaryKey(),
   clerkUserId: text("clerk_user_id").notNull(),

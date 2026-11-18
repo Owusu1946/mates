@@ -138,7 +138,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -465,6 +465,8 @@ export async function createAgentResponse(
     return appsByToolkit.get(toolkit)!;
   };
   let cancelled = false;
+  let modelStartObserved = false;
+  let firstTokenObserved = false;
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (data: unknown) => {
@@ -536,6 +538,10 @@ export async function createAgentResponse(
             messages.push({ role: "system", content: "The user has just reached their usage limit. Don't call any more tools. Reply now with what you've found or done so far, and say in one short sentence that you paused here because their usage limit was reached and they can pick this up after it resets." });
           }
           const provider = await expandAttachments(messages, userId, attachmentCache);
+          if (!modelStartObserved) {
+            modelStartObserved = true;
+            execution?.onModelStart?.();
+          }
           const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
@@ -598,6 +604,10 @@ export async function createAgentResponse(
                   if (chunk.error)
                     throw new Error("The model could not finish this request.");
                   const delta = chunk.choices?.[0]?.delta;
+                  if (!firstTokenObserved && (delta?.content || delta?.tool_calls?.length)) {
+                    firstTokenObserved = true;
+                    execution?.onFirstToken?.();
+                  }
                   // Held until the step ends: text beside a tool call is narration, not the answer.
                   if (delta?.content) text += delta.content;
                   for (const fragment of delta?.tool_calls ?? []) {
@@ -685,6 +695,7 @@ export async function createAgentResponse(
             return;
           }
           const orderedCalls = [...calls.values()];
+          execution?.onToolStep?.();
           messages.push({
             role: "assistant",
             content: text || null,

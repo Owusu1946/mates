@@ -4,7 +4,8 @@ import { tasks, idempotencyKeys } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { CANCELLED_STATUS, cancelledMessage, stoppedContent } from "./run-cancel.js";
-import { agentRuns, chatMessages, chats, delegations, findings, missions, runEvents, submissionOutbox } from "./db/schema.js";
+import { agentRuns, chatMessages, chats, delegations, findings, missions, runEvents, runTimings, submissionOutbox } from "./db/schema.js";
+import { ensureRunTiming, hasVisibleText, markRunTiming, markToolStep } from "./run-timings.js";
 import { chatRequestSchema, requestChatCompletion } from "./chat.js";
 import { createChatStore, chatIdSchema } from "./chats.js";
 import { createAgentResponse } from "./agent-chat.js";
@@ -65,6 +66,7 @@ export async function submitRun(userId: string, input: Submission) {
   try {
     await getDb().batch([
       getDb().insert(delegations).values({ id, clerkUserId: userId, chatId: input.chatId, requestKey: input.requestKey, requestHash: hash, request: { ...input, persona } as unknown as Record<string, unknown>, parentId: input.parentId, assistantMessageId: input.assistantMessageId, agentRunId: input.resumeRunId ?? id, content: previousContent }),
+      getDb().insert(runTimings).values({ delegationId: id, submittedAt: sql`now()` }),
       getDb().insert(submissionOutbox).values({ delegationId: id }),
       getDb().insert(chatMessages).values({ chatId: input.chatId, id: input.parentId, message: { id: input.parentId, role: "user", createdAt: new Date().toISOString(), content: [{ type: "text", text: last.content }] } }).onConflictDoNothing(),
       // Database clock, like the user row above: a skewed API clock would sort the reply before its question.
@@ -152,6 +154,7 @@ function mergePayload(content: Content, payload: Record<string, unknown>) {
 export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   const [run] = await getDb().update(delegations).set({ status: "running", heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "queued"), eq(delegations.cancelRequested, false))).returning();
   if (!run) return;
+  await ensureRunTiming(id, run.createdAt).catch(() => console.warn("run_timing_start_failed", { id }));
   const request = chatRequestSchema.parse(run.request);
   const abort = new AbortController();
   const signal = AbortSignal.any([abort.signal, workerSignal, AbortSignal.timeout(10 * 60_000)]);
@@ -169,10 +172,17 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
   }, 2500);
   heartbeat.unref();
   let content: Content = structuredClone(run.content);
+  const initialText = content.filter(part => part.type === "text").map(part => String(part.text ?? "")).join("");
   let sequence = run.sequence;
   let status = "failed";
   let failure: string | null = null;
   let lastFlush = 0;
+  let sawVisibleText = false;
+  let sawResponseToken = false;
+  const timingWrites: Promise<unknown>[] = [];
+  const recordTiming = (promise: Promise<unknown>) => {
+    timingWrites.push(promise.catch(() => console.warn("run_timing_write_failed", { id })));
+  };
   let persisting: Promise<void> = Promise.resolve();
   const persist = (type: string, finalStatus?: string) => (persisting = persisting.catch(() => undefined).then(() => persistNow(type, finalStatus)));
   const persistNow = async (type: string, finalStatus?: string) => {
@@ -194,6 +204,12 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
       } else await getDb().batch([...statements]);
     } else await getDb().batch([...statements]);
     lastFlush = Date.now();
+    const currentText = content.filter(part => part.type === "text").map(part => String(part.text ?? "")).join("");
+    if (!sawVisibleText && hasVisibleText(content) && currentText !== initialText) {
+      sawVisibleText = true;
+      await markRunTiming(id, "firstTextAt").catch(() => console.warn("run_timing_first_text_failed", { id }));
+    }
+    if (finalStatus) await markRunTiming(id, "doneAt").catch(() => console.warn("run_timing_done_failed", { id }));
   };
   // Routine runs claimed in SQL carry no snapshot; they resolve it now.
   const persona = (run.request as { persona?: Persona }).persona ?? (await resolvePersona(run.clerkUserId, run.chatId));
@@ -226,6 +242,10 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
             if (payload.error) {
               errored = true;
               if (target === content) failure = "This request couldn’t finish. Earlier findings have been saved.";
+            }
+            if (!sawResponseToken && (payload.choices as { delta?: { content?: string } }[] | undefined)?.[0]?.delta?.content) {
+              sawResponseToken = true;
+              recordTiming(markRunTiming(id, "firstTokenAt"));
             }
             mergePayload(target, payload);
             if (target === content) {
@@ -261,12 +281,16 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
           live: !boardTask && !/^(occurrence_|watch_|habit_|call_|manual_|mission_)/.test(run.requestKey),
           // Scheduled routine runs are claimed with an "occurrence_" key, a fired watch's with "watch_"; everything else is chat.
           usageSource: run.requestKey.startsWith("occurrence_") ? "routine" : run.requestKey.startsWith("watch_") ? "watch" : run.requestKey.startsWith("habit_") ? "habit" : "chat",
+          onModelStart: () => recordTiming(markRunTiming(id, "setupDoneAt")),
+          onFirstToken: () => recordTiming(markRunTiming(id, "firstTokenAt")),
+          onToolStep: () => recordTiming(markToolStep(id)),
           checkpoint: async (pendingTool, history) => {
             await getDb().update(delegations).set({ pendingTool, heartbeatAt: new Date() }).where(eq(delegations.id, id));
             if (history) await getDb().update(agentRuns).set({ messages: history, updatedAt: new Date() }).where(eq(agentRuns.id, agentRunId));
           },
         })
-      : requestChatCompletion(spoken, turnSignal, run.clerkUserId, undefined, undefined, preamble);
+      : requestChatCompletion(spoken, turnSignal, run.clerkUserId, undefined, undefined, preamble,
+          () => recordTiming(markRunTiming(id, "setupDoneAt")));
   };
   const leaderOf = () => persona.mates.find((m) => m.id === persona.leaderId) ?? persona.mates[0]!;
   const steps = new Map<string, string>();
@@ -585,6 +609,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
     }
   } finally {
     clearInterval(heartbeat);
+    await Promise.all(timingWrites);
     await persist(`run.${status}`, status);
     await getDb().update(delegations).set({ pendingTool: null }).where(eq(delegations.id, id));
     // Rounds post in the group as they go; only the finished mission becomes a Feed item.

@@ -2,6 +2,7 @@ import type { ChatModelRunResult } from "@assistant-ui/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetch } from "expo/fetch";
 import { resolveApiUrl } from "./chat-model";
+import { bindRunTiming } from "./chat-timing";
 
 export type RunView = { id: string; chatId: string | null; status: string; sequence: number; content: Record<string, unknown>[]; error: string | null; assistantMessageId: string; parentId: string | null; createdAt: string; updatedAt: string };
 const active = new Map<string, string>();
@@ -96,6 +97,7 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
     if (!id) throw error;
   }
   const runId = id;
+  if (!input.resumeRunId) bindRunTiming(runId);
   if (signal.aborted) {
     void stopRun(getToken, runId);
     return;

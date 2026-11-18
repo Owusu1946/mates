@@ -14,6 +14,15 @@ const deps = {
 };
 
 describe("API contract", () => {
+  it("requires authentication and a bounded sample for first-text timing", async () => {
+    const app = createApp(deps);
+    const path = "/v1/runs/00000000-0000-4000-8000-000000000001/first-text";
+    const send = (headers: Record<string, string>, elapsedMs: number) => app.request(path, { method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify({ elapsedMs }) });
+    expect((await send({}, 1200)).status).toBe(401);
+    expect((await send({ authorization: "Bearer test" }, -1)).status).toBe(400);
+    expect((await send({ authorization: "Bearer test" }, 600_001)).status).toBe(400);
+  });
+
   it("takes Composio trigger events only when they're signed", async () => {
     const saved = { secret: process.env.COMPOSIO_WEBHOOK_SECRET, key: process.env.COMPOSIO_API_KEY };
     const send = () => createApp(deps).request("/v1/composio/webhook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "composio.trigger.message", data: {} }) });

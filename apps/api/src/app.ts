@@ -30,6 +30,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
+import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
@@ -61,7 +62,7 @@ import {
 } from "./chat.js";
 import { adminAuthorized, setPlan, upgradeUrl } from "./usage/billing.js";
 import { BillingUnavailable, revenueCatAuthorized, revenueCatWebhookSchema, storeEvent, syncFromRevenueCat } from "./usage/revenuecat.js";
-import { financeCosts, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
+import { financeCosts, financeLatency, financeSummary, financeUser, GROUPS, type CostGroup } from "./usage/finance.js";
 import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/gate.js";
 import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
@@ -260,6 +261,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return snapshot ? c.json(snapshot) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
     })
     .post("/v1/runs/:id/cancel", auth, async c => (await cancelRun(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
+    .post("/v1/runs/:id/first-text", auth, validator("json", (value, c) => {
+      const parsed = z.object({ elapsedMs: z.number().int().min(0).max(600_000) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_TIMING", "Invalid timing sample", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => (await recordClientFirstText(c.get("userId"), c.req.param("id"), c.req.valid("json").elapsedMs))
+      ? c.json({ ok: true })
+      : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
     .post("/v1/schedules/draft", auth, validator("json", (value, c) => {
       const parsed = routineSpecSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_SCHEDULE", "Check the time, timezone and task details", c.get("requestId")), 400);
@@ -1120,6 +1128,13 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.json({ from, to, groupBy, rows: await financeCosts(from, to, groupBy) });
     })
     .get("/internal/finance/users/:id", async (c) => c.json(await financeUser(c.req.param("id"))))
+    .get("/internal/finance/latency", async (c) => {
+      const day = /^\d{4}-\d{2}-\d{2}$/;
+      const today = new Date().toISOString().slice(0, 10);
+      const from = day.test(c.req.query("from") ?? "") ? c.req.query("from")! : `${today.slice(0, 8)}01`;
+      const to = day.test(c.req.query("to") ?? "") ? c.req.query("to")! : today;
+      return c.json({ from, to, rows: await financeLatency(from, to) });
+    })
     .notFound((c) =>
       c.json(failure("NOT_FOUND", "Route not found", c.get("requestId")), 404),
     )

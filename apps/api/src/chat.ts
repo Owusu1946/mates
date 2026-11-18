@@ -32,6 +32,7 @@ export async function requestChatCompletion(
   resumeRunId?: string,
   choice?: string,
   preamble = "You are a clear and thoughtful personal assistant in the Mates app.",
+  onModelStart?: () => void,
 ): Promise<Response> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
@@ -68,6 +69,7 @@ export async function requestChatCompletion(
   const memory = userId ? await memoryContext(userId, query).catch(() => null) : null;
   const recalled = userId && memory?.enabled && memory.settings.historyRecall ? await recallContext(userId, query).catch(() => null) : null;
   const model = "openai/gpt-5.6-luna";
+  onModelStart?.();
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     signal,

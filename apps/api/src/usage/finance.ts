@@ -47,3 +47,31 @@ export async function financeUser(userId: string) {
   ]);
   return { months, recent, usage };
 }
+
+/** Completed chat runs only; tool and plain turns have very different latency profiles. */
+export async function financeLatency(fromDay: string, toDay: string) {
+  return rows(sql`
+    SELECT CASE WHEN t.tool_steps = 0 THEN 'no_tool' ELSE 'with_tool' END AS cohort,
+      count(*)::integer AS runs,
+      count(t.client_first_text_ms)::integer AS device_samples,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.submitted_at) * 1000) AS setup_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.setup_done_at - t.submitted_at) * 1000) AS setup_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_token_at - t.submitted_at) * 1000) AS token_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_token_at - t.submitted_at) * 1000) AS token_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_text_at - t.submitted_at) * 1000) AS text_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.first_text_at - t.submitted_at) * 1000) AS text_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY extract(epoch FROM t.done_at - t.submitted_at) * 1000) AS done_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY extract(epoch FROM t.done_at - t.submitted_at) * 1000) AS done_p95_ms,
+      percentile_cont(0.5) WITHIN GROUP (ORDER BY t.client_first_text_ms) AS device_p50_ms,
+      percentile_cont(0.95) WITHIN GROUP (ORDER BY t.client_first_text_ms) AS device_p95_ms
+    FROM run_timings t
+    JOIN delegations d ON d.id = t.delegation_id
+    JOIN chats c ON c.id = d.chat_id
+    WHERE t.submitted_at >= ${fromDay}::date
+      AND t.submitted_at < (${toDay}::date + interval '1 day')
+      AND d.status = 'completed'
+      AND c.kind IN ('mate', 'legacy')
+      AND d.request->>'resumeRunId' IS NULL
+      AND d.request_key !~ '^(occurrence_|watch_|habit_|call_|manual_|mission_)'
+    GROUP BY 1 ORDER BY 1`);
+}
