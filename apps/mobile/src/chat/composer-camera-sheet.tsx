@@ -49,29 +49,41 @@ export function ComposerCameraSheet({
   const [flash, setFlash] = useState<FlashMode>("off");
   const [isOptionsExpanded, setIsOptionsExpanded] = useState(false);
   const [isShutterFlashing, setIsShutterFlashing] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const capturingRef = useRef(false);
+  const openRef = useRef(isOpen);
+  openRef.current = isOpen;
 
   const handleCapture = async () => {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    } catch {}
+    // One capture at a time: a second tap while the first photo saves would take another.
+    if (capturingRef.current) return;
+    capturingRef.current = true;
+    setIsCapturing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
 
+    // The flash is a blink on tap, not a cover: the full-resolution capture can take a second or
+    // more (longer with the flash on), and holding the white over it read as a blank sheet. The
+    // live preview stays visible meanwhile (expo-camera advises against capturing while paused).
     setIsShutterFlashing(true);
-    let captured: { uri: string; width: number; height: number } | null = null;
+    setTimeout(() => setIsShutterFlashing(false), 60);
 
+    let captured: { uri: string; width: number; height: number } | null = null;
     try {
       // Full quality here: the composer downscales once, so re-encoding twice would blur text.
       const photo = await cameraRef.current?.takePictureAsync({ quality: 1 });
       if (photo?.uri) captured = { uri: photo.uri, width: photo.width, height: photo.height };
     } catch (err) {
       console.warn("Failed to capture photo:", err);
+    } finally {
+      capturingRef.current = false;
+      setIsCapturing(false);
     }
 
-    setTimeout(() => {
-      setIsShutterFlashing(false);
-      if (!captured) return; // Stay open so the user can try again.
-      onCapture(captured);
-      onClose();
-    }, 180);
+    if (!captured) return; // Stay open so the user can try again.
+    if (!openRef.current) return; // Closed while it saved: the user backed out of this photo.
+    // Straight to the composer, which shows the photo at once while it uploads.
+    onCapture(captured);
+    onClose();
   };
 
   const handleClose = () => {
@@ -156,12 +168,12 @@ export function ComposerCameraSheet({
                   pointerEvents="none"
                 />
 
-                {/* Shutter White Flash effect */}
+                {/* Shutter blink: in on tap, straight back out, whatever the capture is doing */}
                 {isShutterFlashing && (
                   <Animated.View
                     pointerEvents="none"
                     entering={FadeIn.duration(40)}
-                    exiting={FadeOut.duration(140)}
+                    exiting={FadeOut.duration(160)}
                     style={[StyleSheet.absoluteFill, styles.shutterFlash]}
                   />
                 )}
@@ -199,11 +211,13 @@ export function ComposerCameraSheet({
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Take photo"
+                      accessibilityState={{ busy: isCapturing }}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                       onPress={handleCapture}
+                      disabled={isCapturing}
                       style={({ pressed }) => [
                         styles.shutterOuterRing,
-                        pressed && styles.shutterPressed,
+                        (pressed || isCapturing) && styles.shutterPressed,
                       ]}
                     >
                       <View style={styles.shutterInnerCircle} />
