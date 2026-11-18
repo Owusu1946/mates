@@ -74,7 +74,28 @@ describe("API contract", () => {
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(body).toContain("event: run.completed");
     expect(submitRun).toHaveBeenCalledWith("user_123", expect.any(Object), { publish: false });
-    expect(executeLiveRun).toHaveBeenCalledWith(id, expect.any(AbortSignal));
+    expect(executeLiveRun).toHaveBeenCalledWith(id, expect.any(AbortSignal), expect.any(Function));
+  });
+
+  it("requests a safe worker handoff when the live SSE client disconnects", async () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    let shouldHandoff: (() => "disconnect" | "deadline" | null) | undefined;
+    const executeLiveRun = vi.fn(async (_id: string, _signal: AbortSignal, check: typeof shouldHandoff) => { shouldHandoff = check; });
+    const app = createApp({
+      ...deps,
+      chats: { get: vi.fn(async () => ({ kind: "mate" })) } as never,
+      submitRun: vi.fn(async () => ({ id, status: "queued" })) as never,
+      executeLiveRun,
+      runSnapshot: vi.fn(async () => ({ run: { id, status: "running", sequence: 0 }, events: [] })) as never,
+    });
+    const response = await app.request("/v1/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify({ chatId: "mate_123", requestKey: "request_key_123", assistantMessageId: "assistant_123", parentId: "user_123", messages: [{ role: "user", content: "Hello" }] }),
+    });
+    await response.body?.cancel();
+
+    expect(shouldHandoff?.()).toBe("disconnect");
   });
 
   it("keeps group chats on the worker JSON path even when SSE is requested", async () => {

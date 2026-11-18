@@ -260,6 +260,13 @@
       "when": 1795000337724,
       "tag": "0036_whole_starbolt",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795005267599,
+      "tag": "0037_mysterious_the_hand",
+      "breakpoints": true
     }
   ]
 }

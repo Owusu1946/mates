@@ -29,6 +29,7 @@ import { createGroupTool, createMateTool, mateCard, runCreateGroup, runCreateMat
 import { assembleTeam, assembleTeamTool, liveMission, type AssembledTeam, missionContext, missionNoteTool, runMissionNote, teamCard } from "./missions.js";
 import { gradientOf, type PersonaMate } from "./mates.js";
 import { checkWithMate, checkWithMateTool, memoryCard, memoryContext, memoryTool, runMemoryTool } from "./memory.js";
+import { RunHandoffRequested } from "./run-handoff.js";
 import { recallContext, recallTool, runRecall } from "./recall.js";
 import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, type Plan } from "./plans.js";
 import { playbookContext } from "./playbooks.js";
@@ -141,7 +142,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; resumeCheckpoint?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -189,7 +190,24 @@ export async function createAgentResponse(
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
-  if (resumeRunId) {
+  if (execution?.resumeCheckpoint) {
+    const [checkpoint] = await getDb()
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.id, execution.runId), eq(agentRuns.clerkUserId, userId)));
+    if (!checkpoint || checkpoint.status !== "checkpointed")
+      return Response.json({ error: "This task has no safe checkpoint to resume." }, { status: 409 });
+    const [claimed] = await getDb()
+      .update(agentRuns)
+      .set({ status: "running", updatedAt: new Date() })
+      .where(and(eq(agentRuns.id, checkpoint.id), eq(agentRuns.status, "checkpointed")))
+      .returning({ id: agentRuns.id });
+    if (!claimed)
+      return Response.json({ error: "This task is already continuing." }, { status: 409 });
+    session = await getComposio().use(checkpoint.sessionId);
+    messages = checkpoint.messages as unknown as ModelMessage[];
+    runId = checkpoint.id;
+  } else if (resumeRunId) {
     const [run] = await getDb()
       .select()
       .from(agentRuns)
@@ -496,6 +514,7 @@ export async function createAgentResponse(
     return appsByToolkit.get(toolkit)!;
   };
   let cancelled = false;
+  let handoffRequested = false;
   let modelStartObserved = false;
   let firstTokenObserved = false;
   const body = new ReadableStream<Uint8Array>({
@@ -1295,28 +1314,33 @@ export async function createAgentResponse(
           .update(agentRuns)
           .set({ status: "failed", updatedAt: new Date() })
           .where(eq(agentRuns.id, runId));
-      } catch {
-        card(progressId, {
-          kind: "step",
-          phase: "error",
-          label: signal.aborted ? "Stopped" : "Couldn’t finish this request",
-        });
-        if (!signal.aborted)
-          send({
-            error: {
-              message: `${mateName} couldn’t finish this request. Please try again.`,
-            },
+      } catch (error) {
+        if (error instanceof RunHandoffRequested) {
+          handoffRequested = true;
+          send({ handoff: { reason: error.reason } });
+        } else {
+          card(progressId, {
+            kind: "step",
+            phase: "error",
+            label: signal.aborted ? "Stopped" : "Couldn’t finish this request",
           });
-        await getDb()
-          .update(agentRuns)
-          .set({
-            status: signal.aborted ? "cancelled" : "failed",
-            updatedAt: new Date(),
-          })
-          .where(eq(agentRuns.id, runId));
+          if (!signal.aborted)
+            send({
+              error: {
+                message: `${mateName} couldn’t finish this request. Please try again.`,
+              },
+            });
+          await getDb()
+            .update(agentRuns)
+            .set({
+              status: signal.aborted ? "cancelled" : "failed",
+              updatedAt: new Date(),
+            })
+            .where(eq(agentRuns.id, runId));
+        }
       } finally {
         const [saved] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, runId)).catch(() => []);
-        if (signal.aborted || !saved?.status.startsWith("waiting")) await finishBrowsers(runId, userId, signal.aborted || saved?.status === "failed" ? "cancelled" : "completed", card).catch(() => {});
+        if (!handoffRequested && (signal.aborted || !saved?.status.startsWith("waiting"))) await finishBrowsers(runId, userId, signal.aborted || saved?.status === "failed" ? "cancelled" : "completed", card).catch(() => {});
         if (!cancelled) controller.close();
       }
     },

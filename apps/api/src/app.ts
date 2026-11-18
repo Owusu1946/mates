@@ -87,7 +87,7 @@ type Dependencies = {
     choice?: string,
   ): Promise<Response>;
   submitRun(userId: string, input: Parameters<typeof submitRun>[1], options?: { publish?: boolean }): ReturnType<typeof submitRun>;
-  executeLiveRun(id: string, signal: AbortSignal): Promise<void>;
+  executeLiveRun(id: string, signal: AbortSignal, shouldHandoff: () => "disconnect" | "deadline" | null): Promise<void>;
   runSnapshot(userId: string, id: string, after?: number): ReturnType<typeof runSnapshot>;
   chats: ChatStore;
 };
@@ -108,9 +108,9 @@ const defaults: Dependencies = {
   },
   requestChat: requestChatCompletion,
   submitRun,
-  async executeLiveRun(id, signal) {
-    const claimed = await executeDelegation(id, signal);
-    if (!claimed) return;
+  async executeLiveRun(id, signal, shouldHandoff) {
+    const result = await executeDelegation(id, signal, { executor: "api", shouldHandoff });
+    if (result !== "finished") return;
     await deliverFindings();
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
   },
@@ -132,6 +132,7 @@ function runEventResponse(
   signal: AbortSignal,
   loadSnapshot: (userId: string, id: string, after?: number) => ReturnType<typeof runSnapshot>,
   headers: Record<string, string> = {},
+  onDisconnect?: () => void,
 ) {
   let closed = false;
   const stream = new ReadableStream<Uint8Array>({
@@ -140,6 +141,8 @@ function runEventResponse(
       let cursor = after;
       let lastHeartbeat = Date.now();
       const encoder = new TextEncoder();
+      const onAbort = () => onDisconnect?.();
+      signal.addEventListener("abort", onAbort, { once: true });
       try {
         while (!closed && !signal.aborted) {
           for (const event of snapshot.events) {
@@ -166,10 +169,12 @@ function runEventResponse(
       } catch (error) {
         if (!closed && !signal.aborted) controller.error(error);
         return;
+      } finally {
+        signal.removeEventListener("abort", onAbort);
       }
       if (!closed) controller.close();
     },
-    cancel() { closed = true; },
+    cancel() { closed = true; onDisconnect?.(); },
   });
   return new Response(stream, {
     status: 200,
@@ -331,11 +336,14 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const run = await dependencies.submitRun(userId, input, { publish: !liveOneToOne });
       if (liveOneToOne) {
         // API and Trigger compete for the same queued -> running transition, so only one executes.
+        let handoffReason: "disconnect" | "deadline" | null = null;
+        const handoffDeadline = setTimeout(() => { handoffReason ??= "deadline"; }, 60_000);
         if (run.status === "queued")
-          void dependencies.executeLiveRun(run.id, new AbortController().signal).catch(error => console.error("live_run_failed", { id: run.id, message: error instanceof Error ? error.message : String(error) }));
+          void dependencies.executeLiveRun(run.id, new AbortController().signal, () => handoffReason).catch(error => console.error("live_run_failed", { id: run.id, message: error instanceof Error ? error.message : String(error) })).finally(() => clearTimeout(handoffDeadline));
+        else clearTimeout(handoffDeadline);
         const initial = await dependencies.runSnapshot(userId, run.id, 0);
         if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
-        return runEventResponse(userId, run.id, 0, initial, c.req.raw.signal, dependencies.runSnapshot, { "x-run-id": run.id, "access-control-expose-headers": "x-run-id" });
+        return runEventResponse(userId, run.id, 0, initial, c.req.raw.signal, dependencies.runSnapshot, { "x-run-id": run.id, "access-control-expose-headers": "x-run-id" }, () => { handoffReason ??= "disconnect"; });
       }
       return c.json({ runId: run.id, status: run.status }, 202);
     })

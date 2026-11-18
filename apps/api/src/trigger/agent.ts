@@ -22,7 +22,8 @@ export const agentExecution = schemaTask({
   retry: { maxAttempts: 1 }, // Do not replay an ambiguous external mutation.
   maxDuration: 720,
   run: async ({ delegationId }, { signal }) => {
-    await executeDelegation(delegationId, signal ?? new AbortController().signal);
+    const outcome = await executeDelegation(delegationId, signal ?? new AbortController().signal);
+    if (outcome !== "finished") return { delegationId, claimed: false };
     await deliverFindings();
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
     return { delegationId };
