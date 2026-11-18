@@ -62,7 +62,8 @@ import { RideLocationCard } from "./ride-location-card";
 import { BrowserCard } from "./browser-card";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useAuth } from "@clerk/expo";
-import { cancelBackgroundChat } from "./background-chat";
+import { cancelBackgroundChat, runRequest } from "./background-chat";
+import { FeedbackSheet, type FeedbackReason } from "./feedback-sheet";
 import { ScheduleCard } from "./schedule-card";
 import { MemoriesChip, MemoryCard } from "./memory-card";
 import { GitHubConnectCard } from "./github-connect-card";
@@ -283,6 +284,13 @@ function EmptyChatRotatingPrompt({
 
 function MessageActions({ user }: { user: boolean }) {
   const colors = useChatColors();
+  const { getToken } = useAuth();
+  const toast = useToast();
+  const messageId = useAuiState((state) => state.message.id);
+  const live = useAuiState(isMessageLive);
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const [feedbackSheetOpen, setFeedbackSheetOpen] = useState(false);
   const branchNumber = useAuiState((state) => state.message.branchNumber);
   const branchCount = useAuiState((state) => state.message.branchCount);
   // Resuming a task (approve, connect, pick) continues the reply; it is not an alternative answer.
@@ -296,7 +304,59 @@ function MessageActions({ user }: { user: boolean }) {
     justifyContent: "center" as const,
     borderRadius: 14,
   };
+  const feedbackPath = `messages/${encodeURIComponent(messageId)}/feedback`;
+  const removeFeedback = async () => {
+    if (feedbackBusy) return;
+    const previous = feedback;
+    setFeedback(null);
+    setFeedbackBusy(true);
+    try {
+      await runRequest(getToken, feedbackPath, undefined, undefined, { method: "DELETE" });
+    } catch {
+      setFeedback(previous);
+      toast.show({ message: "Couldn’t update feedback. Try again.", tone: "error" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+  const ratePositive = async () => {
+    if (feedbackBusy || live) return;
+    if (feedback === "up") return removeFeedback();
+    const previous = feedback;
+    setFeedback("up");
+    setFeedbackBusy(true);
+    try {
+      await runRequest(getToken, feedbackPath, { rating: "up" });
+    } catch {
+      setFeedback(previous);
+      toast.show({ message: "Couldn’t save feedback. Try again.", tone: "error" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+  const rateNegative = async (reason: FeedbackReason, note: string) => {
+    if (feedbackBusy || live) return;
+    const previous = feedback;
+    setFeedback("down");
+    setFeedbackBusy(true);
+    try {
+      await runRequest(getToken, feedbackPath, { rating: "down", reason, note });
+      setFeedbackSheetOpen(false);
+      toast.show({ message: "Thanks, that helps.", tone: "success" });
+    } catch {
+      setFeedback(previous);
+      toast.show({ message: "Couldn’t save feedback. Try again.", tone: "error" });
+    } finally {
+      setFeedbackBusy(false);
+    }
+  };
+  const tapNegative = () => {
+    if (feedbackBusy || live) return;
+    if (feedback === "down") void removeFeedback();
+    else setFeedbackSheetOpen(true);
+  };
   return (
+    <>
     <View
       style={{
         flexDirection: "row",
@@ -360,23 +420,25 @@ function MessageActions({ user }: { user: boolean }) {
           <ActionBarPrimitive.Reload style={iconButton}>
             <ChatIcon name="reload" color={colors.mutedForeground} size={16} />
           </ActionBarPrimitive.Reload>
-          <ActionBarPrimitive.FeedbackPositive style={iconButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Good response" accessibilityState={{ selected: feedback === "up", disabled: feedbackBusy || live }} disabled={feedbackBusy || live} onPress={() => void ratePositive()} style={[iconButton, feedback === "up" && { backgroundColor: colors.primary }, (feedbackBusy || live) && { opacity: 0.5 }]}>
             <ChatIcon
               name="thumbsUp"
-              color={colors.mutedForeground}
+              color={feedback === "up" ? colors.primaryForeground : colors.mutedForeground}
               size={16}
             />
-          </ActionBarPrimitive.FeedbackPositive>
-          <ActionBarPrimitive.FeedbackNegative style={iconButton}>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Bad response" accessibilityState={{ selected: feedback === "down", disabled: feedbackBusy || live }} disabled={feedbackBusy || live} onPress={tapNegative} style={[iconButton, feedback === "down" && { backgroundColor: colors.primary }, (feedbackBusy || live) && { opacity: 0.5 }]}>
             <ChatIcon
               name="thumbsDown"
-              color={colors.mutedForeground}
+              color={feedback === "down" ? colors.primaryForeground : colors.mutedForeground}
               size={16}
             />
-          </ActionBarPrimitive.FeedbackNegative>
+          </Pressable>
         </>
       )}
     </View>
+    {feedbackSheetOpen && <FeedbackSheet visible submitting={feedbackBusy} colors={colors} onClose={() => setFeedbackSheetOpen(false)} onSubmit={rateNegative} />}
+    </>
   );
 }
 
