@@ -1,7 +1,7 @@
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { idempotencyKeys, tasks } from "@trigger.dev/sdk";
 import { getDb } from "./db/client.js";
-import { chatMessages, delegations, runEvents } from "./db/schema.js";
+import { chatMessages, delegations, runEvents, runTimings } from "./db/schema.js";
 import { createChatStore } from "./chats.js";
 import { visibleMentionText } from "./groups.js";
 import { extractMemories, memoryCard, memorySettings } from "./memory.js";
@@ -25,9 +25,14 @@ export async function enqueueRunFollowups(delegationId: string) {
   await getDb().update(delegations).set({ followupsQueuedAt: new Date() }).where(and(eq(delegations.id, delegationId), isNull(delegations.followupsQueuedAt)));
 }
 
+/**
+ * Retries follow-ups whose enqueue failed. Only runs this code executed (it stamps started_at when it
+ * claims one): a run the previous worker finished did its follow-ups inline, and must not repeat them.
+ */
 export async function enqueuePendingRunFollowups() {
   const pending = await getDb().select({ id: delegations.id }).from(delegations)
-    .where(and(inArray(delegations.status, ["completed", "failed", "waiting", "cancelled"]), isNull(delegations.followupsQueuedAt)))
+    .innerJoin(runTimings, eq(runTimings.delegationId, delegations.id))
+    .where(and(inArray(delegations.status, ["completed", "failed", "waiting", "cancelled"]), isNull(delegations.followupsQueuedAt), isNotNull(runTimings.startedAt)))
     .limit(50);
   for (const run of pending) {
     await enqueueRunFollowups(run.id).catch(error => console.warn("post_run_enqueue_failed", { id: run.id, message: error instanceof Error ? error.message : String(error) }));
