@@ -437,7 +437,7 @@ function MessageActions({ user }: { user: boolean }) {
         </>
       )}
     </View>
-    {feedbackSheetOpen && <FeedbackSheet visible submitting={feedbackBusy} colors={colors} onClose={() => setFeedbackSheetOpen(false)} onSubmit={rateNegative} />}
+    {feedbackSheetOpen && <FeedbackSheet submitting={feedbackBusy} onClose={() => setFeedbackSheetOpen(false)} onSubmit={rateNegative} />}
     </>
   );
 }

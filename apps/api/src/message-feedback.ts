@@ -48,6 +48,18 @@ function singleSpeakerId(message: Record<string, unknown>) {
   return speakerIds.size === 1 ? [...speakerIds][0]! : null;
 }
 
+export function messageFeedbackAttribution(message: Record<string, unknown>, chatKind: string, chatMateId: string | null) {
+  return {
+    runId: messageDelegationId(message),
+    mateId: chatKind === "group" ? singleSpeakerId(message) : chatMateId,
+  };
+}
+
+export function isMessageFeedbackReady(message: Record<string, unknown>, runStatus?: string) {
+  const status = message.status as { type?: unknown } | undefined;
+  return status?.type !== "running" && !(runStatus && ["queued", "running"].includes(runStatus));
+}
+
 export async function saveMessageFeedback(userId: string, messageId: string, input: MessageFeedbackInput): Promise<FeedbackResult> {
   const [saved] = await getDb()
     .select({ chatId: chatMessages.chatId, chatKind: chats.kind, chatMateId: chats.mateId, message: chatMessages.message })
@@ -58,10 +70,10 @@ export async function saveMessageFeedback(userId: string, messageId: string, inp
   if (!saved || saved.message.role !== "assistant") return { ok: false, error: "NOT_FOUND" };
 
   const message = saved.message;
-  const messageStatus = message.status as { type?: unknown } | undefined;
-  if (messageStatus?.type === "running") return { ok: false, error: "MESSAGE_NOT_READY" };
+  if (!isMessageFeedbackReady(message)) return { ok: false, error: "MESSAGE_NOT_READY" };
 
-  const candidateRunId = messageDelegationId(message);
+  const attribution = messageFeedbackAttribution(message, saved.chatKind, saved.chatMateId);
+  const candidateRunId = attribution.runId;
   const [run] = candidateRunId
     ? await getDb()
         .select({ id: delegations.id, status: delegations.status })
@@ -69,7 +81,7 @@ export async function saveMessageFeedback(userId: string, messageId: string, inp
         .where(and(eq(delegations.id, candidateRunId), eq(delegations.clerkUserId, userId), eq(delegations.chatId, saved.chatId)))
         .limit(1)
     : [];
-  if (run && ["queued", "running"].includes(run.status)) return { ok: false, error: "MESSAGE_NOT_READY" };
+  if (!isMessageFeedbackReady(message, run?.status)) return { ok: false, error: "MESSAGE_NOT_READY" };
 
   const runId = run?.id ?? null;
   const [modelRow] = runId
@@ -80,7 +92,7 @@ export async function saveMessageFeedback(userId: string, messageId: string, inp
         .orderBy(desc(usageEvents.createdAt))
         .limit(1)
     : [];
-  const mateId = saved.chatKind === "group" ? singleSpeakerId(message) : saved.chatMateId;
+  const mateId = attribution.mateId;
   const reason = input.rating === "down" ? input.reason! : null;
   const note = input.rating === "down" ? input.note?.trim() || null : null;
 

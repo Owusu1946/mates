@@ -174,6 +174,24 @@ describe("API contract", () => {
     expect(response.headers.get("content-type")).toContain("text/event-stream");
     expect(await response.text()).toContain("Hello");
   });
+
+  it("authenticates feedback requests and validates feedback before reaching storage", async () => {
+    const app = createApp(deps);
+    const path = "/v1/messages/assistant_123/feedback";
+    const unauthorized = await app.request(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rating: "up" }) });
+    expect(unauthorized.status).toBe(401);
+
+    const invalid = await app.request(path, {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json" },
+      body: JSON.stringify({ rating: "down" }),
+    });
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ error: { code: "INVALID_FEEDBACK" } });
+
+    const noDeleteAuth = await app.request(path, { method: "DELETE" });
+    expect(noDeleteAuth.status).toBe(401);
+  });
 });
 
 describe("GitHub connect callback", () => {
