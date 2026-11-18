@@ -66,6 +66,7 @@ import { assertUsage, enforcement, UsageLimitError, usageState } from "./usage/g
 import { PLAN_IDS } from "./usage/plans.js";
 import { perMinute } from "./usage/prices.js";
 import { recordUsage } from "./usage/record.js";
+import { deleteMessageFeedback, messageFeedbackInputSchema, saveMessageFeedback } from "./message-feedback.js";
 import { findDecks, present, presentationDeck, presentationState, PresentError, stopPresenting } from "./presentation.js";
 import { controlWatch, handleWatchEvent, listWatches, watchCard, watchHistory } from "./watches.js";
 import { recordAppEvent } from "./habits/observers.js";
@@ -260,6 +261,17 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return snapshot ? c.json(snapshot) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
     })
     .post("/v1/runs/:id/cancel", auth, async c => (await cancelRun(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
+    .post("/v1/messages/:id/feedback", bodyLimit({ maxSize: 5_000 }), auth, validator("json", (value, c) => {
+      const parsed = messageFeedbackInputSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_FEEDBACK", "Choose a rating and a reason for negative feedback", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => {
+      const result = await saveMessageFeedback(c.get("userId"), c.req.param("id"), c.req.valid("json"));
+      if (!result.ok && result.error === "NOT_FOUND") return c.json(failure("NOT_FOUND", "Assistant message not found", c.get("requestId")), 404);
+      if (!result.ok) return c.json(failure("MESSAGE_NOT_READY", "Feedback is available after the reply finishes", c.get("requestId")), 409);
+      return c.json({ feedback: result });
+    })
+    .delete("/v1/messages/:id/feedback", auth, async c => c.json({ deleted: await deleteMessageFeedback(c.get("userId"), c.req.param("id")) }))
     .post("/v1/schedules/draft", auth, validator("json", (value, c) => {
       const parsed = routineSpecSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_SCHEDULE", "Check the time, timezone and task details", c.get("requestId")), 400);
