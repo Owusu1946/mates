@@ -33,11 +33,14 @@ function parseFrame(frame: string): RunStreamEvent | null {
 }
 
 /** Reads durable SSE frames while tolerating arbitrary network chunk and UTF-8 boundaries. */
-export async function* readRunStreamEvents(stream: ReadableStream<Uint8Array>): AsyncGenerator<RunStreamEvent> {
+export async function* readRunStreamEvents(stream: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<RunStreamEvent> {
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let completed = false;
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -58,6 +61,7 @@ export async function* readRunStreamEvents(stream: ReadableStream<Uint8Array>): 
       if (event) yield event;
     }
   } finally {
+    signal?.removeEventListener("abort", cancel);
     if (!completed) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }

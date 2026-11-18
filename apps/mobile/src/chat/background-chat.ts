@@ -7,6 +7,7 @@ import { readRunStreamEvents } from "./run-stream";
 
 export type RunView = { id: string; chatId: string | null; status: string; sequence: number; content: Record<string, unknown>[]; error: string | null; assistantMessageId: string; parentId: string | null; createdAt: string; updatedAt: string };
 const active = new Map<string, string>();
+const stopRequested = new Set<string>();
 
 /** An API refusal that keeps its status and code, so callers can tell "out of usage" from a failure. */
 export class ApiError extends Error {
@@ -57,12 +58,13 @@ export async function runRequest<T>(getToken: () => Promise<string | null>, path
 }
 
 export async function cancelBackgroundChat(getToken: () => Promise<string | null>, chatId: string) {
+  stopRequested.add(chatId);
   const id = active.get(chatId);
-  if (id) await runRequest(getToken, `runs/${id}/cancel`, {});
+  if (id) await stopRun(getToken, id);
   else {
     const { runs } = await runRequest<{ runs: { id: string; status: string }[] }>(getToken, `runs?chatId=${encodeURIComponent(chatId)}`);
     const running = runs.find(run => ["queued", "running"].includes(run.status));
-    if (running) await runRequest(getToken, `runs/${running.id}/cancel`, {});
+    if (running) await stopRun(getToken, running.id);
   }
 }
 
@@ -80,6 +82,32 @@ async function runEventStream(getToken: () => Promise<string | null>, id: string
     throw new ApiError(value?.error?.message ?? "The live reply stream is unavailable.", response.status, value?.error?.code ?? "stream_unavailable");
   }
   return response.body;
+}
+
+async function createDurableRun(getToken: () => Promise<string | null>, input: Record<string, unknown>) {
+  const base = resolveApiUrl();
+  const token = await getToken();
+  if (!base || !token) throw new Error("Sign in and reconnect to continue.");
+  const response = await fetch(`${base}/v1/runs`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json", accept: "text/event-stream, application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const value = await response.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
+    const error = new ApiError(value?.error?.message ?? "Couldn’t reach your mate. Please try again.", response.status, value?.error?.code ?? "unknown", value?.error ?? {});
+    if (error.code === "plan_required") planRequiredListeners.forEach((listener) => listener());
+    if (isUsageLimit(error)) usageChanged();
+    throw error;
+  }
+  if (response.headers.get("content-type")?.includes("text/event-stream")) {
+    const id = response.headers.get("x-run-id");
+    if (!id || !response.body) throw new Error("The live reply stream did not include a run id.");
+    return { id, stream: response.body };
+  }
+  const data = await response.json() as { runId?: string };
+  if (!data.runId) throw new Error("The run was accepted without an id.");
+  return { id: data.runId, stream: null };
 }
 
 /**
@@ -101,13 +129,15 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
   const chatId = String(input.chatId);
   const storageKey = `cooper:submission:${chatId}:${String(input.requestKey)}`;
   let id = await AsyncStorage.getItem(storageKey);
+  let liveStream: ReadableStream<Uint8Array> | null = null;
   if (!id) {
     let error: unknown;
     for (let attempt = 0; attempt < 3 && !id; attempt++) {
       try {
         // Not aborted with the request: if Stop is tapped mid-send, the run's id still comes back so it can be stopped.
-        const data = await runRequest<{ runId: string }>(getToken, "runs", input);
-        id = data.runId;
+        const created = await createDurableRun(getToken, input);
+        id = created.id;
+        liveStream = created.stream;
         await AsyncStorage.setItem(storageKey, id);
       } catch (cause) { error = cause; if (signal.aborted || isUsageLimit(cause)) throw cause; await delay(500 * (attempt + 1), signal); }
     }
@@ -116,20 +146,19 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
   const runId = id;
   if (!input.resumeRunId) bindRunTiming(runId);
   if (signal.aborted) {
-    void stopRun(getToken, runId);
+    if (stopRequested.has(chatId)) void stopRun(getToken, runId);
+    stopRequested.delete(chatId);
     return;
   }
   // Stop on screen is instant; the server is told right away, in the background.
-  const onAbort = () => void stopRun(getToken, runId);
-  signal.addEventListener("abort", onAbort, { once: true });
   active.set(chatId, id);
   let cursor = 0;
   let failures = 0;
   yield { content: [{ type: "tool-call", toolCallId: `queued_${id}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: { kind: "step", phase: "running", label: "Cooper is starting", detail: "You can leave the app. Your result will be saved." } }] };
   try {
     try {
-      const stream = await runEventStream(getToken, id, cursor, signal);
-      for await (const event of readRunStreamEvents(stream)) {
+      const stream = liveStream ?? await runEventStream(getToken, id, cursor, signal);
+      for await (const event of readRunStreamEvents(stream, signal)) {
         if (signal.aborted) return;
         if (event.sequence <= cursor) continue;
         cursor = event.sequence;
@@ -178,8 +207,8 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
       await delay(600, signal);
     }
   } finally {
-    signal.removeEventListener("abort", onAbort);
     if (active.get(chatId) === id) active.delete(chatId);
+    stopRequested.delete(chatId);
   }
 }
 

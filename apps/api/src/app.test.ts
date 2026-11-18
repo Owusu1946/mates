@@ -50,6 +50,55 @@ describe("API contract", () => {
     expect(runSnapshot).not.toHaveBeenCalled();
   });
 
+  it("runs one-to-one chat live and returns the run id on the same SSE response", async () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    const submitRun = vi.fn(async () => ({ id, status: "queued" }));
+    const executeLiveRun = vi.fn(async () => {});
+    const runSnapshot = vi.fn(async () => ({ run: { id, status: "completed", sequence: 1 }, events: [{ sequence: 1, type: "run.completed", payload: { status: "completed", content: [] }, timestamp: new Date("2026-11-18T12:00:00Z") }] }));
+    const app = createApp({
+      ...deps,
+      chats: { get: vi.fn(async () => ({ kind: "mate" })) } as never,
+      submitRun: submitRun as never,
+      executeLiveRun,
+      runSnapshot: runSnapshot as never,
+    });
+    const response = await app.request("/v1/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify({ chatId: "mate_123", requestKey: "request_key_123", assistantMessageId: "assistant_123", parentId: "user_123", messages: [{ role: "user", content: "Hello" }] }),
+    });
+    const body = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-run-id")).toBe(id);
+    expect(response.headers.get("content-type")).toContain("text/event-stream");
+    expect(body).toContain("event: run.completed");
+    expect(submitRun).toHaveBeenCalledWith("user_123", expect.any(Object), { publish: false });
+    expect(executeLiveRun).toHaveBeenCalledWith(id, expect.any(AbortSignal));
+  });
+
+  it("keeps group chats on the worker JSON path even when SSE is requested", async () => {
+    const id = "00000000-0000-4000-8000-000000000001";
+    const submitRun = vi.fn(async () => ({ id, status: "queued" }));
+    const executeLiveRun = vi.fn(async () => {});
+    const app = createApp({
+      ...deps,
+      chats: { get: vi.fn(async () => ({ kind: "group" })) } as never,
+      submitRun: submitRun as never,
+      executeLiveRun,
+    });
+    const response = await app.request("/v1/runs", {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json", accept: "text/event-stream" },
+      body: JSON.stringify({ chatId: "group_123", requestKey: "request_key_123", assistantMessageId: "assistant_123", parentId: "user_123", messages: [{ role: "user", content: "Hello" }] }),
+    });
+
+    expect(response.status).toBe(202);
+    expect(response.headers.get("content-type")).toContain("application/json");
+    expect(submitRun).toHaveBeenCalledWith("user_123", expect.any(Object), { publish: true });
+    expect(executeLiveRun).not.toHaveBeenCalled();
+  });
+
   it("takes Composio trigger events only when they're signed", async () => {
     const saved = { secret: process.env.COMPOSIO_WEBHOOK_SECRET, key: process.env.COMPOSIO_API_KEY };
     const send = () => createApp(deps).request("/v1/composio/webhook", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "composio.trigger.message", data: {} }) });

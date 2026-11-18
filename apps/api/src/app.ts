@@ -30,11 +30,11 @@ import {
 } from "./chats.js";
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
-import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
+import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
-import { retryDelivery } from "./delivery.js";
+import { deliverFindings, retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
 import { aboutSchema, getAbout, processBio, saveAbout } from "./about.js";
@@ -53,7 +53,7 @@ import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, linkUrl as slackLinkUrl, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
 import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
-import { handleInteraction } from "./slack-delivery.js";
+import { deliverSlack, handleInteraction } from "./slack-delivery.js";
 import { verifySlackSignature } from "./slack-security.js";
 import { handleRecallEvent, leaveMeeting, MeetingError, meetingSession, startMeeting, startMeetingSchema, verifyRecallWebhook } from "./meetings.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
@@ -86,6 +86,8 @@ type Dependencies = {
     resumeRunId?: string,
     choice?: string,
   ): Promise<Response>;
+  submitRun(userId: string, input: Parameters<typeof submitRun>[1], options?: { publish?: boolean }): ReturnType<typeof submitRun>;
+  executeLiveRun(id: string, signal: AbortSignal): Promise<void>;
   runSnapshot(userId: string, id: string, after?: number): ReturnType<typeof runSnapshot>;
   chats: ChatStore;
 };
@@ -105,6 +107,13 @@ const defaults: Dependencies = {
     );
   },
   requestChat: requestChatCompletion,
+  submitRun,
+  async executeLiveRun(id, signal) {
+    const claimed = await executeDelegation(id, signal);
+    if (!claimed) return;
+    await deliverFindings();
+    await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
+  },
   runSnapshot,
   chats: createChatStore(),
 };
@@ -113,6 +122,66 @@ const failure = (code: string, message: string, requestId: string) => ({
   error: { code, message, requestId },
 });
 const IMPORT_STATUS = { MEMORY_OFF: 409, MEMORY_FULL: 409, NO_FACTS: 422, IMPORT_FAILED: 502 } as const;
+
+type RunSnapshot = NonNullable<Awaited<ReturnType<typeof runSnapshot>>>;
+function runEventResponse(
+  userId: string,
+  id: string,
+  after: number,
+  initial: RunSnapshot,
+  signal: AbortSignal,
+  loadSnapshot: (userId: string, id: string, after?: number) => ReturnType<typeof runSnapshot>,
+  headers: Record<string, string> = {},
+) {
+  let closed = false;
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      let snapshot = initial;
+      let cursor = after;
+      let lastHeartbeat = Date.now();
+      const encoder = new TextEncoder();
+      try {
+        while (!closed && !signal.aborted) {
+          for (const event of snapshot.events) {
+            if (event.sequence <= cursor) continue;
+            controller.enqueue(encodeRunEvent({
+              version: 1,
+              sequence: event.sequence,
+              type: runEventTypeSchema.parse(event.type),
+              timestamp: new Date(event.timestamp).toISOString(),
+              payload: event.payload,
+            }));
+            cursor = event.sequence;
+          }
+          if (terminalRunStatus(snapshot.run.status) && cursor >= snapshot.run.sequence) break;
+          if (Date.now() - lastHeartbeat >= 15_000) {
+            controller.enqueue(encoder.encode(": keep-alive\n\n"));
+            lastHeartbeat = Date.now();
+          }
+          await new Promise(resolve => setTimeout(resolve, 250));
+          const next = await loadSnapshot(userId, id, cursor);
+          if (!next) break;
+          snapshot = next;
+        }
+      } catch (error) {
+        if (!closed && !signal.aborted) controller.error(error);
+        return;
+      }
+      if (!closed) controller.close();
+    },
+    cancel() { closed = true; },
+  });
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      connection: "keep-alive",
+      "x-accel-buffering": "no",
+      ...headers,
+    },
+  });
+}
 
 /** The landing site, wherever it is served: its origins may call the /site routes. */
 const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin) => origin.trim());
@@ -254,7 +323,20 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       if (!parsed.success) return c.json(failure("INVALID_RUN", "Invalid run request", c.get("requestId")), 400);
       return parsed.data;
     }), async c => {
-      const run = await submitRun(c.get("userId"), c.req.valid("json"));
+      const userId = c.get("userId");
+      const input = c.req.valid("json");
+      const wantsStream = c.req.header("accept")?.includes("text/event-stream") ?? false;
+      const chat = wantsStream ? await dependencies.chats.get(userId, input.chatId) : null;
+      const liveOneToOne = chat?.kind === "mate";
+      const run = await dependencies.submitRun(userId, input, { publish: !liveOneToOne });
+      if (liveOneToOne) {
+        // API and Trigger compete for the same queued -> running transition, so only one executes.
+        if (run.status === "queued")
+          void dependencies.executeLiveRun(run.id, new AbortController().signal).catch(error => console.error("live_run_failed", { id: run.id, message: error instanceof Error ? error.message : String(error) }));
+        const initial = await dependencies.runSnapshot(userId, run.id, 0);
+        if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
+        return runEventResponse(userId, run.id, 0, initial, c.req.raw.signal, dependencies.runSnapshot, { "x-run-id": run.id, "access-control-expose-headers": "x-run-id" });
+      }
       return c.json({ runId: run.id, status: run.status }, 202);
     })
     .get("/v1/runs", auth, async c => c.json({ runs: await listRuns(c.get("userId"), c.req.query("chatId")) }))
@@ -271,51 +353,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const id = c.req.param("id");
       const initial = await dependencies.runSnapshot(userId, id, cursor);
       if (!initial) return c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404);
-      const requestSignal = c.req.raw.signal;
-      let closed = false;
-      const stream = new ReadableStream<Uint8Array>({
-        async start(controller) {
-          let snapshot = initial;
-          let after = cursor;
-          let lastHeartbeat = Date.now();
-          const encoder = new TextEncoder();
-          try {
-            while (!closed && !requestSignal.aborted) {
-              for (const event of snapshot.events) {
-                if (event.sequence <= after) continue;
-                controller.enqueue(encodeRunEvent({
-                  version: 1,
-                  sequence: event.sequence,
-                  type: runEventTypeSchema.parse(event.type),
-                  timestamp: new Date(event.timestamp).toISOString(),
-                  payload: event.payload,
-                }));
-                after = event.sequence;
-              }
-              if (terminalRunStatus(snapshot.run.status) && after >= snapshot.run.sequence) break;
-              if (Date.now() - lastHeartbeat >= 15_000) {
-                controller.enqueue(encoder.encode(": keep-alive\n\n"));
-                lastHeartbeat = Date.now();
-              }
-              await new Promise(resolve => setTimeout(resolve, 250));
-              const next = await dependencies.runSnapshot(userId, id, after);
-              if (!next) break;
-              snapshot = next;
-            }
-          } catch (error) {
-            if (!closed && !requestSignal.aborted) controller.error(error);
-            return;
-          }
-          if (!closed) controller.close();
-        },
-        cancel() { closed = true; },
-      });
-      return c.body(stream, 200, {
-        "content-type": "text/event-stream; charset=utf-8",
-        "cache-control": "no-cache, no-transform",
-        connection: "keep-alive",
-        "x-accel-buffering": "no",
-      });
+      return runEventResponse(c.get("userId"), c.req.param("id"), cursor, initial, c.req.raw.signal, dependencies.runSnapshot);
     })
     .post("/v1/runs/:id/cancel", auth, async c => (await cancelRun(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Run not found", c.get("requestId")), 404))
     .post("/v1/runs/:id/first-text", auth, validator("json", (value, c) => {

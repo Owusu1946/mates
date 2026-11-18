@@ -38,8 +38,8 @@ export async function ownedRun(userId: string, id: string) {
   return (await getDb().select().from(delegations).where(owner(userId, id)))[0];
 }
 
-export async function submitRun(userId: string, input: Submission) {
-  if (!workerConfigured()) throw new Error("WORKER_NOT_CONFIGURED");
+export async function submitRun(userId: string, input: Submission, options: { publish?: boolean } = {}) {
+  if (options.publish !== false && !workerConfigured()) throw new Error("WORKER_NOT_CONFIGURED");
   const hash = createHash("sha256").update(JSON.stringify(input)).digest("hex");
   const [existing] = await getDb().select().from(delegations).where(and(eq(delegations.clerkUserId, userId), eq(delegations.requestKey, input.requestKey)));
   if (existing) {
@@ -81,7 +81,8 @@ export async function submitRun(userId: string, input: Submission) {
     throw error;
   }
   await linkAttachments(userId, input.chatId, last.attachments?.map((a) => a.id) ?? []).catch(() => {});
-  await publishOutbox(id).catch(() => { console.warn("run_submission_deferred", { id }); });
+  if (options.publish !== false)
+    await publishOutbox(id).catch(() => { console.warn("run_submission_deferred", { id }); });
   return (await ownedRun(userId, id))!;
 }
 
@@ -151,9 +152,9 @@ function mergePayload(content: Content, payload: Record<string, unknown>) {
   }
 }
 
-export async function executeDelegation(id: string, workerSignal: AbortSignal) {
+export async function executeDelegation(id: string, workerSignal: AbortSignal): Promise<boolean> {
   const [run] = await getDb().update(delegations).set({ status: "running", heartbeatAt: new Date(), updatedAt: new Date() }).where(and(eq(delegations.id, id), eq(delegations.status, "queued"), eq(delegations.cancelRequested, false))).returning();
-  if (!run) return;
+  if (!run) return false;
   await ensureRunTiming(id, run.createdAt).catch(() => console.warn("run_timing_start_failed", { id }));
   await markRunTiming(id, "startedAt").catch(() => console.warn("run_timing_start_failed", { id }));
   const request = chatRequestSchema.parse(run.request);
@@ -622,6 +623,7 @@ export async function executeDelegation(id: string, workerSignal: AbortSignal) {
       void recordRunActivity({ userId: run.clerkUserId, runId: id, agentRunId: run.agentRunId ?? id, chatId: run.chatId, mateId: run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null, userText: request.messages.at(-1)!.content, timezone: request.timezone }).catch(() => undefined);
     if (run.chatId) await afterRunInChat(run.clerkUserId, run.chatId, !!missionInfo, status).catch(() => console.warn("mission_continue_failed", { id }));
   }
+  return true;
 }
 
 /**

@@ -36,3 +36,14 @@ test("rejects malformed events and mismatched SSE cursors", async () => {
     for await (const _ of readRunStreamEvents(streamFromBytes([new TextEncoder().encode(invalid)]))) { /* consume */ }
   }, /invalid event/i);
 });
+
+test("cancels the SSE reader when the chat transport is explicitly stopped or detached", async () => {
+  let cancelled = false;
+  const stream = new ReadableStream({ cancel() { cancelled = true; } });
+  const controller = new AbortController();
+  const iterator = readRunStreamEvents(stream, controller.signal);
+  const next = iterator.next();
+  controller.abort();
+  assert.equal((await next).done, true);
+  assert.equal(cancelled, true);
+});
