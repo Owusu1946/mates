@@ -15,6 +15,14 @@ const connectedByRun = new Map<string, Set<string>>();
 export const isMessageLive = (s: { message: { status?: { type?: string }; metadata?: { custom?: unknown } } }) =>
   s.message.status?.type === "running" || (s.message.metadata?.custom as { live?: unknown } | undefined)?.live === true;
 
+/**
+ * A running step with no activity, app or stage: it would only say "Preparing your answer…"
+ * (its own label is never shown), so the pulsing dot stands in for it.
+ */
+export function isWaitingPlaceholder(card: WorkflowCard | undefined) {
+  return !!card && card.kind === "step" && card.phase === "running" && !card.activity?.length && !card.stage && !card.logo;
+}
+
 export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
   const aui = useAui();
@@ -148,6 +156,8 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
         </Text>
       </View>
     );
+  // Nothing specific is happening yet: the reply's pulsing dot says it instead of a generic line.
+  if (messageRunning && isWaitingPlaceholder(state)) return null;
   if (state.kind === "step" && state.activity?.length)
     return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} />;
   if (state.kind === "call" && state.call) return <CallCard call={state.call} meeting={state.label === "Meeting"} />;

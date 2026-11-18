@@ -54,8 +54,8 @@ import * as WebBrowser from "expo-web-browser";
 import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
-import { isMessageLive, ToolWorkflowCard } from "./workflow-card";
-import { WorkingDots } from "./activity-line";
+import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard } from "./workflow-card";
+import { PulseDot } from "./pulse-dot";
 import { AppResponseCard } from "./app-results";
 import { RidesCard } from "./rides-card";
 import { RideLocationCard } from "./ride-location-card";
@@ -448,33 +448,12 @@ function ThinkingIndicator() {
   const parts = useAuiState((state) => state.message.parts);
   const colors = useChatColors();
   if (!running) return null;
-  if (parts.some((part) => part.type === "tool-call")) return null;
-  const composing = parts.some((part) => part.type === "text");
-  const label = composing
-    ? "Writing a response..."
-    : "Thinking through that...";
+  // A tool at work shows its own steps; only the "nothing specific yet" placeholder gives way to the dot.
+  if (parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined))) return null;
+  // While the answer is being written the dot trails the text, as in ChatGPT.
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-        paddingVertical: 8,
-      }}
-      accessibilityLabel={label}
-      accessibilityLiveRegion="polite"
-    >
-      <Text
-        style={{
-          color: colors.mutedForeground,
-          fontFamily: "DMSans_400Regular",
-          fontSize: 15,
-          lineHeight: 20,
-        }}
-      >
-        {label}
-      </Text>
-      <WorkingDots color={colors.mutedForeground} />
+    <View style={{ paddingTop: 6, paddingBottom: 8 }}>
+      <PulseDot color={colors.foreground} />
     </View>
   );
 }
