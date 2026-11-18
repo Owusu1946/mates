@@ -3,6 +3,7 @@ import { idempotencyKeys, tasks } from "@trigger.dev/sdk";
 import { getDb } from "./db/client.js";
 import { chatMessages, delegations, runEvents } from "./db/schema.js";
 import { createChatStore } from "./chats.js";
+import { visibleMentionText } from "./groups.js";
 import { extractMemories, memoryCard, memorySettings } from "./memory.js";
 import { recordRunActivity } from "./habits/activity.js";
 import { recordExchange } from "./recall.js";
@@ -46,7 +47,8 @@ export async function processRunFollowups(delegationId: string, userId: string) 
       const settings = await memorySettings(userId).catch(() => null);
       if (settings?.memoryEnabled) {
         if (settings.historyRecall)
-          await recordExchange({ delegationId, userId, chatId: run.chatId, userText: last.content, assistantText }).catch(() => console.warn("recall_index_failed", { id: delegationId }));
+          // Recall shows mentions as people read them ("@Selorm"), not the stored "@Selorm{id}" token.
+          await recordExchange({ delegationId, userId, chatId: run.chatId, userText: visibleMentionText(last.content), assistantText }).catch(() => console.warn("recall_index_failed", { id: delegationId }));
         if (!run.chatId?.startsWith("routine_")) {
           try {
             const mateId = run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null;
