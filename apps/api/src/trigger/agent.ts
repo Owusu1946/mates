@@ -1,6 +1,7 @@
 import { schemaTask, schedules } from "@trigger.dev/sdk";
 import { z } from "zod";
 import { executeDelegation, publishOutbox, recoverStalledRuns } from "../durable-runs.js";
+import { enqueuePendingRunFollowups, enqueueRunFollowups, processRunFollowups } from "../run-followups.js";
 import { dispatchDueRoutines } from "../scheduling.js";
 import { deliverFindings } from "../delivery.js";
 import { deliverSlack } from "../slack-delivery.js";
@@ -24,8 +25,20 @@ export const agentExecution = schemaTask({
   run: async ({ delegationId }, { signal }) => {
     const outcome = await executeDelegation(delegationId, signal ?? new AbortController().signal);
     if (outcome !== "finished") return { delegationId, claimed: false };
-    await deliverFindings();
-    await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
+    await enqueueRunFollowups(delegationId).catch(error => console.warn("post_run_enqueue_failed", { delegationId, message: error instanceof Error ? error.message : String(error) }));
+    return { delegationId };
+  },
+});
+
+/** Keeps memory learning, habit analysis, and delivery outside the per-user reply task slot. */
+export const postRunChores = schemaTask({
+  id: "cooper-post-run",
+  schema: z.object({ delegationId: z.string().uuid(), userId: z.string().min(1) }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 300,
+  run: async ({ delegationId, userId }) => {
+    await processRunFollowups(delegationId, userId);
     return { delegationId };
   },
 });
@@ -127,6 +140,7 @@ export const routineDispatcher = schedules.task({
     await expireGrants().catch((error) => console.warn("grant_expiry_failed", { message: error instanceof Error ? error.message : String(error) }));
     await processPendingBios().catch((error) => console.warn("bio_sweep_failed", { message: error instanceof Error ? error.message : String(error) }));
     await dispatchHabits().catch((error) => console.warn("habits_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
+    await enqueuePendingRunFollowups().catch((error) => console.warn("post_run_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await publishOutbox();
     await deliverFindings();
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));

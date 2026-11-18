@@ -15,9 +15,6 @@ import { handoffCard, collaborationAssignments, directCollaborationPlan, directC
 import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
-import { extractMemories, memoryCard, memorySettings } from "./memory.js";
-import { recordRunActivity } from "./habits/activity.js";
-import { recordExchange } from "./recall.js";
 import type { agentExecution } from "./trigger/agent.js";
 import { assertUsage, UsageLimitError } from "./usage/gate.js";
 import { RunHandoffRequested, shouldHandoffBeforeTool } from "./run-handoff.js";
@@ -677,48 +674,10 @@ export async function executeDelegation(
     if (!lostOwnership && !requestedHandoff) {
       // Rounds post in the group as they go; only the finished mission becomes a Feed item.
       if (!missionInfo || finishing) await saveFinding(id);
-      // A round's prompt is generated, so there is nothing of the user's to remember or index.
-      if (status === "completed" && !missionInfo) await rememberFromRun(id, run, request.messages.at(-1), content, persist);
-      // What the user asked for themselves feeds habit learning; routines, watches and nudges don't.
-      if (status === "completed" && !missionInfo && !/^(occurrence|watch|habit|manual)_/.test(run.requestKey) && request.messages.at(-1)?.role === "user")
-        void recordRunActivity({ userId: run.clerkUserId, runId: id, agentRunId: run.agentRunId ?? id, chatId: run.chatId, mateId: run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null, userText: request.messages.at(-1)!.content, timezone: request.timezone }).catch(() => undefined);
       if (run.chatId) await afterRunInChat(run.clerkUserId, run.chatId, !!missionInfo, status).catch(() => console.warn("mission_continue_failed", { id }));
     }
   }
   return lostOwnership || requestedHandoff ? "handed_off" : "finished";
-}
-
-/**
- * After the reply is saved: index the exchange for chat-history recall, then let Cooper decide
- * what to keep as memories. Each change lands on the reply as a "Memory updated" card.
- */
-async function rememberFromRun(
-  id: string,
-  run: { clerkUserId: string; chatId: string | null },
-  last: { role: string; content: string; attachments?: unknown[] } | undefined,
-  content: Content,
-  persist: (type: string, finalStatus?: string) => Promise<void>,
-) {
-  if (last?.role !== "user") return;
-  const assistantText = content.filter((p) => p.type === "text").map((p) => String(p.text)).join("\n");
-  const settings = await memorySettings(run.clerkUserId).catch(() => null);
-  if (!settings?.memoryEnabled) return;
-  // Routine results are worth recalling later ("what did yesterday's brief say?").
-  if (settings.historyRecall)
-    await recordExchange({ delegationId: id, userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText }).catch(() => console.warn("recall_index_failed", { id }));
-  // Routine prompts are generated, not said by the user, so there is nothing of theirs to keep.
-  if (run.chatId?.startsWith("routine_")) return;
-  // Explicit saves already happened in the turn; the extractor sees them and won't repeat them.
-  try {
-    // In a mate's own chat, what it learns can be its own note for its role (groups stay shared).
-    const mateId = run.chatId?.startsWith("mate_") ? run.chatId.slice(5) : null;
-    const changes = await extractMemories({ userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText, mateId });
-    if (!changes.length) return;
-    for (const change of changes) mergePayload(content, { cooper: { id: `memory_${id}_${change.id}`, state: memoryCard(change) } });
-    await persist("memory.updated", "completed");
-  } catch {
-    console.warn("memory_extraction_failed", { id });
-  }
 }
 
 export async function saveFinding(id: string) {

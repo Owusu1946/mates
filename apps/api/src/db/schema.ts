@@ -183,6 +183,7 @@ export const delegations = pgTable("delegations", {
   executionOwner: text("execution_owner").$type<"api" | "worker">(),
   executionGeneration: integer("execution_generation").notNull().default(0),
   resumeCheckpoint: boolean("resume_checkpoint").notNull().default(false),
+  followupsQueuedAt: timestamp("followups_queued_at", { withTimezone: true }),
   sequence: integer("sequence").notNull().default(0),
   content: jsonb("content").$type<Record<string, unknown>[]>().notNull().default([]),
   pendingTool: jsonb("pending_tool").$type<Record<string, unknown>>(),

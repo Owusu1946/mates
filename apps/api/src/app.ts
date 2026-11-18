@@ -34,7 +34,7 @@ import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, 
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
-import { deliverFindings, retryDelivery } from "./delivery.js";
+import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
 import { aboutSchema, getAbout, processBio, saveAbout } from "./about.js";
@@ -53,7 +53,8 @@ import { joinWaitlist, normalizeEmail, waitlistSize } from "./waitlist.js";
 import { authorizeUrl, completeInstall, ConnectError, githubConfigured, installUrl, listInstallations, listRepos, safeReturn, verifyState } from "./github.js";
 import { completeInstall as completeSlackInstall, completeLink, installUrl as slackInstallUrl, LinkError, linkUrl as slackLinkUrl, listLinks, slackConfigured, unlink, verifyInstallState } from "./slack.js";
 import { handleSlackEvent, handleSlashCommand } from "./slack-events.js";
-import { deliverSlack, handleInteraction } from "./slack-delivery.js";
+import { handleInteraction } from "./slack-delivery.js";
+import { enqueueRunFollowups } from "./run-followups.js";
 import { verifySlackSignature } from "./slack-security.js";
 import { handleRecallEvent, leaveMeeting, MeetingError, meetingSession, startMeeting, startMeetingSchema, verifyRecallWebhook } from "./meetings.js";
 import { analyzeAttachment, getAttachment, MAX_ATTACHMENT_BYTES, resolveContentType, saveAttachment } from "./attachments.js";
@@ -87,6 +88,7 @@ type Dependencies = {
     choice?: string,
   ): Promise<Response>;
   submitRun(userId: string, input: Parameters<typeof submitRun>[1], options?: { publish?: boolean }): ReturnType<typeof submitRun>;
+  liveChatEnabled(): boolean;
   executeLiveRun(id: string, signal: AbortSignal, shouldHandoff: () => "disconnect" | "deadline" | null): Promise<void>;
   runSnapshot(userId: string, id: string, after?: number): ReturnType<typeof runSnapshot>;
   chats: ChatStore;
@@ -108,11 +110,11 @@ const defaults: Dependencies = {
   },
   requestChat: requestChatCompletion,
   submitRun,
+  liveChatEnabled: () => process.env.LIVE_CHAT_ENABLED === "true",
   async executeLiveRun(id, signal, shouldHandoff) {
     const result = await executeDelegation(id, signal, { executor: "api", shouldHandoff });
     if (result !== "finished") return;
-    await deliverFindings();
-    await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
+    await enqueueRunFollowups(id).catch(error => console.warn("post_run_enqueue_failed", { id, message: error instanceof Error ? error.message : String(error) }));
   },
   runSnapshot,
   chats: createChatStore(),
@@ -332,7 +334,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const input = c.req.valid("json");
       const wantsStream = c.req.header("accept")?.includes("text/event-stream") ?? false;
       const chat = wantsStream ? await dependencies.chats.get(userId, input.chatId) : null;
-      const liveOneToOne = chat?.kind === "mate";
+      const liveOneToOne = dependencies.liveChatEnabled() && chat?.kind === "mate";
       const run = await dependencies.submitRun(userId, input, { publish: !liveOneToOne });
       if (liveOneToOne) {
         // API and Trigger compete for the same queued -> running transition, so only one executes.

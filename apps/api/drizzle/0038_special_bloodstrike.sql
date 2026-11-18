@@ -1,0 +1,1 @@
+ALTER TABLE "delegations" ADD COLUMN "followups_queued_at" timestamp with time zone;
