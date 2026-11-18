@@ -20,6 +20,7 @@ import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
+import { AnswerStream } from "./answer-stream.js";
 import { saveUndo } from "./undo.js";
 import { reminderTool, runReminderTool } from "./reminders.js";
 import { joinMeetingTool, meetingsConfigured, runJoinMeeting } from "./meetings.js";
@@ -624,6 +625,12 @@ export async function createAgentResponse(
           let buffer = "",
             text = "";
           const calls = new Map<number, ToolCall>();
+          // The answer reaches the user as it's written; narration beside a tool call stays hidden.
+          // The user sees citations as source links; the run's own history keeps the [s1] ids.
+          const answer = new AnswerStream(
+            (chunk) => send({ choices: [{ delta: { content: chunk } }] }),
+            (chunk) => (ledger.size ? citeLinks(chunk, ledger) : chunk),
+          );
           try {
             while (true) {
               const { done, value } = await reader.read();
@@ -663,7 +670,6 @@ export async function createAgentResponse(
                     firstTokenObserved = true;
                     execution?.onFirstToken?.();
                   }
-                  // Held until the step ends: text beside a tool call is narration, not the answer.
                   if (delta?.content) text += delta.content;
                   for (const fragment of delta?.tool_calls ?? []) {
                     const call = calls.get(fragment.index) ?? {
@@ -679,6 +685,7 @@ export async function createAgentResponse(
                       call.function.arguments += fragment.function.arguments;
                     calls.set(fragment.index, call);
                   }
+                  if (delta?.content) answer.push(delta.content, calls.size > 0);
                 }
                 boundary = buffer.search(/\r?\n\r?\n/);
               }
@@ -695,11 +702,18 @@ export async function createAgentResponse(
             model = FALLBACK_MODEL;
             text = leaked.text;
             for (const recovered of leaked.calls) calls.set(1_000 + calls.size, recovered);
-            if (!calls.size) continue; // Unreadable: retry this step on the fallback model.
+            if (!calls.size) {
+              // Unreadable: retry this step on the fallback model, continuing anything already shown.
+              if (answer.streamed)
+                messages.push(
+                  { role: "assistant", content: answer.shownText },
+                  { role: "system", content: "The user has already seen the reply above. Continue straight on from where it stops, without repeating any of it." },
+                );
+              continue;
+            }
           }
+          if (calls.size || text.trim() || answer.streamed) answer.finish(calls.size > 0);
           if (!calls.size) {
-            // The user sees citations as source links; the run's own history keeps the [s1] ids.
-            if (text.trim()) send({ choices: [{ delta: { content: ledger.size ? citeLinks(text, ledger) : text } }] });
             if (searchUnavailable) card(`web_search_${runId}`, { kind: "step", phase: "done", stage: "summary", label: sources.get("web")?.size ? "Alternative sources checked" : "Search finished", detail: sources.get("web")?.size ? undefined : "The answer explains any remaining limits." });
             const [paused] = await getDb().select().from(browserSessions).where(and(eq(browserSessions.runId, runId), eq(browserSessions.status, "user_control")));
             if (paused) {
