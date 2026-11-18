@@ -135,6 +135,16 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 
 The latency section in `usage-report.ts` requires the `run_timings` table from migration `0036_whole_starbolt`. Apply the migration before using the report; it has not yet been applied in an environment.
 
+## Live chat run updates
+
+`POST /v1/runs` still accepts a durable run and returns `{ runId, status }`. Clients may follow it with:
+
+- `GET /v1/runs/:id/events` — authenticated SSE, replayable with `Last-Event-ID` or `?after=<sequence>`.
+- `GET /v1/runs/:id?after=<sequence>` — authenticated JSON snapshot and event polling fallback.
+- `POST /v1/runs/:id/cancel` — explicit cancellation; closing the SSE connection does not cancel the durable worker run.
+
+SSE frames have numeric sequence IDs and JSON data shaped as `{ version: 1, sequence, type, timestamp, payload }`. Event payloads contain the latest saved content snapshot, not text deltas; clients replace the displayed content for each newer sequence. Supported event types are `progress`, `run.started`, `run.completed`, `run.waiting`, `run.failed`, `run.cancelled`, and `memory.updated`. The mobile client falls back to JSON polling when SSE is unavailable or drops. API ownership/handoff and mobile device-level reconnect behavior are still in progress; see `docs/plans/faster-replies-progress.md`.
+
 **Account deletion.** Personal rows are deleted. The money ledgers (`usage_events`, `usage_daily`, `plan_periods`) are kept so past months still add up, but their user id is replaced with a random one.
 
 ## In the app

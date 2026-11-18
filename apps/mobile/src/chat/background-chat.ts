@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { fetch } from "expo/fetch";
 import { resolveApiUrl } from "./chat-model";
 import { bindRunTiming } from "./chat-timing";
+import { readRunStreamEvents } from "./run-stream";
 
 export type RunView = { id: string; chatId: string | null; status: string; sequence: number; content: Record<string, unknown>[]; error: string | null; assistantMessageId: string; parentId: string | null; createdAt: string; updatedAt: string };
 const active = new Map<string, string>();
@@ -65,6 +66,22 @@ export async function cancelBackgroundChat(getToken: () => Promise<string | null
   }
 }
 
+async function runEventStream(getToken: () => Promise<string | null>, id: string, after: number, signal: AbortSignal) {
+  const base = resolveApiUrl();
+  const token = await getToken();
+  if (!base || !token) throw new Error("Sign in and reconnect to continue.");
+  const cursor = Math.max(0, after);
+  const response = await fetch(`${base}/v1/runs/${encodeURIComponent(id)}/events?after=${cursor}`, {
+    headers: { authorization: `Bearer ${token}`, accept: "text/event-stream", "last-event-id": String(cursor) },
+    signal,
+  });
+  if (!response.ok || !response.body) {
+    const value = await response.json().catch(() => null) as { error?: { message?: string; code?: string } } | null;
+    throw new ApiError(value?.error?.message ?? "The live reply stream is unavailable.", response.status, value?.error?.code ?? "stream_unavailable");
+  }
+  return response.body;
+}
+
 /**
  * Asks the server to stop a run, retrying briefly. Not tied to the request's abort signal, which
  * has already fired by the time someone taps Stop.
@@ -106,10 +123,33 @@ export async function* backgroundChat(getToken: () => Promise<string | null>, in
   const onAbort = () => void stopRun(getToken, runId);
   signal.addEventListener("abort", onAbort, { once: true });
   active.set(chatId, id);
-  let cursor = -1;
+  let cursor = 0;
   let failures = 0;
   yield { content: [{ type: "tool-call", toolCallId: `queued_${id}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: { kind: "step", phase: "running", label: "Cooper is starting", detail: "You can leave the app. Your result will be saved." } }] };
   try {
+    try {
+      const stream = await runEventStream(getToken, id, cursor, signal);
+      for await (const event of readRunStreamEvents(stream)) {
+        if (signal.aborted) return;
+        if (event.sequence <= cursor) continue;
+        cursor = event.sequence;
+        const payload = event.payload as { content?: unknown; status?: unknown; error?: unknown };
+        const content = Array.isArray(payload.content) ? payload.content as Record<string, unknown>[] : [];
+        if (content.length) yield { content: content as unknown as NonNullable<ChatModelRunResult["content"]>, metadata: { custom: { delegationId: id } } };
+        const status = typeof payload.status === "string" ? payload.status : "running";
+        if (["completed", "waiting", "failed", "cancelled"].includes(status)) {
+          usageChanged();
+          if (status === "cancelled") yield { content: content as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "cancelled" }, metadata: { custom: { delegationId: id } } };
+          if (status === "failed") yield { content: [...content, { type: "text", text: typeof payload.error === "string" ? payload.error : "This task couldn’t finish. Earlier findings are saved." }] as unknown as NonNullable<ChatModelRunResult["content"]>, status: { type: "incomplete", reason: "error" }, metadata: { custom: { delegationId: id } } };
+          return;
+        }
+      }
+      if (signal.aborted) return;
+    } catch {
+      if (signal.aborted) return;
+      // The durable run keeps going if this transport drops; polling recovers its latest saved state.
+      failures++;
+    }
     while (!signal.aborted) {
       try {
         const { run } = await runRequest<{ run: RunView }>(getToken, `runs/${id}?after=${Math.max(0, cursor)}`, undefined, signal);
