@@ -389,7 +389,7 @@ export async function createAgentResponse(
     memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 })),
     execution?.boardTask ? null : liveMission(userId, execution?.chatId).catch(() => null),
     trivialMessage ? [] : getIntegrationTools(userId, session).catch(() => []),
-    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(session, { connected: true }),
+    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(userId, session, { connected: true }),
     execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
     deckContext(userId, execution?.chatId ?? null).catch(() => null),
   ]);

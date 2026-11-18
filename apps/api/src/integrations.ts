@@ -168,7 +168,7 @@ const INTEGRATION_CACHE_MS = 10 * 60_000;
 type IntegrationSession = Awaited<ReturnType<ReturnType<typeof getComposio>["use"]>>;
 const sessionCache = new Map<string, { expiresAt: number; value: Promise<IntegrationSession> }>();
 const toolsCache = new Map<string, { expiresAt: number; value: Promise<Awaited<ReturnType<IntegrationSession["tools"]>>> }>();
-const connectedAppsCache = new Map<string, { expiresAt: number; value: Promise<AppConnection[]> }>();
+const connectedAppsCache = new Map<string, { userId: string; expiresAt: number; value: Promise<AppConnection[]> }>();
 export class IntegrationUnavailable extends Error {
   constructor(configured = true) {
     super(
@@ -234,7 +234,7 @@ export function invalidateIntegrationCache(userId?: string) {
   if (userId) {
     sessionCache.delete(userId);
     toolsCache.delete(userId);
-    connectedAppsCache.clear();
+    for (const [key, entry] of connectedAppsCache) if (entry.userId === userId) connectedAppsCache.delete(key);
     return;
   }
   sessionCache.clear();
@@ -249,15 +249,17 @@ export async function getIntegrationTools(userId: string, session: Session) {
   try { return await value; } catch (error) { toolsCache.delete(userId); throw error; }
 }
 export async function listApps(
+  userId: string,
   session: Session,
   options: { search?: string; cursor?: string; connected?: boolean } = {},
 ) {
   if (options.connected === true && !options.search && !options.cursor) {
-    const cached = connectedAppsCache.get(session.sessionId);
+    const key = `${userId}\0${session.sessionId}`;
+    const cached = connectedAppsCache.get(key);
     if (cached && cached.expiresAt > Date.now()) return { apps: await cached.value, nextCursor: null };
     const value = loadApps(session, options);
-    connectedAppsCache.set(session.sessionId, { expiresAt: Date.now() + INTEGRATION_CACHE_MS, value: value.then(result => result.apps) });
-    try { return await value; } catch (error) { connectedAppsCache.delete(session.sessionId); throw error; }
+    connectedAppsCache.set(key, { userId, expiresAt: Date.now() + INTEGRATION_CACHE_MS, value: value.then(result => result.apps) });
+    try { return await value; } catch (error) { connectedAppsCache.delete(key); throw error; }
   }
   return loadApps(session, options);
 }

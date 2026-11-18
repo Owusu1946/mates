@@ -1126,7 +1126,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/v1/apps", auth, async (c) => {
       const session = await getIntegrationSession(c.get("userId"));
       return c.json(
-        await listApps(session, {
+        await listApps(c.get("userId"), session, {
           search: c.req.query("search")?.slice(0, 120),
           cursor: c.req.query("cursor"),
           connected: c.req.query("connected") === "true" ? true : undefined,

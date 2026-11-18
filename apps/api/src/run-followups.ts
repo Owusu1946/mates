@@ -20,6 +20,7 @@ export async function enqueueRunFollowups(delegationId: string) {
     concurrencyKey: run.userId,
     ttl: "1h",
   });
+  // Mark only after Trigger accepts the task. If this write fails, the stable key returns the same task on sweep retry.
   await getDb().update(delegations).set({ followupsQueuedAt: new Date() }).where(and(eq(delegations.id, delegationId), isNull(delegations.followupsQueuedAt)));
 }
 
