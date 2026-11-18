@@ -35,11 +35,11 @@ export function onPlanRequired(listener: () => void) {
 }
 export const usageChanged = () => usageListeners.forEach((listener) => listener());
 
-export async function runRequest<T>(getToken: () => Promise<string | null>, path: string, body?: unknown, signal?: AbortSignal, options?: { quietNotFound?: boolean }): Promise<T> {
+export async function runRequest<T>(getToken: () => Promise<string | null>, path: string, body?: unknown, signal?: AbortSignal, options?: { quietNotFound?: boolean; method?: "DELETE" }): Promise<T> {
   const base = resolveApiUrl();
   const token = await getToken();
   if (!base || !token) throw new Error("Sign in and reconnect to continue.");
-  const response = await fetch(`${base}/v1/${path}`, { method: body === undefined ? "GET" : "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal });
+  const response = await fetch(`${base}/v1/${path}`, { method: options?.method ?? (body === undefined ? "GET" : "POST"), headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal });
   if (!response.ok) {
     const value = await response.json().catch(() => null) as { error?: { message?: string; requestId?: string; code?: string } & Record<string, unknown> } | null;
     if (value?.error?.requestId && !(options?.quietNotFound && response.status === 404)) {

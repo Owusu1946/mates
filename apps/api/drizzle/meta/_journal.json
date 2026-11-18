@@ -274,6 +274,13 @@
       "when": 1795006437317,
       "tag": "0038_special_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795026735596,
+      "tag": "0039_cloudy_clint_barton",
+      "breakpoints": true
     }
   ]
 }
