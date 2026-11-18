@@ -1,8 +1,11 @@
 import { useAuth } from "@clerk/expo";
 import { useQuery } from "@tanstack/react-query";
+import * as Clipboard from "expo-clipboard";
+import { File, Paths } from "expo-file-system";
 import { router } from "expo-router";
-import { useMemo, useState, type ReactNode } from "react";
-import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import * as Sharing from "expo-sharing";
+import { useMemo, useState } from "react";
+import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { createApiClient } from "../../src/data/api";
 import { haptic } from "../../src/haptics";
@@ -13,14 +16,14 @@ import { MateAvatar } from "../../src/mates/mate-avatar";
 import { useAbout, useSaveAbout } from "../../src/onboarding/about-data";
 import { AboutField } from "../../src/onboarding/about-field";
 import { useToast } from "../../src/components/toast";
+import { importedFrom } from "../../src/memory/import-prompts";
+import { font, Group, SmallButton } from "../../src/memory/memory-ui";
 
 /** `mateId` null: shared by every mate; set: that mate's own note for its role. */
 type Memory = { id: string; text: string; category: string; source: string; mateId?: string | null; updatedAt: string };
 
 const SOURCE_LABEL: Record<string, string> = { auto: "Saved automatically", bio: "From what you shared", briefing: "From a briefing", explicit: "You asked" };
 type Settings = { memoryEnabled: boolean; autoMemory: boolean; historyRecall: boolean };
-
-const font = { regular: "DMSans_400Regular", medium: "DMSans_500Medium", semibold: "DMSans_600SemiBold" };
 
 /** What the mates remember about you: the switches, what you told them, then every saved memory (shared, then each mate's own). */
 export default function MemoryScreen() {
@@ -30,6 +33,7 @@ export default function MemoryScreen() {
   const [editing, setEditing] = useState<{ id: string; text: string } | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const query = useQuery({
     queryKey: ["memories", userId],
     queryFn: async () => {
@@ -72,8 +76,50 @@ export default function MemoryScreen() {
   const removeAll = () =>
     Alert.alert("Delete all memories?", "Your mates will forget everything they’ve saved about you. This can’t be undone.", [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete all", style: "destructive", onPress: () => void run(() => api.v1.memories.$delete(), "Couldn’t delete memories.") },
+      { text: "Delete all", style: "destructive", onPress: () => void run(() => api.v1.memories.$delete({ query: {} }), "Couldn’t delete memories.") },
     ]);
+  /** One import, all at once: everything that came from ChatGPT, say. */
+  const removeImport = (source: string) => {
+    const from = importedFrom(source);
+    Alert.alert(`Remove everything imported from ${from}?`, "Your mates will forget what came over in that import. This can’t be undone.", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Remove", style: "destructive", onPress: () => void run(() => api.v1.memories.$delete({ query: { source } }), "Couldn’t remove those memories.") },
+    ]);
+  };
+
+  /** Everything they remember, as text: copied, or saved as a file to keep or take elsewhere. */
+  const exportAll = async () => {
+    haptic.light();
+    setError(null);
+    let exported: { text: string; filename: string };
+    try {
+      const response = await api.v1.memories.export.$get();
+      if (!response.ok) throw new Error();
+      exported = (await response.json()) as { text: string; filename: string };
+    } catch {
+      return setError("Couldn’t export your memories.");
+    }
+    const copy = async () => {
+      await Clipboard.setStringAsync(exported.text);
+      toast.show({ message: "Memories copied", tone: "success" });
+    };
+    const share = async () => {
+      try {
+        const file = new File(Paths.cache, exported.filename);
+        if (file.exists) file.delete();
+        file.create();
+        file.write(exported.text);
+        if (!(await Sharing.isAvailableAsync())) throw new Error();
+        await Sharing.shareAsync(file.uri, { mimeType: "text/plain", UTI: "public.plain-text", dialogTitle: "Your memories" });
+      } catch {
+        setError("Couldn’t share the file.");
+      }
+    };
+    const choices = [{ text: "Copy as text", onPress: () => void copy() }, { text: "Share as file", onPress: () => void share() }];
+    if (Platform.OS === "ios")
+      ActionSheetIOS.showActionSheetWithOptions({ title: "Export memories", options: [...choices.map((c) => c.text), "Cancel"], cancelButtonIndex: choices.length }, (i) => choices[i]?.onPress());
+    else Alert.alert("Export memories", "Everything your mates remember about you, as text.", [...choices, { text: "Cancel", style: "cancel" }]);
+  };
 
   /** Edit or delete one memory, from the platform's own menu. */
   const options = (memory: Memory) => {
@@ -81,8 +127,14 @@ export default function MemoryScreen() {
     const edit = () => setEditing({ id: memory.id, text: memory.text });
     const del = () => void remove(memory.id);
     const toShared = () => void share(memory.id);
-    // A mate's own note can be shared with every mate.
-    const actions = [{ text: "Edit", onPress: edit }, ...(memory.mateId ? [{ text: "Share with all mates", onPress: toShared }] : []), { text: "Delete", onPress: del, destructive: true }];
+    const from = importedFrom(memory.source);
+    // A mate's own note can be shared with every mate; an imported one can go with its whole import.
+    const actions = [
+      { text: "Edit", onPress: edit },
+      ...(memory.mateId ? [{ text: "Share with all mates", onPress: toShared }] : []),
+      ...(from ? [{ text: `Remove all imported from ${from}`, onPress: () => removeImport(memory.source) }] : []),
+      { text: "Delete", onPress: del, destructive: true },
+    ];
     if (Platform.OS === "ios")
       ActionSheetIOS.showActionSheetWithOptions(
         { options: [...actions.map((a) => a.text), "Cancel"], destructiveButtonIndex: actions.length - 1, cancelButtonIndex: actions.length },
@@ -123,6 +175,11 @@ export default function MemoryScreen() {
         </View>
         <ChatIcon name="next" color={colors.textMuted} size={16} />
       </Pressable>
+
+      <Group>
+        <LinkRow title="Import memories" detail="Bring what ChatGPT, Claude, Gemini or Grok knows about you." disabled={off} onPress={() => router.push("/memory-import")} />
+        <LinkRow title="Export memories" detail="Copy everything your mates remember, or save it as a file." disabled={!memories.length} onPress={() => void exportAll()} />
+      </Group>
 
       <AboutCard disabled={off} lead={crew.find((m) => m.isDefault)?.name ?? "your mate"} />
 
@@ -216,7 +273,7 @@ export default function MemoryScreen() {
                   <View style={{ flex: 1, gap: 4 }}>
                     <Text selectable style={{ color: colors.text, fontFamily: font.regular, fontSize: 16, lineHeight: 23 }}>{memory.text}</Text>
                     <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>
-                      {SOURCE_LABEL[memory.source] ?? "You asked"} · {new Date(memory.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                      {importedFrom(memory.source) ? `Imported from ${importedFrom(memory.source)}` : SOURCE_LABEL[memory.source] ?? "You asked"} · {new Date(memory.updatedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                     </Text>
                   </View>
                   <Pressable accessibilityRole="button" accessibilityLabel="Memory options" hitSlop={8} onPress={() => options(memory)} style={({ pressed }) => ({ padding: 6, opacity: pressed ? 0.5 : 1 })}>
@@ -293,19 +350,16 @@ function AboutCard({ lead, disabled }: { lead: string; disabled: boolean }) {
   );
 }
 
-/** Rows on one rounded surface, separated by hairlines: no box per row. */
-function Group({ children }: { children: ReactNode }) {
+function LinkRow({ title, detail, disabled, onPress }: { title: string; detail: string; disabled?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
-  const rows = (Array.isArray(children) ? children : [children]).flat().filter(Boolean);
   return (
-    <View style={{ borderRadius: 18, borderCurve: "continuous", overflow: "hidden", backgroundColor: colors.surface }}>
-      {rows.map((row, i) => (
-        <View key={i}>
-          {i > 0 && <View style={{ height: StyleSheet.hairlineWidth, marginLeft: 16, backgroundColor: colors.border }} />}
-          {row}
-        </View>
-      ))}
-    </View>
+    <Pressable accessibilityRole="button" disabled={disabled} onPress={onPress} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 13, opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 16 }}>{title}</Text>
+        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18 }}>{detail}</Text>
+      </View>
+      <ChatIcon name="next" color={colors.textMuted} size={16} />
+    </Pressable>
   );
 }
 
@@ -319,20 +373,6 @@ function ToggleRow({ title, detail, value, disabled, onChange }: { title: string
       </View>
       <Switch value={value} disabled={disabled} onValueChange={onChange} accessibilityLabel={title} />
     </View>
-  );
-}
-
-function SmallButton({ label, strong, disabled, onPress }: { label: string; strong?: boolean; disabled?: boolean; onPress: () => void }) {
-  const { colors } = useTheme();
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => ({ paddingHorizontal: 14, paddingVertical: 7, borderRadius: 999, backgroundColor: strong ? colors.text : colors.surfaceElevated, opacity: disabled ? 0.35 : pressed ? 0.7 : 1 })}
-    >
-      <Text style={{ color: strong ? colors.background : colors.text, fontFamily: font.semibold, fontSize: 14 }}>{label}</Text>
-    </Pressable>
   );
 }
 

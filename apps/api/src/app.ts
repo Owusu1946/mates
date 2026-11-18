@@ -33,6 +33,7 @@ import { cancelRun, listRuns, runSnapshot, submissionSchema, submitRun, workerCo
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
+import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
 import { aboutSchema, getAbout, processBio, saveAbout } from "./about.js";
 import { cancelReminder, upcomingReminders } from "./reminders.js";
 import { runUndo } from "./undo.js";
@@ -106,6 +107,7 @@ const defaults: Dependencies = {
 const failure = (code: string, message: string, requestId: string) => ({
   error: { code, message, requestId },
 });
+const IMPORT_STATUS = { MEMORY_OFF: 409, MEMORY_FULL: 409, NO_FACTS: 422, IMPORT_FAILED: 502 } as const;
 
 /** The landing site, wherever it is served: its origins may call the /site routes. */
 const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin) => origin.trim());
@@ -772,8 +774,42 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .delete("/v1/memories/:id", auth, async (c) =>
       (await forgetMemory(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Memory not found", c.get("requestId")), 404))
     .delete("/v1/memories", auth, async (c) => {
+      // ?source=import:chatgpt removes one import, all at once; no source forgets everything.
+      const source = c.req.query("source");
+      if (source !== undefined) {
+        const parsed = z.enum(IMPORT_SOURCES).safeParse(source.replace(/^import:/, ""));
+        if (!source.startsWith("import:") || !parsed.success) return c.json(failure("INVALID_SOURCE", "Unknown import", c.get("requestId")), 400);
+        return c.json({ ok: true, removed: await forgetImported(c.get("userId"), parsed.data) });
+      }
       await forgetAllMemories(c.get("userId"));
       return c.json({ ok: true });
+    })
+    .get("/v1/memories/export", auth, async (c) => c.json(await exportMemories(c.get("userId"))))
+    // Import reads what another assistant wrote about the user and returns a preview; confirm saves the ticked facts.
+    .post("/v1/memories/import", auth, validator("json", (value, c) => {
+      const parsed = importRequestSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_IMPORT", `Paste between 20 and ${MAX_IMPORT_CHARS.toLocaleString("en")} characters`, c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      await assertUsage(c.get("userId"), "memory-import");
+      try {
+        return c.json(await previewImport(c.get("userId"), c.req.valid("json")));
+      } catch (error) {
+        if (error instanceof ImportError) return c.json(failure(error.code, error.message, c.get("requestId")), IMPORT_STATUS[error.code]);
+        throw error;
+      }
+    })
+    .post("/v1/memories/import/confirm", auth, validator("json", (value, c) => {
+      const parsed = importConfirmSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_IMPORT", "Choose up to 150 memories to import", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try {
+        return c.json(await confirmImport(c.get("userId"), c.req.valid("json")));
+      } catch (error) {
+        if (error instanceof ImportError) return c.json(failure(error.code, error.message, c.get("requestId")), IMPORT_STATUS[error.code]);
+        throw error;
+      }
     })
     .patch("/v1/memory-settings", auth, validator("json", (value, c) => {
       const parsed = memorySettingsSchema.safeParse(value);

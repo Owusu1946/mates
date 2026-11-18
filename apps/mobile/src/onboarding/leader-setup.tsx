@@ -11,6 +11,7 @@ import { MateAvatar } from "../mates/mate-avatar";
 import { NAME_PATTERN } from "../mates/mate-form";
 import { useTheme } from "../theme/provider";
 import { AboutStep } from "./about-step";
+import { ImportStep } from "./import-step";
 
 const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const FALLBACK_DAY_NAMES = ["Kwesi", "Kojo", "Kwabena", "Kweku", "Yaw", "Kofi", "Kwame"];
@@ -18,7 +19,7 @@ const FALLBACK_DAY_NAMES = ["Kwesi", "Kojo", "Kwabena", "Kweku", "Yaw", "Kofi", 
 /**
  * Right after sign-up: the user names their lead mate (today's Akan day name to start, a dice
  * for the other six, or their own), picks a shape and a colour, and watches it react. Then they
- * can tell it about themselves.
+ * can tell it about themselves and bring what another assistant knows (both skippable).
  */
 export function LeaderSetup({ leader, presets, onDone }: { leader: Mate; presets: Presets; onDone: () => void }) {
   const { colors } = useTheme();
@@ -31,7 +32,8 @@ export function LeaderSetup({ leader, presets, onDone }: { leader: Mate; presets
   const [name, setName] = useState(dayNames[today]!);
   const [shape, setShape] = useState(leader.shape ?? "hexagon");
   const [color, setColor] = useState(leader.color);
-  const [created, setCreated] = useState(false);
+  // After creating the mate: tell it about yourself, then bring what another assistant knows.
+  const [step, setStep] = useState<"create" | "about" | "import">("create");
   const gradient = presets.palette.find((p) => p.key === color)?.gradient ?? leader.gradient;
 
   const trimmed = name.trim();
@@ -64,13 +66,14 @@ export function LeaderSetup({ leader, presets, onDone }: { leader: Mate; presets
       {
         onSuccess: () => {
           haptic.success();
-          setCreated(true);
+          setStep("about");
         },
       },
     );
   };
 
-  if (created) return <AboutStep mate={{ name: trimmed, gradient, shape }} onDone={onDone} />;
+  if (step === "about") return <AboutStep mate={{ name: trimmed, gradient, shape }} onDone={() => setStep("import")} />;
+  if (step === "import") return <ImportStep mate={{ name: trimmed, gradient, shape }} onDone={onDone} />;
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: colors.background }}>
