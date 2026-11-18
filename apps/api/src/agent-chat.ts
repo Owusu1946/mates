@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { getDb } from "./db/client.js";
 import { agentRuns, browserSessions } from "./db/schema.js";
 import { browserInstructions, browserTools, executeBrowser, finishBrowsers, resumeBrowser, browserCard } from "./browser.js";
@@ -6,12 +7,14 @@ import {
   getApp,
   getComposio,
   getIntegrationSession,
+  getIntegrationTools,
   listApps,
   type WorkflowCard,
 } from "./integrations.js";
 import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
-import { scheduleContext, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
+import { scheduleContext, scheduleInstructions, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
+import { buildPromptMessages, isTrivialChatMessage, isTravelRequest, sortToolsByName } from "./agent-prompt.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
@@ -26,6 +29,7 @@ import { createGroupTool, createMateTool, mateCard, runCreateGroup, runCreateMat
 import { assembleTeam, assembleTeamTool, liveMission, type AssembledTeam, missionContext, missionNoteTool, runMissionNote, teamCard } from "./missions.js";
 import { gradientOf, type PersonaMate } from "./mates.js";
 import { checkWithMate, checkWithMateTool, memoryCard, memoryContext, memoryTool, runMemoryTool } from "./memory.js";
+import { RunHandoffRequested } from "./run-handoff.js";
 import { recallContext, recallTool, runRecall } from "./recall.js";
 import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, type Plan } from "./plans.js";
 import { playbookContext } from "./playbooks.js";
@@ -138,42 +142,72 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; resumeCheckpoint?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
   const lastUserText = turns.filter((t) => t.role === "user").at(-1)?.content ?? "";
+  const lastUserTurn = turns.filter((t) => t.role === "user").at(-1);
+  const trivialMessage = isTrivialChatMessage(lastUserText) && !lastUserTurn?.attachments?.length;
   const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
-  const ridesOn = ridesEnabled();
+  const ridesOn = ridesEnabled() && isTravelRequest(lastUserText);
   const forced = forcedSearch(lastUserText);
   const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
   const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
   // Who the user is talking to, for the few messages that name them.
   const mateName = execution?.speaker?.name ?? "Your mate";
-  let session = await getIntegrationSession(userId);
-  // The user may be answering this mate's offer to handle one of their habits.
-  const nudge = resumeRunId ? null : await pendingNudge(userId, execution?.chatId).catch(() => null);
-  let messages: ModelMessage[] = [
-    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
-    ...modelTurns,
-  ];
-  if (ridesOn) messages.push({
-    role: "system",
-    content: [
+  let [session, nudge] = await Promise.all([
+    getIntegrationSession(userId),
+    resumeRunId ? null : pendingNudge(userId, execution?.chatId).catch(() => null),
+  ]);
+  const stableInstructionBlocks = [
+    { name: "instructions", text: instructions },
+    { name: "plan", text: planInstructions },
+    { name: "lookup", text: lookupInstructions },
+    { name: "browser", text: browserInstructions },
+    ...(webOn ? [{ name: "web", text: webSearchInstructions }] : []),
+    { name: "shopping", text: shoppingInstructions },
+    { name: "schedule", text: scheduleInstructions },
+    { name: "watch", text: watchInstructions },
+    ...(ridesOn ? [{ name: "rides", text: [
       "Use cooper_rides for ride-price requests, trotro or public-transport requests, and directions between named places, including ordinary wording like 'How do I get from A to B?'. Use mode best unless the user asks only for rides or only for transit.",
       "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
       "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
       "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
       "Only present ride or transit options when Sail provides a numeric price and currency. Omit unpriced trotro or public-transport results without mentioning that they were unavailable. Keep the chat reply to a short takeaway from priced options; the card contains the breakdown.",
       "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
-    ].join(" "),
-  });
+    ].join(" ") }] : []),
+  ];
+  const stableInstructions = stableInstructionBlocks.map((block) => block.text).join("\n");
+  let messages = buildPromptMessages({
+    stableInstructions,
+    stableUserContext: execution?.preamble ?? DEFAULT_PREAMBLE,
+    turns: modelTurns,
+    volatileContext: [],
+  }) as ModelMessage[];
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
-  if (resumeRunId) {
+  if (execution?.resumeCheckpoint) {
+    const [checkpoint] = await getDb()
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.id, execution.runId), eq(agentRuns.clerkUserId, userId)));
+    if (!checkpoint || checkpoint.status !== "checkpointed")
+      return Response.json({ error: "This task has no safe checkpoint to resume." }, { status: 409 });
+    const [claimed] = await getDb()
+      .update(agentRuns)
+      .set({ status: "running", updatedAt: new Date() })
+      .where(and(eq(agentRuns.id, checkpoint.id), eq(agentRuns.status, "checkpointed")))
+      .returning({ id: agentRuns.id });
+    if (!claimed)
+      return Response.json({ error: "This task is already continuing." }, { status: 409 });
+    session = await getComposio().use(checkpoint.sessionId);
+    messages = checkpoint.messages as unknown as ModelMessage[];
+    runId = checkpoint.id;
+  } else if (resumeRunId) {
     const [run] = await getDb()
       .select()
       .from(agentRuns)
@@ -350,15 +384,25 @@ export async function createAgentResponse(
     runId = run!.id;
   }
   const query = await queryVector;
-  // The speaking mate gets its own notes beside the shared ones (and the lead sees the crew's).
-  const memory = await memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 }));
+  // Resolve independent setup together so none of these waits on another service call.
+  const [memory, mission, composioTools, connectedApps, shared, deck] = await Promise.all([
+    memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 })),
+    execution?.boardTask ? null : liveMission(userId, execution?.chatId).catch(() => null),
+    trivialMessage ? [] : getIntegrationTools(userId, session).catch(() => []),
+    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(userId, session, { connected: true }),
+    execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
+    deckContext(userId, execution?.chatId ?? null).catch(() => null),
+  ]);
   const recallOn = memory.enabled && memory.settings.historyRecall;
   // A group on a mission shares its goal and notes with every mate who speaks in it.
   // A mate doing a board task already has its brief and inputs, and its reply is saved as the
   // task's result, so it gets neither the notes digest nor the notes tool (no duplicate notes).
-  const mission = execution?.boardTask ? null : await liveMission(userId, execution?.chatId).catch(() => null);
-  const tools = [
-    ...(await session.tools()).filter(
+  const [recalled, playbook] = await Promise.all([
+    recallOn && !trivialMessage ? recallContext(userId, query, execution?.chatId).catch(() => null) : null,
+    !trivialMessage ? playbookContext(connectedApps.apps.map((app) => app.slug)).catch(() => null) : null,
+  ]);
+  const tools = trivialMessage ? [] : sortToolsByName([
+    ...composioTools.filter(
       (tool) =>
         tool.type === "function" &&
         tool.function.name !== "COMPOSIO_MANAGE_CONNECTIONS",
@@ -385,26 +429,31 @@ export async function createAgentResponse(
     ...(memory.enabled && memory.crew > 1 && execution?.speaker ? [checkWithMateTool] : []),
     ...(recallOn ? [recallTool] : []),
     ...(webOn ? [webSearchTool, webReadTool, ...browserTools.filter((tool) => tool.function.name !== "browser_search")] : browserTools),
-  ];
+  ]);
   const toolNames = new Set(tools.map((tool) => (tool as { function: { name: string } }).function.name));
   let model = CHAT_MODEL;
-  const connectedApps = await listApps(session, { connected: true });
-  messages.push({
+  if (!trivialMessage) messages.push({
     role: "system",
     content: `Connected apps: ${connectedApps.apps.map((app) => `${app.name} (${app.slug})`).join(", ") || "none"}. Prefer explicitly named apps; if ambiguous ask cooper_choose_app. After reading app data, call cooper_show_results with actual source IDs, concise previews and up to three useful follow-ups. Include email sender/subject/time, post engagement and links when available. Do not repeat card content in a long text answer. Never pretend a limited sample is an exhaustive ranking.`,
   });
-  const [shared, recalled, playbook, deck] = await Promise.all([
-    execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
-    recallOn ? recallContext(userId, query, execution?.chatId).catch(() => null) : null,
-    playbookContext(connectedApps.apps.map((app) => app.slug)).catch(() => null),
-    deckContext(userId, execution?.chatId ?? null).catch(() => null),
-  ]);
   if (playbook) messages.push({ role: "system", content: playbook });
   if (shared) messages.push({ role: "system", content: shared });
   if (memory.context) messages.push({ role: "system", content: memory.context });
   if (recalled) messages.push({ role: "system", content: recalled });
   if (mission) messages.push({ role: "system", content: await missionContext(mission) });
   if (deck) messages.push({ role: "system", content: deck });
+  if (nudge) messages.push({ role: "system", content: nudgeContext(nudge) });
+  messages.push({ role: "system", content: scheduleContext(execution?.timezone) });
+  console.info("agent_prompt_size", {
+    instructionChars: Object.fromEntries(stableInstructionBlocks.map((block) => [block.name, block.text.length])),
+    conversationChars: messages.reduce((total, message) => total + (message.content?.length ?? 0), 0),
+    toolSchemaChars: JSON.stringify(tools).length,
+    toolSchemaCharsByName: Object.fromEntries(tools.map((tool) => {
+      const name = (tool as { function?: { name?: string } }).function?.name ?? "unnamed";
+      return [name, JSON.stringify(tool).length];
+    })),
+    toolCount: tools.length,
+  });
   const sources = new Map<string, Map<string, Record<string, unknown>>>();
   const emptyLookups = new Set<string>();
   // Pages seen earlier in this run keep their ids when it resumes.
@@ -465,6 +514,9 @@ export async function createAgentResponse(
     return appsByToolkit.get(toolkit)!;
   };
   let cancelled = false;
+  let handoffRequested = false;
+  let modelStartObserved = false;
+  let firstTokenObserved = false;
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (data: unknown) => {
@@ -536,6 +588,10 @@ export async function createAgentResponse(
             messages.push({ role: "system", content: "The user has just reached their usage limit. Don't call any more tools. Reply now with what you've found or done so far, and say in one short sentence that you paused here because their usage limit was reached and they can pick this up after it resets." });
           }
           const provider = await expandAttachments(messages, userId, attachmentCache);
+          if (!modelStartObserved) {
+            modelStartObserved = true;
+            execution?.onModelStart?.();
+          }
           const response = await fetch(
             "https://openrouter.ai/api/v1/chat/completions",
             {
@@ -548,6 +604,8 @@ export async function createAgentResponse(
               body: JSON.stringify(metered({
                 model,
                 stream: true,
+                prompt_cache_key: createHash("sha256").update(userId).digest("hex"),
+                session_id: createHash("sha256").update(`${userId}\0${execution?.chatId ?? runId}`).digest("hex"),
                 messages: provider,
                 tools: finishWithResults || rideNeedsClarification || outOfUsage || turn === 31 ? [] : tools,
                 ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),
@@ -598,6 +656,10 @@ export async function createAgentResponse(
                   if (chunk.error)
                     throw new Error("The model could not finish this request.");
                   const delta = chunk.choices?.[0]?.delta;
+                  if (!firstTokenObserved && (delta?.content || delta?.tool_calls?.length)) {
+                    firstTokenObserved = true;
+                    execution?.onFirstToken?.();
+                  }
                   // Held until the step ends: text beside a tool call is narration, not the answer.
                   if (delta?.content) text += delta.content;
                   for (const fragment of delta?.tool_calls ?? []) {
@@ -685,6 +747,7 @@ export async function createAgentResponse(
             return;
           }
           const orderedCalls = [...calls.values()];
+          execution?.onToolStep?.();
           messages.push({
             role: "assistant",
             content: text || null,
@@ -1251,28 +1314,33 @@ export async function createAgentResponse(
           .update(agentRuns)
           .set({ status: "failed", updatedAt: new Date() })
           .where(eq(agentRuns.id, runId));
-      } catch {
-        card(progressId, {
-          kind: "step",
-          phase: "error",
-          label: signal.aborted ? "Stopped" : "Couldn’t finish this request",
-        });
-        if (!signal.aborted)
-          send({
-            error: {
-              message: `${mateName} couldn’t finish this request. Please try again.`,
-            },
+      } catch (error) {
+        if (error instanceof RunHandoffRequested) {
+          handoffRequested = true;
+          send({ handoff: { reason: error.reason } });
+        } else {
+          card(progressId, {
+            kind: "step",
+            phase: "error",
+            label: signal.aborted ? "Stopped" : "Couldn’t finish this request",
           });
-        await getDb()
-          .update(agentRuns)
-          .set({
-            status: signal.aborted ? "cancelled" : "failed",
-            updatedAt: new Date(),
-          })
-          .where(eq(agentRuns.id, runId));
+          if (!signal.aborted)
+            send({
+              error: {
+                message: `${mateName} couldn’t finish this request. Please try again.`,
+              },
+            });
+          await getDb()
+            .update(agentRuns)
+            .set({
+              status: signal.aborted ? "cancelled" : "failed",
+              updatedAt: new Date(),
+            })
+            .where(eq(agentRuns.id, runId));
+        }
       } finally {
         const [saved] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, runId)).catch(() => []);
-        if (signal.aborted || !saved?.status.startsWith("waiting")) await finishBrowsers(runId, userId, signal.aborted || saved?.status === "failed" ? "cancelled" : "completed", card).catch(() => {});
+        if (!handoffRequested && (signal.aborted || !saved?.status.startsWith("waiting"))) await finishBrowsers(runId, userId, signal.aborted || saved?.status === "failed" ? "cancelled" : "completed", card).catch(() => {});
         if (!cancelled) controller.close();
       }
     },
