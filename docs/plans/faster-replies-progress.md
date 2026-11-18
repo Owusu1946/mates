@@ -3,7 +3,7 @@
 **For:** Samuel and Ken  
 **Branch:** `feat/faster-replies`  
 **Last updated:** 2026-11-18  
-**Status:** Slice 1 is implemented locally for Samuel's review. Migration `0036_whole_starbolt` is generated and not applied. Samuel handles all commits and pushes.
+**Status:** Slice 1 code is committed locally as `02b1e1c` and `c6d07da`; the migration is generated but not applied. Samuel handles all commits and pushes.
 
 ## Goal and scope
 
@@ -33,8 +33,8 @@ Estimate **eight commits**, adjusted if a slice proves too large or too small. K
 
 | # | Slice | Status | Gate |
 | --- | --- | --- | --- |
-| 1 | Per-run timing events and first-text finance report, including client text layout timing | Implemented locally; review next | Apply migration to a test environment, then verify real samples and p50/p95 |
-| 2 | Stable prompt prefix, deterministic tool order, cache/session keys, prompt snapshot tests | Not started | Byte-identical stable prefix; measured cache hits |
+| 1 | Per-run timing events and first-text finance report, including client text layout timing | Code committed locally; review and runtime validation remain | Apply migration to a test environment, then verify real samples and p50/p95 |
+| 2 | Stable prompt prefix, deterministic tool order, cache/session keys, prompt snapshot tests | Implemented locally; API checks pass | Byte-identical stable prefix; verify cache-hit rate in production |
 | 3 | Prompt block/token audit, selective tools, Composio cache/invalidation, parallel setup | Not started | Plain-message token count and warm setup time measured; answer quality checked |
 | 4 | Typed run event protocol and durable SSE replay/reattach, retaining JSON and polling paths | Not started | Event ordering, cursors, reconnect, and old clients tested |
 | 5 | Mobile immediate typing and SSE consumption with polling fallback | Not started | iOS/Android device pass; no duplicate or flickering text |
@@ -66,9 +66,10 @@ The slices are an estimate, not a requirement to force unrelated work into one c
 
 ## Work log
 
-- 2026-11-18: Implemented slice 1 without committing or pushing. Added `run_timings` with submit, execution start, model request, first token, first saved text, and completion timestamps; tool-step count; and the phone's send-to-first-text-layout duration. Added a protected `/internal/finance/latency` endpoint and p50/p95 rows to `apps/api/scripts/usage-report.ts`. Generated migration `0036_whole_starbolt`; it has not been applied anywhere. API typecheck and 401 tests pass. Mobile 31 tests pass. Mobile typecheck still fails on the pre-existing generated `/memory-import` route type. No production sample or device validation yet. The existing finance surface is an authenticated API and terminal report; there is no private web dashboard in this repo.
-- 2026-11-18: Compared the proposal with API, worker, and mobile code; identified current outbox, recovery, cancellation, streaming, and prompt ordering behavior. Ran baseline API and mobile checks above. No faster-replies code, commit, push, or deployment made.
+- 2026-11-18: Implemented slice 1. Added `run_timings` with submit, execution start, model request, first token, first saved text, and completion timestamps; tool-step count; and the phone's send-to-first-text-layout duration. Added a protected `/internal/finance/latency` endpoint and p50/p95 rows to `apps/api/scripts/usage-report.ts`. Samuel committed the code in `02b1e1c` and `c6d07da`. Generated migration `0036_whole_starbolt`; it has not been applied anywhere. API typecheck and 401 tests pass. Mobile 31 tests pass. Mobile typecheck still fails on the pre-existing generated `/memory-import` route type. No production sample or device validation yet. The existing finance surface is an authenticated API and terminal report; there is no private web dashboard in this repo.
+- 2026-11-18: Compared the proposal with API, worker, and mobile code; identified current outbox, recovery, cancellation, streaming, and prompt ordering behavior. Ran baseline API and mobile checks above.
+- 2026-11-18: Implemented slice 2 locally without committing or pushing. The stable system instructions and user preamble now precede conversation turns; request-specific context and minute-precision schedule time follow them. Tool schemas are sorted by function name. OpenRouter requests receive SHA-256 opaque `prompt_cache_key` per user and `session_id` per user/chat (run ID fallback). Added tests for byte-identical stable prefix across changing time and deterministic tool order. API `pnpm typecheck` and `pnpm test` pass (48 files, 403 tests). Cache performance has not been measured in production; confirm OpenRouter accepts and honors the keys and verify `usage_events.cached_tokens` before claiming the 80% target. No mobile or device validation for this slice.
 
 ## Next step
 
-Samuel reviews slice 1, applies the generated migration to a test environment when ready, and checks real timing samples. Resolve or regenerate the stale mobile route type before treating typecheck as a release gate. After Samuel commits and asks to proceed, begin slice 2: prompt stability and cache measurement. Record results here after each slice so Ken can continue without relying on chat history.
+Next: Samuel reviews and commits slice 2 when ready. Ken can then validate cache-key behavior and first-step `cached_tokens` in a safe environment; slice 2 code does not establish the 80% production target. The slice 1 timing migration `0036_whole_starbolt` is still unapplied and must be tested before using latency reporting. Then proceed to slice 3: prompt block/token audit, selective tools, Composio cache and parallel setup. Resolve or regenerate the stale mobile route type before treating mobile typecheck as a release gate. Keep this handoff current so Ken can continue without chat history.

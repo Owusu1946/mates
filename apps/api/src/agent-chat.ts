@@ -1,4 +1,5 @@
 import { and, eq } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { getDb } from "./db/client.js";
 import { agentRuns, browserSessions } from "./db/schema.js";
 import { browserInstructions, browserTools, executeBrowser, finishBrowsers, resumeBrowser, browserCard } from "./browser.js";
@@ -11,7 +12,8 @@ import {
 } from "./integrations.js";
 import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
-import { scheduleContext, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
+import { scheduleContext, scheduleInstructions, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
+import { buildPromptMessages, sortToolsByName } from "./agent-prompt.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
@@ -155,21 +157,30 @@ export async function createAgentResponse(
   let session = await getIntegrationSession(userId);
   // The user may be answering this mate's offer to handle one of their habits.
   const nudge = resumeRunId ? null : await pendingNudge(userId, execution?.chatId).catch(() => null);
-  let messages: ModelMessage[] = [
-    { role: "system", content: (execution?.preamble ?? DEFAULT_PREAMBLE) + " " + instructions + "\n" + planInstructions + "\n" + lookupInstructions + "\n" + browserInstructions + (webOn ? "\n" + webSearchInstructions : "") + "\n" + shoppingInstructions + "\n" + scheduleContext(execution?.timezone) + "\n" + watchInstructions + (nudge ? "\n" + nudgeContext(nudge) : "") },
-    ...modelTurns,
-  ];
-  if (ridesOn) messages.push({
-    role: "system",
-    content: [
+  const stableInstructions = [
+    instructions,
+    planInstructions,
+    lookupInstructions,
+    browserInstructions,
+    ...(webOn ? [webSearchInstructions] : []),
+    shoppingInstructions,
+    scheduleInstructions,
+    watchInstructions,
+    ...(ridesOn ? [[
       "Use cooper_rides for ride-price requests, trotro or public-transport requests, and directions between named places, including ordinary wording like 'How do I get from A to B?'. Use mode best unless the user asks only for rides or only for transit.",
       "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
       "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
       "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
       "Only present ride or transit options when Sail provides a numeric price and currency. Omit unpriced trotro or public-transport results without mentioning that they were unavailable. Keep the chat reply to a short takeaway from priced options; the card contains the breakdown.",
       "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
-    ].join(" "),
-  });
+    ].join(" ")] : []),
+  ].join("\n");
+  let messages = buildPromptMessages({
+    stableInstructions,
+    stableUserContext: execution?.preamble ?? DEFAULT_PREAMBLE,
+    turns: modelTurns,
+    volatileContext: [],
+  }) as ModelMessage[];
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
@@ -357,7 +368,7 @@ export async function createAgentResponse(
   // A mate doing a board task already has its brief and inputs, and its reply is saved as the
   // task's result, so it gets neither the notes digest nor the notes tool (no duplicate notes).
   const mission = execution?.boardTask ? null : await liveMission(userId, execution?.chatId).catch(() => null);
-  const tools = [
+  const tools = sortToolsByName([
     ...(await session.tools()).filter(
       (tool) =>
         tool.type === "function" &&
@@ -385,7 +396,7 @@ export async function createAgentResponse(
     ...(memory.enabled && memory.crew > 1 && execution?.speaker ? [checkWithMateTool] : []),
     ...(recallOn ? [recallTool] : []),
     ...(webOn ? [webSearchTool, webReadTool, ...browserTools.filter((tool) => tool.function.name !== "browser_search")] : browserTools),
-  ];
+  ]);
   const toolNames = new Set(tools.map((tool) => (tool as { function: { name: string } }).function.name));
   let model = CHAT_MODEL;
   const connectedApps = await listApps(session, { connected: true });
@@ -405,6 +416,8 @@ export async function createAgentResponse(
   if (recalled) messages.push({ role: "system", content: recalled });
   if (mission) messages.push({ role: "system", content: await missionContext(mission) });
   if (deck) messages.push({ role: "system", content: deck });
+  if (nudge) messages.push({ role: "system", content: nudgeContext(nudge) });
+  messages.push({ role: "system", content: scheduleContext(execution?.timezone) });
   const sources = new Map<string, Map<string, Record<string, unknown>>>();
   const emptyLookups = new Set<string>();
   // Pages seen earlier in this run keep their ids when it resumes.
@@ -554,6 +567,8 @@ export async function createAgentResponse(
               body: JSON.stringify(metered({
                 model,
                 stream: true,
+                prompt_cache_key: createHash("sha256").update(userId).digest("hex"),
+                session_id: createHash("sha256").update(`${userId}\0${execution?.chatId ?? runId}`).digest("hex"),
                 messages: provider,
                 tools: finishWithResults || rideNeedsClarification || outOfUsage || turn === 31 ? [] : tools,
                 ...(forced.forced && webOn && turn === 0 && !resumeRunId ? { tool_choice: { type: "function", function: { name: "web_search" } } } : {}),

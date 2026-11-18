@@ -122,6 +122,7 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 | `GET /internal/finance/summary?from=YYYY-MM&to=YYYY-MM` | Monthly profit and per-plan margins |
 | `GET /internal/finance/costs?from=YYYY-MM-DD&to=YYYY-MM-DD&groupBy=source\|provider\|model\|plan\|user\|day` | Costs grouped by any dimension |
 | `GET /internal/finance/users/:id` | One person's months, recent costs and where they stand |
+| `GET /internal/finance/latency?from=YYYY-MM-DD&to=YYYY-MM-DD` | Chat p50/p95 for queue, setup, model first token, saved text, completion, and phone first-text layout; split into no-tool and tool turns |
 
 **Scripts** (`apps/api`):
 
@@ -131,6 +132,8 @@ Accounts on `DEFAULT_PLAN` before payments have no `plan_periods`, so their cost
 | `pnpm exec tsx scripts/usage-report.ts [days]` | Real usage against budgets |
 | `pnpm exec tsx scripts/reconcile-costs.ts [YYYY-MM]` | Metered costs against provider bills |
 | `pnpm exec tsx scripts/rebuild-usage-daily.ts <from> <to>` | Rebuilds the daily totals |
+
+The latency section in `usage-report.ts` requires the `run_timings` table from migration `0036_whole_starbolt`. Apply the migration before using the report; it has not yet been applied in an environment.
 
 **Account deletion.** Personal rows are deleted. The money ledgers (`usage_events`, `usage_daily`, `plan_periods`) are kept so past months still add up, but their user id is replaced with a random one.
 
