@@ -15,6 +15,7 @@ import {
   getApp,
   getComposio,
   getIntegrationSession,
+  invalidateIntegrationCache,
   IntegrationUnavailable,
   listApps,
 } from "./integrations.js";
@@ -404,6 +405,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         return c.json(failure("BAD_SIGNATURE", "Not from Composio", c.get("requestId")), 401);
       }
       const { payload } = event;
+      invalidateIntegrationCache(payload.userId);
       // Answered at once; the judgement and any firing happen after, so Composio never times out.
       // A watch's event is judged; otherwise it may be one of the user's "learn from my apps" observers.
       const appEvent = { triggerId: payload.metadata.id, eventId: payload.id || payload.uuid, slug: payload.triggerSlug, payload: payload.payload ?? {} };
@@ -1069,6 +1071,7 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const request = await session.authorize(app.slug, {
         callbackUrl: body.data.callbackUrl,
       });
+      invalidateIntegrationCache(c.get("userId"));
       return c.json({
         connected: false,
         connectUrl: request.redirectUrl ?? null,

@@ -28,3 +28,11 @@ export function sortToolsByName<T>(tools: T[]): T[] {
   };
   return [...tools].sort((a, b) => name(a).localeCompare(name(b), "en"));
 }
+
+export function isTrivialChatMessage(text: string): boolean {
+  return /^(?:hi|hello|hey|hiya|yo|good morning|good afternoon|good evening|thanks|thank you|thx|ok|okay|got it|nice|great|cool)[!.?\s]*$/i.test(text.trim());
+}
+
+export function isTravelRequest(text: string): boolean {
+  return /\b(?:ride|uber|taxi|cab|trotro|transit|public transport|bus|train|directions?|route|commute|pickup|drop[- ]?off|fare|traffic)\b|\bfrom\s+.{2,50}\s+to\s+.{2,50}/i.test(text);
+}

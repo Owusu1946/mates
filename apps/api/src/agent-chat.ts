@@ -7,13 +7,14 @@ import {
   getApp,
   getComposio,
   getIntegrationSession,
+  getIntegrationTools,
   listApps,
   type WorkflowCard,
 } from "./integrations.js";
 import type { ChatTurn } from "./chat.js";
 import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleInstructions, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
-import { buildPromptMessages, sortToolsByName } from "./agent-prompt.js";
+import { buildPromptMessages, isTrivialChatMessage, isTravelRequest, sortToolsByName } from "./agent-prompt.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
@@ -145,36 +146,40 @@ export async function createAgentResponse(
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
   const lastUserText = turns.filter((t) => t.role === "user").at(-1)?.content ?? "";
+  const lastUserTurn = turns.filter((t) => t.role === "user").at(-1);
+  const trivialMessage = isTrivialChatMessage(lastUserText) && !lastUserTurn?.attachments?.length;
   const queryVector = lastUserText.trim() ? embedOne(lastUserText, undefined, { userId, source: "embed", ref: execution?.runId }).catch(() => null) : Promise.resolve(null);
   // "@Web" forces a web search on the first step; the model never sees the tag itself.
   const webOn = webSearchConfigured();
-  const ridesOn = ridesEnabled();
+  const ridesOn = ridesEnabled() && isTravelRequest(lastUserText);
   const forced = forcedSearch(lastUserText);
   const lastUserIndex = turns.findLastIndex((t) => t.role === "user");
   const modelTurns = forced.forced ? turns.map((t, i) => (i === lastUserIndex ? { ...t, content: forced.text || "Search the web for this." } : t)) : turns;
   // Who the user is talking to, for the few messages that name them.
   const mateName = execution?.speaker?.name ?? "Your mate";
-  let session = await getIntegrationSession(userId);
-  // The user may be answering this mate's offer to handle one of their habits.
-  const nudge = resumeRunId ? null : await pendingNudge(userId, execution?.chatId).catch(() => null);
-  const stableInstructions = [
-    instructions,
-    planInstructions,
-    lookupInstructions,
-    browserInstructions,
-    ...(webOn ? [webSearchInstructions] : []),
-    shoppingInstructions,
-    scheduleInstructions,
-    watchInstructions,
-    ...(ridesOn ? [[
+  let [session, nudge] = await Promise.all([
+    getIntegrationSession(userId),
+    resumeRunId ? null : pendingNudge(userId, execution?.chatId).catch(() => null),
+  ]);
+  const stableInstructionBlocks = [
+    { name: "instructions", text: instructions },
+    { name: "plan", text: planInstructions },
+    { name: "lookup", text: lookupInstructions },
+    { name: "browser", text: browserInstructions },
+    ...(webOn ? [{ name: "web", text: webSearchInstructions }] : []),
+    { name: "shopping", text: shoppingInstructions },
+    { name: "schedule", text: scheduleInstructions },
+    { name: "watch", text: watchInstructions },
+    ...(ridesOn ? [{ name: "rides", text: [
       "Use cooper_rides for ride-price requests, trotro or public-transport requests, and directions between named places, including ordinary wording like 'How do I get from A to B?'. Use mode best unless the user asks only for rides or only for transit.",
       "For distance-only questions, answer normally and offer to check rides. Infer Ghana or Great Britain only when the named places make the country clear; otherwise ask one short country question.",
       "If the user explicitly asks to use their current location, pass 'here' as the starting place so the app can offer location sharing; never claim to know their location. Resolve home or work from known memory only when clear; otherwise ask.",
       "Do not guess a pickup, prices, or availability. If Sail returns place choices, ask one concise question using only those choices and wait; do not repeat the tool call or invent alternatives.",
       "Only present ride or transit options when Sail provides a numeric price and currency. Omit unpriced trotro or public-transport results without mentioning that they were unavailable. Keep the chat reply to a short takeaway from priced options; the card contains the breakdown.",
       "Sail gives estimates and cannot book rides. Do not claim that a ride is booked.",
-    ].join(" ")] : []),
-  ].join("\n");
+    ].join(" ") }] : []),
+  ];
+  const stableInstructions = stableInstructionBlocks.map((block) => block.text).join("\n");
   let messages = buildPromptMessages({
     stableInstructions,
     stableUserContext: execution?.preamble ?? DEFAULT_PREAMBLE,
@@ -361,15 +366,25 @@ export async function createAgentResponse(
     runId = run!.id;
   }
   const query = await queryVector;
-  // The speaking mate gets its own notes beside the shared ones (and the lead sees the crew's).
-  const memory = await memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 }));
+  // Resolve independent setup together so none of these waits on another service call.
+  const [memory, mission, composioTools, connectedApps, shared, deck] = await Promise.all([
+    memoryContext(userId, query, execution?.speaker ?? null, { live: execution?.live ?? false }).catch(() => ({ enabled: false as const, context: null, settings: null, crew: 0 })),
+    execution?.boardTask ? null : liveMission(userId, execution?.chatId).catch(() => null),
+    trivialMessage ? [] : getIntegrationTools(userId, session).catch(() => []),
+    trivialMessage ? Promise.resolve({ apps: [], nextCursor: null }) : listApps(session, { connected: true }),
+    execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
+    deckContext(userId, execution?.chatId ?? null).catch(() => null),
+  ]);
   const recallOn = memory.enabled && memory.settings.historyRecall;
   // A group on a mission shares its goal and notes with every mate who speaks in it.
   // A mate doing a board task already has its brief and inputs, and its reply is saved as the
   // task's result, so it gets neither the notes digest nor the notes tool (no duplicate notes).
-  const mission = execution?.boardTask ? null : await liveMission(userId, execution?.chatId).catch(() => null);
-  const tools = sortToolsByName([
-    ...(await session.tools()).filter(
+  const [recalled, playbook] = await Promise.all([
+    recallOn && !trivialMessage ? recallContext(userId, query, execution?.chatId).catch(() => null) : null,
+    !trivialMessage ? playbookContext(connectedApps.apps.map((app) => app.slug)).catch(() => null) : null,
+  ]);
+  const tools = trivialMessage ? [] : sortToolsByName([
+    ...composioTools.filter(
       (tool) =>
         tool.type === "function" &&
         tool.function.name !== "COMPOSIO_MANAGE_CONNECTIONS",
@@ -399,17 +414,10 @@ export async function createAgentResponse(
   ]);
   const toolNames = new Set(tools.map((tool) => (tool as { function: { name: string } }).function.name));
   let model = CHAT_MODEL;
-  const connectedApps = await listApps(session, { connected: true });
-  messages.push({
+  if (!trivialMessage) messages.push({
     role: "system",
     content: `Connected apps: ${connectedApps.apps.map((app) => `${app.name} (${app.slug})`).join(", ") || "none"}. Prefer explicitly named apps; if ambiguous ask cooper_choose_app. After reading app data, call cooper_show_results with actual source IDs, concise previews and up to three useful follow-ups. Include email sender/subject/time, post engagement and links when available. Do not repeat card content in a long text answer. Never pretend a limited sample is an exhaustive ranking.`,
   });
-  const [shared, recalled, playbook, deck] = await Promise.all([
-    execution?.chatId ? chatAttachmentsContext(userId, execution.chatId).catch(() => null) : null,
-    recallOn ? recallContext(userId, query, execution?.chatId).catch(() => null) : null,
-    playbookContext(connectedApps.apps.map((app) => app.slug)).catch(() => null),
-    deckContext(userId, execution?.chatId ?? null).catch(() => null),
-  ]);
   if (playbook) messages.push({ role: "system", content: playbook });
   if (shared) messages.push({ role: "system", content: shared });
   if (memory.context) messages.push({ role: "system", content: memory.context });
@@ -418,6 +426,16 @@ export async function createAgentResponse(
   if (deck) messages.push({ role: "system", content: deck });
   if (nudge) messages.push({ role: "system", content: nudgeContext(nudge) });
   messages.push({ role: "system", content: scheduleContext(execution?.timezone) });
+  console.info("agent_prompt_size", {
+    instructionChars: Object.fromEntries(stableInstructionBlocks.map((block) => [block.name, block.text.length])),
+    conversationChars: messages.reduce((total, message) => total + (message.content?.length ?? 0), 0),
+    toolSchemaChars: JSON.stringify(tools).length,
+    toolSchemaCharsByName: Object.fromEntries(tools.map((tool) => {
+      const name = (tool as { function?: { name?: string } }).function?.name ?? "unnamed";
+      return [name, JSON.stringify(tool).length];
+    })),
+    toolCount: tools.length,
+  });
   const sources = new Map<string, Map<string, Record<string, unknown>>>();
   const emptyLookups = new Set<string>();
   // Pages seen earlier in this run keep their ids when it resumes.
