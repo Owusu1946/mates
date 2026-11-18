@@ -1,4 +1,5 @@
 import {
+  check,
   index,
   jsonb,
   pgTable,
@@ -122,6 +123,25 @@ export const chatMessages = pgTable(
     index("chat_messages_latest_idx").on(table.chatId, table.createdAt),
   ],
 );
+
+export const messageFeedback = pgTable("message_feedback", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").notNull().references(() => chats.id, { onDelete: "cascade" }),
+  messageId: text("message_id").notNull(),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  runId: uuid("run_id").references(() => delegations.id, { onDelete: "set null" }),
+  model: text("model"),
+  rating: text("rating").$type<"up" | "down">().notNull(),
+  reason: text("reason").$type<"wrong_answer" | "didnt_follow_instructions" | "too_slow" | "too_long" | "other">(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (table) => [
+  uniqueIndex("message_feedback_user_message_idx").on(table.clerkUserId, table.messageId),
+  index("message_feedback_created_rating_idx").on(table.createdAt, table.rating),
+  check("message_feedback_rating_check", sql.raw("\"rating\" in ('up', 'down')")),
+  check("message_feedback_reason_check", sql.raw("\"reason\" is null or \"reason\" in ('wrong_answer', 'didnt_follow_instructions', 'too_slow', 'too_long', 'other')")),
+]);
 
 export const integrationSessions = pgTable("integration_sessions", {
   clerkUserId: text("clerk_user_id").primaryKey(),

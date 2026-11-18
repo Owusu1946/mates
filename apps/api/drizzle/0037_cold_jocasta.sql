@@ -1,0 +1,2 @@
+ALTER TABLE "message_feedback" ADD CONSTRAINT "message_feedback_rating_check" CHECK ("rating" in ('up', 'down'));--> statement-breakpoint
+ALTER TABLE "message_feedback" ADD CONSTRAINT "message_feedback_reason_check" CHECK ("reason" is null or "reason" in ('wrong_answer', 'didnt_follow_instructions', 'too_slow', 'too_long', 'other'));
