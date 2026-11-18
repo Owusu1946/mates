@@ -147,7 +147,9 @@ export async function previewImport(userId: string, input: z.infer<typeof import
     .select({ id: memories.id, text: memories.text, category: memories.category, embedding: memories.embedding })
     .from(memories)
     .where(eq(memories.clerkUserId, userId))
+    .orderBy(desc(memories.importance), desc(memories.updatedAt))
     .limit(MAX_MEMORIES);
+  // The model checks repeats and contradictions against the most important and recent; embeddings cover the rest.
   const shown = existing.slice(0, MAX_IMPORT_FACTS);
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
