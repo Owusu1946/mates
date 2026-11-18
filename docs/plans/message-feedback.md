@@ -29,6 +29,6 @@ Pass a day count from 1 to 90 to change the window. The JSON report includes rea
 
 ## Validation
 
-Migrations 0036_parched_saracen.sql and 0037_cold_jocasta.sql create the table and its rating/reason checks. Apply both before deploying the API.
+Migration 0039_cloudy_clint_barton.sql creates the table and its rating/reason checks (renumbered after the faster-replies migrations took 0036–0038). Apply it before merging, since the API deploys on merge.
 
 Automated tests cover request validation, authentication, run readiness, group speaker attribution, and account-deletion registration. Device QA should cover selected-state toggling, reason selection, optional notes, success/error toasts, and a failed request with the API offline.

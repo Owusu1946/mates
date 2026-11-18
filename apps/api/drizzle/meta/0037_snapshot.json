@@ -1,6 +1,6 @@
 {
-  "id": "83e0a467-5d8d-4f53-a22c-2c937338e29d",
-  "prevId": "ee419649-2ce0-41a6-8c56-bf26a096bba8",
+  "id": "08565c69-728d-438e-a95f-52e484eefa6f",
+  "prevId": "f6a0cc40-0dc4-4baa-8041-52e6f9575f2d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1721,6 +1721,26 @@
           "notNull": true,
           "default": "'queued'"
         },
+        "execution_owner": {
+          "name": "execution_owner",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "execution_generation": {
+          "name": "execution_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "resume_checkpoint": {
+          "name": "resume_checkpoint",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "sequence": {
           "name": "sequence",
           "type": "integer",
@@ -3098,179 +3118,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.message_feedback": {
-      "name": "message_feedback",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "clerk_user_id": {
-          "name": "clerk_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "chat_id": {
-          "name": "chat_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "message_id": {
-          "name": "message_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mate_id": {
-          "name": "mate_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rating": {
-          "name": "rating",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "message_feedback_user_message_idx": {
-          "name": "message_feedback_user_message_idx",
-          "columns": [
-            {
-              "expression": "clerk_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "message_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "message_feedback_created_rating_idx": {
-          "name": "message_feedback_created_rating_idx",
-          "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "rating",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "message_feedback_chat_id_chats_id_fk": {
-          "name": "message_feedback_chat_id_chats_id_fk",
-          "tableFrom": "message_feedback",
-          "tableTo": "chats",
-          "columnsFrom": [
-            "chat_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "message_feedback_mate_id_mates_id_fk": {
-          "name": "message_feedback_mate_id_mates_id_fk",
-          "tableFrom": "message_feedback",
-          "tableTo": "mates",
-          "columnsFrom": [
-            "mate_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "message_feedback_run_id_delegations_id_fk": {
-          "name": "message_feedback_run_id_delegations_id_fk",
-          "tableFrom": "message_feedback",
-          "tableTo": "delegations",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "message_feedback_rating_check": {
-          "name": "message_feedback_rating_check",
-          "value": "\"rating\" in ('up', 'down')"
-        },
-        "message_feedback_reason_check": {
-          "name": "message_feedback_reason_check",
-          "value": "\"reason\" is null or \"reason\" in ('wrong_answer', 'didnt_follow_instructions', 'too_slow', 'too_long', 'other')"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.mission_notes": {
@@ -4676,6 +4523,104 @@
         "run_events_delegation_id_delegations_id_fk": {
           "name": "run_events_delegation_id_delegations_id_fk",
           "tableFrom": "run_events",
+          "tableTo": "delegations",
+          "columnsFrom": [
+            "delegation_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.run_timings": {
+      "name": "run_timings",
+      "schema": "",
+      "columns": {
+        "delegation_id": {
+          "name": "delegation_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "setup_done_at": {
+          "name": "setup_done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_token_at": {
+          "name": "first_token_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_text_at": {
+          "name": "first_text_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "client_first_text_ms": {
+          "name": "client_first_text_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tool_steps": {
+          "name": "tool_steps",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "run_timings_submitted_idx": {
+          "name": "run_timings_submitted_idx",
+          "columns": [
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "run_timings_delegation_id_delegations_id_fk": {
+          "name": "run_timings_delegation_id_delegations_id_fk",
+          "tableFrom": "run_timings",
           "tableTo": "delegations",
           "columnsFrom": [
             "delegation_id"

@@ -64,6 +64,7 @@ import type { WorkflowCard } from "@expojet/api-contract";
 import { useAuth } from "@clerk/expo";
 import { cancelBackgroundChat, runRequest } from "./background-chat";
 import { FeedbackSheet, type FeedbackReason } from "./feedback-sheet";
+import { markSendTapped, takeFirstTextLayoutMs } from "./chat-timing";
 import { ScheduleCard } from "./schedule-card";
 import { MemoriesChip, MemoryCard } from "./memory-card";
 import { GitHubConnectCard } from "./github-connect-card";
@@ -696,6 +697,11 @@ function RoutineMarker({ title, at }: { title: string; at: Date }) {
 
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role);
+  const runId = useAuiState((state) => {
+    const custom = state.message.metadata?.custom as { delegationId?: unknown } | undefined;
+    return typeof custom?.delegationId === "string" ? custom.delegationId : null;
+  });
+  const { getToken } = useAuth();
   // A routine's, a fired watch's or a habit's turn: the user didn't type it just now, so it shows as a marker.
   const routineTitle = useAuiState((state) => {
     const custom = state.message.metadata?.custom as { routine?: { title?: unknown }; watch?: { title?: unknown }; habit?: { title?: unknown } } | undefined;
@@ -717,6 +723,13 @@ function ChatMessage() {
   const colors = useChatColors();
   const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
+  const onTextLayout = useCallback(() => {
+    if (user || !runId) return;
+    requestAnimationFrame(() => {
+      const elapsedMs = takeFirstTextLayoutMs(runId);
+      if (elapsedMs !== null) void runRequest(getToken, `runs/${runId}/first-text`, { elapsedMs }).catch(() => {});
+    });
+  }, [getToken, runId, user]);
   if (user && routineTitle) return <RoutineMarker title={routineTitle} at={createdAt} />;
   return (
     <MessagePrimitive.Root
@@ -762,7 +775,7 @@ function ChatMessage() {
               user ? (
                 <UserText text={part.text} />
               ) : (
-                <RichText colors={richColors}>{part.text}</RichText>
+                <View onLayout={onTextLayout}><RichText colors={richColors}>{part.text}</RichText></View>
               )
             }
           />
@@ -1439,6 +1452,7 @@ function ChatComposer() {
       const updated = prev ? `${prev} ${spokenText}` : spokenText;
       aui.composer.setText(updated);
       setTimeout(() => {
+        markSendTapped();
         aui.composer.send();
       }, 50);
     }
@@ -1483,6 +1497,7 @@ function ChatComposer() {
       aui.composer.setText(`${text}${text ? " " : ""}${tags}`);
     }
     if (currentChat?.kind === "mate" && /(?:^|\s)@\S/.test(`${composerText} ${tags}`)) taggedCollaborator.current = true;
+    markSendTapped();
     aui.composer.send();
     setSelectedApp(null);
     setSelectedMates([]);
@@ -1575,6 +1590,11 @@ function ChatComposer() {
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 284 }}
             >
+              {currentChat?.kind === "mate" && mentionMates.length > 0 && (
+                <Text style={{ paddingHorizontal: 10, paddingVertical: 8, color: colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 12, lineHeight: 16 }}>
+                  Mentioning a mate shares this conversation with them.
+                </Text>
+              )}
               {mentionWeb && (
                 <Pressable
                   accessibilityRole="button"
