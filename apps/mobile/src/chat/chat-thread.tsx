@@ -450,7 +450,8 @@ function ThinkingIndicator() {
   if (!running) return null;
   // A tool at work shows its own steps; only the "nothing specific yet" placeholder gives way to the dot.
   if (parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined))) return null;
-  // While the answer is being written the dot trails the text, as in ChatGPT.
+  // Once the first words arrive the text itself shows progress, so the dot goes, as in ChatGPT.
+  if (parts.some((part) => part.type === "text" && part.text.trim().length > 0)) return null;
   return (
     <View style={{ paddingTop: 6, paddingBottom: 8 }}>
       <PulseDot color={colors.foreground} />
