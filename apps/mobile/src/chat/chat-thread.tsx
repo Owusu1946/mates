@@ -1171,6 +1171,15 @@ function ChatComposer() {
   const composerText = useAuiState((state) => state.composer.text);
   const canSend = useAuiState((state) => state.thread.composer.canSend);
   const running = useAuiState((state) => state.thread.isRunning);
+  // A screen can open a chat with a message ready to send ("What do you know about me now?"): it
+  // lands once the chat has switched (notificationChatId is cleared), and the user sends it.
+  const router = useRouter();
+  const { draft, notificationChatId } = useLocalSearchParams<{ draft?: string; notificationChatId?: string }>();
+  useEffect(() => {
+    if (!draft || notificationChatId) return;
+    aui.composer.setText(draft);
+    router.setParams({ draft: undefined });
+  }, [aui, draft, notificationChatId, router]);
   const taggedCollaborator = useRef(false);
   const sawRunning = useRef(false);
   // Out of usage: the line above says until when; sending waits for the reset.
