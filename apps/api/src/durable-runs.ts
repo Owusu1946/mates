@@ -615,7 +615,7 @@ async function rememberFromRun(
   if (!settings?.memoryEnabled) return;
   // Routine results are worth recalling later ("what did yesterday's brief say?").
   if (settings.historyRecall)
-    await recordExchange({ delegationId: id, userId: run.clerkUserId, chatId: run.chatId, userText: last.content, assistantText }).catch(() => console.warn("recall_index_failed", { id }));
+    await recordExchange({ delegationId: id, userId: run.clerkUserId, chatId: run.chatId, userText: visibleMentionText(last.content), assistantText }).catch(() => console.warn("recall_index_failed", { id }));
   // Routine prompts are generated, not said by the user, so there is nothing of theirs to keep.
   if (run.chatId?.startsWith("routine_")) return;
   // Explicit saves already happened in the turn; the extractor sees them and won't repeat them.

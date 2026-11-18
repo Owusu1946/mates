@@ -1513,6 +1513,11 @@ function ChatComposer() {
               keyboardShouldPersistTaps="handled"
               style={{ maxHeight: 284 }}
             >
+              {mentionMates.length > 0 && (
+                <Text style={{ paddingHorizontal: 10, paddingVertical: 8, color: colors.mutedForeground, fontFamily: "DMSans_400Regular", fontSize: 12, lineHeight: 16 }}>
+                  Mentioning a mate shares this conversation with them.
+                </Text>
+              )}
               {mentionWeb && (
                 <Pressable
                   accessibilityRole="button"

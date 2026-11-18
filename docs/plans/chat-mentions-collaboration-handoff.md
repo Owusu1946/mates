@@ -101,10 +101,16 @@ Target **four reviewable commits**. Samuel reviews each batch and handles commit
 
 ## Still open
 
-- Neither migration has been applied. Coordinate with Ken before running them.
+- Apply migrations `0034_quiet_logan` and `0035_collaborator_removed_at` to production before merging. Coordinate with Ken; this branch does not apply migrations.
+- After merge, deploy the worker from `apps/api` with `pnpm worker:deploy` so direct-chat routing is live.
 - Not exercised on a simulator: open a direct chat, type `@`, send a mention, leave and come back, remove the chip, and confirm a group chat's `@` menu is unchanged.
 - A mate who fails mid-relay still stops the mates queued behind them, which is the existing group behavior. Text already produced stays in the thread.
-- The product copy does not yet say that a mention shares this conversation with that mate.
+- The mention picker now explains: “Mentioning a mate shares this conversation with them.”
+
+## Release follow-up on `feat/direct-chat-mate-mentions`
+
+- Recall indexing uses `visibleMentionText(last.content)` so internal mention IDs such as `@Ama{uuid}` are not stored in recall entries.
+- Production migration application and the post-merge worker deployment remain release steps for Ken.
 
 ## Privacy and safety
 
