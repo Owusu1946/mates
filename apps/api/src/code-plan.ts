@@ -212,6 +212,10 @@ const DIFF_SECRETS = [
   /\bsk_live_[0-9A-Za-z]{20,}\b/g, // Stripe secret key
   /\bxox[bap]-[0-9A-Za-z-]{10,}\b/g, // Slack tokens
 ];
+/** Whether text carries a known kind of secret: a token, API key or private key. */
+export function looksLikeSecret(text: string) {
+  return DIFF_SECRETS.some((pattern) => new RegExp(pattern.source).test(text));
+}
 const LOCKFILES = ["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lock", "bun.lockb"];
 const BIG_FILE = 5 * 1024 * 1024;
 

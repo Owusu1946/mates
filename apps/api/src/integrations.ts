@@ -33,6 +33,8 @@ export type WorkflowCard = {
     canAlways: boolean;
     unattended: boolean;
     choice?: "allow" | "always" | "decline";
+    /** Why the outbound check held it, in plain words (A6). */
+    reason?: string;
     /** Several actions in one request: their titles, after the first. */
     more?: string[];
   };
