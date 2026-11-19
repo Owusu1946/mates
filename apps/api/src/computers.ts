@@ -260,6 +260,12 @@ export async function stopFromApp(userId: string, deps = realComputerDeps()) {
   return computerView(userId, deps);
 }
 
+/** Deletes the user's desktop and everything on it (logins, files), for account deletion. */
+export async function deleteComputerFor(userId: string) {
+  const computer = await dbComputerStore.byUser(userId);
+  if (computer?.providerId && computerConfigured()) await daytona.deleteDesktop(computer.providerId);
+}
+
 export async function computerAvailableFor(userId: string) {
   return computerConfigured() && canUseComputer(await userPlan(userId));
 }

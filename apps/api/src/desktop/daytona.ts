@@ -88,6 +88,16 @@ export async function stopDesktop(providerId: string) {
   await retryOnce(() => sandbox.stop(STOP_TIMEOUT_S));
 }
 
+/** Deletes the desktop and its disk for good (account deletion). Already gone counts as done. */
+export async function deleteDesktop(providerId: string) {
+  try {
+    const sandbox = await sandboxOf(providerId);
+    await sandbox.delete(STOP_TIMEOUT_S);
+  } catch (error) {
+    if (!(error instanceof DaytonaNotFoundError)) throw error;
+  }
+}
+
 /** The provider's view of the sandbox, for the sweeper and for recovering a lost desktop. */
 export async function desktopState(providerId: string): Promise<string | undefined> {
   return (await sandboxOf(providerId)).state;
