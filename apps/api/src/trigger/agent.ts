@@ -8,6 +8,8 @@ import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
 import { sweepComputers } from "../computers.js";
+import { executeComputerGoal } from "../computer-agent.js";
+import { recoverStalledGoals } from "../computer-goals.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
 import { checkWatch, dispatchWatches } from "../watches.js";
 import { dispatchHabits } from "../habits/dispatch.js";
@@ -123,6 +125,19 @@ export const meetingPrep = schemaTask({
   },
 });
 
+/** A goal on the mates' desktop. One at a time per user (one mouse); never retried, since clicks aren't idempotent. */
+export const computerGoal = schemaTask({
+  id: "computer-goal",
+  schema: z.object({ goalId: z.string().uuid() }),
+  concurrency: { perKey: 1, total: 5 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 3600,
+  run: async ({ goalId }, { signal }) => {
+    await executeComputerGoal(goalId, signal ?? new AbortController().signal);
+    return { goalId };
+  },
+});
+
 export const routineDispatcher = schedules.task({
   id: "cooper-dispatcher",
   cron: { pattern: "* * * * *", timezone: "UTC" },
@@ -133,6 +148,7 @@ export const routineDispatcher = schedules.task({
     await recoverStalledRuns();
     await recoverStalledCodeRuns().catch(() => console.warn("code_run_recovery_failed"));
     await recoverStalledDecks().catch(() => console.warn("deck_recovery_failed"));
+    await recoverStalledGoals().catch(() => console.warn("computer_goal_recovery_failed"));
     await sweepComputers().catch(() => console.warn("computer_sweep_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
