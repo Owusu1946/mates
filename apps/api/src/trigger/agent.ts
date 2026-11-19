@@ -7,6 +7,7 @@ import { deliverFindings } from "../delivery.js";
 import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
+import { sweepComputers } from "../computers.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
 import { checkWatch, dispatchWatches } from "../watches.js";
 import { dispatchHabits } from "../habits/dispatch.js";
@@ -132,6 +133,7 @@ export const routineDispatcher = schedules.task({
     await recoverStalledRuns();
     await recoverStalledCodeRuns().catch(() => console.warn("code_run_recovery_failed"));
     await recoverStalledDecks().catch(() => console.warn("deck_recovery_failed"));
+    await sweepComputers().catch(() => console.warn("computer_sweep_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
     await dispatchWatches().catch((error) => console.warn("watch_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));

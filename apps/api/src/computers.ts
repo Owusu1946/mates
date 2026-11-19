@@ -158,13 +158,16 @@ export async function sweepComputers(deps = realComputerDeps()) {
 // ── Live view and take-over ───────────────────────────────────────────────────────────────
 
 const liveUrls = new Map<string, { url: string; token: string; expiresAt: number }>();
-const cacheKey = (id: string, viewOnly: boolean) => `${id}:${viewOnly ? "view" : "control"}`;
+// Keyed by the sandbox, so a recreated desktop never gets an old link.
+const cacheKey = (providerId: string, viewOnly: boolean) => `${providerId}:${viewOnly ? "view" : "control"}`;
 
 async function dropLiveUrls(computer: Computer, deps: ComputerDeps, only?: "control") {
+  if (!computer.providerId) return;
   for (const viewOnly of only ? [false] : [true, false]) {
-    const cached = liveUrls.get(cacheKey(computer.id, viewOnly));
-    liveUrls.delete(cacheKey(computer.id, viewOnly));
-    if (cached && computer.providerId) await deps.provider.expireLiveUrl(computer.providerId, cached.token).catch(() => undefined);
+    const key = cacheKey(computer.providerId, viewOnly);
+    const cached = liveUrls.get(key);
+    liveUrls.delete(key);
+    if (cached) await deps.provider.expireLiveUrl(computer.providerId, cached.token).catch(() => undefined);
   }
 }
 
@@ -172,7 +175,7 @@ async function dropLiveUrls(computer: Computer, deps: ComputerDeps, only?: "cont
 async function liveUrlFor(computer: Computer, deps: ComputerDeps) {
   if (computer.state !== "on" || !computer.providerId) return null;
   const viewOnly = computer.controller !== "user";
-  const key = cacheKey(computer.id, viewOnly);
+  const key = cacheKey(computer.providerId, viewOnly);
   const cached = liveUrls.get(key);
   if (cached && cached.expiresAt - deps.now() > 60_000) return cached.url;
   const fresh = await deps.provider.liveUrl(computer.providerId, viewOnly);
