@@ -177,6 +177,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="group/[id]" options={{ title: "Group" }} />
           <Stack.Screen name="mission/[chatId]" options={{ title: "Mission notes" }} />
           <Stack.Screen name="call" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+          <Stack.Screen name="computer" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="deck/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
         </Stack>
         <CallPill />

@@ -33,6 +33,7 @@ import {
   ThumbsDownIcon,
   ThumbsUpIcon,
   Call02FreeIcons,
+  ComputerFreeIcons,
   CallEnd01Icon,
   MicOff01Icon,
   VolumeHighIcon,
@@ -52,6 +53,7 @@ import { HugeiconsIcon } from "@hugeicons/react-native";
 const icons = {
   add: Add01Icon,
   call: Call02FreeIcons,
+  computer: ComputerFreeIcons,
   callEnd: CallEnd01Icon,
   micOff: MicOff01Icon,
   speaker: VolumeHighIcon,

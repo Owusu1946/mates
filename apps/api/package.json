@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./app": "./src/app.ts",
     "./integrations": "./src/integrations.ts",
+    "./computers": "./src/computers.ts",
     "./usage": "./src/usage/gate.ts"
   },
   "scripts": {
