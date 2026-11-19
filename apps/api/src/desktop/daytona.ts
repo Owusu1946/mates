@@ -155,13 +155,22 @@ function wrap(sandbox: Sandbox): Desktop {
       return { jpegBase64: shot.screenshot, width: 1024, height: 768 };
     },
     async elements(limit = 150) {
-      try {
-        const tree = await cu.accessibility.getTree({ scope: "all", maxDepth: 30 });
-        return flattenElements(tree.root as RawNode | undefined, limit);
-      } catch {
-        // AT-SPI can be briefly unavailable while an app starts; the screenshot still works.
+      // Only the app in front: the whole desktop's tree breaks on a spreadsheet, whose grid reports
+      // 2^31 children. Deep first, then shallower if a huge control still trips it; never a stall.
+      const work = async () => {
+        const front = await sandbox.process.executeCommand("DISPLAY=:0 xdotool getactivewindow getwindowpid 2>/dev/null", undefined, undefined, 5);
+        const pid = Number(front.result?.trim());
+        for (const maxDepth of [14, 8]) {
+          try {
+            const tree = await cu.accessibility.getTree(pid > 0 ? { scope: "pid", pid, maxDepth } : { scope: "all", maxDepth: 6 });
+            return flattenElements(tree.root as RawNode | undefined, limit);
+          } catch {
+            // Too deep for this app, or AT-SPI is still starting; the screenshot works regardless.
+          }
+        }
         return [];
-      }
+      };
+      return Promise.race([work(), new Promise<ScreenElement[]>((resolve) => setTimeout(() => resolve([]), 8_000))]);
     },
     // Actions are never retried: after a timeout the click or keystroke may already have happened.
     async move(x, y) { await cu.mouse.move(x, y); },
@@ -172,7 +181,10 @@ function wrap(sandbox: Sandbox): Desktop {
     async press(key, modifiers) { await cu.keyboard.press(key, modifiers); },
     async hotkey(keys) { await cu.keyboard.hotkey(keys); },
     async exec(command, timeoutSeconds = 120) {
-      const result = await sandbox.process.executeCommand(command, "/home/daytona", undefined, timeoutSeconds);
+      // The API runs commands outside the desktop session: give them its display and session bus,
+      // so apps open on screen and expose their controls to the accessibility tree.
+      const session = String.raw`export DISPLAY=:0; export DBUS_SESSION_BUS_ADDRESS="$(tr '\0' '\n' < /proc/$(pgrep -f xfce4-session | head -1)/environ 2>/dev/null | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p')";`;
+      const result = await sandbox.process.executeCommand(`${session} ${command}`, "/home/daytona", undefined, timeoutSeconds);
       const output = result.result ?? "";
       return { code: result.exitCode, output: output.length > OUTPUT_CHARS ? `…${output.slice(-OUTPUT_CHARS)}` : output };
     },

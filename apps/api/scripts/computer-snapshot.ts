@@ -13,7 +13,7 @@ import "../src/load-env.js";
 import { Daytona, Image } from "@daytonaio/sdk";
 
 /** Bump on purpose when the image changes; a rebuild must never quietly change a desktop. */
-const SNAPSHOT_VERSION = 1;
+const SNAPSHOT_VERSION = 2;
 const BASE = "daytonaio/sandbox:0.11.0";
 
 const name = process.argv[2] ?? `mates-desktop-${SNAPSHOT_VERSION}`;
@@ -25,8 +25,9 @@ if (!process.env.DAYTONA_API_KEY) {
 const image = Image.base(BASE)
   .runCommands(
     "sudo apt-get update",
-    "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer libreoffice-impress libreoffice-gtk3 fonts-noto-core fonts-noto-color-emoji tesseract-ocr xdotool x11-utils python3-tk jq ffmpeg",
+    "sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libreoffice-calc libreoffice-writer libreoffice-impress libreoffice-gtk3 fonts-noto-core fonts-noto-color-emoji tesseract-ocr xdotool x11-utils python3-tk jq ffmpeg chromium-sandbox",
     "sudo rm -rf /var/lib/apt/lists/*",
+    // chromium-sandbox lets Chromium keep its own sandbox inside the container (it won't start without it).
     // Chromium exposes page controls to AT-SPI only with this flag; the agent reads them as elements.
     "echo 'export CHROMIUM_FLAGS=\"$CHROMIUM_FLAGS --force-renderer-accessibility --no-first-run --no-default-browser-check\"' | sudo tee /etc/chromium.d/mates",
     "sudo ln -sf /usr/share/zoneinfo/Africa/Accra /etc/localtime",
