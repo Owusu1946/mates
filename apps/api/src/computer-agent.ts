@@ -379,7 +379,9 @@ export async function think(input: ThinkInput): Promise<Thought> {
     body: JSON.stringify({
       model: input.model,
       usage: { include: true },
-      tool_choice: "required",
+      // Anthropic's current models reject a forced tool choice ("any"), so the model chooses; a reply
+      // without an action comes back as an error the loop shows it on the next turn.
+      tool_choice: "auto",
       parallel_tool_calls: false,
       tools: AGENT_TOOLS,
       messages: [
@@ -388,11 +390,19 @@ export async function think(input: ThinkInput): Promise<Thought> {
       ],
     }),
   });
-  if (!response.ok) throw new Error(`model unavailable (${response.status})`);
-  const result = (await response.json()) as { choices?: { message?: { tool_calls?: { function: { name: string; arguments: string } }[] } }[]; usage?: OpenRouterUsage; model?: string };
+  if (!response.ok) {
+    // The provider's own reason, so a bad request is visible in the logs instead of a bare status.
+    const detail = (await response.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 300);
+    console.warn("computer_model_failed", { goalId: input.goalId, model: input.model, status: response.status, detail });
+    throw new Error(`model unavailable (${response.status})`);
+  }
+  const result = (await response.json()) as { choices?: { message?: { content?: string | null; tool_calls?: { function: { name: string; arguments: string } }[] } }[]; usage?: OpenRouterUsage; model?: string };
   void meterOpenRouter({ userId: input.userId, source: "computer", ref: input.goalId }, input.model, result.usage);
   const call = result.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("no action returned");
+  if (!call) {
+    const said = result.choices?.[0]?.message?.content?.trim();
+    throw new Error(said ? `replied in words instead of an action ("${said.slice(0, 100)}"); reply with exactly one tool call` : "no action returned; reply with exactly one tool call");
+  }
   let args: Record<string, unknown>;
   try {
     args = JSON.parse(call.function.arguments || "{}");
