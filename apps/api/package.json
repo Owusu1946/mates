@@ -25,6 +25,7 @@
     "@clerk/backend": "^2.14.0",
     "@composio/core": "^0.22.0",
     "@composio/openai": "^0.13.0",
+    "@daytonaio/sdk": "0.231.1",
     "@hono/node-server": "^1.19.1",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@muse-clone/decks": "workspace:*",
