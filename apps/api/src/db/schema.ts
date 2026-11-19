@@ -666,6 +666,64 @@ export const codeCheckBaselines = pgTable("code_check_baselines", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [primaryKey({ columns: [t.repo, t.sha] })]);
 
+export type ComputerState = "off" | "starting" | "on" | "stopping" | "archived" | "error";
+export type ComputerGoalStatus = "queued" | "running" | "waiting" | "done" | "failed" | "cancelled";
+export type ComputerWaitingFor = "login" | "approval" | "question" | "user_control";
+export type ComputerStep = { at: string; label: string };
+export type ComputerEvidence = { label: string; url?: string };
+
+/** Each user's one desktop, shared by their mates. Stopped when idle; its disk keeps logins and files. */
+export const computers = pgTable("computers", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull().unique(),
+  provider: text("provider").notNull().default("daytona"),
+  /** The provider's sandbox id; null until the first start creates it. */
+  providerId: text("provider_id"),
+  snapshot: text("snapshot"),
+  state: text("state").$type<ComputerState>().notNull().default("off"),
+  /** When it last turned on, so the stop can meter exactly that span (and only once). */
+  onSince: timestamp("on_since", { withTimezone: true }),
+  lastActiveAt: timestamp("last_active_at", { withTimezone: true }),
+  /** The live view's last poll: someone watching means the mate works at a pace people can follow. */
+  lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }),
+  controller: text("controller").$type<"mate" | "user">().notNull().default("mate"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+/** One thing a mate does on the computer, from a one-sentence goal to its receipt. */
+export const computerGoals = pgTable("computer_goals", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  computerId: uuid("computer_id").notNull().references(() => computers.id, { onDelete: "cascade" }),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  goal: text("goal").notNull(),
+  status: text("status").$type<ComputerGoalStatus>().notNull().default("queued"),
+  waitingFor: text("waiting_for").$type<ComputerWaitingFor>(),
+  /** What the mate asked (a login, an approval, a question); shown on the card while waiting. */
+  question: text("question"),
+  /** The user's answer: "approve", "decline", "continue", or their typed reply. */
+  reply: text("reply"),
+  /** Intents the user approved during this goal, so the same click isn't asked about twice. */
+  approvals: jsonb("approvals").$type<string[]>().notNull().default([]),
+  cancelRequested: boolean("cancel_requested").notNull().default(false),
+  steps: jsonb("steps").$type<ComputerStep[]>().notNull().default([]),
+  summary: text("summary"),
+  evidence: jsonb("evidence").$type<ComputerEvidence[]>().notNull().default([]),
+  recordingPath: text("recording_path"),
+  model: text("model"),
+  costUsd: real("cost_usd"),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("computer_goals_user_idx").on(t.clerkUserId, t.createdAt),
+  // The lease: one mouse, so one live goal per computer. A second goal waits as queued elsewhere.
+  uniqueIndex("computer_goals_active_idx").on(t.computerId).where(sql`status IN ('running','waiting')`),
+]);
+
 export type DeckStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
 
 /** A slide deck a mate builds and edits. `slides` is the current version; every version is in `deck_versions`. */
@@ -817,8 +875,8 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review";
-export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer";
+export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona";
 
 /**
  * The two refilling allowances. A window starts with the first use after the last one ended and

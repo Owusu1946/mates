@@ -30,6 +30,7 @@ import {
 } from "./chats.js";
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
+import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
@@ -1222,6 +1223,33 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .post("/v1/browser/:id/close", auth, async (c) => {
       try { await closeBrowser(c.req.param("id"), c.get("userId"), "cancelled"); return c.json({ ok: true }); }
       catch { return c.json(failure("BROWSER_UNAVAILABLE", "Browser session not found.", c.get("requestId")), 404); }
+    })
+    .get("/v1/computer", auth, async (c) => {
+      const userId = c.get("userId");
+      if (!(await computerAvailableFor(userId))) return c.json({ available: false as const });
+      return c.json({ available: true as const, ...(await computerView(userId)) });
+    })
+    .post("/v1/computer/takeover", auth, async (c) => {
+      try { return c.json(await takeOver(c.get("userId"))); }
+      catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
+    })
+    .post("/v1/computer/handback", auth, async (c) => {
+      try { return c.json(await handBack(c.get("userId"))); }
+      catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
+    })
+    .post("/v1/computer/stop", auth, async (c) => {
+      try { return c.json(await stopFromApp(c.get("userId"))); }
+      catch { return c.json(failure("COMPUTER_UNAVAILABLE", "The computer couldn't be stopped. It stops on its own when idle.", c.get("requestId")), 409); }
+    })
+    .post("/v1/computer/input", auth, validator("json", (value, c) => {
+      const parsed = z.object({ text: z.string().max(2000).optional(), key: z.enum(INPUT_KEYS).optional() }).refine(v => v.text !== undefined || v.key).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Enter text or a supported key.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const input = c.req.valid("json");
+      // Never log this body: it can be a password.
+      try { await computerInput(c.get("userId"), input); return c.json({ ok: true }); }
+      catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
     })
     .use("/internal/*", async (c, next) => {
       if (!adminAuthorized(c.req.header("x-admin-key"))) return c.json(failure("UNAUTHORIZED", "Admin key required", c.get("requestId")), 401);

@@ -9,6 +9,8 @@ import {
   calls,
   chats,
   codeRuns,
+  computerGoals,
+  computers,
   decks,
   delegations,
   deviceTokens,
@@ -41,6 +43,7 @@ import {
   planGrants,
   billingEvents,
 } from "./db/schema.js";
+import { deleteComputerFor } from "./computers.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
 import { getComposio } from "./integrations.js";
@@ -54,6 +57,9 @@ import { stopObserving } from "./habits/observers.js";
  */
 export const ACCOUNT_TABLES = [
   codeRuns,
+  // Goals before the computer they ran on; the desktop itself is deleted at Daytona first.
+  computerGoals,
+  computers,
   // Their versions cascade.
   decks,
   routines,
@@ -132,6 +138,8 @@ export async function deleteAccount(userId: string) {
   await deleteWatchTriggers(userId).catch(() => undefined);
   // So do the "learn from my apps" observers.
   await stopObserving(userId).catch(() => undefined);
+  // Their desktop and its disk (logins, files) go too; a failure here stops the deletion so it can be retried.
+  await deleteComputerFor(userId);
   const anonymous = `deleted_${randomUUID()}`;
   const [first, ...rest] = [
     ...ACCOUNT_LEDGERS.map((table) => db.update(table).set({ clerkUserId: anonymous }).where(eq(table.clerkUserId, userId))),

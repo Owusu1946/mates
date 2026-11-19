@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Mates caption
+Exec=python3 /usr/local/bin/mates-caption
+X-GNOME-Autostart-enabled=true

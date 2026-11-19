@@ -4,7 +4,7 @@
  * the same name prefixed PRICE_, e.g. PRICE_CALL_MINUTE=40000. Bump PRICE_VERSION whenever these
  * change, so every recorded event says which prices it was costed with.
  */
-export const PRICE_VERSION = 1;
+export const PRICE_VERSION = 2;
 
 const DEFAULTS = {
   /**
@@ -19,6 +19,8 @@ const DEFAULTS = {
   BROWSER_MINUTE: 2_000,
   /** Modal sandbox, 2 CPU and 4 GiB: about $0.13 an hour. */
   SANDBOX_MINUTE: 2_100,
+  /** Daytona desktop, 4 vCPU ($0.0504 each) and 8 GiB ($0.0162 each): about $0.33 an hour. */
+  COMPUTER_MINUTE: 5_520,
   /** Parallel Search: $1 per 1,000 fast requests, $5 per 1,000 advanced. */
   SEARCH_FAST: 1_000,
   SEARCH_ADVANCED: 5_000,
