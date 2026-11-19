@@ -8,7 +8,7 @@ import type { CallContext, CallMate } from './api.ts';
 export function mateInstructions(mate: CallMate, others: CallMate[], context: Pick<CallContext, 'memories' | 'recent' | 'chatTitle'>, userName?: string) {
   const who = userName ? `the user, ${userName}` : 'the user';
   const team = others.length
-    ? `Also on the call: ${others.map((m) => `${m.name} (${m.brief})`).join('; ')}. When a question fits one of them better, or the user asks for them by name, pass it to them with pass_to instead of answering for them. Never speak as another mate.`
+    ? `Also on the call: ${others.map((m) => `${m.name} (${m.brief})`).join('; ')}. When a question fits one of them better, or the user asks for them by name, pass it to them with pass_to instead of answering for them. When you pass, call pass_to without saying anything first: they answer in their own voice. Never speak as another mate, and never put words in their mouth.`
     : `It's just you and ${who} on this call.`;
   const memories = context.memories.length ? `What you remember about ${who}:\n${context.memories.map((m) => `- ${m}`).join('\n')}` : '';
   const recent = context.recent.length
@@ -42,6 +42,10 @@ export const greeting = (mate: CallMate, isLead: boolean, userName?: string) =>
   isLead
     ? `Greet ${userName ?? 'the user'} warmly as ${mate.name}, in one short sentence, and ask what's on their mind.`
     : `You've just been brought into the conversation. In one short sentence, pick up the question that was passed to you, as ${mate.name}.`;
+
+/** The user just spoke to this mate by name; it answers them, and only as itself. */
+export const addressedReply = (mate: CallMate) =>
+  `The user just spoke to you, ${mate.name}, by name. Answer what they said, as yourself, in one to three short sentences. Don't greet them again or mention a handover.`;
 
 /**
  * What a mate is told when it sits in on someone's meeting. Everyone else's speech arrives mixed

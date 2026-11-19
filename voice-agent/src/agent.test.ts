@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CallApi, CallMate } from './api.ts';
 import { type CallState, MateAgent, agentFor } from './mates.ts';
 
+// Talking to a mate by name ("Kojo, …") is routed in code on real spoken turns
+// (MateAgent.onUserTurnCompleted, covered in core.test.ts); session.run() skips that hook, so the
+// tests here exercise the model's own pass_to.
+
 /**
  * Turn tests with the real model, through LiveKit Inference. They need LIVEKIT_API_KEY and
  * LIVEKIT_API_SECRET (in .env.local); without them they're skipped. The Mates API is stubbed.
@@ -50,6 +54,14 @@ describe.skipIf(!live)('mates on a call', () => {
 
   it('passes to the mate the user asks for', { timeout: 30_000 }, async () => {
     const result = await session.run({ userInput: "Kojo, what's a good warm-up before a run?" }).wait();
+    result.expect.nextEvent().isFunctionCall({ name: 'pass_to', args: { mate: 'Kojo' } });
+    result.expect.nextEvent().isFunctionCallOutput();
+    result.expect.containsAgentHandoff({ newAgentType: MateAgent });
+  });
+
+  it("hands over in silence when the question is another mate's, never answering as them", { timeout: 30_000 }, async () => {
+    const result = await session.run({ userInput: 'How many times a week should I be doing strength training?' }).wait();
+    // No spoken line first: that line would come out in Ama's voice, as if she were Kojo.
     result.expect.nextEvent().isFunctionCall({ name: 'pass_to', args: { mate: 'Kojo' } });
     result.expect.nextEvent().isFunctionCallOutput();
     result.expect.containsAgentHandoff({ newAgentType: MateAgent });
