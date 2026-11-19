@@ -25,6 +25,17 @@ export type WorkflowCard = {
   routineSpec?: Record<string, unknown>;
   nextRunAt?: string;
   approvalFields?: { label: string; value: string }[];
+  /** An action waiting for the user: whether "Always allow" is offered (never for money), who it reaches, and what they chose. */
+  approval?: {
+    mate: string;
+    category: "send" | "share" | "delete" | "spend";
+    targets: string[];
+    canAlways: boolean;
+    unattended: boolean;
+    choice?: "allow" | "always" | "decline";
+    /** Several actions in one request: their titles, after the first. */
+    more?: string[];
+  };
   /** Live progress for the "working" status line; collapses to "Worked for …" when done. */
   activity?: { label: string; state: "running" | "done" }[];
   startedAt?: string;

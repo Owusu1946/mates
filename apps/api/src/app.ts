@@ -36,6 +36,7 @@ import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
+import { listGrants, removeGrant } from "./permissions.js";
 import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
 import { aboutSchema, getAbout, processBio, saveAbout } from "./about.js";
 import { cancelReminder, upcomingReminders } from "./reminders.js";
@@ -911,6 +912,10 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.json({ ok: true });
     })
     .get("/v1/memories/export", auth, async (c) => c.json(await exportMemories(c.get("userId"))))
+    // Permissions: what mates may do without asking ("Always allow"), each removable.
+    .get("/v1/permissions", auth, async (c) => c.json({ grants: await listGrants(c.get("userId")) }))
+    .delete("/v1/permissions/:id", auth, async (c) =>
+      (await removeGrant(c.get("userId"), c.req.param("id"))) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Permission not found", c.get("requestId")), 404))
     // Import reads what another assistant wrote about the user and returns a preview; confirm saves the ticked facts.
     .post("/v1/memories/import", auth, validator("json", (value, c) => {
       const parsed = importRequestSchema.safeParse(value);

@@ -16,6 +16,8 @@ import { shoppingInstructions } from "./shopping.js";
 import { scheduleContext, scheduleInstructions, scheduleTool, routineSpecSchema, scheduleRoutine } from "./scheduling.js";
 import { buildPromptMessages, isTravelConversation, isTrivialChatMessage, sortToolsByName } from "./agent-prompt.js";
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
+import { canAlwaysAllow, categoryOf, decide, grantedKeys, markGrantsUsed, saveGrants, selfAddresses, targetsOf, type ActionCategory, type Origin } from "./permissions.js";
+import { pushToUser } from "./delivery.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
@@ -136,6 +138,10 @@ async function accountChoices(userId: string, toolkit: string, app: { name?: str
 }
 
 type PendingPlan = { pendingPlan: Plan; hash: string; expiresAt: string; cardId: string; apps: [string, { name: string; logo?: string }][] };
+/** An app action held for the user's say-so: the exact call that runs, its grant keys, and the card it showed. */
+type PendingApproval = { pendingActionCall: ToolCall; expiresAt: string; keys?: string[]; canAlways?: boolean; card?: WorkflowCard };
+/** Held actions expire after a day; asked again after that, never run late. */
+const APPROVAL_TTL_MS = 24 * 60 * 60_000;
 
 export async function createAgentResponse(
   turns: ChatTurn[],
@@ -194,6 +200,7 @@ export async function createAgentResponse(
   let runId: string;
   let browserResume: { id: string; choice: string } | undefined;
   let planResume: { pending: PendingPlan; approved: Set<string> | null; message: ModelMessage } | undefined;
+  let approvalResume: { call: ToolCall; choice: "approve" | "always" | "decline"; message: ModelMessage; keys: string[]; canAlways: boolean; card?: WorkflowCard } | undefined;
   if (execution?.resumeCheckpoint) {
     const [checkpoint] = await getDb()
       .select()
@@ -229,11 +236,11 @@ export async function createAgentResponse(
       );
     session = await getComposio().use(run.sessionId);
     let resumeInstruction = "";
-    let approvedCall: ToolCall | undefined;
-    let approvalResult: ModelMessage | undefined;
-    const planMessage = run.status === "waiting_action"
-      ? ([...run.messages].reverse().find(m => m.role === "tool" && typeof m.content === "string" && m.content.includes('"pendingPlan"')) as unknown as ModelMessage | undefined)
+    // The most recent request waiting for an answer decides which kind it is: a plan or one held action.
+    const latestHeld = run.status === "waiting_action"
+      ? ([...run.messages].reverse().find(m => m.role === "tool" && typeof m.content === "string" && (m.content.includes('"pendingPlan"') || m.content.includes('"pendingActionCall"'))) as unknown as ModelMessage | undefined)
       : undefined;
+    const planMessage = typeof latestHeld?.content === "string" && latestHeld.content.includes('"pendingPlan"') ? latestHeld : undefined;
     if (planMessage?.content) {
       const approval = /^approve:([A-Za-z0-9_,-]*)$/.exec(choice ?? "");
       if (choice !== "decline" && !approval) return Response.json({ error: "Approve or decline the plan." }, { status: 409 });
@@ -248,14 +255,16 @@ export async function createAgentResponse(
         ? "The user approved the plan. The approved actions have already run; their results are in the tool history. Report them clearly with any links. Do not run any of them again."
         : "The user declined the plan. Nothing was changed. Ask what they would like instead only if it is useful.";
     } else if (run.status === "waiting_action") {
-      if (!["approve", "decline"].includes(choice ?? "")) return Response.json({ error: "Approve or decline the saved action." }, { status: 409 });
-      approvalResult = [...run.messages].reverse().find(m => m.role === "tool" && typeof m.content === "string" && m.content.includes('"pendingActionCall"')) as unknown as ModelMessage | undefined;
-      if (!approvalResult?.content) return Response.json({ error: "This approval has expired." }, { status: 409 });
-      const pending = JSON.parse(approvalResult.content) as { pendingActionCall: ToolCall; expiresAt: string };
-      if (new Date(pending.expiresAt).getTime() < Date.now()) return Response.json({ error: "This approval has expired. Draft the action again." }, { status: 409 });
-      if (choice === "approve") approvedCall = pending.pendingActionCall;
-      else approvalResult.content = JSON.stringify({ declined: true, note: "The user declined this exact action. Do not execute it through any tool." });
-      resumeInstruction = choice === "approve" ? "The user approved the saved action. Its actual execution result is in the tool history. Do not repeat it." : "The user declined the action. No external change was made.";
+      // "approve" is Allow, "always" also remembers it for that app and person, "decline" is Not now.
+      if (!["approve", "always", "decline"].includes(choice ?? "")) return Response.json({ error: "Allow or decline the saved action." }, { status: 409 });
+      const held = [...run.messages].reverse().find(m => m.role === "tool" && typeof m.content === "string" && m.content.includes('"pendingActionCall"')) as unknown as ModelMessage | undefined;
+      if (!held?.content) return Response.json({ error: "This approval has expired." }, { status: 409 });
+      const pending = JSON.parse(held.content) as PendingApproval;
+      if (new Date(pending.expiresAt).getTime() < Date.now()) return Response.json({ error: "This request expired. Ask again and it will be checked fresh." }, { status: 409 });
+      approvalResume = { call: pending.pendingActionCall, choice: choice as "approve" | "always" | "decline", message: held, keys: pending.keys ?? [], canAlways: pending.canAlways === true, card: pending.card };
+      resumeInstruction = choice === "decline"
+        ? "The user chose not to allow the held action. Nothing was changed. Don't try it another way; say in one short sentence that you left it."
+        : "The user allowed the held action. Its actual result is in the tool history. Do not repeat it; report what happened.";
     } else if (run.status === "waiting_browser") {
       if (!["continue", "approve", "decline", "alternative"].includes(choice ?? "")) return Response.json({ error: "Choose how to continue the browser." }, { status: 409 });
       browserResume = { id: run.pendingToolkit, choice: choice! };
@@ -351,15 +360,6 @@ export async function createAgentResponse(
         { error: "This task is already continuing." },
         { status: 409 },
       );
-    if (approvedCall && approvalResult) {
-      await execution?.checkpoint({ id: approvedCall.id, name: approvedCall.function.name, approved: true });
-      try {
-        const result = await getComposio().provider.executeToolCall(session, approvedCall);
-        approvalResult.content = JSON.stringify({ result: JSON.parse(result), approvedActionExecuted: true });
-      } catch {
-        approvalResult.content = JSON.stringify({ outcomeUnknown: true, note: "The approved request failed or timed out. Verify the external outcome before retrying. Do not automatically repeat this action." });
-      }
-    }
     if (browserResume) {
       try { resumeInstruction = `Browser session ${browserResume.id}: ${await resumeBrowser(browserResume.id, userId, browserResume.choice)}`; }
       catch (error) {
@@ -578,6 +578,44 @@ export async function createAgentResponse(
           }
           await execution?.checkpoint(null, messages as unknown as Record<string, unknown>[]);
         }
+        // A held action the user answered: it runs exactly as shown, and its card shows the choice.
+        if (approvalResume) {
+          const { call, choice, message, keys, canAlways, card: shown } = approvalResume;
+          const always = choice === "always" && canAlways;
+          const answered = (phase: WorkflowCard["phase"], picked: "allow" | "always" | "decline") =>
+            shown?.approval && card(call.id, { ...shown, phase, approval: { ...shown.approval, choice: picked } });
+          if (choice === "decline") {
+            message.content = JSON.stringify({ declined: true, note: "The user chose not to allow this exact action. Do not execute it through any tool." });
+            answered("done", "decline");
+          } else {
+            if (always) await saveGrants(userId, keys).catch(() => console.warn("grant_save_failed", { runId }));
+            await execution?.checkpoint({ id: call.id, name: call.function.name, approved: true });
+            try {
+              const result = await getComposio().provider.executeToolCall(session, call);
+              const parsed: unknown = JSON.parse(result);
+              const failed = toolFailed(parsed);
+              message.content = JSON.stringify({ result: parsed, approvedActionExecuted: !failed, approvedKeys: keys });
+              answered(failed ? "error" : "done", always ? "always" : "allow");
+            } catch {
+              message.content = JSON.stringify({ outcomeUnknown: true, approvedKeys: keys, note: "The approved request failed or timed out. Verify the external outcome before retrying. Do not automatically repeat this action." });
+              answered("error", always ? "always" : "allow");
+            }
+          }
+          await execution?.checkpoint(null, messages as unknown as Record<string, unknown>[]);
+        }
+        // Who is asking: the user in chat, or a routine, watch, habit or mission while they're away.
+        const origin: Origin = execution?.live === false ? "unattended" : "chat";
+        // Actions allowed earlier in this task aren't asked again.
+        const allowedInTask = new Set(
+          messages.flatMap((m) => {
+            if (m.role !== "tool" || typeof m.content !== "string" || !m.content.includes('"approvedKeys"')) return [];
+            try {
+              return (JSON.parse(m.content) as { approvedKeys?: string[] }).approvedKeys ?? [];
+            } catch {
+              return [];
+            }
+          }),
+        );
         for (let turn = 0; turn < 32; turn++) {
           const [paused] = await getDb().select().from(browserSessions).where(and(eq(browserSessions.runId, runId), eq(browserSessions.status, "user_control")));
           if (paused) {
@@ -789,7 +827,7 @@ export async function createAgentResponse(
               messages.push({
                 role: "tool",
                 tool_call_id: call.id,
-                content: "Deferred until the requested app is connected.",
+                content: waiting === "__approval__" ? "Deferred until the user answers the held action." : "Deferred until the requested app is connected.",
               });
               continue;
             }
@@ -1204,6 +1242,56 @@ export async function createAgentResponse(
                 call.function.name === "COMPOSIO_MULTI_EXECUTE_TOOL"
                   ? batchTier(batch.map((tool) => tool.tool_slug ?? ""))
                   : isReadOnlyComposioCall(call.function.name, batch) ? "read" : "write";
+              // Permission grants: money and permanent deletes always ask; while the user is away,
+              // sends and shares to anyone but themselves ask too, unless they always allowed it.
+              if (call.function.name === "COMPOSIO_MULTI_EXECUTE_TOOL" && tier === "write") {
+                const checks = batch.map((tool) => {
+                  const slug = tool.tool_slug ?? "";
+                  const category = categoryOf(slug, tool.arguments ?? {});
+                  return { tool, slug, category, toolkit: slug.split("_")[0]!.toLowerCase(), targets: targetsOf(slug, tool.arguments ?? {}) };
+                });
+                const risky = checks.filter((check) => ["send", "share", "delete", "spend"].includes(check.category));
+                if (risky.length) {
+                  const self = risky.some((check) => check.targets.length) ? await selfAddresses(userId) : new Set<string>();
+                  const firstPass = risky.map((check) => ({ check, ...decide({ ...check, origin, self, allowed: allowedInTask }) }));
+                  const granted = await grantedKeys(userId, firstPass.filter((item) => item.decision === "ask").flatMap((item) => item.keys)).catch(() => new Set<string>());
+                  const held = firstPass.filter((item) => item.decision === "ask" && !item.keys.every((key) => granted.has(key)));
+                  const usedGrants = firstPass.filter((item) => item.decision === "ask" && item.keys.every((key) => granted.has(key))).flatMap((item) => item.keys);
+                  if (usedGrants.length) void markGrantsUsed(userId, usedGrants).catch(() => undefined);
+                  if (held.length) {
+                    const [first, ...rest] = held;
+                    const app = await appFor(first!.check.toolkit);
+                    const shown = describeAction(first!.check.slug, first!.check.tool.arguments ?? {});
+                    const categories = held.map((item) => item.check.category);
+                    const card_: WorkflowCard = {
+                      kind: "approval",
+                      phase: "waiting",
+                      label: shown.title,
+                      name: app?.name,
+                      logo: app?.logo,
+                      approvalFields: shown.details,
+                      resumeRunId: runId,
+                      approval: {
+                        mate: mateName,
+                        category: first!.check.category as "send" | "share" | "delete" | "spend",
+                        targets: [...new Set(held.flatMap((item) => item.check.targets.filter((target) => !self.has(target))))],
+                        canAlways: canAlwaysAllow(categories as ActionCategory[]),
+                        unattended: origin === "unattended",
+                        ...(rest.length ? { more: rest.map((item) => describeAction(item.check.slug, item.check.tool.arguments ?? {}).title) } : {}),
+                      },
+                    };
+                    waiting = "__approval__";
+                    waitingAction = true;
+                    card(call.id, card_);
+                    const pending: PendingApproval = { pendingActionCall: call, expiresAt: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(), keys: held.flatMap((item) => item.keys), canAlways: card_.approval!.canAlways, card: card_ };
+                    messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(pending) });
+                    // Away from the app: a push so the request doesn't sit unseen.
+                    if (origin === "unattended")
+                      void pushToUser(userId, { title: mateName, body: `Wants to ${shown.title.charAt(0).toLowerCase()}${shown.title.slice(1)}. Tap to review.`.slice(0, 180), data: { chatId: execution?.chatId } }).catch(() => false);
+                    continue;
+                  }
+                }
+              }
               // One line per tool, saying what it is doing with what it was given ("Writing the heading …").
               if (batch.length) for (const tool of batch) activity(describeStep(tool.tool_slug ?? "", tool.arguments ?? {}));
               else activity(describeStep(call.function.name, args));
