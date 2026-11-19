@@ -18,6 +18,8 @@ import { buildPromptMessages, isTravelConversation, isTrivialChatMessage, sortTo
 import { actionTier, activityLabel, batchTier, cleanArguments, describeAction, isReadOnlyComposioCall, undoFor } from "./action-policy.js";
 import { canAlwaysAllow, categoryOf, decide, grantedKeys, markGrantsUsed, saveGrants, selfAddresses, targetsOf, type ActionCategory, type Origin } from "./permissions.js";
 import { pushToUser } from "./delivery.js";
+import { reviewAction, reviewInput } from "./outbound-check.js";
+import { looksLikeSecret } from "./code-plan.js";
 import { describeStep } from "./step-labels.js";
 import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, SourceLedger, sourcesCard, webReadTool, webSearchConfigured, webSearchInstructions, webSearchTool, type WebSource } from "./web-search.js";
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
@@ -1255,14 +1257,49 @@ export async function createAgentResponse(
                   const self = risky.some((check) => check.targets.length) ? await selfAddresses(userId) : new Set<string>();
                   const firstPass = risky.map((check) => ({ check, ...decide({ ...check, origin, self, allowed: allowedInTask }) }));
                   const granted = await grantedKeys(userId, firstPass.filter((item) => item.decision === "ask").flatMap((item) => item.keys)).catch(() => new Set<string>());
-                  const held = firstPass.filter((item) => item.decision === "ask" && !item.keys.every((key) => granted.has(key)));
-                  const usedGrants = firstPass.filter((item) => item.decision === "ask" && item.keys.every((key) => granted.has(key))).flatMap((item) => item.keys);
-                  if (usedGrants.length) void markGrantsUsed(userId, usedGrants).catch(() => undefined);
+                  const isGranted = (item: (typeof firstPass)[number]) => item.decision === "ask" && item.keys.every((key) => granted.has(key));
+                  const asking = firstPass.filter((item) => item.decision === "ask" && !isGranted(item));
+                  const usedGrants = firstPass.filter(isGranted).flatMap((item) => item.keys);
+                  // Outbound check (A6): a send or share about to run without asking, to anyone but the
+                  // user, gets a last look; anything off is held with a reason. One card, never two:
+                  // when A1 already asks, the rest of the call is listed on that card instead.
+                  const unasked = firstPass.filter((item) =>
+                    (item.decision === "act" || isGranted(item)) &&
+                    (item.check.category === "send" || item.check.category === "share") &&
+                    item.check.targets.some((target) => !self.has(target)) &&
+                    !item.keys.every((key) => allowedInTask.has(key)));
+                  let flagged: ((typeof firstPass)[number] & { reason: string })[] = [];
+                  if (!asking.length && unasked.length) {
+                    activity("Double-checking before it goes out");
+                    const toolContent = messages.filter((m) => m.role === "tool" && typeof m.content === "string").slice(-2).map((m) => String(m.content)).join("\n---\n");
+                    const reviews = await Promise.all(unasked.map(async (item) => {
+                      const args = item.check.tool.arguments ?? {};
+                      // A token, API key or private key never leaves without a tap.
+                      if (looksLikeSecret(JSON.stringify(args))) return { ok: false, reason: "This contains what looks like a password, key or token." };
+                      const app = await appFor(item.check.toolkit);
+                      const shown = describeAction(item.check.slug, args);
+                      return reviewAction(
+                        reviewInput({
+                          requests: turns.filter((t) => t.role === "user").slice(-3).map((t) => t.content),
+                          known: memory.context,
+                          appContent: toolContent || null,
+                          action: { title: shown.title, app: app?.name, fields: shown.details, recipients: item.check.targets.filter((target) => !self.has(target)) },
+                          origin,
+                        }),
+                        { userId, ref: execution?.runId ?? runId },
+                      );
+                    }));
+                    flagged = unasked.flatMap((item, i) => (reviews[i]!.ok ? [] : [{ ...item, reason: reviews[i]!.reason }]));
+                  }
+                  if (usedGrants.length && !flagged.length) void markGrantsUsed(userId, usedGrants).catch(() => undefined);
+                  const held = [...asking, ...flagged];
                   if (held.length) {
                     const [first, ...rest] = held;
                     const app = await appFor(first!.check.toolkit);
                     const shown = describeAction(first!.check.slug, first!.check.tool.arguments ?? {});
                     const categories = held.map((item) => item.check.category);
+                    // Everything else this call would do, so Allow never covers something unseen.
+                    const alongside = [...rest, ...unasked.filter((item) => !held.includes(item))];
                     const card_: WorkflowCard = {
                       kind: "approval",
                       phase: "waiting",
@@ -1275,9 +1312,11 @@ export async function createAgentResponse(
                         mate: mateName,
                         category: first!.check.category as "send" | "share" | "delete" | "spend",
                         targets: [...new Set(held.flatMap((item) => item.check.targets.filter((target) => !self.has(target))))],
-                        canAlways: canAlwaysAllow(categories as ActionCategory[]),
+                        // Held by the check: Always allow wouldn't skip the check, so it isn't offered.
+                        canAlways: canAlwaysAllow(categories as ActionCategory[]) && !flagged.length,
                         unattended: origin === "unattended",
-                        ...(rest.length ? { more: rest.map((item) => describeAction(item.check.slug, item.check.tool.arguments ?? {}).title) } : {}),
+                        ...(flagged.length ? { reason: flagged[0]!.reason } : {}),
+                        ...(alongside.length ? { more: alongside.map((item) => describeAction(item.check.slug, item.check.tool.arguments ?? {}).title) } : {}),
                       },
                     };
                     waiting = "__approval__";
