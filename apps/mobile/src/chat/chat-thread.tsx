@@ -56,6 +56,7 @@ import { ChatIcon } from "./chat-icon";
 import { ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard } from "./workflow-card";
 import { PulseDot } from "./pulse-dot";
+import { NEEDS_YOU, useComputer } from "../computer/use-computer";
 import { AppResponseCard } from "./app-results";
 import { RidesCard } from "./rides-card";
 import { RideLocationCard } from "./ride-location-card";
@@ -2138,7 +2139,7 @@ function ChatDrawer({
 }
 
 /** The open chat's mate (or group), tappable to edit them. */
-function ChatTitle() {
+function ChatTitle({ maxWidth = 230 }: { maxWidth?: number }) {
   const colors = useChatColors();
   const router = useRouter();
   const chat = useCurrentChat();
@@ -2157,7 +2158,7 @@ function ChatTitle() {
       accessibilityLabel={profile ? `${name}, view profile` : name}
       disabled={!profile}
       onPress={() => profile && router.push(profile as never)}
-      style={{ maxWidth: 230 }}
+      style={{ maxWidth }}
     >
       {chat?.kind === "group" ? (
         <GroupAvatar gradients={chat.members.map((m) => m.gradient)} shapes={chat.members.map((m) => m.shape)} size={28} />
@@ -2254,10 +2255,17 @@ function ScrollToBottom({ visible, onPress }: { visible: boolean; onPress: () =>
   );
 }
 
+/** Header buttons are 40pt with an 8pt gap; the title stays centred, clear of the wider side. */
+const HEADER_BUTTON = 40;
+
 function ChatHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
   const colors = useChatColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const computer = useComputer();
+  const rightWidth = computer.available ? HEADER_BUTTON * 2 + 8 : HEADER_BUTTON;
+  const titleWidth = Math.min(230, width - 2 * (16 + rightWidth + 8));
   return (
     <>
       <View
@@ -2288,7 +2296,7 @@ function ChatHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
             justifyContent: "center",
           }}
         >
-          <ChatTitle />
+          <ChatTitle maxWidth={titleWidth} />
         </View>
         <GlassContainer
           spacing={8}
@@ -2298,6 +2306,19 @@ function ChatHeader({ onOpenMenu }: { onOpenMenu: () => void }) {
             gap: 8,
           }}
         >
+          {computer.available && (
+            <LiquidGlassButton
+              accessibilityLabel={computer.working ? `Computer, ${computer.driver?.name ?? "a mate"} is working` : computer.needsYou ? "Computer, needs you" : "Computer"}
+              onPress={() => router.push("/computer" as any)}
+            >
+              <ChatIcon name="computer" color={colors.foreground} size={24} />
+              {(computer.working || computer.needsYou) && (
+                <View pointerEvents="none" style={{ position: "absolute", top: 6, right: 6 }}>
+                  <PulseDot color={computer.needsYou ? NEEDS_YOU : computer.driver?.color ?? colors.foreground} size={8} />
+                </View>
+              )}
+            </LiquidGlassButton>
+          )}
           <LiquidGlassButton
             accessibilityLabel="Call"
             onPress={() => router.push("/call" as any)}
