@@ -80,6 +80,7 @@ import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, visibleMentionText, webSearchDraft } from "./mention-choices";
 import { CodeCard } from "./code-card";
+import { ComputerCard } from "./computer-card";
 import { DeckCard } from "../decks/deck-card";
 import { SourcesCard } from "./sources-card";
 import { readCache, writeCache } from "../data/offline-cache";
@@ -741,7 +742,7 @@ function ChatMessage() {
               // A stopped reply: cards that were still spinning read "Stopped".
               const card = shownCard(part.result as WorkflowCard | undefined, cancelled);
               return card ? (
-                card.kind === "rides" ? <RidesCard state={card} /> : card.kind === "ride_location" ? <RideLocationCard state={card} /> : card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : ["choice", "results"].includes(
+                card.kind === "rides" ? <RidesCard state={card} /> : card.kind === "ride_location" ? <RideLocationCard state={card} /> : card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : card.kind === "computer" ? <ComputerCard state={card} /> : ["choice", "results"].includes(
                   card.kind,
                 ) ? (
                   <AppResponseCard state={card} />

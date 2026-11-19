@@ -32,7 +32,7 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     s.message.content.some(
       (part) =>
         part.type === "tool-call" &&
-        ["choice", "connection", "results", "browser"].includes(
+        ["choice", "connection", "results", "browser", "computer"].includes(
           (part.result as WorkflowCard | undefined)?.kind ?? "",
         ),
     ),
