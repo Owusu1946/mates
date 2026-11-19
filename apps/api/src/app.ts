@@ -30,6 +30,7 @@ import {
 } from "./chats.js";
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
+import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
@@ -1228,6 +1229,25 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const userId = c.get("userId");
       if (!(await computerAvailableFor(userId))) return c.json({ available: false as const });
       return c.json({ available: true as const, ...(await computerView(userId)) });
+    })
+    .get("/v1/computer/goals/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid goal", c.get("requestId")), 400);
+      const goal = await ownedGoal(c.get("userId"), c.req.param("id"));
+      return goal ? c.json({ card: computerCard(goal) }) : c.json(failure("NOT_FOUND", "Goal not found", c.get("requestId")), 404);
+    })
+    .post("/v1/computer/goals/:id/cancel", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid goal", c.get("requestId")), 400);
+      const goal = await cancelComputerGoal(c.get("userId"), c.req.param("id"));
+      return goal ? c.json({ card: computerCard(goal) }) : c.json(failure("CONFLICT", "This task has already finished.", c.get("requestId")), 409);
+    })
+    .post("/v1/computer/goals/:id/reply", auth, validator("json", (value, c) => {
+      const parsed = replySchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose an answer or type a reply.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid goal", c.get("requestId")), 400);
+      const goal = await replyToGoal(c.get("userId"), c.req.param("id"), c.req.valid("json"));
+      return goal ? c.json({ card: computerCard(goal) }) : c.json(failure("CONFLICT", "This task isn't waiting for an answer.", c.get("requestId")), 409);
     })
     .post("/v1/computer/takeover", auth, async (c) => {
       try { return c.json(await takeOver(c.get("userId"))); }
