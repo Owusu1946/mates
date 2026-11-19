@@ -212,7 +212,7 @@ function TextLink({ label, muted, disabled, onPress }: { label: string; muted?: 
   );
 }
 
-function Pill({ label, strong, disabled, onPress }: { label: string; strong?: boolean; disabled?: boolean; onPress: () => void }) {
+export function Pill({ label, strong, disabled, onPress }: { label: string; strong?: boolean; disabled?: boolean; onPress: () => void }) {
   const { colors } = useTheme();
   return (
     <Pressable
