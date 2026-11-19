@@ -456,6 +456,20 @@ export const undoActions = pgTable("undo_actions", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("undo_user_idx").on(t.clerkUserId)]);
 
+/**
+ * "Always allow": a kind of action (send, share, delete, change) in one app, to one person or to
+ * no one in particular (target ""), that mates may do without asking. Never money.
+ */
+export const actionGrants = pgTable("action_grants", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  category: text("category").notNull(),
+  toolkit: text("toolkit").notNull(),
+  target: text("target").notNull().default(""),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("action_grants_unique_idx").on(t.clerkUserId, t.category, t.toolkit, t.target)]);
+
 /** AI mates the user creates; each has one ongoing chat, and can be grouped with others. */
 export const mates = pgTable("mates", {
   id: uuid("id").defaultRandom().primaryKey(),
