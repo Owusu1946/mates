@@ -33,10 +33,11 @@ export function HandoffCard({ state }: { state: WorkflowCard }) {
       style={{ marginVertical: 8, padding: 14, borderRadius: 20, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, gap: 12 }}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <MateAvatar gradient={handoff.from.gradient} shape={handoff.from.shape} size={22} still />
+        {/* The user tagged these mates themselves: it's their ask, not the lead mate's hand-off. */}
+        {!handoff.asked && <MateAvatar gradient={handoff.from.gradient} shape={handoff.from.shape} size={22} still />}
         <Text style={{ color: colors.textMuted, fontSize: 12, fontFamily: "DMSans_600SemiBold" }}>
           {handoff.round ? `ROUND ${handoff.round} · ` : ""}
-          {handoff.from.name.toUpperCase()} HANDED OFF
+          {handoff.asked ? "YOU ASKED" : `${handoff.from.name.toUpperCase()} HANDED OFF`}
         </Text>
       </View>
       {handoff.items.map((item, i) => {
