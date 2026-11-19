@@ -14,7 +14,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -67,6 +67,20 @@ export type WorkflowCard = {
     pr?: { number: number; url: string; title: string; additions?: number; deletions?: number; files?: number; draft?: boolean };
     /** Already failing before the change, diff warnings, a failed install, or running out of time. */
     notes?: { kind: "already_failing" | "still_failing" | "warning" | "install_failed" | "out_of_time"; text: string }[];
+    error?: string;
+  };
+  /** A goal on the mates' desktop: live steps, what it's waiting for, and the receipt. */
+  computer?: {
+    goalId: string;
+    goal: string;
+    status: "queued" | "running" | "waiting" | "done" | "failed" | "cancelled";
+    waitingFor?: "login" | "approval" | "question" | "user_control";
+    /** What the mate is asking while waiting: the login, the exact action to approve, or a question. */
+    question?: string;
+    /** Newest last ("Opening jumia.com.gh"). */
+    steps: { at: string; label: string }[];
+    summary?: string;
+    evidence?: { label: string; url?: string }[];
     error?: string;
   };
   /** Connect GitHub so a mate can open pull requests; Continue retries the request. */
