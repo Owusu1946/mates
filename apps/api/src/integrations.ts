@@ -48,6 +48,8 @@ export type WorkflowCard = {
   /** Who the leader handed this round to, each with their task and live status. */
   handoff?: {
     round?: number;
+    /** The user tagged these mates themselves: "You asked …", not "… handed off". */
+    asked?: boolean;
     from: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] };
     items: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "review" | "changes" | "done" | "waiting" | "failed"; step?: string; id?: string }[];
   };
