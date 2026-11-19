@@ -63,6 +63,14 @@ export function ActionApproval({ state }: { state: WorkflowCard }) {
         </View>
       </View>
 
+      {/* Why it was held, when the outbound check stopped an action that would have run. */}
+      {!!approval?.reason && !settled && (
+        <View style={{ flexDirection: "row", gap: 8, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, borderCurve: "continuous", backgroundColor: colors.background }}>
+          <View style={{ width: 6, height: 6, borderRadius: 3, marginTop: 7, backgroundColor: "#F5A524" }} />
+          <Text style={{ flex: 1, color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 13.5, lineHeight: 19 }}>{approval.reason}</Text>
+        </View>
+      )}
+
       {!!state.approvalFields?.length && (
         <Pressable
           accessibilityRole="button"
