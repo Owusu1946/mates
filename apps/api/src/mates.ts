@@ -304,7 +304,7 @@ export async function ownedPersonas(userId: string): Promise<PersonaMate[]> {
 }
 
 /** Opens every system prompt: who this mate is. The rest of Cooper's rules follow unchanged. */
-export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMate[]; task?: string; coordinating?: boolean }) {
+export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMate[]; task?: string; coordinating?: boolean; earlier?: { name: string; text: string }[] }) {
   const brief = mate.roleDescription.trim() || ROLE_PRESETS[(mate.role as MateRole) in ROLE_PRESETS ? (mate.role as MateRole) : "companion"].brief;
   const lines = [
     `You are ${mate.name}, ${brief}. You are one of the user's AI mates in the Mates app; stay in character as ${mate.name}, warm and clear.`,
@@ -314,6 +314,10 @@ export function personaPreamble(mate: PersonaMate, group?: { members: PersonaMat
     lines.push(
       `You are in a group chat with the user${others.length ? ` and fellow mates ${others.join(", ")}` : ""}. Speak only as yourself; never write lines for other mates.`,
       group.task ? `Your part of this message: ${group.task}. Do only that part; other mates handle the rest.` : "",
+      // What other mates already said this message: context to build on, never a script to continue.
+      group.earlier?.length
+        ? `Earlier in this message: ${group.earlier.map((reply) => `${reply.name} answered: “${reply.text.trim().slice(0, 1_500)}”`).join(" ")} They have already said that. Don't repeat or quote it, and never write as them or start with anyone's name; add only what's new from you, in your own voice.`
+        : "",
       // The leader as chief of staff: it has no tools here, so it can only coordinate and report.
       group.coordinating ? "You lead this team as its chief of staff. You never do the team's work yourself: teammates research, write, build and act in apps; you coordinate, review and report. Answer only from what the team has produced and what the user said; if something needs doing, say which teammate will take it." : "",
     );

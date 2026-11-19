@@ -41,13 +41,26 @@ export function directCollaborationRoster(input: {
   return [...byId.values()];
 }
 
-/** Mentioned mates answer first; the primary mate then brings their answers together. */
+/**
+ * Mentioned mates answer, in tag order. With two or more, the primary mate then adds one short
+ * takeaway; with one there is nothing to bring together, so that mate's answer is the reply.
+ */
 export function collaborationAssignments(mentioned: PersonaMate[], leaderId: string): GroupTurnPlan {
   const assignments = mentioned.slice(0, MAX_ASSIGNED).map((mate) => ({ mateId: mate.id, task: "" }));
-  if (!assignments.some((assignment) => assignment.mateId === leaderId)) {
-    assignments.push({ mateId: leaderId, task: "Bring the other mates' answers together for the user." });
+  if (assignments.length >= 2 && !assignments.some((assignment) => assignment.mateId === leaderId)) {
+    assignments.push({ mateId: leaderId, task: "Combine their answers into one short takeaway" });
   }
   return { handoff: "", assignments };
+}
+
+/**
+ * A mate's reply that opens as another mate ("Ama: Hello again!") speaks for them: that opening is
+ * dropped. Only a leading name and colon, plain or bold, of a mate who isn't the speaker.
+ */
+export function stripSpeakerPrefix(text: string, others: string[]) {
+  if (!others.length) return text;
+  const names = others.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return text.replace(new RegExp(String.raw`^\s*(?:\*\*)?(?:${names})(?:\*\*)?\s*:(?:\*\*)?\s*`, "i"), "");
 }
 
 const MENTION_ID = String.raw`@([^\n{}]{1,80}?)\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}`;
@@ -203,11 +216,16 @@ export type HandoffStatus = "queued" | "working" | "done" | "waiting" | "failed"
 const summary = (mate: PersonaMate) => ({ id: mate.id, name: mate.name, color: mate.color, shape: mate.shape, gradient: gradientOf(mate.color) });
 
 /** The relay for a round: who the leader handed work to, in order, and how far each has got. */
-export function handoffCard(leader: PersonaMate, items: { mate: PersonaMate; task: string; status: HandoffStatus }[], round?: number): WorkflowCard {
+/**
+ * Who is answering this message and how far each has got. `asked`: the user tagged them, so the
+ * card says "You asked …"; otherwise the leader chose them and it says "… handed off".
+ */
+export function handoffCard(leader: PersonaMate, items: { mate: PersonaMate; task: string; status: HandoffStatus }[], round?: number, asked = false): WorkflowCard {
+  const tagged = items.filter((i) => i.task === "").map((i) => i.mate.name);
   return {
     kind: "handoff",
     phase: items.some((i) => i.status === "working" || i.status === "queued") ? "running" : "done",
-    label: round ? `Round ${round}` : `${leader.name} handed off`,
-    handoff: { round, from: summary(leader), items: items.map((i) => ({ mate: summary(i.mate), task: i.task, status: i.status })) },
+    label: round ? `Round ${round}` : asked ? `You asked ${tagged.join(" and ")}` : `${leader.name} handed off`,
+    handoff: { round, from: summary(leader), ...(asked && !round ? { asked: true } : {}), items: items.map((i) => ({ mate: summary(i.mate), task: i.task, status: i.status })) },
   };
 }

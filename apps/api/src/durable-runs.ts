@@ -280,8 +280,8 @@ export async function executeDelegation(
    * One mate's turn through the shared agent, in its own agent-run row. `coordinator` is the
    * leader coordinating its team: no tools at all, so it can only plan, review and report.
    */
-  type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; boardTask?: boolean; signal?: AbortSignal };
-  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, boardTask = false, signal: turnSignal = signal }: MateTurn = {}) => {
+  type MateTurn = { turns?: typeof request.messages; resume?: { resumeRunId?: string; choice?: string }; coordinator?: boolean; boardTask?: boolean; signal?: AbortSignal; others?: string[] };
+  const runMate = (mate: PersonaMate, agentRunId: string, preamble: string, { turns = request.messages, resume, coordinator = false, boardTask = false, signal: turnSignal = signal, others = [] }: MateTurn = {}) => {
     const spoken = turns.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn);
     return process.env.COMPOSIO_API_KEY && !coordinator
       ? createAgentResponse(spoken, turnSignal, run.clerkUserId, resume?.resumeRunId, resume?.choice, {
@@ -290,6 +290,7 @@ export async function executeDelegation(
           timezone: request.timezone,
           preamble,
           speaker: mate,
+          otherSpeakers: others,
           boardTask,
           resumeCheckpoint: executor === "worker" && run.resumeCheckpoint,
           // The user is in the conversation now: not a routine, watch, habit, call summary or board task.
@@ -568,16 +569,19 @@ export async function executeDelegation(
       const relay = speakers.flatMap((mate, index) => mate ? [{ mate, task: steps[index]!.assignment.task, status: "queued" as HandoffStatus }] : []);
       const relayIndex = new Map<number, number>();
       speakers.forEach((mate, index) => { if (mate) relayIndex.set(index, relayIndex.size); });
-      const showRelay = relay.length > 1 || (relay.length === 1 && (relay[0]!.mate.id !== leader.id || !!missionInfo));
+      // Mates the user tagged themselves: one answering needs no card (their name heads the reply);
+      // several get "You asked …". A leader's own hand-off and missions keep the card.
+      const userAsked = !missionInfo && mentioned.length > 0;
+      const showRelay = !!missionInfo || relay.length > 1 || (relay.length === 1 && relay[0]!.mate.id !== leader.id && !userAsked);
       const relayId = `handoff_${id}`;
       const setRelay = async (stepIndex: number, status: HandoffStatus) => {
         const at = relayIndex.get(stepIndex);
         if (!showRelay || at === undefined) return;
         relay[at]!.status = status;
-        mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round) } });
+        mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round, userAsked) } });
         await persist("progress");
       };
-      if (showRelay) mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round) } });
+      if (showRelay) mergePayload(content, { cooper: { id: relayId, state: handoffCard(leader, relay, missionInfo?.round, userAsked) } });
       for (const [i, step] of steps.entries()) {
         signal.throwIfAborted();
         const mate = speakers[i];
@@ -593,12 +597,11 @@ export async function executeDelegation(
         await getDb().update(delegations).set({ agentRunId }).where(eq(delegations.id, id));
         mergePayload(content, { cooper: { id: `speaker_${id}_${i}`, state: speakerCard(mate) } });
         const from = content.length;
-        // Later mates build on what earlier mates said this turn.
-        const turns = replies.length
-          ? [...request.messages, { role: "assistant" as const, content: replies.map((r) => `${r.name}: ${r.text}`).join("\n\n").slice(0, 8_000) }]
-          : request.messages;
+        // Later mates build on what earlier mates said this turn, as context in their brief: a
+        // transcript of "Name: text" lines would invite them to continue it in someone else's voice.
         const coordinating = mate.id === leader.id && hasTeam && !mentioned.some((m) => m.id === leader.id) && !step.resume;
-        await consume(await runMate(mate, agentRunId, personaPreamble(mate, { members: speaking, task: step.assignment.task || undefined, coordinating }), { turns, resume: step.resume, coordinator: coordinating }));
+        const others = speaking.filter((m) => m.id !== mate.id).map((m) => m.name);
+        await consume(await runMate(mate, agentRunId, personaPreamble(mate, { members: speaking, task: step.assignment.task || undefined, coordinating, earlier: replies }), { resume: step.resume, coordinator: coordinating, others }));
         replies.push({ name: mate.name, text: textSince(from) });
         const [state] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, agentRunId));
         await setRelay(i, state?.status.startsWith("waiting") ? "waiting" : failure || state?.status === "failed" ? "failed" : "done");

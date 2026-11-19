@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions, queuedSpeaker, visibleMentionText, withQueuedSpeakers } from "./groups.js";
+import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions, queuedSpeaker, stripSpeakerPrefix, visibleMentionText, withQueuedSpeakers } from "./groups.js";
 import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
@@ -49,7 +49,32 @@ describe("group routing", () => {
     expect(directCollaborationPlan("@Scout, you take this", scout.id, [scout, ama])).toBeNull();
     expect(directCollaborationPlan("@Ama, what does this cost?", scout.id, [scout, ama])?.mentioned.map((m) => m.id)).toEqual(["m2"]);
     expect(directCollaborationPlan("ask @Chief of Staff", scout.id, [scout, ama])).toMatchObject({ chief: true, mentioned: [] });
-    expect(collaborationAssignments([ama], scout.id).assignments.map((a) => a.mateId)).toEqual(["m2", "m1"]);
+    // One mate asked: that mate's answer is the reply; nobody adds a second one.
+    expect(collaborationAssignments([ama], scout.id).assignments.map((a) => a.mateId)).toEqual(["m2"]);
+    // Two or more: they answer, then the chat's own mate adds one short takeaway.
+    expect(collaborationAssignments([ama, amaLee], scout.id).assignments).toEqual([
+      { mateId: "m2", task: "" },
+      { mateId: "m3", task: "" },
+      { mateId: "m1", task: "Combine their answers into one short takeaway" },
+    ]);
+  });
+
+  it("drops a reply's opening when it speaks as another mate", () => {
+    expect(stripSpeakerPrefix("Ama: Hello again! 👋 What can I help with?", ["Ama"])).toBe("Hello again! 👋 What can I help with?");
+    expect(stripSpeakerPrefix("**Ama Lee:** Here's the budget.", ["Ama Lee"])).toBe("Here's the budget.");
+    expect(stripSpeakerPrefix("ama:   hi", ["Ama"])).toBe("hi");
+    // Only a leading name and colon of someone else; names in the middle and the speaker's own text stay.
+    expect(stripSpeakerPrefix("I agree with Ama: cut transport first.", ["Ama"])).toBe("I agree with Ama: cut transport first.");
+    expect(stripSpeakerPrefix("Note: rent is due Friday.", ["Ama"])).toBe("Note: rent is due Friday.");
+    expect(stripSpeakerPrefix("Ama: hi", [])).toBe("Ama: hi");
+    expect(stripSpeakerPrefix("A.B: hi", ["A.B"])).toBe("hi");
+  });
+
+  it("gives later mates earlier answers as context, never as a script in someone's voice", () => {
+    const brief = personaPreamble(scout, { members: [scout, ama], task: "Combine their answers into one short takeaway", earlier: [{ name: "Ama", text: "Cut transport by GH₵200." }] });
+    expect(brief).toContain("Earlier in this message: Ama answered: “Cut transport by GH₵200.”");
+    expect(brief).toContain("never write as them or start with anyone's name");
+    expect(personaPreamble(scout, { members: [scout, ama] })).not.toContain("Earlier in this message");
   });
 
   it("mentions up to three other mates, and leaves app names and unknown mates alone", () => {
@@ -118,6 +143,11 @@ describe("handoff relay", () => {
     expect(working.handoff!.items.map((i) => [i.mate.name, i.status])).toEqual([["Ama", "done"], ["Ama Lee", "working"]]);
     expect(working.handoff!.from.gradient).toHaveLength(3);
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "done" }]).label).toBe("Scout handed off");
+    // Mates the user tagged: "You asked …", and the card says so for the app.
+    const asked = handoffCard(scout, [{ mate: ama, task: "", status: "done" }, { mate: amaLee, task: "", status: "working" }, { mate: scout, task: "Combine their answers into one short takeaway", status: "queued" }], undefined, true);
+    expect(asked.label).toBe("You asked Ama and Ama Lee");
+    expect(asked.handoff!.asked).toBe(true);
+    expect(handoffCard(scout, [{ mate: ama, task: "", status: "done" }], 3, true).handoff!.asked).toBeUndefined();
     expect(handoffCard(scout, [{ mate: ama, task: "x", status: "waiting" }]).phase).toBe("done");
   });
 

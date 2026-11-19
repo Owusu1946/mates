@@ -23,6 +23,7 @@ import { citeLinks, executeWebTool, forcedSearch, READ_LIMIT, SEARCH_LIMIT, Sour
 import { CHAT_MODEL, FALLBACK_MODEL } from "./models.js";
 import { recoverLeakedCalls } from "./tool-recovery.js";
 import { AnswerStream } from "./answer-stream.js";
+import { stripSpeakerPrefix } from "./groups.js";
 import { saveUndo } from "./undo.js";
 import { reminderTool, runReminderTool } from "./reminders.js";
 import { joinMeetingTool, meetingsConfigured, runJoinMeeting } from "./meetings.js";
@@ -149,7 +150,7 @@ export async function createAgentResponse(
   userId: string,
   resumeRunId?: string,
   choice?: string,
-  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; resumeCheckpoint?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
+  execution?: { runId: string; chatId?: string; timezone?: string; preamble?: string; speaker?: PersonaMate; otherSpeakers?: string[]; boardTask?: boolean; usageSource?: UsageSource; live?: boolean; resumeCheckpoint?: boolean; onModelStart?(): void; onFirstToken?(): void; onToolStep?(): void; checkpoint(pending: Record<string, unknown> | null, history?: Record<string, unknown>[]): Promise<void> },
 ): Promise<Response> {
   signal = AbortSignal.any([signal, AbortSignal.timeout(10 * 60_000)]);
   // Embedded once, in parallel with session setup; memory and recall both search with it.
@@ -665,9 +666,15 @@ export async function createAgentResponse(
           const calls = new Map<number, ToolCall>();
           // The answer reaches the user as it's written; narration beside a tool call stays hidden.
           // The user sees citations as source links; the run's own history keeps the [s1] ids.
+          // A reply that opens as another mate ("Ama: …") would speak for them; that opening is dropped.
+          let opening = true;
           const answer = new AnswerStream(
             (chunk) => send({ choices: [{ delta: { content: chunk } }] }),
-            (chunk) => (ledger.size ? citeLinks(chunk, ledger) : chunk),
+            (chunk) => {
+              const own = opening && execution?.otherSpeakers?.length ? stripSpeakerPrefix(chunk, execution.otherSpeakers) : chunk;
+              opening = false;
+              return ledger.size ? citeLinks(own, ledger) : own;
+            },
           );
           try {
             while (true) {
