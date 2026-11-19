@@ -10,6 +10,9 @@ vi.mock("./db/client.js", () => ({ getDb: () => { throw new Error("no database i
 const field = (over: Partial<ScreenElement> = {}): ScreenElement => ({ id: "e", role: "entry", name: "Search", bounds: { x: 100, y: 100, width: 200, height: 30 }, focused: false, ...over });
 const button = (name: string): ScreenElement => ({ id: name, role: "push button", name, bounds: { x: 400, y: 300, width: 100, height: 40 }, focused: false });
 
+/** What a test's onSleep hook can see and change between steps. */
+type Harness = { goal: ComputerGoal; actions: string[] };
+
 /** A fake desktop, a scripted model and an in-memory goal, so a whole run can be driven in a test. */
 function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], options: { elements?: ScreenElement[]; watching?: boolean; onSleep?: (h: Harness) => void } = {}) {
   let clock = 1_000_000;
@@ -70,7 +73,6 @@ function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], o
       now: () => clock,
     } satisfies AgentDeps,
   };
-  type Harness = typeof h;
   return h;
 }
 
