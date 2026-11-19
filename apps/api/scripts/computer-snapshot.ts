@@ -22,13 +22,6 @@ if (!process.env.DAYTONA_API_KEY) {
   process.exit(1);
 }
 
-const autostart = `[Desktop Entry]
-Type=Application
-Name=Mates caption
-Exec=python3 /usr/local/bin/mates-caption
-X-GNOME-Autostart-enabled=true
-`;
-
 const image = Image.base(BASE)
   .runCommands(
     "sudo apt-get update",
@@ -37,10 +30,16 @@ const image = Image.base(BASE)
     // Chromium exposes page controls to AT-SPI only with this flag; the agent reads them as elements.
     "echo 'export CHROMIUM_FLAGS=\"$CHROMIUM_FLAGS --force-renderer-accessibility --no-first-run --no-default-browser-check\"' | sudo tee /etc/chromium.d/mates",
     "sudo ln -sf /usr/share/zoneinfo/Africa/Accra /etc/localtime",
-    `printf '%s' '${autostart.replace(/'/g, "'\\''")}' | sudo tee /etc/xdg/autostart/mates-caption.desktop`,
     "sudo mkdir -p /home/daytona/Shared /home/daytona/Mates && sudo chown -R daytona:daytona /home/daytona/Shared /home/daytona/Mates",
   )
-  .addLocalFile("scripts/computer/mates-caption.py", "/usr/local/bin/mates-caption");
+  .addLocalFile("scripts/computer/mates-caption.py", "/usr/local/bin/mates-caption")
+  // Starts the caption bar with the desktop session.
+  .addLocalFile("scripts/computer/mates-caption.desktop", "/etc/xdg/autostart/mates-caption.desktop");
+
+if (process.argv.includes("--print")) {
+  console.log(image.dockerfile);
+  process.exit(0);
+}
 
 const daytona = new Daytona({ apiKey: process.env.DAYTONA_API_KEY, target: process.env.DAYTONA_TARGET || "eu" });
 console.log(`Building snapshot ${name} from ${BASE}…`);
