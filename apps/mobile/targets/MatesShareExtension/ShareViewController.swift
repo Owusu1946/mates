@@ -6,7 +6,7 @@ final class ShareViewController: UIViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    let host = UIHostingController(rootView: ShareSetupView())
+    let host = UIHostingController(rootView: ShareSetupView(context: extensionContext))
     addChild(host)
     view.addSubview(host.view)
     host.view.translatesAutoresizingMaskIntoConstraints = false
@@ -21,7 +21,9 @@ final class ShareViewController: UIViewController {
 }
 
 private struct ShareSetupView: View {
+  let context: NSExtensionContext?
   @State private var authStatus = "Checking the shared Clerk session…"
+  @State private var itemStatus = "Reading shared item…"
 
   var body: some View {
     VStack(spacing: 8) {
@@ -30,13 +32,27 @@ private struct ShareSetupView: View {
       Text(authStatus)
         .font(.subheadline)
         .foregroundStyle(.secondary)
+      Text(itemStatus)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
       Button("Check shared session") {
         Task { await checkSharedSession() }
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
     .padding()
-    .task { await checkSharedSession() }
+    .task {
+      await checkSharedSession()
+      do {
+        let payload = try await SharePayload.load(from: context)
+        switch payload {
+        case .link(let url): itemStatus = "Link ready: \(url.host() ?? url.absoluteString)"
+        case .file(_, let name, _): itemStatus = "File ready: \(name)"
+        }
+      } catch {
+        itemStatus = error.localizedDescription
+      }
+    }
   }
 
   @MainActor
