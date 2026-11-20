@@ -2,7 +2,7 @@ import { beta, inference, llm, voice } from '@livekit/agents';
 import { z } from 'zod';
 import type { CallApi, CallContext, CallMate, TranscriptLine } from './api.ts';
 import { goToSlide, isSlideCue, presentDeck, type Presenting, stopPresentingTool } from './presenting.ts';
-import { greeting, mateInstructions, meetingInstructions } from './prompts.ts';
+import { addressedReply, greeting, mateInstructions, meetingInstructions } from './prompts.ts';
 
 /**
  * One agent per mate on the call, each speaking in its own Inworld voice. The session holds one
@@ -29,7 +29,9 @@ export type CallState = {
   /** When the mate last spoke, so a follow-up to its own answer doesn't need its name again. */
   lastSpokeAt?: number;
   /** What's been said so far, so tasks from a meeting carry it (a deck "on what we've covered"). */
-  transcript?: { readonly lines: readonly TranscriptLine[] };
+  transcript?: { readonly lines: readonly TranscriptLine[]; add?(speaker: string, text: string): void };
+  /** What the user just said to a mate by name, for that mate to answer as it takes over. */
+  pendingTurn?: string;
   /** The deck being presented in a meeting, and which slide is up. */
   presenting?: Presenting;
   /** A deck still being built that the mate will present once it's ready. */
@@ -46,6 +48,22 @@ export const FOLLOW_UP_MS = 25_000;
 export function addressed(text: string, name: string) {
   const words = [name, ...name.split(/\s+/), 'mates'].filter((w) => w.length > 1).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   return new RegExp(`\\b(${words.join('|')})\\b`, 'i').test(text);
+}
+
+/** Words people say before turning to someone by name: "hey", "okay so", "and". */
+const LEAD_IN = String.raw`(?:(?:hey|hi|hello|ok|okay|so|and|now|right|alright|yo)[\s,]+)*`;
+const escapeName = (name: string) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The mate the user is talking to by name, if any: "Hello Kojo", "Kojo, what do you think?" or
+ * "…what do you think, Kojo?". A passing mention ("I told Kojo yesterday") isn't talking to them.
+ */
+export function addressedMate(text: string, mates: CallMate[]): CallMate | undefined {
+  const clean = text.trim();
+  return mates.find((mate) => {
+    const names = [...new Set([mate.name, mate.name.split(/\s+/)[0]!])].filter((n) => n.length > 1).map(escapeName).join('|');
+    return new RegExp(String.raw`^${LEAD_IN}(?:${names})\b`, 'i').test(clean) || new RegExp(String.raw`[,!]\s*(?:${names})[\s?.!]*$`, 'i').test(clean);
+  });
 }
 
 export const presentAttributes = (state: CallState) => ({ 'mates.present': JSON.stringify(state.present) });
@@ -72,10 +90,24 @@ export class MateAgent extends voice.Agent<CallState> {
     this.mate = mate;
   }
 
-  /** In a meeting, people talk to each other; the mate stays quiet unless it's spoken to. */
+  /**
+   * On a call, the user talking to another mate by name hands over before this mate's model runs,
+   * so it can't answer as them first. In a meeting, the mate stays quiet unless it's spoken to.
+   */
   override async onUserTurnCompleted(_chatCtx: llm.ChatContext, newMessage: llm.ChatMessage): Promise<void> {
     const state = this.session.userData;
-    if (!state.meeting) return;
+    if (!state.meeting) {
+      const others = state.present.filter((id) => id !== this.mate.id).map((id) => state.roster.get(id)).filter((m): m is CallMate => !!m);
+      const target = addressedMate(newMessage.textContent ?? '', others);
+      if (!target) return;
+      state.previous = this;
+      state.pendingTurn = newMessage.textContent ?? '';
+      // StopResponse keeps the line out of this mate's history, so the transcript gets it here.
+      state.transcript?.add?.('You', state.pendingTurn);
+      // After this hook returns, so the switch doesn't wait on the turn it's ending.
+      setTimeout(() => this.session.updateAgent(agentFor(state, target.id)), 0);
+      throw new voice.StopResponse();
+    }
     const followUp = state.lastSpokeAt !== undefined && Date.now() - state.lastSpokeAt < FOLLOW_UP_MS;
     const text = newMessage.textContent ?? '';
     // While presenting, "next", "go back" or "stop" are for the mate without its name.
@@ -95,7 +127,15 @@ export class MateAgent extends voice.Agent<CallState> {
       const known = new Set(chatCtx.items.map((item) => item.id));
       const carried = state.previous!.chatCtx.copy({ excludeInstructions: true }).truncate(12);
       chatCtx.items.push(...carried.items.filter((item) => !known.has(item.id)));
+      // Spoken to by name: their words are this mate's to answer.
+      const spokenTo = state.pendingTurn;
+      state.pendingTurn = undefined;
+      if (spokenTo) chatCtx.addMessage({ role: 'user', content: spokenTo });
       await this.updateChatCtx(chatCtx);
+      if (spokenTo) {
+        this.session.generateReply({ instructions: addressedReply(this.mate) });
+        return;
+      }
     }
     this.session.generateReply({ instructions: greeting(this.mate, !handedOver, state.userName), toolChoice: 'none' });
   }

@@ -1,7 +1,7 @@
 import { initializeLogger } from '@livekit/agents';
 import { describe, expect, it, vi } from 'vitest';
 import { type CallApi, type CallMate, CallApiError, createCallApi } from './api.ts';
-import { type CallState, type MateAgent, MAX_PRESENT, inviteMate, removeMate } from './mates.ts';
+import { type CallState, type MateAgent, MAX_PRESENT, addressedMate, inviteMate, removeMate } from './mates.ts';
 import { mateInstructions } from './prompts.ts';
 import { MAX_LINES, Transcript } from './transcript.ts';
 
@@ -47,6 +47,30 @@ describe('transcript', () => {
   });
 });
 
+describe('talking to a mate by name', () => {
+  const others = [KOJO, YAW];
+  it.each([
+    ['Hello Kojo', 'Kojo'],
+    ['hey, Kojo how are you', 'Kojo'],
+    ['Okay so Yaw, what do you think?', 'Yaw'],
+    ['Kojo what should I eat tonight', 'Kojo'],
+    ['what do you think about that, Yaw?', 'Yaw'],
+    ['Thanks, Kojo!', 'Kojo'],
+  ])('"%s" is for %s', (text, name) => {
+    expect(addressedMate(text, others)?.name).toBe(name);
+  });
+
+  it.each(['I told Kojo about it yesterday', 'What time is it?', 'Kojoe is a nice name', 'Ama, can you help?'])('"%s" is for nobody else', (text) => {
+    expect(addressedMate(text, others)).toBeUndefined();
+  });
+
+  it('matches a first name and ignores regex characters in names', () => {
+    const odd = mate('00000000-0000-4000-8000-000000000009', 'Dr. (Ben) Osei');
+    expect(addressedMate('hi Dr. (Ben) Osei', [odd])?.id).toBe(odd.id);
+    expect(addressedMate('Kofi, hello', [mate('00000000-0000-4000-8000-000000000010', 'Kofi Mensah')])?.name).toBe('Kofi Mensah');
+  });
+});
+
 describe('instructions', () => {
   it('name the other mates and only the facts given', () => {
     const text = mateInstructions(AMA, [KOJO], { memories: ['Prefers mornings'], recent: [], chatTitle: '' }, 'Kenneth');
@@ -54,6 +78,8 @@ describe('instructions', () => {
     expect(text).toContain("Kojo (Kojo's role)");
     expect(text).toContain('Prefers mornings');
     expect(mateInstructions(AMA, [], { memories: [], recent: [], chatTitle: '' })).toContain("It's just you");
+    // Passing is silent, so the lead never says a line in another mate's name first.
+    expect(text).toContain('call pass_to without saying anything first');
   });
 });
 
