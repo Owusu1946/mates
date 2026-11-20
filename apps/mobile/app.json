@@ -84,6 +84,7 @@
       "@config-plugins/react-native-webrtc",
       "./plugins/with-mates-widget-mascot",
       "expo-widgets",
+      "@bacons/apple-targets",
       [
         "expo-build-properties",
         {
@@ -99,6 +100,11 @@
     "ios": {
       "bundleIdentifier": "app.askorin.mates",
       "deploymentTarget": "17.0",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.app.askorin.mates"
+        ]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["audio"],

@@ -6,6 +6,7 @@ import { env } from "../env";
 import type { SessionState } from "./types";
 import { disableNotifications } from "../data/notifications";
 import { clearCache } from "../data/offline-cache";
+import { clearShareContext } from "../share/shared-context";
 import { identifyPurchases, retryPendingPurchaseSync } from "../billing/purchases";
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -31,7 +32,10 @@ function ClerkSession({ children }: PropsWithChildren) {
       const userId = auth.userId;
       await auth.signOut();
       // Nothing of this account's chats stays on the device.
-      if (userId) await clearCache(userId);
+      if (userId) {
+        await clearCache(userId);
+        clearShareContext();
+      }
     })(); },
   }), [auth.isLoaded, auth.isSignedIn, auth.signOut, auth.getToken, auth.userId, user]);
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
