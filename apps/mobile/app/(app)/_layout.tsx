@@ -27,9 +27,24 @@ import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 import { LeaderGate } from "../../src/onboarding/leader-gate";
 import { useCacheReady } from "../../src/data/offline-cache";
+import { readPendingShare } from "../../src/share/pending";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
+  const promptedShare = useRef<string | null>(null);
+  useEffect(() => {
+    const openPending = () => {
+      const pending = readPendingShare(userId);
+      if (!pending || promptedShare.current === pending.id) return;
+      promptedShare.current = pending.id;
+      router.push("/(app)/share-pending");
+    };
+    openPending();
+    const listener = AppState.addEventListener("change", state => {
+      if (state === "active") openPending();
+    });
+    return () => listener.remove();
+  }, [router, userId]);
   const handledResponses = useRef(new Map<string, number>());
   useEffect(() => {
     const open = (response: Notifications.NotificationResponse) => {
@@ -168,6 +183,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
           <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="memory-import" options={{ title: "Import memories" }} />
+          <Stack.Screen name="share-pending" options={{ title: "Finish sharing", presentation: "modal" }} />
           <Stack.Screen name="permissions" options={{ title: "Permissions", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="noticed" options={{ title: "What I’ve noticed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />

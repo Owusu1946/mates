@@ -11,7 +11,8 @@ Out of scope: sharing content from Mates to other apps; that already exists.
 - **Content:** URLs, images, and PDFs only. Voice notes are deferred; do not add audio upload or transcription behavior to this release.
 - **Share count:** one item per share. The extension activation rules and send flow should stay single-item for this release.
 - **Commit 1 scaffold:** adds the iOS target, App Group wiring, minimal mate cache, and placeholder extension UI. This is not yet a usable send flow.
-- **Authentication gate:** still open. Do not begin the end-to-end iOS send flow until extension authentication is proved or the expired-session fallback is agreed and implemented.
+- **Authentication gate:** initial shared-session access is proved on a signed device. Refresh after a minute, sign-out behavior, and API authorization remain release checks.
+- **Signed-device result:** the EAS build's share extension returned “Shared session refreshed; API token is ready (768 characters)” after the user signed into Mates. This proves initial shared-session access on a signed device. Refresh after a minute, sign-out propagation, and a real API request still need device checks.
 
 ### Clerk extension-auth investigation
 
@@ -25,7 +26,9 @@ If the extension has no valid session, retain the pending share and offer **Open
 
 The unsigned workspace build passes. A signed build on the connected iPhone is currently blocked because local Xcode has no account for Team `6KBN2JVL76` and no development profiles for the app, widget, or share extension. Signed session verification must use a configured Xcode account or EAS credentials.
 
-An EAS `development-device` build is now being installed for the signed-session check. The extension still shows its auth probe. The next native slice, `SharePayload.swift`, stages one URL, photo, or PDF from the share context. Photos are downscaled to 1600 px JPEG; files over 4 MiB and unsupported items get clear errors. This source change needs a **new native build** after the current auth probe; it is not included in the build already being installed. The mate picker, send request, and durable failure recovery are still pending.
+The first EAS `development-device` build contains the auth probe only. Subsequent source work stages one URL, photo, or PDF from the share context. Photos are downscaled to 1600 px JPEG; files over 4 MiB and unsupported items get clear errors. This source change needs a **new native build**.
+
+Post-probe source work now adds the SwiftUI mate picker, note field, URL/file upload and run submission, last-used mate, and an App Group pending-share record. Mates reads that record on launch and offers a retry with the same run key and any completed upload. This code has not yet been included in a signed build; do not mark iOS behavior verified until a new EAS build exercises it.
 
 Apple documents `NSExtensionContext.open` support for Today and iMessage extensions, not Share extensions ([Apple API](https://developer.apple.com/documentation/foundation/nsextensioncontext/open%28_%3Acompletionhandler%3A%29)). The iOS failure path should save the pending share in the App Group and tell the user to open Mates; the app must surface that saved content on its next launch. Confirm the product wording before shipping.
 
@@ -35,6 +38,7 @@ Apple documents `NSExtensionContext.open` support for Today and iMessage extensi
 - API accepts images, PDFs, and text formats. It rejects audio. The current limit is 4 MiB per file; run messages allow up to four attachment references.
 - `/v1/transcribe` exists, but returns transcript text and does not store an audio attachment. Decide whether that meets the product meaning of “share a voice note.”
 - Run completion already enters the follow-up/push path. Reuse it; do not add a separate push mechanism unless verification shows a gap.
+- **Backend contract gap to resolve:** `submitRun()` links the latest turn's attachment IDs, but the `chatMessages` user row it writes currently contains only text content. Ken should confirm whether chat history renders the shared file from another source; if not, preserve attachment references in the saved user message so the photo/PDF appears in chat after the extension sends it.
 - `useMates()` caches the full mates response in AsyncStorage under the per-user `mates` cache key. An iOS extension cannot read that app sandbox.
 - The widget target already names App Group `group.app.askorin.mates`. Commit 1 adds the group to `ios.entitlements` in `app.json`; prebuild confirms the host app, widget, and share target all resolve to that same group. The generated `ios/` files are ignored and should remain generated.
 - `expo-sharing` is installed for outbound sharing but is not configured as an inbound share plugin. SDK 57 also supports inbound Android intents through its config plugin and incoming-share APIs; configure and use that for Android if its payload behavior fits. Its inbound iOS extension opens the main app, so it does not satisfy the requested in-extension iOS UI. Commit 1 added `@bacons/apple-targets`; existing widget code uses `expo-widgets`, so both targets must continue to coexist through prebuild and signing.

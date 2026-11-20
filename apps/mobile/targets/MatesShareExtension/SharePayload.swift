@@ -7,6 +7,10 @@ enum SharePayload {
   case link(URL)
   case file(url: URL, name: String, contentType: String)
 
+  func removeStagingFile() {
+    if case .file(let url, _, _) = self { try? FileManager.default.removeItem(at: url) }
+  }
+
   static let maxFileBytes = 4 * 1024 * 1024
 
   enum LoadError: LocalizedError {

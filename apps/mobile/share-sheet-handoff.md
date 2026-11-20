@@ -14,12 +14,15 @@ Mobile should finish the auth spike before implementing the iOS send flow. Verif
 
 The connected iPhone signed build currently fails because local Xcode has no Apple account for Team `6KBN2JVL76` and no development profiles for the host app, widget, or share extension. The public API base URL is now published with the App Group cache. Apple documents opening the containing app from Today and iMessage extensions, not Share extensions ([Apple API](https://developer.apple.com/documentation/foundation/nsextensioncontext/open%28_%3Acompletionhandler%3A%29)); iOS recovery should persist the pending item and guide the user to launch Mates, where the app resumes it. Product wording needs confirmation.
 
-An EAS `development-device` build is being installed to check signed Clerk session sharing. A subsequent local change adds `SharePayload.swift` for one URL, photo, or PDF, photo downscaling, and the 4 MiB limit; it is not in the build currently being installed. No upload/run request or recovery path is implemented yet. Ken does not need to deploy an API change for this slice.
+The first EAS `development-device` build contains the auth probe only. Subsequent source work adds payload staging for one URL, photo, or PDF, photo downscaling, and the 4 MiB limit. A new native build is required for that code.
+
+The signed-device auth probe returned a 768-character token from the extension after Mates sign-in. Mobile source now includes the SwiftUI picker, direct upload/run request, and pending-share recovery in the app, but these changes have not been tested in a new signed build. Session refresh after a minute, sign-out propagation, API authorization, file access from the shared container, and the full user flow remain device gates.
 
 ## Existing backend behavior to build on
 
 - `POST /v1/attachments` accepts an authenticated multipart file, stores it for the user, returns its attachment metadata, and enforces a **4 MiB per-file** limit.
 - `POST /v1/runs` accepts `chatId`, `requestKey`, `assistantMessageId`, `parentId`, and `messages`. A user message can include attachment IDs. The API validates ownership, links the attachments to the chat, and submits the durable run.
+- In `apps/api/src/durable-runs.ts`, `submitRun()` currently inserts a user `chatMessages` row with text content only, even when the latest turn has attachment IDs. Please check whether chat history obtains those references elsewhere. If it does not, save the attachment references on the user message; otherwise a successful share of a photo/PDF may show no attachment in chat. Keep the typed contract aligned and deploy before a file-sharing mobile release.
 - Run completion already uses follow-up processing and the existing push delivery mechanism. Preserve this path; no new push provider or share-specific endpoint is currently justified.
 - The typed API contract lives in the shared contract package and must stay aligned if backend behavior/schema changes.
 - No API or backend deployment change is currently indicated for links, photos, or PDFs. The app can send those through the existing upload/run routes.
@@ -41,4 +44,4 @@ The iOS extension credential design is a mobile/native concern. Do not add a `/v
 
 ## Coordination gate
 
-There is no backend implementation or deployment task for the chosen first-release scope at this time. Keep the API unchanged unless investigation finds a concrete contract gap; coordinate with mobile before reopening audio scope.
+The saved-chat attachment reference needs Ken's verification and likely a narrow API fix before photo/PDF sharing ships. URLs need no new endpoint. Coordinate deployment and a chat-history smoke check with mobile before the native release.
