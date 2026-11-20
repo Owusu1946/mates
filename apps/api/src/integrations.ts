@@ -92,7 +92,7 @@ export type WorkflowCard = {
     friendUserId: string;
     friendName: string;
     text: string;
-    status: "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
+    status: "held" | "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
     /** allowed: it went through on its own, from the friend's permissions; asked: it waited for them. */
     policy: "allowed" | "asked";
     /** The receiver's mate's suggested answer, only on the receiver's card while it waits. */
