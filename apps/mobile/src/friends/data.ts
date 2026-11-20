@@ -92,3 +92,28 @@ export function useFriendActions() {
     }),
   };
 }
+
+export type FriendActivity = {
+  id: string;
+  direction: "sent" | "received";
+  kind: "tell" | "ask";
+  text: string;
+  status: string;
+  answer: { text: string; by: "mate" | "person" } | null;
+  /** Your mate answered their mate on its own, from your permissions. */
+  sharedByYourMate: boolean;
+  at: string;
+  name: string;
+};
+
+/** Everything between you and one friend's mate, newest first. */
+export function useFriendActivity(friendUserId: string | undefined) {
+  const api = useApi();
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: ["friend-activity", userId, friendUserId],
+    enabled: !!friendUserId,
+    queryFn: async () =>
+      (await read<{ items: FriendActivity[] }>(await api.v1.friends[":userId"].activity.$get({ param: { userId: friendUserId! } }), "Couldn’t load this.")).items,
+  });
+}

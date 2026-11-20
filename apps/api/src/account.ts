@@ -17,6 +17,7 @@ import {
   findings,
   friendInvites,
   friends,
+  mateRequests,
   githubInstallations,
   integrationSessions,
   mates,
@@ -47,6 +48,7 @@ import {
 } from "./db/schema.js";
 import { deleteComputerFor } from "./computers.js";
 import { deleteFriendRowsAbout } from "./friends.js";
+import { deleteRequestsTo } from "./mate-requests.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
 import { getComposio } from "./integrations.js";
@@ -74,6 +76,7 @@ export const ACCOUNT_TABLES = [
   findings,
   friendInvites,
   friends,
+  mateRequests,
   browserSessions,
   agentRuns,
   recallEntries,
@@ -147,6 +150,7 @@ export async function deleteAccount(userId: string) {
   await deleteComputerFor(userId);
   // Friends: other people's rows about them (their own go with the tables below).
   await deleteFriendRowsAbout(userId);
+  await deleteRequestsTo(userId);
   const anonymous = `deleted_${randomUUID()}`;
   const [first, ...rest] = [
     ...ACCOUNT_LEDGERS.map((table) => db.update(table).set({ clerkUserId: anonymous }).where(eq(table.clerkUserId, userId))),
