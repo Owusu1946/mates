@@ -68,7 +68,7 @@ importers:
         version: 4.7.3(react@19.2.3)(zod@4.4.3)
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.4(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1)
+        version: 0.45.4(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.10.0)
       hono:
         specifier: ^4.9.8
         version: 4.13.13
@@ -449,6 +449,22 @@ importers:
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
+
+  packages/pages:
+    dependencies:
+      '@muse-clone/decks':
+        specifier: workspace:*
+        version: link:../decks
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: ~6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.7(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
 packages:
 
@@ -14659,10 +14675,10 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-orm@0.45.4(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.9.1):
+  drizzle-orm@0.45.4(@neondatabase/serverless@1.2.0)(@opentelemetry/api@1.10.0):
     optionalDependencies:
       '@neondatabase/serverless': 1.2.0
-      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/api': 1.10.0
 
   dset@3.1.4: {}
 
@@ -17868,7 +17884,7 @@ snapshots:
 
   scheduler@0.27.0: {}
 
-  schema-utils@4.8.5(webpack@5.105.0(esbuild@0.28.1)(postcss@8.5.32)):
+  schema-utils@4.8.5(webpack@5.105.0(postcss@8.5.32)):
     dependencies:
       '@types/json-schema': 7.0.15
       ajv: 8.20.0
@@ -18329,11 +18345,11 @@ snapshots:
       ansi-escapes: 4.3.2
       supports-hyperlinks: 2.3.0
 
-  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(postcss@8.5.32)(webpack@5.105.0(esbuild@0.28.1)(postcss@8.5.32)):
+  terser-webpack-plugin@5.6.1(esbuild@0.28.1)(postcss@8.5.32)(webpack@5.105.0(postcss@8.5.32)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
-      schema-utils: 4.8.5(webpack@5.105.0(esbuild@0.28.1)(postcss@8.5.32))
+      schema-utils: 4.8.5(webpack@5.105.0(postcss@8.5.32))
       terser: 5.51.2
       webpack: 5.105.0(esbuild@0.28.1)(postcss@8.5.32)
     optionalDependencies:
@@ -18807,9 +18823,9 @@ snapshots:
       loader-runner: 4.3.2
       mime-types: 2.1.35
       neo-async: 2.6.2
-      schema-utils: 4.8.5(webpack@5.105.0(esbuild@0.28.1)(postcss@8.5.32))
+      schema-utils: 4.8.5(webpack@5.105.0(postcss@8.5.32))
       tapable: 2.3.4
-      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(postcss@8.5.32)(webpack@5.105.0(esbuild@0.28.1)(postcss@8.5.32))
+      terser-webpack-plugin: 5.6.1(esbuild@0.28.1)(postcss@8.5.32)(webpack@5.105.0(postcss@8.5.32))
       watchpack: 2.6.4
       webpack-sources: 3.7.1
     transitivePeerDependencies:
