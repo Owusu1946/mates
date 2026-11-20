@@ -514,7 +514,7 @@ export const findTimeTool = {
   function: {
     name: "cooper_find_time",
     description:
-      "Find a time to meet a friend: their mate and the user's agree on three good times from both calendars, the friend taps one, and it's booked in the user's calendar with them invited. Use for lunch, dinner, coffee, a call, any meeting with a friend. The user asking is the decision: don't ask them to confirm. For someone not on Mates, set guest: true and the user gets a link to send them. Ask only if who or what is missing; default to the coming week.",
+      "Find a time to meet someone: their mate and the user's agree on three good times from both calendars, they tap one, and it's booked in the user's calendar with them invited. Use it whenever the user wants to meet or find a time with a person (lunch, dinner, coffee, a call, any meeting), instead of the calendar or email tools: it finds the person by name itself, so never search email or contacts for them first. The user asking is the decision: don't ask them to confirm. For someone not on Mates, set guest: true and the user gets a link to send them. Ask only if who or what is missing; default to the coming week.",
     parameters: {
       type: "object",
       properties: {

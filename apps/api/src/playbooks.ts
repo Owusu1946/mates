@@ -14,7 +14,7 @@ const PLAYBOOKS: Record<string, { tools: string[]; guidance: string }> = {
   googlecalendar: {
     tools: ["GOOGLECALENDAR_EVENTS_LIST", "GOOGLECALENDAR_FIND_FREE_SLOTS", "GOOGLECALENDAR_FIND_EVENT", "GOOGLECALENDAR_CREATE_EVENT", "GOOGLECALENDAR_UPDATE_EVENT", "GOOGLECALENDAR_DELETE_EVENT"],
     guidance:
-      "Check GOOGLECALENDAR_FIND_FREE_SLOTS or GOOGLECALENDAR_EVENTS_LIST before choosing a time the user did not give. GOOGLECALENDAR_CREATE_EVENT with `create_meeting_room: true` adds a Google Meet link; always pass the user's `timezone`. Google applies the calendar's default notifications to new events.",
+      "To meet another person (lunch, a call, any meeting with someone), use cooper_find_time: it agrees the time with them (through their mate, or a link they open) and invites them. Never guess their availability, and never search email or contacts for them first. Use these calendar tools for the user's own events and for meetings whose time the user already fixed. Check GOOGLECALENDAR_FIND_FREE_SLOTS or GOOGLECALENDAR_EVENTS_LIST before choosing a time the user did not give. GOOGLECALENDAR_CREATE_EVENT with `create_meeting_room: true` adds a Google Meet link; always pass the user's `timezone`. Google applies the calendar's default notifications to new events.",
   },
   slack: { tools: ["SLACK_SEND_MESSAGE", "SLACK_LIST_ALL_CHANNELS", "SLACK_FETCH_CONVERSATION_HISTORY"], guidance: "Resolve the channel id before sending." },
   googledrive: { tools: ["GOOGLEDRIVE_FIND_FILE", "GOOGLEDRIVE_CREATE_FILE_FROM_TEXT"], guidance: "" },
@@ -60,3 +60,6 @@ export async function playbookContext(connectedToolkits: string[]) {
     ? `Ready-to-use tools for the user's connected apps (args marked * are required). Call them through COMPOSIO_MULTI_EXECUTE_TOOL directly without COMPOSIO_SEARCH_TOOLS; use exact argument names. Search only for apps or actions not listed here, or if a listed tool fails as unknown.\n${body}`
     : null;
 }
+
+/** The tip given with one app's tools, for checking what the model is steered to do. */
+export const playbookGuidance = (toolkit: string) => PLAYBOOKS[toolkit]?.guidance ?? null;
