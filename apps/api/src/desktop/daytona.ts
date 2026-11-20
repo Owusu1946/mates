@@ -67,14 +67,42 @@ export async function createDesktopSandbox(userId: string): Promise<{ providerId
 
 const sandboxOf = (providerId: string) => retryOnce(() => daytona().get(providerId));
 
-/** Starts the sandbox if needed, then the desktop processes. Returns the attached desktop. */
+/** The sandbox is gone for good (deleted, or never existed): a new one has to be made. */
+export const desktopGone = (error: unknown) => error instanceof DaytonaNotFoundError;
+
+/** Polls until the sandbox leaves a transitional state (stopping, archiving…), up to `seconds`. */
+async function settle(sandbox: Sandbox, seconds: number) {
+  const deadline = Date.now() + seconds * 1000;
+  while (["stopping", "archiving", "pausing", "resizing", "snapshotting", "restoring", "pending_build", "building_snapshot"].includes(String(sandbox.state)) && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    await sandbox.refreshData();
+  }
+}
+
+/**
+ * Starts the sandbox if needed, then the desktop processes. Returns the attached desktop. Safe to
+ * call on one that is already on (another process may be starting it at the same moment): a started
+ * desktop is left as it is, so the user's open windows survive.
+ */
 export async function startDesktop(providerId: string): Promise<Desktop> {
   const sandbox = await sandboxOf(providerId);
-  if (sandbox.state !== "started") {
-    await retryOnce(() => sandbox.start(sandbox.state === "archived" ? ARCHIVED_START_TIMEOUT_S : START_TIMEOUT_S));
+  await settle(sandbox, STOP_TIMEOUT_S * 2);
+  const state = String(sandbox.state);
+  if (state === "starting") await sandbox.waitUntilStarted(ARCHIVED_START_TIMEOUT_S);
+  else if (state === "error" || state === "build_failed") {
+    if (!sandbox.recoverable) throw new Error("The computer is broken and can't be recovered. Contact support to reset it.");
+    await sandbox.recover(START_TIMEOUT_S);
+  } else if (state !== "started") {
+    await retryOnce(() => sandbox.start(state === "archived" ? ARCHIVED_START_TIMEOUT_S : START_TIMEOUT_S));
   }
-  await retryOnce(() => sandbox.computerUse.start());
+  const status = await sandbox.computerUse.getStatus().catch(() => null);
+  if (status?.status !== "active") await retryOnce(() => sandbox.computerUse.start());
   return wrap(sandbox);
+}
+
+/** Resets Daytona's own idle timer, so a desktop the user is working on by hand isn't auto-stopped. */
+export async function keepDesktopAlive(providerId: string) {
+  await (await sandboxOf(providerId)).refreshActivity();
 }
 
 /** Attaches to a running desktop without starting anything. */
@@ -98,9 +126,14 @@ export async function deleteDesktop(providerId: string) {
   }
 }
 
-/** The provider's view of the sandbox, for the sweeper and for recovering a lost desktop. */
+/** The provider's view of the sandbox, for noticing a desktop that stopped behind our back. "gone" if deleted. */
 export async function desktopState(providerId: string): Promise<string | undefined> {
-  return (await sandboxOf(providerId)).state;
+  try {
+    return (await sandboxOf(providerId)).state;
+  } catch (error) {
+    if (desktopGone(error)) return "gone";
+    throw error;
+  }
 }
 
 /**
