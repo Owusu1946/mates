@@ -875,7 +875,7 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer" | "friend";
 export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona";
 
 /**
@@ -1125,3 +1125,36 @@ export const friendInvites = pgTable("friend_invites", {
   declinedAt: timestamp("declined_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("friend_invites_user_idx").on(t.clerkUserId, t.createdAt), index("friend_invites_to_idx").on(t.toUserId)]);
+
+export type MateRequestKind = "tell" | "ask";
+/** delivered: an update that needs nothing back. waiting: on the friend's tap. */
+export type MateRequestStatus = "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
+export type MateRequestAnswer = { text: string; by: "mate" | "person" };
+
+/**
+ * A request from one person's mate to a friend's: pass on an update, ask a question. Whether it
+ * goes through on its own or waits for the friend is decided in code (./mate-requests), from the
+ * friend's permissions for the sender; `policy` records which it was.
+ */
+export const mateRequests = pgTable("mate_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: text("kind").$type<MateRequestKind>().notNull(),
+  /** The sender. */
+  clerkUserId: text("clerk_user_id").notNull(),
+  fromMateId: uuid("from_mate_id").references(() => mates.id, { onDelete: "set null" }),
+  fromChatId: text("from_chat_id").references(() => chats.id, { onDelete: "set null" }),
+  toUserId: text("to_user_id").notNull(),
+  /** The friend's lead mate chat, where their card lives. */
+  toChatId: text("to_chat_id").references(() => chats.id, { onDelete: "set null" }),
+  /** What was asked or said, in the sender's mate's words. */
+  text: text("text").notNull(),
+  status: text("status").$type<MateRequestStatus>().notNull(),
+  policy: text("policy").$type<"allowed" | "asked">().notNull(),
+  /** The friend's mate's suggested answer, shown to the friend when it waits on them. */
+  draft: text("draft"),
+  answer: jsonb("answer").$type<MateRequestAnswer>(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  answeredAt: timestamp("answered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("mate_requests_from_idx").on(t.clerkUserId, t.createdAt), index("mate_requests_to_idx").on(t.toUserId, t.createdAt)]);

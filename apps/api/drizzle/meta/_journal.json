@@ -302,6 +302,13 @@
       "when": 1795177418421,
       "tag": "0042_friends",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795178197539,
+      "tag": "0043_mate_requests",
+      "breakpoints": true
     }
   ]
 }
