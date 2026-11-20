@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   acceptInvite, areFriends, blockFriend, createInviteLink, declineInvite, INVITE_DAYS, INVITES_PER_DAY, inviteByEmail, listFriends, newCode, previewInvite,
-  removeFriend, setSharing, type Friend, type FriendDeps, type Invite,
+  removeFriend, permissionsFor, setPermissions, type Friend, type FriendDeps, type Invite,
 } from "./friends.js";
 
 vi.mock("./db/client.js", () => ({ getDb: () => { throw new Error("no database in tests"); } }));
@@ -49,7 +49,7 @@ function harness() {
       side: async (a, b) => sides.get(key(a, b)) ?? null,
       putSide: async (a, b, values) => {
         const existing = sides.get(key(a, b));
-        sides.set(key(a, b), { clerkUserId: a, friendUserId: b, share: "auto", status: "active", createdAt: new Date(clock), updatedAt: new Date(clock), ...existing, ...values });
+        sides.set(key(a, b), { clerkUserId: a, friendUserId: b, permissions: { freeTimes: true, messages: true, answers: false }, status: "active", createdAt: new Date(clock), updatedAt: new Date(clock), ...existing, ...values });
       },
       activeFriends: async (userId) => [...sides.values()].filter((s) => s.clerkUserId === userId && s.status === "active"),
       openRequestsTo: async (userId, now) => [...invites.values()].filter((i) => i.toUserId === userId && open(i, now)),
@@ -117,7 +117,7 @@ describe("requests by email", () => {
     expect(view.requests).toHaveLength(1);
     expect((await listFriends(KWAME, h.deps)).sent).toMatchObject([{ name: "Ama" }]);
     await acceptInvite(AMA, view.requests[0]!.code, h.deps);
-    expect((await listFriends(AMA, h.deps)).friends).toMatchObject([{ userId: KWAME, name: "Kwame", share: "auto" }]);
+    expect((await listFriends(AMA, h.deps)).friends).toMatchObject([{ userId: KWAME, name: "Kwame", permissions: { freeTimes: true, messages: true, answers: false } }]);
   });
 
   it("can only be accepted or declined by the person it was for", async () => {
@@ -145,11 +145,24 @@ describe("after connecting", () => {
     return h;
   }
 
-  it("lets each side choose its own sharing", async () => {
+  it("starts with free times and messages allowed, and answers asking first", async () => {
     const h = await connected();
-    await setSharing(AMA, KWAME, "ask", h.deps);
-    expect(h.sides.get(`${AMA}>${KWAME}`)?.share).toBe("ask");
-    expect(h.sides.get(`${KWAME}>${AMA}`)?.share).toBe("auto");
+    expect(await permissionsFor(AMA, KWAME, h.deps)).toEqual({ freeTimes: true, messages: true, answers: false });
+  });
+
+  it("lets each side choose its own permissions, one switch at a time", async () => {
+    const h = await connected();
+    expect(await setPermissions(AMA, KWAME, { freeTimes: false }, h.deps)).toEqual({ freeTimes: false, messages: true, answers: false });
+    await setPermissions(AMA, KWAME, { answers: true }, h.deps);
+    expect(await permissionsFor(AMA, KWAME, h.deps)).toEqual({ freeTimes: false, messages: true, answers: true });
+    expect(await permissionsFor(KWAME, AMA, h.deps)).toEqual({ freeTimes: true, messages: true, answers: false });
+  });
+
+  it("gives a friend's mate nothing once either side ends it", async () => {
+    const h = await connected();
+    await removeFriend(KWAME, AMA, h.deps);
+    expect(await permissionsFor(AMA, KWAME, h.deps)).toBeNull();
+    await expect(setPermissions(AMA, KWAME, { answers: true }, h.deps)).rejects.toThrow(/not connected/);
   });
 
   it("ends it for both when either removes the other", async () => {

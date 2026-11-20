@@ -1090,18 +1090,22 @@ export const billingEvents = pgTable("billing_events", {
   processedAt: timestamp("processed_at", { withTimezone: true }),
 }, (t) => [index("billing_events_status_idx").on(t.status, t.receivedAt), index("billing_events_user_idx").on(t.clerkUserId)]);
 
-export type FriendShare = "auto" | "ask";
+/**
+ * What a friend's mate may do with yours without asking you first. Anything not allowed here (and
+ * every kind of request without its own switch) waits for your tap, with "Always allow" to add it.
+ * - freeTimes: see when you're free, never what you're doing.
+ * - messages: pass on updates ("running 10 minutes late").
+ * - answers: your mate answers their questions from what it knows about you.
+ */
+export type FriendPermissions = { freeTimes: boolean; messages: boolean; answers: boolean };
+export const DEFAULT_FRIEND_PERMISSIONS: FriendPermissions = { freeTimes: true, messages: true, answers: false };
 export type FriendStatus = "active" | "removed" | "blocked";
 
-/**
- * One side of a friendship: what this person lets their mate share with that friend ("auto": when
- * they're free, never what they're doing; "ask": nothing until they tap). Accepting writes both
- * sides, so each person controls their own.
- */
+/** One side of a friendship: what this person lets that friend's mate do. Accepting writes both sides. */
 export const friends = pgTable("friends", {
   clerkUserId: text("clerk_user_id").notNull(),
   friendUserId: text("friend_user_id").notNull(),
-  share: text("share").$type<FriendShare>().notNull().default("auto"),
+  permissions: jsonb("permissions").$type<FriendPermissions>().notNull().default(DEFAULT_FRIEND_PERMISSIONS),
   status: text("status").$type<FriendStatus>().notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

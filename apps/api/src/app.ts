@@ -31,7 +31,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
-import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, previewInvite, removeFriend, setSharing } from "./friends.js";
+import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, previewInvite, removeFriend, setPermissions } from "./friends.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
@@ -1312,11 +1312,11 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't do that.", c.get("requestId")), 409); }
     })
     .patch("/v1/friends/:userId", auth, validator("json", (value, c) => {
-      const parsed = z.object({ share: z.enum(["auto", "ask"]) }).safeParse(value);
+      const parsed = z.object({ permissions: z.object({ freeTimes: z.boolean(), messages: z.boolean(), answers: z.boolean() }).partial().refine((p) => Object.keys(p).length > 0) }).safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose what to share.", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => {
-      try { await setSharing(c.get("userId"), c.req.param("userId"), c.req.valid("json").share); return c.json({ ok: true }); }
+      try { return c.json({ permissions: await setPermissions(c.get("userId"), c.req.param("userId"), c.req.valid("json").permissions) }); }
       catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't save that.", c.get("requestId")), 409); }
     })
     .delete("/v1/friends/:userId", auth, async (c) => {

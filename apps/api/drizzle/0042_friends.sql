@@ -12,7 +12,7 @@ CREATE TABLE "friend_invites" (
 CREATE TABLE "friends" (
 	"clerk_user_id" text NOT NULL,
 	"friend_user_id" text NOT NULL,
-	"share" text DEFAULT 'auto' NOT NULL,
+	"permissions" jsonb DEFAULT '{"freeTimes":true,"messages":true,"answers":false}'::jsonb NOT NULL,
 	"status" text DEFAULT 'active' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

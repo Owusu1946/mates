@@ -1,13 +1,13 @@
 import { randomInt } from "node:crypto";
 import { and, count, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
-import { friendInvites, friends, profiles, type FriendShare } from "./db/schema.js";
+import { DEFAULT_FRIEND_PERMISSIONS, friendInvites, friends, profiles, type FriendPermissions } from "./db/schema.js";
 import { pushToUser } from "./delivery.js";
 
 /**
- * Friends: people whose mates can find times together. Connecting is always two-sided and on
+ * Friends: people whose mates work together (find times, pass on updates, answer questions). Connecting is always two-sided and on
  * purpose (a link someone opens and accepts, or a request they accept), and each side chooses what
- * its mate may share. Only free/busy ever crosses; that's enforced where it's read (./meetups).
+ * its mate may do with theirs without asking (see FriendPermissions); everything else waits for a tap.
  */
 
 export type Friend = typeof friends.$inferSelect;
@@ -36,7 +36,7 @@ export type FriendStore = {
   declineInvite(code: string, userId: string, at: Date): Promise<boolean>;
   side(owner: string, friend: string): Promise<Friend | null>;
   /** Creates or updates one side of a friendship. */
-  putSide(owner: string, friend: string, values: Partial<Pick<Friend, "share" | "status">>): Promise<void>;
+  putSide(owner: string, friend: string, values: Partial<Pick<Friend, "permissions" | "status">>): Promise<void>;
   activeFriends(userId: string): Promise<Friend[]>;
   openRequestsTo(userId: string, now: Date): Promise<Invite[]>;
   openRequestsFrom(userId: string, now: Date): Promise<Invite[]>;
@@ -134,7 +134,7 @@ async function makeInvite(userId: string, toUserId: string | null, deps: FriendD
 export async function createInviteLink(userId: string, deps = realFriendDeps()) {
   const invite = await makeInvite(userId, null, deps);
   const name = (await deps.people.names([userId])).get(userId)!;
-  return { code: invite.code, url: inviteUrl(invite.code), message: `${name} wants to connect on Mates, so our mates can find times for us. ${inviteUrl(invite.code)}` };
+  return { code: invite.code, url: inviteUrl(invite.code), message: `${name} wants to connect on Mates, so our mates can sort things out for us. ${inviteUrl(invite.code)}` };
 }
 
 export type EmailInviteResult = { status: "sent" | "not_found" | "already_friends" | "self" | "already_sent" };
@@ -153,7 +153,7 @@ export async function inviteByEmail(userId: string, rawEmail: string, deps = rea
   if (open.some((invite) => invite.toUserId === target)) return { status: "already_sent" };
   await makeInvite(userId, target, deps);
   const name = (await deps.people.names([userId])).get(userId)!;
-  await deps.notify(target, { title: `${name} wants to connect`, body: "Your mates could find times together. Only when you're free is ever shared.", data: { url: "/friends" } }).catch(() => undefined);
+  await deps.notify(target, { title: `${name} wants to connect`, body: "Your mates could find times, pass on updates and more, always on your terms.", data: { url: "/friends" } }).catch(() => undefined);
   return { status: "sent" };
 }
 
@@ -200,7 +200,7 @@ export async function acceptInvite(userId: string, code: string, deps = realFrie
   await deps.store.putSide(userId, inviter, { status: "active" });
   await deps.store.putSide(inviter, userId, { status: "active" });
   const name = (await deps.people.names([userId])).get(userId)!;
-  await deps.notify(inviter, { title: `${name} is now your friend`, body: `Your mates can find times together. Try "find a time with ${name} for lunch".`, data: { url: "/friends" } }).catch(() => undefined);
+  await deps.notify(inviter, { title: `${name} is now your friend`, body: `Your mates can work together now. Try "find a time with ${name} for lunch".`, data: { url: "/friends" } }).catch(() => undefined);
   return { friendUserId: inviter, name: preview.name };
 }
 
@@ -209,7 +209,7 @@ export async function declineInvite(userId: string, code: string, deps = realFri
 }
 
 export type FriendsView = {
-  friends: { userId: string; name: string; share: FriendShare; since: string }[];
+  friends: { userId: string; name: string; permissions: FriendPermissions; since: string }[];
   requests: { code: string; name: string; at: string }[];
   sent: { code: string; name: string; at: string }[];
 };
@@ -221,7 +221,7 @@ export async function listFriends(userId: string, deps = realFriendDeps()): Prom
   const mutual = (await Promise.all(mine.map(async (row) => ((await deps.store.side(row.friendUserId, userId))?.status === "active" ? row : null)))).filter((row): row is Friend => !!row);
   const names = await deps.people.names([...mutual.map((f) => f.friendUserId), ...incoming.map((i) => i.clerkUserId), ...outgoing.map((i) => i.toUserId!)]);
   return {
-    friends: mutual.map((f) => ({ userId: f.friendUserId, name: names.get(f.friendUserId)!, share: f.share, since: f.createdAt.toISOString() })).sort((a, b) => a.name.localeCompare(b.name)),
+    friends: mutual.map((f) => ({ userId: f.friendUserId, name: names.get(f.friendUserId)!, permissions: { ...DEFAULT_FRIEND_PERMISSIONS, ...f.permissions }, since: f.createdAt.toISOString() })).sort((a, b) => a.name.localeCompare(b.name)),
     requests: incoming.map((i) => ({ code: i.code, name: names.get(i.clerkUserId)!, at: i.createdAt.toISOString() })),
     sent: outgoing.map((i) => ({ code: i.code, name: names.get(i.toUserId!)!, at: i.createdAt.toISOString() })),
   };
@@ -233,10 +233,23 @@ export async function areFriends(a: string, b: string, deps = realFriendDeps()) 
   return one?.status === "active" && two?.status === "active";
 }
 
-export async function setSharing(userId: string, friendUserId: string, share: FriendShare, deps = realFriendDeps()) {
+/** Changes what this friend's mate may do without asking; switches left out keep their value. */
+export async function setPermissions(userId: string, friendUserId: string, change: Partial<FriendPermissions>, deps = realFriendDeps()) {
   const side = await deps.store.side(userId, friendUserId);
   if (side?.status !== "active") throw new FriendError("You're not connected to this person.");
-  await deps.store.putSide(userId, friendUserId, { share });
+  const permissions = { ...DEFAULT_FRIEND_PERMISSIONS, ...side.permissions, ...change };
+  await deps.store.putSide(userId, friendUserId, { permissions });
+  return permissions;
+}
+
+/**
+ * What `friendUserId`'s mate may do with `userId`'s without asking, or null when they aren't
+ * friends right now (both sides active). Every mate-to-mate request checks this first.
+ */
+export async function permissionsFor(userId: string, friendUserId: string, deps = realFriendDeps()): Promise<FriendPermissions | null> {
+  const [mine, theirs] = await Promise.all([deps.store.side(userId, friendUserId), deps.store.side(friendUserId, userId)]);
+  if (mine?.status !== "active" || theirs?.status !== "active") return null;
+  return { ...DEFAULT_FRIEND_PERMISSIONS, ...mine.permissions };
 }
 
 /** Ends the friendship for both. Either can connect again later with a new invite. */

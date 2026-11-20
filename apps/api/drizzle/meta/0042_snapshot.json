@@ -1,5 +1,5 @@
 {
-  "id": "d506a1e1-96c4-4f40-8115-f27288f6c712",
+  "id": "9b38ccd6-7bea-4df1-bc84-de906e25f08c",
   "prevId": "09876048-4cf3-424a-9208-de12428fdbcf",
   "version": "7",
   "dialect": "postgresql",
@@ -2739,12 +2739,12 @@
           "primaryKey": false,
           "notNull": true
         },
-        "share": {
-          "name": "share",
-          "type": "text",
+        "permissions": {
+          "name": "permissions",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": true,
-          "default": "'auto'"
+          "default": "'{\"freeTimes\":true,\"messages\":true,\"answers\":false}'::jsonb"
         },
         "status": {
           "name": "status",
