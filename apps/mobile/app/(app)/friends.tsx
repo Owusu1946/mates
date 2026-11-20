@@ -162,7 +162,7 @@ export default function FriendsScreen() {
             {data.requests.map((request) => (
               <View key={request.code} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 14, paddingVertical: 12 }}>
                 <FriendAvatar userId={request.code} name={request.name} />
-                <Text style={{ flex: 1, color: colors.text, fontFamily: font.medium, fontSize: 15 }}>{request.name} wants to connect</Text>
+                <Text style={{ flex: 1, color: colors.text, fontFamily: font.medium, fontSize: 15 }}>{request.name} wants to be your friend</Text>
                 <SmallButton label="Accept" strong disabled={actions.accept.isPending} onPress={() => accept(request.code, request.name)} />
                 <Pressable accessibilityRole="button" accessibilityLabel={`Decline ${request.name}`} hitSlop={8} onPress={() => { haptic.selection(); actions.decline.mutate(request.code); }}>
                   <ChatIcon name="close" color={colors.textMuted} size={20} />

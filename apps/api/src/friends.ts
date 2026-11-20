@@ -176,7 +176,7 @@ export async function inviteByEmail(userId: string, rawEmail: string, deps = rea
   if (open.some((invite) => invite.toUserId === target)) return { status: "already_sent" };
   await makeInvite(userId, target, deps);
   const name = (await deps.people.names([userId])).get(userId)!;
-  await deps.notify(target, { title: `${name} wants to connect`, body: "Your mates could find times, pass on updates and more, always on your terms.", data: { url: "/friends" } }).catch(() => undefined);
+  await deps.notify(target, { title: `Friend request from ${name}`, body: `${name} wants to be your friend, so your mates can plan things together. Tap to accept.`, data: { url: "/friends" } }).catch(() => undefined);
   return { status: "sent" };
 }
 
