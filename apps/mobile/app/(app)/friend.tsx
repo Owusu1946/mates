@@ -98,6 +98,7 @@ export default function FriendScreen() {
 
 /** One line per exchange, so you always know what your mate shared and what was asked of you. */
 function describe(item: FriendActivity) {
+  if (item.kind === "find_time") return item.direction === "sent" ? `You asked to find a time: ${item.text}` : `${item.name}’s mate asked to find a time: ${item.text}`;
   if (item.direction === "sent") return item.kind === "tell" ? `You told ${item.name}: ${item.text}` : `You asked: ${item.text}`;
   if (item.kind === "tell") return `${item.name}’s mate: ${item.text}`;
   return `${item.name}’s mate asked: ${item.text}`;
@@ -125,8 +126,8 @@ function Activity({ friendUserId, name }: { friendUserId: string; name: string }
                   {item.direction === "received" ? (item.sharedByYourMate ? "Your mate shared: " : "You answered: ") : `${item.answer.by === "person" ? name : `${name}’s mate`} said: `}
                   {item.answer.text}
                 </Text>
-              ) : item.kind === "ask" ? (
-                <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 13 }}>{item.status === "waiting" ? "Waiting for an answer" : item.status === "declined" ? "Passed" : item.status === "expired" ? "No answer" : "Cancelled"}</Text>
+              ) : item.kind !== "tell" ? (
+                <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 13 }}>{item.kind === "find_time" && item.status === "answered" ? "Booked" : item.status === "waiting" ? "Waiting for an answer" : item.status === "declined" ? "Passed" : item.status === "expired" ? "No answer" : "Cancelled"}</Text>
               ) : null}
               <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>{new Date(item.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</Text>
             </View>

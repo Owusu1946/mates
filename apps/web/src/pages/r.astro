@@ -1,0 +1,188 @@
+---
+// A request from someone's mate to a person not on Mates (/r?t=…): a question to answer, an update,
+// or three times to pick from. No account needed. Text from the request is only ever set as text.
+import Logo from "../components/Logo.astro";
+import Base from "../layouts/Base.astro";
+
+const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
+---
+
+<Base title="A message from a friend's mate" description="Answer, or pick a time. No app needed." noindex>
+  <main class="page" data-api={api}>
+    <a href="/" class="brand"><Logo size={26} /><span>mates</span></a>
+
+    <section class="card" aria-live="polite">
+      <div class="avatar" id="avatar" aria-hidden="true">·</div>
+      <p class="eyebrow" id="eyebrow"></p>
+      <h1 id="title">Opening…</h1>
+      <p class="body" id="body"></p>
+      <div id="content"></div>
+      <p class="error" id="error" role="alert" hidden></p>
+    </section>
+
+    <section class="cta" id="cta" hidden>
+      <h2>Get a mate of your own</h2>
+      <p>Mates are AI teammates that find times, answer questions and get things done, working with your friends’ mates.</p>
+      <a class="button primary" href="/#download">Get Mates</a>
+    </section>
+  </main>
+</Base>
+
+<script>
+  type Slot = { start: string; end: string; reason: string };
+  type View = {
+    from: string; to: string | null; kind: "tell" | "ask" | "find_time"; text: string; status: string;
+    meeting: { title: string; durationMin: number; place: string | null } | null;
+    slots: Slot[]; booked: { start: string; end: string } | null; answer: string | null;
+  };
+
+  const main = document.querySelector<HTMLElement>(".page")!;
+  const token = new URLSearchParams(location.search).get("t") ?? "";
+  const base = `${main.dataset.api}/site/requests/${encodeURIComponent(token)}`;
+  const $ = (id: string) => document.getElementById(id)!;
+  const content = $("content");
+
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]> = {}, ...children: (Node | string)[]) => {
+    const node = Object.assign(document.createElement(tag), props);
+    node.append(...children);
+    return node;
+  };
+  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const duration = (m: number) => (m % 60 === 0 ? `${m / 60} hour${m === 60 ? "" : "s"}` : `${m} minutes`);
+
+  function head(view: View, title: string, body = "") {
+    $("avatar").textContent = view.from.charAt(0).toUpperCase();
+    $("eyebrow").textContent = `From ${view.from}’s mate`;
+    $("title").textContent = title;
+    $("body").textContent = body;
+  }
+  function fail(message: string) {
+    const box = $("error");
+    box.textContent = message;
+    box.hidden = false;
+  }
+  function done(view: View, title: string, body: string) {
+    head(view, title, body);
+    content.replaceChildren();
+    if (view.booked) {
+      content.append(
+        el("div", { className: "booked" }, el("strong", { textContent: day(view.booked.start) }), el("span", { textContent: `${time(view.booked.start)} – ${time(view.booked.end)}` })),
+        el("a", { className: "button", href: `${base}/ics`, textContent: "Add to my calendar" }),
+      );
+    }
+    $("cta").hidden = false;
+  }
+
+  async function reply(body: Record<string, unknown>, button: HTMLButtonElement) {
+    $("error").hidden = true;
+    const label = button.textContent;
+    button.disabled = true;
+    button.textContent = "Sending…";
+    try {
+      const response = await fetch(`${base}/reply`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error?.message ?? "Couldn’t send that. Try again.");
+      render(data as View);
+    } catch (error) {
+      fail(error instanceof Error ? error.message : "Couldn’t send that. Try again.");
+      button.disabled = false;
+      button.textContent = label;
+    }
+  }
+
+  function render(view: View) {
+    if (view.status === "expired") return done(view, "This has expired", `Ask ${view.from} directly.`);
+    if (view.status === "cancelled") return done(view, "No longer needed", `${view.from} took this back.`);
+    if (view.status === "declined") return done(view, "Thanks for letting them know", `${view.from}’s mate will pass it on.`);
+    if (view.kind === "find_time" && view.booked) return done(view, "You’re booked", `${view.from} has been told. See you there.`);
+    if (view.status === "answered") return done(view, "Sent", `${view.from} has your answer.`);
+
+    if (view.kind === "tell") return done(view, view.text, "");
+
+    const name = el("input", { type: "text", name: "name", placeholder: "Your name", autocomplete: "given-name", maxLength: 40, value: view.to ?? "" });
+    if (view.kind === "ask") {
+      head(view, view.text, `${view.from}’s mate is asking for them. Your answer goes straight back to ${view.from}.`);
+      const answer = el("textarea", { name: "answer", placeholder: "Your answer", rows: 3, maxLength: 1000 });
+      const send = el("button", { className: "button primary", type: "submit", textContent: "Send answer" });
+      const form = el("form", { className: "form" }, name, answer, send);
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!answer.value.trim()) return fail("Write an answer first.");
+        void reply({ action: "answer", text: answer.value.trim(), name: name.value.trim() || undefined }, send);
+      });
+      const pass = el("button", { className: "link", type: "button", textContent: "I’d rather not say" });
+      pass.addEventListener("click", () => void reply({ action: "decline" }, pass));
+      content.replaceChildren(form, pass);
+      return;
+    }
+
+    const meeting = view.meeting!;
+    head(view, meeting.title, [`${view.from} would like to meet`, duration(meeting.durationMin), meeting.place].filter(Boolean).join(" · "));
+    const email = el("input", { type: "email", name: "email", placeholder: "Your email, to get the invite (optional)", autocomplete: "email", maxLength: 320 });
+    const slots = view.slots.map((slot, index) => {
+      const button = el("button", { className: "slot", type: "button" }, el("strong", { textContent: day(slot.start) }), el("span", { textContent: `${time(slot.start)} – ${time(slot.end)}` }));
+      button.addEventListener("click", () => void reply({ action: "pick", slot: index, email: email.value.trim() || undefined, name: name.value.trim() || undefined }, button));
+      return button;
+    });
+    const pass = el("button", { className: "link", type: "button", textContent: "None of these work" });
+    pass.addEventListener("click", () => void reply({ action: "decline" }, pass));
+    content.replaceChildren(
+      el("div", { className: "form" }, name, email),
+      el("p", { className: "hint", textContent: "Tap a time to book it. Times are in your timezone." }),
+      el("div", { className: "slots" }, ...slots),
+      pass,
+    );
+  }
+
+  async function load() {
+    if (!/^[A-Za-z0-9_-]{16,40}$/.test(token)) return void ($("title").textContent = "This link doesn’t work");
+    try {
+      const response = await fetch(base, { cache: "no-store" });
+      if (!response.ok) {
+        $("title").textContent = "This link doesn’t work";
+        $("body").textContent = "Check the link, or ask the person who sent it.";
+        return;
+      }
+      render((await response.json()) as View);
+    } catch {
+      $("title").textContent = "Couldn’t open this";
+      $("body").textContent = "Check your connection and refresh.";
+    }
+  }
+  void load();
+</script>
+
+<style>
+  .page { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; gap: 28px; padding: 28px 16px 48px; background: var(--panel); }
+  .brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-weight: 650; font-size: 19px; text-decoration: none; align-self: flex-start; }
+  .card, .cta { width: 100%; max-width: 440px; background: var(--bg); border: 1px solid var(--line); border-radius: 28px; padding: 32px 22px 26px; }
+  .card { text-align: center; }
+  .avatar { width: 64px; height: 64px; margin: 0 auto 14px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #ffffff; font-size: 28px; font-weight: 600; }
+  .eyebrow { margin: 0 0 6px; color: var(--muted); font-size: 14px; font-weight: 600; }
+  h1 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+  .body { margin: 0 auto; max-width: 340px; color: var(--muted); font-size: 15.5px; line-height: 1.5; }
+  .form { display: grid; gap: 10px; margin-top: 22px; text-align: left; }
+  input, textarea { width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--soft); border: 1px solid transparent; border-radius: 14px; padding: 13px 14px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); background: var(--bg); }
+  textarea { resize: vertical; min-height: 92px; }
+  .hint { margin: 18px 0 10px; color: var(--muted); font-size: 13.5px; }
+  .slots { display: grid; gap: 10px; }
+  .slot { display: grid; gap: 2px; text-align: left; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; cursor: pointer; }
+  .slot:first-child { border-color: var(--text); }
+  .slot:hover:not(:disabled) { background: var(--soft); }
+  .slot span { color: var(--muted); font-size: 14px; }
+  .slot:disabled { opacity: 0.5; cursor: default; }
+  .button { display: grid; place-items: center; height: 52px; margin-top: 14px; border-radius: 16px; border: 0; background: var(--soft); color: var(--text); font: inherit; font-weight: 600; font-size: 16px; text-decoration: none; cursor: pointer; }
+  .button.primary { background: var(--text); color: var(--bg); }
+  .button:disabled { opacity: 0.6; }
+  .link { margin-top: 14px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; }
+  .booked { display: grid; gap: 4px; margin-top: 20px; padding: 16px; border-radius: 16px; background: var(--success-soft); }
+  .booked span { color: var(--muted); }
+  .error { margin: 14px 0 0; color: var(--accent-deep); font-size: 14px; }
+  .error[hidden] { display: none; }
+  .cta { text-align: center; }
+  .cta[hidden] { display: none; }
+  .cta h2 { margin: 0 0 6px; font-size: 19px; }
+  .cta p { margin: 0 auto; max-width: 330px; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+</style>

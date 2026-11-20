@@ -96,7 +96,7 @@ export function useFriendActions() {
 export type FriendActivity = {
   id: string;
   direction: "sent" | "received";
-  kind: "tell" | "ask";
+  kind: "tell" | "ask" | "find_time";
   text: string;
   status: string;
   answer: { text: string; by: "mate" | "person" } | null;

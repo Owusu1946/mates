@@ -1,10 +1,12 @@
-import { randomUUID } from "node:crypto";
 import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "../db/client.js";
 import { calls, chatMessages, chats, habits, meetingPreps } from "../db/schema.js";
 import { pushToUser } from "../delivery.js";
-import { getComposio, getIntegrationSession, type WorkflowCard } from "../integrations.js";
+import { appTool, findItems } from "../app-tools.js";
+import type { WorkflowCard } from "../integrations.js";
+
+export { findItems };
 import { ensureDefaultMate, mateChatId } from "../mates.js";
 import { runRecall } from "../recall.js";
 import { learningFor, structured } from "./shared.js";
@@ -19,36 +21,6 @@ import { learningFor, structured } from "./shared.js";
 export const PREP_PLANS = ["plus", "pro", "max"];
 export const MAX_PREPS_PER_DAY = 6;
 export const PREP_MINUTES_BEFORE = 20;
-
-/** Calls one app tool as the user, through the same Composio session the mates use. */
-async function appTool(userId: string, slug: string, args: Record<string, unknown>): Promise<unknown> {
-  const session = await getIntegrationSession(userId);
-  const output = await getComposio().provider.executeToolCall(session, {
-    id: `prep_${randomUUID()}`,
-    type: "function",
-    function: { name: "COMPOSIO_MULTI_EXECUTE_TOOL", arguments: JSON.stringify({ tools: [{ tool_slug: slug, arguments: args }], thought: "Meeting prep", sync_response_to_workbench: false }) },
-  });
-  return JSON.parse(output);
-}
-
-/** The first array anywhere in a tool's output whose items look right; tool outputs nest differently. */
-export function findItems(value: unknown, looksRight: (item: Record<string, unknown>) => boolean, depth = 0): Record<string, unknown>[] {
-  if (depth > 6 || !value || typeof value !== "object") return [];
-  if (Array.isArray(value)) {
-    const items = value.filter((v): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v));
-    if (items.length && items.some(looksRight)) return items.filter(looksRight);
-    for (const item of value) {
-      const found = findItems(item, looksRight, depth + 1);
-      if (found.length) return found;
-    }
-    return [];
-  }
-  for (const child of Object.values(value)) {
-    const found = findItems(child, looksRight, depth + 1);
-    if (found.length) return found;
-  }
-  return [];
-}
 
 type CalendarEvent = {
   id?: string;
