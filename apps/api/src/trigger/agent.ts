@@ -11,6 +11,7 @@ import { sweepComputers } from "../computers.js";
 import { executeComputerGoal } from "../computer-agent.js";
 import { recoverStalledGoals } from "../computer-goals.js";
 import { executeDeck, executeDeckEdit, recoverStalledDecks } from "../decks.js";
+import { executePage, executePageUpdate, recoverStalledPages } from "../pages.js";
 import { checkWatch, dispatchWatches } from "../watches.js";
 import { dispatchHabits } from "../habits/dispatch.js";
 import { expireGrants } from "../usage/grants.js";
@@ -85,6 +86,32 @@ export const deckEdit = schemaTask({
   },
 });
 
+/** Builds a page. Safe to retry: it rewrites only its own row from the start. */
+export const pageBuild = schemaTask({
+  id: "mate-page",
+  schema: z.object({ pageId: z.string().uuid() }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 2 },
+  maxDuration: 600,
+  run: async ({ pageId }, { signal }) => {
+    await executePage(pageId, signal ?? new AbortController().signal);
+    return { pageId };
+  },
+});
+
+/** Changes a page (or finds nothing to change) and saves a new version. */
+export const pageEdit = schemaTask({
+  id: "mate-page-edit",
+  schema: z.object({ pageId: z.string().uuid(), instruction: z.string().min(1).max(3_000) }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 300,
+  run: async ({ pageId, instruction }, { signal }) => {
+    const result = await executePageUpdate(pageId, instruction, signal ?? new AbortController().signal);
+    return { pageId, changed: result?.changed ?? false };
+  },
+});
+
 /** One scheduled check of a web watch: a search and a judgement. Never retried; the next check comes anyway. */
 export const watchCheck = schemaTask({
   id: "mate-watch-check",
@@ -148,6 +175,7 @@ export const routineDispatcher = schedules.task({
     await recoverStalledRuns();
     await recoverStalledCodeRuns().catch(() => console.warn("code_run_recovery_failed"));
     await recoverStalledDecks().catch(() => console.warn("deck_recovery_failed"));
+    await recoverStalledPages().catch(() => console.warn("page_recovery_failed"));
     await recoverStalledGoals().catch(() => console.warn("computer_goal_recovery_failed"));
     await sweepComputers().catch(() => console.warn("computer_sweep_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));

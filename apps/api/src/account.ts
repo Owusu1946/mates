@@ -12,6 +12,7 @@ import {
   computerGoals,
   computers,
   decks,
+  pages,
   delegations,
   deviceTokens,
   findings,
@@ -67,6 +68,7 @@ export const ACCOUNT_TABLES = [
   computers,
   // Their versions cascade.
   decks,
+  pages,
   routines,
   // Slack: their runs and links go; the workspace's install stays for its other members.
   slackRuns,
