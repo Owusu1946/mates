@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
+import type { PageDoc, PageKind } from "@muse-clone/pages";
 import type { PlanId } from "../usage/plans.js";
 
 export const profiles = pgTable(
@@ -875,7 +876,7 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer" | "friend";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer" | "friend" | "page";
 export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona";
 
 /**
@@ -1172,3 +1173,54 @@ export const mateRequests = pgTable("mate_requests", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("mate_requests_from_idx").on(t.clerkUserId, t.createdAt), index("mate_requests_to_idx").on(t.toUserId, t.createdAt)]);
+
+export type PageStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
+/** What the user asked for and the facts the mate gathered: the brief every section is written from. */
+export type PageRequest = { kind: PageKind; topic: string; audience: string | null; facts: { text: string; url: string | null }[] };
+
+/**
+ * A page a mate made: a validated document of blocks (packages/pages), drawn by our renderer in
+ * the app and at pages.askorin.app/<slug> once shared. Private until the owner shares the link.
+ */
+export const pages = pgTable("pages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  kind: text("kind").$type<PageKind>().notNull(),
+  title: text("title").notNull(),
+  /** The public link's last part; unguessable, and only served while `visibility` is "link". */
+  slug: text("slug").notNull().unique(),
+  visibility: text("visibility").$type<"private" | "link">().notNull().default("private"),
+  request: jsonb("request").$type<PageRequest>().notNull(),
+  /** Null until the outline lands; sections fill in as they're written. */
+  doc: jsonb("doc").$type<PageDoc>(),
+  status: text("status").$type<PageStatus>().notNull().default("queued"),
+  version: integer("version").notNull().default(0),
+  /** The latest change in a line ("Moved dinner to 8pm"), for readers. */
+  summary: text("summary"),
+  /** Sections written so far while building, out of `total`, for the live card. */
+  built: integer("built").notNull().default(0),
+  total: integer("total").notNull().default(0),
+  costUsd: real("cost_usd").notNull().default(0),
+  cancelRequested: boolean("cancel_requested").notNull().default(false),
+  error: text("error"),
+  sharedAt: timestamp("shared_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("pages_user_idx").on(t.clerkUserId, t.createdAt),
+  index("pages_chat_idx").on(t.chatId, t.createdAt),
+]);
+
+/** Every saved version of a page, so any change can be undone and readers see what changed. */
+export const pageVersions = pgTable("page_versions", {
+  pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  doc: jsonb("doc").$type<PageDoc>().notNull(),
+  summary: text("summary"),
+  /** The change that made this version; null for the first build, "undo:N" for an undo. */
+  instruction: text("instruction"),
+  costUsd: real("cost_usd").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.pageId, t.version] })]);
