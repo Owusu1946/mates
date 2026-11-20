@@ -31,6 +31,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
+import { activityWith, cancelRequest, guestReply, guestView, icsForToken, replyToRequest, RequestError, requestFor } from "./mate-requests.js";
 import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, previewInvite, removeFriend, setPermissions } from "./friends.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
@@ -294,6 +295,30 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       c.header("cache-control", "no-store");
       const preview = await previewInvite(c.req.param("code"), null);
       return preview ? c.json({ name: preview.name, open: preview.state === "open" }) : c.json(failure("NOT_FOUND", "This invite link doesn't work.", c.get("requestId")), 404);
+    })
+    // A request to someone not on Mates, on the page their link opens: only what the token unlocks.
+    .get("/site/requests/:token", async (c) => {
+      c.header("cache-control", "no-store");
+      const view = await guestView(c.req.param("token"));
+      return view ? c.json(view) : c.json(failure("NOT_FOUND", "This link doesn't work.", c.get("requestId")), 404);
+    })
+    .post("/site/requests/:token/reply", bodyLimit({ maxSize: 4_000 }), validator("json", (value, c) => {
+      const name = z.string().trim().max(40).optional();
+      const parsed = z.union([
+        z.object({ action: z.literal("answer"), text: z.string().trim().min(1).max(1_000), name }),
+        z.object({ action: z.literal("pick"), slot: z.number().int().min(0).max(5), email: z.string().trim().max(320).optional(), name }),
+        z.object({ action: z.literal("decline") }),
+      ]).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Answer, pick a time, or pass.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try { return c.json(await guestReply(c.req.param("token"), c.req.valid("json"))); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), 409); }
+    })
+    .get("/site/requests/:token/ics", async (c) => {
+      const ics = await icsForToken(c.req.param("token"));
+      if (!ics) return c.json(failure("NOT_FOUND", "Nothing booked yet.", c.get("requestId")), 404);
+      return c.body(ics, 200, { "content-type": "text/calendar; charset=utf-8", "content-disposition": 'attachment; filename="meeting.ics"', "cache-control": "no-store" });
     })
     // The deck the mate is presenting, for its share page (?s=) or its camera page as a fallback (?t=).
     .get("/site/meetings/:id/presentation", async (c) => {
@@ -1318,6 +1343,30 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     }), async (c) => {
       try { return c.json({ permissions: await setPermissions(c.get("userId"), c.req.param("userId"), c.req.valid("json").permissions) }); }
       catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't save that.", c.get("requestId")), 409); }
+    })
+    .get("/v1/friends/:userId/activity", auth, async (c) => c.json({ items: await activityWith(c.get("userId"), c.req.param("userId")) }))
+    .get("/v1/requests/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      const card = await requestFor(c.get("userId"), c.req.param("id"));
+      return card ? c.json({ card }) : c.json(failure("NOT_FOUND", "Request not found", c.get("requestId")), 404);
+    })
+    .post("/v1/requests/:id/reply", auth, validator("json", (value, c) => {
+      const parsed = z.union([
+        z.object({ action: z.literal("send"), text: z.string().trim().min(1).max(1_000).optional(), always: z.boolean().optional() }),
+        z.object({ action: z.literal("decline") }),
+        z.object({ action: z.literal("pick"), slot: z.number().int().min(0).max(5) }),
+      ]).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Send an answer or pass.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      try { return c.json({ card: await replyToRequest(c.get("userId"), c.req.param("id"), c.req.valid("json")) }); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), 409); }
+    })
+    .post("/v1/requests/:id/cancel", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      try { return c.json({ card: await cancelRequest(c.get("userId"), c.req.param("id")) }); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't cancel that.", c.get("requestId")), 409); }
     })
     .delete("/v1/friends/:userId", auth, async (c) => {
       await removeFriend(c.get("userId"), c.req.param("userId"));
