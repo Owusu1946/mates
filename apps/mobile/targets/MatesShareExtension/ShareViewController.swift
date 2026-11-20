@@ -123,6 +123,10 @@ private struct ShareView: View {
     } catch {
       status = error.localizedDescription
       needsApp = saved
+      if saved, var pending = PendingShare.load() {
+        pending.state = "failed"
+        try? pending.save()
+      }
     }
   }
 

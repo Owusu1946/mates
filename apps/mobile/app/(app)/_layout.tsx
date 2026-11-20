@@ -28,7 +28,7 @@ import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 import { LeaderGate } from "../../src/onboarding/leader-gate";
 import { useCacheReady } from "../../src/data/offline-cache";
-import { readPendingShare } from "../../src/share/pending";
+import { canRetryPendingShare, readPendingShare } from "../../src/share/pending";
 import { readAndroidPendingShare } from "../../src/share/android-pending";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
@@ -46,7 +46,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         const pending = Platform.OS === "ios"
           ? readPendingShare(userId)
           : await readAndroidPendingShare(userId);
-        if (!pending || promptedShare.current === pending.id) return;
+        if (!pending || promptedShare.current === pending.id || (Platform.OS === "ios" && !canRetryPendingShare(pending))) return;
         promptedShare.current = pending.id;
         const onShareRoute = segmentsRef.current.at(-1) === "share-pending" || segmentsRef.current.at(-1) === "share-receive";
         if (!onShareRoute) router.push(Platform.OS === "ios" ? "/(app)/share-pending" : "/(app)/share-receive");

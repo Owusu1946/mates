@@ -30,6 +30,8 @@ struct PendingShare: Codable {
   let fileName: String?
   let contentType: String?
   var uploadedId: String?
+  var state: String?
+  var startedAt: Double?
 
   var message: String {
     [note, link ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n")
@@ -48,7 +50,7 @@ struct PendingShare: Codable {
     let id = UUID().uuidString.lowercased()
     switch payload {
     case .link(let url):
-      return Self(id: id, userId: userId, mateId: mate.id, chatId: mate.chatId, note: note, link: url.absoluteString, filePath: nil, fileName: nil, contentType: nil, uploadedId: nil)
+      return Self(id: id, userId: userId, mateId: mate.id, chatId: mate.chatId, note: note, link: url.absoluteString, filePath: nil, fileName: nil, contentType: nil, uploadedId: nil, state: "sending", startedAt: Date().timeIntervalSince1970)
     case .file(let url, let name, let contentType):
       guard let group = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: ShareSend.group) else {
         throw ShareSend.SendError.unavailable
@@ -57,7 +59,7 @@ struct PendingShare: Codable {
       try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
       let target = folder.appendingPathComponent(id).appendingPathExtension(url.pathExtension)
       try FileManager.default.copyItem(at: url, to: target)
-      return Self(id: id, userId: userId, mateId: mate.id, chatId: mate.chatId, note: note, link: nil, filePath: target.path, fileName: name, contentType: contentType, uploadedId: nil)
+      return Self(id: id, userId: userId, mateId: mate.id, chatId: mate.chatId, note: note, link: nil, filePath: target.path, fileName: name, contentType: contentType, uploadedId: nil, state: "sending", startedAt: Date().timeIntervalSince1970)
     }
   }
 

@@ -19,8 +19,15 @@ export type PendingShare = {
   fileName: string | null;
   contentType: string | null;
   uploadedId: string | null;
+  state?: "sending" | "failed";
+  startedAt?: number;
   locked?: boolean;
 };
+
+/** A dead extension cannot mark failure; allow recovery after ten minutes. */
+export function canRetryPendingShare(share: PendingShare) {
+  return share.state !== "sending" || (typeof share.startedAt === "number" && Date.now() / 1000 - share.startedAt > 600);
+}
 
 const storage = Platform.OS === "ios" ? new ExtensionStorage("group.app.askorin.mates") : null;
 
@@ -86,6 +93,7 @@ export async function submitShareRun(share: PendingShare, uploadedId: string | u
 }
 
 export function discardPendingShare(share: PendingShare) {
+  if (!canRetryPendingShare(share)) return;
   if (readPendingShare(share.userId)?.id !== share.id) return;
   storage?.remove(PENDING_KEY);
   if (share.filePath) {
@@ -97,6 +105,7 @@ export function discardPendingShare(share: PendingShare) {
 export async function sendPendingShare(share: PendingShare, getToken: () => Promise<string | null>) {
   const current = readPendingShare(share.userId);
   if (current?.id !== share.id) throw new Error("This share is no longer pending.");
+  if (!canRetryPendingShare(current)) throw new Error("This share is still sending. Open Mates again if it does not finish.");
   let uploadedId = current.uploadedId ?? undefined;
   if (current.filePath && !uploadedId) {
     if (!current.fileName || !current.contentType) throw new Error("The shared file is no longer available.");

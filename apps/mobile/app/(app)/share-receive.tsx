@@ -4,7 +4,7 @@ import { router } from "expo-router";
 import { clearSharedPayloads, getResolvedSharedPayloadsAsync, getSharedPayloads } from "expo-sharing";
 import * as Crypto from "expo-crypto";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { MAX_ATTACHMENT_BYTES, prepareImage } from "../../src/chat/attachments";
 import { useMates } from "../../src/mates/data";
 import {
@@ -43,7 +43,25 @@ export default function ShareReceiveScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [incomingRejected, setIncomingRejected] = useState(false);
+  const [intentsSeen, setIntentsSeen] = useState(0);
   const processed = useRef(false);
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener("url", ({ url }) => {
+      if (!url.startsWith("mates://expo-sharing") || !getSharedPayloads().length) return;
+      if (!share && loading) return;
+      if (share) {
+        clearSharedPayloads();
+        setIncomingRejected(true);
+      } else {
+        processed.current = false;
+        setLoading(true);
+        setIntentsSeen((count) => count + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, [loading, share]);
 
   useEffect(() => {
     if (!userId || matesQuery.isLoading || processed.current) return;
@@ -51,6 +69,10 @@ export default function ShareReceiveScreen() {
     void (async () => {
       const pending = await readAndroidPendingShare(userId);
       if (pending) {
+        if (getSharedPayloads().length) {
+          clearSharedPayloads();
+          setIncomingRejected(true);
+        }
         setShare(pending);
         setLoading(false);
         return;
@@ -148,7 +170,7 @@ export default function ShareReceiveScreen() {
         setLoading(false);
       }
     })();
-  }, [mates, matesQuery.isLoading, userId]);
+  }, [intentsSeen, mates, matesQuery.isLoading, userId]);
 
   const updateShare = (update: Partial<PendingShare>) => {
     if (!share) return;
@@ -192,6 +214,7 @@ export default function ShareReceiveScreen() {
     <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentContainerStyle={{ padding: 20, gap: 18 }} keyboardShouldPersistTaps="handled">
       <Text style={{ color: colors.text, fontSize: 22, fontWeight: "700" }}>Share to a mate</Text>
       {loading ? <ActivityIndicator color={colors.primary} /> : share ? <>
+        {incomingRejected && <Text selectable accessibilityRole="alert" style={{ color: colors.error, fontSize: 14 }}>An earlier share is waiting. Share the new item again after finishing this one.</Text>}
         <Text style={{ color: colors.textSecondary, fontSize: 15 }}>Choose who to send this to.</Text>
         <View style={{ gap: 8 }}>
           {mates.map((mate) => {

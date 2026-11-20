@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useMates } from "../../src/mates/data";
-import { discardPendingShare, readPendingShare, sendPendingShare } from "../../src/share/pending";
+import { canRetryPendingShare, discardPendingShare, readPendingShare, sendPendingShare } from "../../src/share/pending";
 import { useTheme } from "../../src/theme/provider";
 
 export default function PendingShareScreen() {
@@ -13,9 +13,10 @@ export default function PendingShareScreen() {
   const [error, setError] = useState<string | null>(null);
   const { colors } = useTheme();
   const mate = useMates().data?.mates.find((item) => item.id === share?.mateId);
+  const retryReady = !!share && canRetryPendingShare(share);
 
   const retry = async () => {
-    if (!share || sending) return;
+    if (!share || sending || !retryReady) return;
     setSending(true);
     setError(null);
     try {
@@ -31,6 +32,7 @@ export default function PendingShareScreen() {
 
   const discard = () => {
     if (!share) return router.back();
+    if (!retryReady) return;
     Alert.alert("Discard this share?", "The link or file will be removed from this device.", [
       { text: "Keep", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: () => {
@@ -55,15 +57,16 @@ export default function PendingShareScreen() {
             {!!share.fileName && <Text style={{ color: colors.textSecondary, fontSize: 14 }}>{share.fileName}</Text>}
           </View>
           {!!error && <Text accessibilityRole="alert" style={{ color: colors.error, fontSize: 14 }}>{error}</Text>}
+          {!retryReady && <Text style={{ color: colors.textSecondary }}>The share extension is still sending this item. Open Mates again if it does not finish.</Text>}
           <Pressable
             accessibilityRole="button"
-            disabled={sending}
+            disabled={sending || !retryReady}
             onPress={() => void retry()}
-            style={{ backgroundColor: colors.text, padding: 15, borderRadius: 14, opacity: sending ? 0.6 : 1 }}
+            style={{ backgroundColor: colors.text, padding: 15, borderRadius: 14, opacity: sending || !retryReady ? 0.6 : 1 }}
           >
             <Text style={{ color: colors.background, textAlign: "center", fontWeight: "700" }}>{sending ? "Sending…" : "Send to mate"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={discard} style={{ padding: 12 }}>
+          <Pressable accessibilityRole="button" disabled={!retryReady} onPress={discard} style={{ padding: 12 }}>
             <Text style={{ color: colors.textSecondary, textAlign: "center" }}>Discard share</Text>
           </Pressable>
         </>
