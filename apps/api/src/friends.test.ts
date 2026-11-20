@@ -114,7 +114,7 @@ describe("requests by email", () => {
   it("reaches an existing user, who sees it in their requests and can accept", async () => {
     const h = harness();
     expect(await inviteByEmail(KWAME, " Ama@Example.com ", h.deps)).toEqual({ status: "sent" });
-    expect(h.notified[0]).toEqual({ userId: AMA, title: "Kwame wants to connect" });
+    expect(h.notified[0]).toEqual({ userId: AMA, title: "Friend request from Kwame" });
     const view = await listFriends(AMA, h.deps);
     expect(view.requests).toHaveLength(1);
     expect((await listFriends(KWAME, h.deps)).sent).toMatchObject([{ name: "Ama" }]);

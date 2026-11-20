@@ -65,7 +65,7 @@ export default function ConnectScreen() {
             </Animated.View>
             <Animated.View key={done ? "done" : "ask"} entering={FadeInDown.duration(260)} style={{ alignItems: "center", gap: 10 }}>
               <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 24, textAlign: "center" }}>
-                {done ? `You and ${invite.name} are friends` : `${invite.name} wants to connect`}
+                {done ? `You and ${invite.name} are friends` : `${invite.name} wants to be your friend`}
               </Text>
               <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 16, lineHeight: 23, textAlign: "center", maxWidth: 320 }}>
                 {done
