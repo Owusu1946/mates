@@ -1089,3 +1089,35 @@ export const billingEvents = pgTable("billing_events", {
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
 }, (t) => [index("billing_events_status_idx").on(t.status, t.receivedAt), index("billing_events_user_idx").on(t.clerkUserId)]);
+
+export type FriendShare = "auto" | "ask";
+export type FriendStatus = "active" | "removed" | "blocked";
+
+/**
+ * One side of a friendship: what this person lets their mate share with that friend ("auto": when
+ * they're free, never what they're doing; "ask": nothing until they tap). Accepting writes both
+ * sides, so each person controls their own.
+ */
+export const friends = pgTable("friends", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  friendUserId: text("friend_user_id").notNull(),
+  share: text("share").$type<FriendShare>().notNull().default("auto"),
+  status: text("status").$type<FriendStatus>().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.friendUserId] }), index("friends_friend_idx").on(t.friendUserId)]);
+
+/**
+ * An invite to connect: a single-use link shared anywhere, or a request to one existing user found
+ * by email (`toUserId`), which shows in their Friends requests.
+ */
+export const friendInvites = pgTable("friend_invites", {
+  code: text("code").primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  toUserId: text("to_user_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedBy: text("accepted_by"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  declinedAt: timestamp("declined_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("friend_invites_user_idx").on(t.clerkUserId, t.createdAt), index("friend_invites_to_idx").on(t.toUserId)]);

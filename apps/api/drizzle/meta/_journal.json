@@ -295,6 +295,13 @@
       "when": 1795104607552,
       "tag": "0041_rainy_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795175930531,
+      "tag": "0042_friends",
+      "breakpoints": true
     }
   ]
 }
