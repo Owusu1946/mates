@@ -24,6 +24,7 @@ import { SessionProvider, useSession } from "../src/session/provider";
 import { AnimatedSplash } from "../src/splash/animated-splash";
 import { ThemeProvider } from "../src/theme/provider";
 import { ToastProvider } from "../src/components/toast";
+import { InviteCapture } from "../src/friends/pending-invite";
 
 // Screens you can't see are frozen: a chat left underneath Routines or Settings stops rendering
 // and animating until you go back to it, and catches up then. Its state and scroll position stay.
@@ -64,6 +65,7 @@ export default function RootLayout() {
           <DataProvider>
             <OnboardingProvider>
               <Stack screenOptions={{ headerShown: false }} />
+              <InviteCapture />
               <Splash />
               <DevPanel />
             </OnboardingProvider>

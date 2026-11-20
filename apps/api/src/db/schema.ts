@@ -1089,3 +1089,39 @@ export const billingEvents = pgTable("billing_events", {
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
 }, (t) => [index("billing_events_status_idx").on(t.status, t.receivedAt), index("billing_events_user_idx").on(t.clerkUserId)]);
+
+/**
+ * What a friend's mate may do with yours without asking you first. Anything not allowed here (and
+ * every kind of request without its own switch) waits for your tap, with "Always allow" to add it.
+ * - freeTimes: see when you're free, never what you're doing.
+ * - messages: pass on updates ("running 10 minutes late").
+ * - answers: your mate answers their questions from what it knows about you.
+ */
+export type FriendPermissions = { freeTimes: boolean; messages: boolean; answers: boolean };
+export const DEFAULT_FRIEND_PERMISSIONS: FriendPermissions = { freeTimes: true, messages: true, answers: false };
+export type FriendStatus = "active" | "removed" | "blocked";
+
+/** One side of a friendship: what this person lets that friend's mate do. Accepting writes both sides. */
+export const friends = pgTable("friends", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  friendUserId: text("friend_user_id").notNull(),
+  permissions: jsonb("permissions").$type<FriendPermissions>().notNull().default(DEFAULT_FRIEND_PERMISSIONS),
+  status: text("status").$type<FriendStatus>().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.friendUserId] }), index("friends_friend_idx").on(t.friendUserId)]);
+
+/**
+ * An invite to connect: a single-use link shared anywhere, or a request to one existing user found
+ * by email (`toUserId`), which shows in their Friends requests.
+ */
+export const friendInvites = pgTable("friend_invites", {
+  code: text("code").primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  toUserId: text("to_user_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedBy: text("accepted_by"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  declinedAt: timestamp("declined_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("friend_invites_user_idx").on(t.clerkUserId, t.createdAt), index("friend_invites_to_idx").on(t.toUserId)]);
