@@ -1,13 +1,13 @@
 import { useAuth } from "@clerk/expo";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "expo-router";
+import { useIsFocused, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { LiveView } from "../computer/live-view";
-import { useComputer } from "../computer/use-computer";
+import { useComputer, type ComputerStatus } from "../computer/use-computer";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
@@ -27,8 +27,12 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
   const client = useQueryClient();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const computer = useComputer();
+  // Hidden under the full-screen computer (or another screen), the card drops its stream: one
+  // viewer at a time, and only a visible stream counts as watching.
+  const focused = useIsFocused();
   const initial = state.computer;
+  const cached = client.getQueryData<ComputerStatus>(["computer", userId]);
+  const computer = useComputer({ watching: focused && !!cached?.available && cached.goal?.id === initial?.goalId });
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState("");
   const live = useQuery({
@@ -43,7 +47,7 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
   if (!goal) return null;
   const active = ACTIVE.includes(goal.status);
   // This card's goal is the one on the computer right now, so its live view is this task's.
-  const onScreen = active && computer.view?.goal?.id === goal.goalId;
+  const onScreen = active && focused && computer.view?.state === "on" && computer.view.goal?.id === goal.goalId;
   const liveHeight = Math.round(((width - 48) * 3) / 4 * 0.55);
   const lineStyle = { fontFamily: "DMSans_500Medium", fontSize: 14.5, letterSpacing: 0.1 } as const;
 
@@ -87,8 +91,8 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
       <Text numberOfLines={2} style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 12.5 }}>{goal.goal}</Text>
 
       {onScreen && (
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the computer full screen" onPress={() => router.push("/computer" as never)}>
-          <LiveView url={computer.view?.liveUrl ?? null} interactive={false} height={liveHeight} placeholder="Starting the computer…" />
+        <Pressable accessibilityRole="button" accessibilityLabel="Open the computer full screen" onPress={() => router.push("/computer" as never)} style={{ borderRadius: 14, overflow: "hidden" }}>
+          <LiveView url={computer.view?.liveUrl ?? null} interactive={false} height={liveHeight} onStale={() => void computer.refresh()} />
         </Pressable>
       )}
 
