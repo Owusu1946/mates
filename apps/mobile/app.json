@@ -90,6 +90,7 @@
       "@config-plugins/react-native-webrtc",
       "./plugins/with-mates-widget-mascot",
       "expo-widgets",
+      "./plugins/with-mates-share-clerk",
       "@bacons/apple-targets",
       [
         "expo-build-properties",

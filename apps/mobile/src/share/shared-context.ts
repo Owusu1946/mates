@@ -28,6 +28,7 @@ export function clearShareContext() {
   try {
     storage.remove(MATES_KEY);
     storage.remove(LAST_MATE_KEY);
+    storage.remove(CLERK_PUBLISHABLE_KEY);
   } catch (error) {
     console.warn("share_context_clear_failed", error);
   }
