@@ -12,16 +12,16 @@ const PENDING_KEY = "share.pending.v1";
 
 type ShareMate = { id: string; name: string; chatId: string };
 
-const storage = new ExtensionStorage(APP_GROUP);
+const storage = Platform.OS === "ios" ? new ExtensionStorage(APP_GROUP) : null;
 
 /** Writes only the mate fields the iOS share extension needs. */
 export function writeShareMates(userId: string, mates: ShareMate[]) {
   if (Platform.OS !== "ios") return;
   try {
-    storage.set(CLERK_PUBLISHABLE_KEY, env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY);
-    if (env.EXPO_PUBLIC_API_URL) storage.set(API_BASE_URL_KEY, env.EXPO_PUBLIC_API_URL.replace(/\/$/, ""));
-    else storage.remove(API_BASE_URL_KEY);
-    storage.set(MATES_KEY, JSON.stringify({ version: 1, userId, mates, updatedAt: Date.now() }));
+    storage?.set(CLERK_PUBLISHABLE_KEY, env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY);
+    if (env.EXPO_PUBLIC_API_URL) storage?.set(API_BASE_URL_KEY, env.EXPO_PUBLIC_API_URL.replace(/\/$/, ""));
+    else storage?.remove(API_BASE_URL_KEY);
+    storage?.set(MATES_KEY, JSON.stringify({ version: 1, userId, mates, updatedAt: Date.now() }));
   } catch (error) {
     console.warn("share_mates_cache_write_failed", error);
   }
@@ -29,7 +29,7 @@ export function writeShareMates(userId: string, mates: ShareMate[]) {
 
 /** Remove account-specific data from the shared container after sign-out. */
 export function clearShareContext() {
-  if (Platform.OS !== "ios") return;
+  if (!storage) return;
   try {
     const pending = storage.get(PENDING_KEY);
     if (typeof pending === "string") {

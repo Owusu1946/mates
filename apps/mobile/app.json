@@ -46,6 +46,15 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-sharing",
+        {
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/plain", "image/*", "application/pdf"]
+          }
+        }
+      ],
       "@sentry/react-native/expo",
       [
         "expo-camera",

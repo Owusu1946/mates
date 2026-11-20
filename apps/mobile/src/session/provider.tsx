@@ -7,6 +7,7 @@ import type { SessionState } from "./types";
 import { disableNotifications } from "../data/notifications";
 import { clearCache } from "../data/offline-cache";
 import { clearShareContext } from "../share/shared-context";
+import { clearAndroidShareContext } from "../share/android-pending";
 import { identifyPurchases, retryPendingPurchaseSync } from "../billing/purchases";
 
 const SessionContext = createContext<SessionState | null>(null);
@@ -35,6 +36,7 @@ function ClerkSession({ children }: PropsWithChildren) {
       if (userId) {
         await clearCache(userId);
         clearShareContext();
+        await clearAndroidShareContext(userId);
       }
     })(); },
   }), [auth.isLoaded, auth.isSignedIn, auth.signOut, auth.getToken, auth.userId, user]);

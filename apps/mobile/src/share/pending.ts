@@ -5,7 +5,6 @@ import { uploadAttachment } from "../chat/attachments";
 import { runRequest } from "../chat/background-chat";
 import { createApiClient } from "../data/api";
 
-const storage = new ExtensionStorage("group.app.askorin.mates");
 const PENDING_KEY = "share.pending.v1";
 const LAST_MATE_KEY = "share.last-mate.v1";
 
@@ -20,10 +19,13 @@ export type PendingShare = {
   fileName: string | null;
   contentType: string | null;
   uploadedId: string | null;
+  locked?: boolean;
 };
 
+const storage = Platform.OS === "ios" ? new ExtensionStorage("group.app.askorin.mates") : null;
+
 export function readPendingShare(userId: string): PendingShare | null {
-  if (Platform.OS !== "ios") return null;
+  if (!storage) return null;
   try {
     const value = storage.get(PENDING_KEY);
     if (typeof value !== "string") return null;
@@ -36,7 +38,7 @@ export function readPendingShare(userId: string): PendingShare | null {
 }
 
 function savePendingShare(share: PendingShare) {
-  storage.set(PENDING_KEY, JSON.stringify(share));
+  storage?.set(PENDING_KEY, JSON.stringify(share));
 }
 
 /** Attach a share turn to the current conversation before submitRun creates its assistant row. */
@@ -68,9 +70,24 @@ async function saveShareMessage(share: PendingShare, uploadedId: string | undefi
   if (!saved.ok) throw new Error("Couldn’t add this share to the chat. Try again.");
 }
 
+/** Save the shared user turn and submit it through the same run contract on every platform. */
+export async function submitShareRun(share: PendingShare, uploadedId: string | undefined, getToken: () => Promise<string | null>) {
+  const content = [share.note, share.link ?? ""].filter(Boolean).join("\n\n");
+  await saveShareMessage(share, uploadedId, getToken);
+  const { runId } = await runRequest<{ runId: string }>(getToken, "runs", {
+    chatId: share.chatId,
+    requestKey: `share_${share.id}`,
+    assistantMessageId: `assistant_share_${share.id}`,
+    parentId: `user_share_${share.id}`,
+    messages: [{ role: "user", content, ...(uploadedId ? { attachments: [{ id: uploadedId }] } : {}) }],
+  });
+  if (!runId) throw new Error("Mates could not confirm the send. Try again.");
+  return share.chatId;
+}
+
 export function discardPendingShare(share: PendingShare) {
   if (readPendingShare(share.userId)?.id !== share.id) return;
-  storage.remove(PENDING_KEY);
+  storage?.remove(PENDING_KEY);
   if (share.filePath) {
     try { new File(`file://${share.filePath}`).delete(); } catch { /* The file may already be gone. */ }
   }
@@ -91,17 +108,8 @@ export async function sendPendingShare(share: PendingShare, getToken: () => Prom
     uploadedId = uploaded.id;
     savePendingShare({ ...current, uploadedId });
   }
-  const content = [current.note, current.link ?? ""].filter(Boolean).join("\n\n");
-  await saveShareMessage(current, uploadedId, getToken);
-  const { runId } = await runRequest<{ runId: string }>(getToken, "runs", {
-    chatId: current.chatId,
-    requestKey: `share_${current.id}`,
-    assistantMessageId: `assistant_share_${current.id}`,
-    parentId: `user_share_${current.id}`,
-    messages: [{ role: "user", content, ...(uploadedId ? { attachments: [{ id: uploadedId }] } : {}) }],
-  });
-  if (!runId) throw new Error("Mates could not confirm the send. Try again.");
-  storage.set(LAST_MATE_KEY, current.mateId);
+  await submitShareRun(current, uploadedId, getToken);
+  storage?.set(LAST_MATE_KEY, current.mateId);
   discardPendingShare(current);
   return current.chatId;
 }
