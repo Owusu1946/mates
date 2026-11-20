@@ -27,6 +27,7 @@ import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 import { LeaderGate } from "../../src/onboarding/leader-gate";
 import { useCacheReady } from "../../src/data/offline-cache";
+import { takePendingInvite } from "../../src/friends/pending-invite";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
@@ -56,6 +57,11 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         else router.push("/(app)");
         return;
       }
+      // A screen of the app itself (Friends, the computer) when there's no chat to open.
+      if (typeof data?.url === "string" && /^\/[a-z-]+$/.test(data.url) && typeof chatId !== "string") {
+        router.push(data.url as never);
+        return;
+      }
       // A mate's or group's result (a routine, a background task) opens in their chat.
       const inMateChat = data?.chatKind === "mate" || data?.chatKind === "group";
       if (typeof chatId === "string" && (inMateChat || typeof data?.delegationId !== "string")) {
@@ -68,6 +74,10 @@ function AuthenticatedStack({ userId }: { userId: string }) {
     const listener = Notifications.addNotificationResponseReceivedListener(open);
     void Notifications.getLastNotificationResponseAsync().then(response => { if (response) { open(response); void Notifications.clearLastNotificationResponseAsync(); } }).catch(() => {});
     return () => listener.remove();
+  }, [router]);
+  // An invite link opened before signing in opens now.
+  useEffect(() => {
+    void takePendingInvite().then((code) => { if (code) router.push({ pathname: "/connect", params: { c: code } }); });
   }, [router]);
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
@@ -169,6 +179,8 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="memory-import" options={{ title: "Import memories" }} />
           <Stack.Screen name="permissions" options={{ title: "Permissions", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="friends" options={{ title: "Friends", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="connect" options={{ headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="noticed" options={{ title: "What I’ve noticed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
