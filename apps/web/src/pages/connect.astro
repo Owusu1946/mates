@@ -1,0 +1,159 @@
+---
+// Where a friend invite link lands (/connect?c=…). With the app: Open in Mates hands the code to it.
+// Without: who invited you, what it means, and the waitlist. Only the inviter's first name is shown.
+import Logo from "../components/Logo.astro";
+import Base from "../layouts/Base.astro";
+
+const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
+---
+
+<Base title="You're invited to Mates" description="A friend wants your mates to find times together." noindex>
+  <main class="invite" data-api={api}>
+    <a href="/" class="brand"><Logo size={26} /><span>mates</span></a>
+
+    <section class="card" aria-live="polite">
+      <div class="avatar" id="avatar" aria-hidden="true">·</div>
+      <h1 id="title">Opening your invite…</h1>
+      <p id="body">One moment.</p>
+
+      <div class="actions" id="actions" hidden>
+        <a class="button primary" id="open" href="#">Open in Mates</a>
+        <a class="button" href="/#download">Get Mates</a>
+      </div>
+
+      <ul class="promises" id="promises" hidden>
+        <li>Mates only see when you’re free, never what you’re doing.</li>
+        <li>Nothing goes in your calendar until you pick a time.</li>
+        <li>Turn it off for anyone, any time.</li>
+      </ul>
+    </section>
+  </main>
+</Base>
+
+<script>
+  const main = document.querySelector<HTMLElement>(".invite")!;
+  const code = new URLSearchParams(location.search).get("c") ?? "";
+  const $ = (id: string) => document.getElementById(id)!;
+  const show = (title: string, body: string) => { $("title").textContent = title; $("body").textContent = body; };
+
+  async function load() {
+    if (!/^[a-z0-9]{6,20}$/.test(code)) return show("This invite link doesn’t work", "Check the link, or ask for a new one.");
+    try {
+      const response = await fetch(`${main.dataset.api}/site/invites/${code}`, { cache: "no-store" });
+      if (!response.ok) return show("This invite link doesn’t work", "Check the link, or ask for a new one.");
+      const invite = (await response.json()) as { name: string; open: boolean };
+      $("avatar").textContent = invite.name.charAt(0).toUpperCase();
+      if (!invite.open) return show(`${invite.name}’s invite has been used or expired`, "Ask them for a new link.");
+      show(`${invite.name} wants to connect`, `On Mates, your AI mates find times together. Say “find a time with ${invite.name} for lunch” and it lands in both your calendars.`);
+      $("open").setAttribute("href", `mates://connect?c=${code}`);
+      $("actions").hidden = false;
+      $("promises").hidden = false;
+    } catch {
+      show("Couldn’t open the invite", "Check your connection and refresh.");
+    }
+  }
+  void load();
+</script>
+
+<style>
+  .invite {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 40px;
+    padding: 28px 16px 48px;
+    background: var(--panel);
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-weight: 650;
+    font-size: 19px;
+    text-decoration: none;
+    align-self: flex-start;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 28px;
+    padding: 36px 24px 28px;
+    text-align: center;
+  }
+  .avatar {
+    width: 76px;
+    height: 76px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 32px;
+    font-weight: 600;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 25px;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+  p {
+    margin: 0 auto;
+    max-width: 330px;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  .actions {
+    display: grid;
+    gap: 10px;
+    margin-top: 28px;
+  }
+  .actions[hidden],
+  .promises[hidden] {
+    display: none;
+  }
+  .button {
+    display: grid;
+    place-items: center;
+    height: 52px;
+    border-radius: 16px;
+    background: var(--soft);
+    color: var(--text);
+    font-weight: 600;
+    font-size: 16px;
+    text-decoration: none;
+  }
+  .button.primary {
+    background: var(--text);
+    color: var(--bg);
+  }
+  .promises {
+    list-style: none;
+    margin: 26px 0 0;
+    padding: 18px 0 0;
+    border-top: 1px solid var(--line);
+    display: grid;
+    gap: 10px;
+    text-align: left;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .promises li {
+    padding-left: 22px;
+    position: relative;
+  }
+  .promises li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: var(--success);
+    font-weight: 700;
+  }
+</style>
