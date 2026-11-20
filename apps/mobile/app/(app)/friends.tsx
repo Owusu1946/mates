@@ -4,7 +4,8 @@ import { Alert, Platform, Pressable, RefreshControl, ScrollView, Share, Text, Te
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { useToast } from "../../src/components/toast";
-import { useFriendActions, useFriends, type EmailInviteStatus, type FriendPermissions } from "../../src/friends/data";
+import { useFriendActions, useFriends, useMyName, type EmailInviteStatus, type FriendPermissions } from "../../src/friends/data";
+import { NameField } from "../../src/friends/name-field";
 import { FriendAvatar } from "../../src/friends/friend-avatar";
 import { haptic } from "../../src/haptics";
 import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
@@ -42,6 +43,7 @@ export default function FriendsScreen() {
   const [email, setEmail] = useState("");
   const data = friends.data;
   const empty = friends.isSuccess && !data?.friends.length && !data?.requests.length && !data?.sent.length;
+  const me = useMyName();
 
   const shareLink = async () => {
     haptic.light();
@@ -79,6 +81,18 @@ export default function FriendsScreen() {
       onError: (error) => toast.show({ message: error.message, tone: "error" }),
     });
   };
+
+  // Friends find you by name, so it comes first: one question, then the rest of Friends.
+  if (me.isSuccess && !me.data.name) {
+    return (
+      <ScrollView style={{ flex: 1, backgroundColor: colors.background }} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 56, gap: 22 }}>
+        <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
+          Your mates work with your friends’ mates: finding a time, passing on updates, answering questions. First, the name your friends will know you by.
+        </Text>
+        <NameField onSaved={(name) => toast.show({ message: `Hi ${name}. Now invite a friend.`, tone: "success" })} />
+      </ScrollView>
+    );
+  }
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}

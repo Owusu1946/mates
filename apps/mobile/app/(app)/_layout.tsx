@@ -182,6 +182,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="friends" options={{ title: "Friends", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="connect" options={{ headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="friend" options={{ title: "" }} />
+          <Stack.Screen name="name" options={{ title: "Your name" }} />
           <Stack.Screen name="noticed" options={{ title: "What I’ve noticed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
