@@ -3,8 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { createApiClient } from "../data/api";
 
-export type FriendShare = "auto" | "ask";
-export type Friend = { userId: string; name: string; share: FriendShare; since: string };
+/** What a friend's mate may do with yours without asking you first. */
+export type FriendPermissions = { freeTimes: boolean; messages: boolean; answers: boolean };
+export type Friend = { userId: string; name: string; permissions: FriendPermissions; since: string };
 export type FriendsData = {
   friends: Friend[];
   requests: { code: string; name: string; at: string }[];
@@ -72,12 +73,12 @@ export function useFriendActions() {
       mutationFn: async (code: string) => read<{ ok: true }>(await api.v1.friends.invites[":code"].decline.$post({ param: { code } }), "Couldn’t do that."),
       ...settle,
     }),
-    setShare: useMutation({
-      mutationFn: async ({ friend, share }: { friend: string; share: FriendShare }) =>
-        read<{ ok: true }>(await api.v1.friends[":userId"].$patch({ param: { userId: friend }, json: { share } }), "Couldn’t save that."),
+    setPermissions: useMutation({
+      mutationFn: async ({ friend, change }: { friend: string; change: Partial<FriendPermissions> }) =>
+        read<{ permissions: FriendPermissions }>(await api.v1.friends[":userId"].$patch({ param: { userId: friend }, json: { permissions: change } }), "Couldn’t save that."),
       // Flip it on screen straight away; the server catches up.
-      onMutate: ({ friend, share }) => {
-        client.setQueryData<FriendsData>(["friends", userId], (data) => data && { ...data, friends: data.friends.map((f) => (f.userId === friend ? { ...f, share } : f)) });
+      onMutate: ({ friend, change }) => {
+        client.setQueryData<FriendsData>(["friends", userId], (data) => data && { ...data, friends: data.friends.map((f) => (f.userId === friend ? { ...f, permissions: { ...f.permissions, ...change } } : f)) });
       },
       ...settle,
     }),

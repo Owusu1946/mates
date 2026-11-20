@@ -7,7 +7,7 @@ import Base from "../layouts/Base.astro";
 const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
 ---
 
-<Base title="You're invited to Mates" description="A friend wants your mates to find times together." noindex>
+<Base title="You're invited to Mates" description="A friend wants your mates to work together." noindex>
   <main class="invite" data-api={api}>
     <a href="/" class="brand"><Logo size={26} /><span>mates</span></a>
 
@@ -22,8 +22,8 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       </div>
 
       <ul class="promises" id="promises" hidden>
-        <li>Mates only see when you’re free, never what you’re doing.</li>
-        <li>Nothing goes in your calendar until you pick a time.</li>
+        <li>Their mate sees when you’re free, never what you’re doing.</li>
+        <li>Anything beyond what you allow waits for your OK.</li>
         <li>Turn it off for anyone, any time.</li>
       </ul>
     </section>
@@ -44,7 +44,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       const invite = (await response.json()) as { name: string; open: boolean };
       $("avatar").textContent = invite.name.charAt(0).toUpperCase();
       if (!invite.open) return show(`${invite.name}’s invite has been used or expired`, "Ask them for a new link.");
-      show(`${invite.name} wants to connect`, `On Mates, your AI mates find times together. Say “find a time with ${invite.name} for lunch” and it lands in both your calendars.`);
+      show(`${invite.name} wants to connect`, `On Mates, your AI mates work together: finding a time, passing on updates, answering questions. You choose what ${invite.name}’s mate can do.`);
       $("open").setAttribute("href", `mates://connect?c=${code}`);
       $("actions").hidden = false;
       $("promises").hidden = false;

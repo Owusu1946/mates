@@ -11,7 +11,7 @@ import { font } from "../../src/memory/memory-ui";
 import { useTheme } from "../../src/theme/provider";
 
 const CLOSED: Partial<Record<InvitePreview["state"], { title: string; body: string }>> = {
-  own: { title: "This is your invite", body: "Send it to a friend. When they accept, your mates can find times together." },
+  own: { title: "This is your invite", body: "Send it to a friend. When they accept, your mates can work together." },
   used: { title: "This invite was already used", body: "Ask for a new link." },
   expired: { title: "This invite has expired", body: "Invites last two weeks. Ask for a new link." },
   unavailable: { title: "This invite doesn’t work", body: "Ask for a new link." },
@@ -70,7 +70,7 @@ export default function ConnectScreen() {
               <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 16, lineHeight: 23, textAlign: "center", maxWidth: 320 }}>
                 {done
                   ? `Try “find a time with ${invite.name} for lunch” in any chat. Your mates sort out the rest.`
-                  : "Your mates can find times together. They’ll only see when you’re free, never what you’re doing, and nothing goes in your calendar until you pick a time."}
+                  : "Your mates can work together: find times, pass on updates, answer questions. You choose what their mate can do, and anything else waits for your OK."}
               </Text>
             </Animated.View>
           </>

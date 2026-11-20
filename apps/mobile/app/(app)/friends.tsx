@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { ActionSheetIOS, Alert, Platform, Pressable, RefreshControl, ScrollView, Share, Switch, Text, TextInput, View } from "react-native";
+import { useRouter } from "expo-router";
+import { Alert, Platform, Pressable, RefreshControl, ScrollView, Share, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { useToast } from "../../src/components/toast";
-import { useFriendActions, useFriends, type EmailInviteStatus, type Friend } from "../../src/friends/data";
+import { useFriendActions, useFriends, type EmailInviteStatus, type FriendPermissions } from "../../src/friends/data";
 import { FriendAvatar } from "../../src/friends/friend-avatar";
 import { haptic } from "../../src/haptics";
 import { usePullToRefresh } from "../../src/hooks/use-pull-to-refresh";
@@ -18,13 +19,22 @@ const EMAIL_RESULT: Record<EmailInviteStatus, { message: string; tone: "success"
   not_found: { message: "", tone: "info" },
 };
 
+/** One line for what a friend's mate may do without asking. */
+function summary(p: FriendPermissions) {
+  const allowed = [p.freeTimes && "free times", p.messages && "updates", p.answers && "answers"].filter(Boolean) as string[];
+  if (!allowed.length) return "Asks you before anything";
+  const list = allowed.length > 1 ? `${allowed.slice(0, -1).join(", ")} and ${allowed.at(-1)}` : allowed[0]!;
+  return list.charAt(0).toUpperCase() + list.slice(1);
+}
+
 /**
- * Friends: people whose mates can find times with yours. Invite by link (WhatsApp, SMS…) or by
+ * Friends: people whose mates work with yours. Invite by link (WhatsApp, SMS…) or by
  * email, accept requests, and choose per friend whether your mate shares when you're free or asks.
  */
 export default function FriendsScreen() {
   const { colors } = useTheme();
   const toast = useToast();
+  const router = useRouter();
   const friends = useFriends();
   const actions = useFriendActions();
   const pull = usePullToRefresh(() => friends.refetch());
@@ -69,24 +79,6 @@ export default function FriendsScreen() {
       onError: (error) => toast.show({ message: error.message, tone: "error" }),
     });
   };
-  const more = (friend: Friend) => {
-    const remove = () =>
-      Alert.alert(`Remove ${friend.name}?`, "Your mates won’t find times together any more. You can connect again later.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Remove", style: "destructive", onPress: () => actions.remove.mutate(friend.userId) },
-      ]);
-    const block = () =>
-      Alert.alert(`Block ${friend.name}?`, "They won’t be able to reach you or connect again. They aren’t told.", [
-        { text: "Cancel", style: "cancel" },
-        { text: "Block", style: "destructive", onPress: () => actions.block.mutate(friend.userId) },
-      ]);
-    if (Platform.OS === "ios") {
-      ActionSheetIOS.showActionSheetWithOptions({ title: friend.name, options: ["Remove friend", "Block", "Cancel"], destructiveButtonIndex: [0, 1], cancelButtonIndex: 2 }, (i) => (i === 0 ? remove() : i === 1 ? block() : undefined));
-    } else {
-      Alert.alert(friend.name, undefined, [{ text: "Remove friend", onPress: remove }, { text: "Block", style: "destructive", onPress: block }, { text: "Cancel", style: "cancel" }]);
-    }
-  };
-
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
@@ -102,14 +94,14 @@ export default function FriendsScreen() {
             <FriendAvatar userId="you" name="Y" size={56} />
             <View style={{ marginLeft: -14, borderRadius: 32, borderWidth: 4, borderColor: colors.background }}><FriendAvatar userId="ama" name="A" size={56} /></View>
           </View>
-          <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 20, textAlign: "center" }}>Find times with friends</Text>
+          <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 20, textAlign: "center" }}>Your mates, working with your friends’</Text>
           <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22, textAlign: "center", maxWidth: 320 }}>
-            Connect with a friend, then just say “find a time with Ama for lunch”. Your mates agree on a time, and it lands in both your calendars.
+            Connect with a friend and your mates handle the back-and-forth: finding a time, passing on updates, answering questions. You choose what each friend’s mate can do.
           </Text>
         </Animated.View>
       ) : (
         <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15, lineHeight: 22 }}>
-          Your mates find times with your friends’ mates. Say “find a time with Ama for lunch” in any chat.
+          Your mates work with your friends’ mates. Try “find a time with Ama for lunch” or “tell Kofi I’m running late” in any chat.
         </Text>
       )}
 
@@ -172,22 +164,13 @@ export default function FriendsScreen() {
           <Text style={{ color: colors.textSecondary, fontFamily: font.semibold, fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase" }}>Friends</Text>
           <Group>
             {data.friends.map((friend) => (
-              <Pressable key={friend.userId} onLongPress={() => more(friend)} style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 14, paddingRight: 10, paddingVertical: 12 }}>
+              <Pressable key={friend.userId} accessibilityRole="button" onPress={() => router.push({ pathname: "/friend", params: { id: friend.userId } })} style={({ pressed }) => ({ flexDirection: "row", alignItems: "center", gap: 12, paddingLeft: 14, paddingRight: 12, paddingVertical: 12, opacity: pressed ? 0.6 : 1 })}>
                 <FriendAvatar userId={friend.userId} name={friend.name} />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 15.5 }}>{friend.name}</Text>
-                  <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>
-                    {friend.share === "auto" ? "Shares when you’re free" : "Asks you each time"}
-                  </Text>
+                  <Text numberOfLines={1} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>{summary(friend.permissions)}</Text>
                 </View>
-                <Switch
-                  accessibilityLabel={`Share when you’re free with ${friend.name}`}
-                  value={friend.share === "auto"}
-                  onValueChange={(on) => { haptic.selection(); actions.setShare.mutate({ friend: friend.userId, share: on ? "auto" : "ask" }); }}
-                />
-                <Pressable accessibilityRole="button" accessibilityLabel={`More for ${friend.name}`} hitSlop={8} onPress={() => more(friend)} style={{ paddingLeft: 4 }}>
-                  <ChatIcon name="more" color={colors.textMuted} size={20} />
-                </Pressable>
+                <ChatIcon name="next" color={colors.textMuted} size={18} />
               </Pressable>
             ))}
           </Group>
@@ -209,7 +192,7 @@ export default function FriendsScreen() {
       )}
 
       <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 13, lineHeight: 19 }}>
-        Friends’ mates only ever see when you’re free, never what you’re doing. Nothing goes in your calendar until you pick a time. Turn sharing off for anyone, and your mate asks you first.
+        Tap a friend to choose what their mate can do without asking you. Free times never show what you’re doing, and nothing goes in your calendar until you pick a time.
       </Text>
     </ScrollView>
   );
