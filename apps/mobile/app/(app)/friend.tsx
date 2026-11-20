@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
-import { useFriendActions, useFriends, type FriendPermissions } from "../../src/friends/data";
+import { useFriendActions, useFriendActivity, useFriends, type FriendActivity, type FriendPermissions } from "../../src/friends/data";
 import { FriendAvatar } from "../../src/friends/friend-avatar";
 import { haptic } from "../../src/haptics";
 import { font, Group } from "../../src/memory/memory-ui";
@@ -82,6 +82,8 @@ export default function FriendScreen() {
         </Text>
       </View>
 
+      <Activity friendUserId={friend.userId} name={friend.name} />
+
       <Group>
         <Pressable onPress={() => end("remove")} style={({ pressed }) => ({ paddingHorizontal: 16, paddingVertical: 15, opacity: pressed ? 0.5 : 1 })}>
           <Text style={{ color: colors.error, fontFamily: font.medium, fontSize: 15.5 }}>Remove friend</Text>
@@ -91,5 +93,47 @@ export default function FriendScreen() {
         </Pressable>
       </Group>
     </ScrollView>
+  );
+}
+
+/** One line per exchange, so you always know what your mate shared and what was asked of you. */
+function describe(item: FriendActivity) {
+  if (item.kind === "find_time") return item.direction === "sent" ? `You asked to find a time: ${item.text}` : `${item.name}’s mate asked to find a time: ${item.text}`;
+  if (item.direction === "sent") return item.kind === "tell" ? `You told ${item.name}: ${item.text}` : `You asked: ${item.text}`;
+  if (item.kind === "tell") return `${item.name}’s mate: ${item.text}`;
+  return `${item.name}’s mate asked: ${item.text}`;
+}
+
+/** Everything between you and this friend's mate, newest first: what your mate shared, what was asked. */
+function Activity({ friendUserId, name }: { friendUserId: string; name: string }) {
+  const { colors } = useTheme();
+  const activity = useFriendActivity(friendUserId);
+  const items = activity.data ?? [];
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.textSecondary, fontFamily: font.semibold, fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase" }}>Between your mates</Text>
+      {items.length === 0 ? (
+        <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 14, lineHeight: 20, paddingHorizontal: 4 }}>
+          {activity.isPending ? "Loading…" : `Nothing yet. Try “ask ${name}’s mate…” or “tell ${name}…” in any chat.`}
+        </Text>
+      ) : (
+        <Group>
+          {items.map((item) => (
+            <View key={item.id} style={{ paddingHorizontal: 16, paddingVertical: 12, gap: 4 }}>
+              <Text style={{ color: colors.text, fontFamily: font.regular, fontSize: 14.5, lineHeight: 20 }}>{describe(item)}</Text>
+              {item.answer ? (
+                <Text style={{ color: item.sharedByYourMate ? colors.text : colors.textSecondary, fontFamily: item.sharedByYourMate ? font.medium : font.regular, fontSize: 13.5, lineHeight: 19 }}>
+                  {item.direction === "received" ? (item.sharedByYourMate ? "Your mate shared: " : "You answered: ") : `${item.answer.by === "person" ? name : `${name}’s mate`} said: `}
+                  {item.answer.text}
+                </Text>
+              ) : item.kind !== "tell" ? (
+                <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 13 }}>{item.kind === "find_time" && item.status === "answered" ? "Booked" : item.status === "waiting" ? "Waiting for an answer" : item.status === "declined" ? "Passed" : item.status === "expired" ? "No answer" : "Cancelled"}</Text>
+              ) : null}
+              <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 12 }}>{new Date(item.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</Text>
+            </View>
+          ))}
+        </Group>
+      )}
+    </View>
   );
 }

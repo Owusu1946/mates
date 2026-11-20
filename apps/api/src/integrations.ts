@@ -14,7 +14,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer" | "friend_request";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -82,6 +82,28 @@ export type WorkflowCard = {
     summary?: string;
     evidence?: { label: string; url?: string }[];
     error?: string;
+  };
+  /** A request between your mate and a friend's: an update or a question, as the viewer sees it. */
+  friendRequest?: {
+    id: string;
+    kind: "tell" | "ask" | "find_time";
+    /** sent: you asked; received: a friend's mate asked you. */
+    role: "sent" | "received";
+    friendUserId: string;
+    friendName: string;
+    text: string;
+    status: "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
+    /** allowed: it went through on its own, from the friend's permissions; asked: it waited for them. */
+    policy: "allowed" | "asked";
+    /** The receiver's mate's suggested answer, only on the receiver's card while it waits. */
+    draft?: string;
+    answer?: { text: string; by: "mate" | "person" };
+    /** find_time: what it is, the three times on offer while it waits, and the booking once picked. */
+    meeting?: { title: string; kind: string; durationMin: number; place: string | null };
+    slots?: { start: string; end: string; reason: string }[];
+    booked?: { start: string; end: string; link: string | null; ics: string | null };
+    /** Someone not on Mates: the link and message for the sender to send them, while it waits. */
+    guest?: { url: string; message: string };
   };
   /** Connect GitHub so a mate can open pull requests; Continue retries the request. */
   github?: { mate: string };
