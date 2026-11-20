@@ -316,6 +316,13 @@
       "when": 1795179117229,
       "tag": "0044_find_time",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795182813547,
+      "tag": "0045_friend_nickname",
+      "breakpoints": true
     }
   ]
 }

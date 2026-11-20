@@ -32,7 +32,7 @@ import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
 import { activityWith, cancelRequest, guestReply, guestView, icsForToken, replyToRequest, RequestError, requestFor } from "./mate-requests.js";
-import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, previewInvite, removeFriend, setPermissions } from "./friends.js";
+import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, myName, nameSchema, previewInvite, removeFriend, setMyName, setNickname, setPermissions } from "./friends.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
@@ -1336,12 +1336,26 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       try { await declineInvite(c.get("userId"), c.req.param("code")); return c.json({ ok: true }); }
       catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't do that.", c.get("requestId")), 409); }
     })
+    .get("/v1/profile/name", auth, async (c) => c.json(await myName(c.get("userId"))))
+    .put("/v1/profile/name", auth, validator("json", (value, c) => {
+      const parsed = nameSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Enter a name, up to 40 characters.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => c.json(await setMyName(c.get("userId"), c.req.valid("json").name)))
     .patch("/v1/friends/:userId", auth, validator("json", (value, c) => {
-      const parsed = z.object({ permissions: z.object({ freeTimes: z.boolean(), messages: z.boolean(), answers: z.boolean() }).partial().refine((p) => Object.keys(p).length > 0) }).safeParse(value);
-      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose what to share.", c.get("requestId")), 400);
+      const parsed = z.object({
+        permissions: z.object({ freeTimes: z.boolean(), messages: z.boolean(), answers: z.boolean() }).partial().refine((p) => Object.keys(p).length > 0).optional(),
+        nickname: z.string().trim().max(40).nullable().optional(),
+      }).refine((v) => v.permissions !== undefined || v.nickname !== undefined).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose what to share, or what to call them.", c.get("requestId")), 400);
       return parsed.data;
     }), async (c) => {
-      try { return c.json({ permissions: await setPermissions(c.get("userId"), c.req.param("userId"), c.req.valid("json").permissions) }); }
+      const body = c.req.valid("json");
+      try {
+        const permissions = body.permissions ? await setPermissions(c.get("userId"), c.req.param("userId"), body.permissions) : undefined;
+        const nickname = body.nickname !== undefined ? await setNickname(c.get("userId"), c.req.param("userId"), body.nickname) : undefined;
+        return c.json({ ...(permissions ? { permissions } : {}), ...(nickname !== undefined ? { nickname } : {}) });
+      }
       catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't save that.", c.get("requestId")), 409); }
     })
     .get("/v1/friends/:userId/activity", auth, async (c) => c.json({ items: await activityWith(c.get("userId"), c.req.param("userId")) }))
