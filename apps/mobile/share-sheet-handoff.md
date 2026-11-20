@@ -2,7 +2,7 @@
 
 ## Context
 
-The mobile feature is planned but not implemented. The desired flow is: share a URL or file from another app, choose a mate (last used preselected), add an optional note, send, and have the resulting user message and run appear in that mate's chat with the existing push path.
+The mobile working tree has the first native scaffold (not committed): an iOS share-extension target, App Group entitlements, a minimal mate cache published by the host app and cleared on sign-out, and placeholder extension UI. It does not yet send shares, and the Clerk credential path for an extension is unproven. The desired flow is: share a URL or file from another app, choose a mate (last used preselected), add an optional note, send, and have the resulting user message and run appear in that mate's chat with the existing push path.
 
 The mobile plan is in [`share-sheet-plan.md`](./share-sheet-plan.md). The outstanding product choice that most affects backend scope is how a voice note should be represented: transcript text, stored audio attachment, or both. Multi-item scope also needs confirmation.
 
