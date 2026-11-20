@@ -50,6 +50,16 @@ function recentBranch(items: HistoryItem[]): HistoryItem[] {
   return chain;
 }
 
+/**
+ * The metadata every assistant-ui message carries. Messages the server writes straight into a chat
+ * (a computer or code result, a skipped step) may have none, and assistant-ui reads
+ * `metadata.unstable_state` without a guard, so one such row would break loading the whole thread.
+ */
+export function withMetadata(metadata: unknown) {
+  const given = (metadata && typeof metadata === "object" ? metadata : {}) as Record<string, unknown>;
+  return { unstable_state: null, unstable_annotations: [], unstable_data: [], steps: [], custom: {}, ...given };
+}
+
 /** Server or cached rows as a repository the runtime can import. */
 function toRepository(items: HistoryItem[]): Repository {
   return {
@@ -67,7 +77,7 @@ function toRepository(items: HistoryItem[]): Repository {
           ...item.message,
           content: content.length || raw.role !== "assistant" ? content : [{ type: "text", text: "" }],
           ...(raw.role === "assistant" && (!raw.status || live) ? { status: { type: "complete", reason: "unknown" } } : {}),
-          ...(live ? { metadata: { ...raw.metadata, custom: { ...raw.metadata?.custom, live: true } } } : {}),
+          metadata: live ? withMetadata({ ...raw.metadata, custom: { ...raw.metadata?.custom, live: true } }) : withMetadata(raw.metadata),
           createdAt: new Date(item.message.createdAt),
         } as typeof item.message,
       };
