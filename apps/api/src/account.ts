@@ -15,6 +15,8 @@ import {
   delegations,
   deviceTokens,
   findings,
+  friendInvites,
+  friends,
   githubInstallations,
   integrationSessions,
   mates,
@@ -44,6 +46,7 @@ import {
   billingEvents,
 } from "./db/schema.js";
 import { deleteComputerFor } from "./computers.js";
+import { deleteFriendRowsAbout } from "./friends.js";
 import { getEnv } from "./env.js";
 import { githubConfigured, uninstallAll } from "./github.js";
 import { getComposio } from "./integrations.js";
@@ -69,6 +72,8 @@ export const ACCOUNT_TABLES = [
   slackLinks,
   delegations,
   findings,
+  friendInvites,
+  friends,
   browserSessions,
   agentRuns,
   recallEntries,
@@ -140,6 +145,8 @@ export async function deleteAccount(userId: string) {
   await stopObserving(userId).catch(() => undefined);
   // Their desktop and its disk (logins, files) go too; a failure here stops the deletion so it can be retried.
   await deleteComputerFor(userId);
+  // Friends: other people's rows about them (their own go with the tables below).
+  await deleteFriendRowsAbout(userId);
   const anonymous = `deleted_${randomUUID()}`;
   const [first, ...rest] = [
     ...ACCOUNT_LEDGERS.map((table) => db.update(table).set({ clerkUserId: anonymous }).where(eq(table.clerkUserId, userId))),

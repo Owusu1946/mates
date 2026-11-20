@@ -31,6 +31,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
+import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, previewInvite, removeFriend, setSharing } from "./friends.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
@@ -288,6 +289,12 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return session ? c.json(session) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
     })
     .post("/site/meetings/:id/leave", async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), c.req.query("t")) }))
+    // An invite link's page on the website: only the inviter's first name and whether it still works.
+    .get("/site/invites/:code", async (c) => {
+      c.header("cache-control", "no-store");
+      const preview = await previewInvite(c.req.param("code"), null);
+      return preview ? c.json({ name: preview.name, open: preview.state === "open" }) : c.json(failure("NOT_FOUND", "This invite link doesn't work.", c.get("requestId")), 404);
+    })
     // The deck the mate is presenting, for its share page (?s=) or its camera page as a fallback (?t=).
     .get("/site/meetings/:id/presentation", async (c) => {
       c.header("cache-control", "no-store");
@@ -1278,6 +1285,47 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       // Never log this body: it can be a password.
       try { await computerInput(c.get("userId"), input); return c.json({ ok: true }); }
       catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
+    })
+    .get("/v1/friends", auth, async (c) => c.json(await listFriends(c.get("userId"))))
+    .post("/v1/friends/invites", auth, async (c) => {
+      try { return c.json(await createInviteLink(c.get("userId"))); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't make an invite. Try again.", c.get("requestId")), 429); }
+    })
+    .post("/v1/friends/invites/email", auth, validator("json", (value, c) => {
+      const parsed = z.object({ email: z.string().trim().email().max(320) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Enter a valid email address.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try { return c.json(await inviteByEmail(c.get("userId"), c.req.valid("json").email)); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), error instanceof FriendError ? 429 : 502); }
+    })
+    .get("/v1/friends/invites/:code", auth, async (c) => {
+      const preview = await previewInvite(c.req.param("code"), c.get("userId"));
+      return preview ? c.json(preview) : c.json(failure("NOT_FOUND", "This invite link doesn't work.", c.get("requestId")), 404);
+    })
+    .post("/v1/friends/invites/:code/accept", auth, async (c) => {
+      try { return c.json(await acceptInvite(c.get("userId"), c.req.param("code"))); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't connect. Try again.", c.get("requestId")), 409); }
+    })
+    .post("/v1/friends/invites/:code/decline", auth, async (c) => {
+      try { await declineInvite(c.get("userId"), c.req.param("code")); return c.json({ ok: true }); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't do that.", c.get("requestId")), 409); }
+    })
+    .patch("/v1/friends/:userId", auth, validator("json", (value, c) => {
+      const parsed = z.object({ share: z.enum(["auto", "ask"]) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose what to share.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try { await setSharing(c.get("userId"), c.req.param("userId"), c.req.valid("json").share); return c.json({ ok: true }); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't save that.", c.get("requestId")), 409); }
+    })
+    .delete("/v1/friends/:userId", auth, async (c) => {
+      await removeFriend(c.get("userId"), c.req.param("userId"));
+      return c.json({ ok: true });
+    })
+    .post("/v1/friends/:userId/block", auth, async (c) => {
+      await blockFriend(c.get("userId"), c.req.param("userId"));
+      return c.json({ ok: true });
     })
     .use("/internal/*", async (c, next) => {
       if (!adminAuthorized(c.req.header("x-admin-key"))) return c.json(failure("UNAUTHORIZED", "Admin key required", c.get("requestId")), 401);
