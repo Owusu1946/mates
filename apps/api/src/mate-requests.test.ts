@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { FriendPermissions } from "./db/schema.js";
 import { isSensitiveQuestion, type Draft } from "./mate-answer.js";
 import {
+  releaseHeld,
   guestReply, guestView, icsForToken, meetingWindow,
   activityWith, cancelRequest, matchFriend, PER_FRIEND_PER_DAY, replyToRequest, REQUEST_HOURS, requestFor, sendToFriend, type MateRequest, type RequestDeps,
 } from "./mate-requests.js";
@@ -13,7 +14,7 @@ const AMA = "user_ama";
 const NAMES: Record<string, string> = { [KWAME]: "Kwame", [AMA]: "Ama" };
 
 /** Kwame and Ama as friends, an in-memory store, and a scripted answering mate. */
-function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Draft; friends?: boolean; busy?: Record<string, { start: number; end: number }[] | null>; noGoogle?: boolean } = {}) {
+function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Draft; friends?: boolean; busy?: Record<string, { start: number; end: number }[] | null>; noGoogle?: boolean; nickname?: string } = {}) {
   // Monday 23 November 2026, 09:00 in Accra.
   let clock = Date.parse("2026-11-23T09:00:00Z");
   let seq = 0;
@@ -24,10 +25,13 @@ function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Dr
   const calendarsRead: string[] = [];
   const booked: { organiser: string; guests: string[]; title: string }[] = [];
   let permissions: FriendPermissions = { freeTimes: true, messages: true, answers: false, ...options.permissions };
-  const connected = options.friends !== false;
+  let connected = options.friends !== false;
+  const friendRequests: { from: string; email: string }[] = [];
   const deps: RequestDeps = {
     now: () => clock,
-    friends: async (userId) => (connected ? [{ userId: userId === KWAME ? AMA : KWAME, name: userId === KWAME ? "Ama" : "Kwame" }] : []),
+    friends: async (userId) => (connected ? [userId === KWAME ? { userId: AMA, name: options.nickname ?? "Ama", aliases: ["Ama", ...(options.nickname ? [options.nickname] : [])] } : { userId: KWAME, name: "Kwame", aliases: ["Kwame"] }] : []),
+    byEmail: async (email) => ({ "ama@example.com": AMA, "kwame@example.com": KWAME } as Record<string, string>)[email] ?? null,
+    requestFriend: async (from, email) => { friendRequests.push({ from, email }); },
     permissions: async () => (connected ? permissions : null),
     allowAnswers: async () => { permissions = { ...permissions, answers: true }; },
     names: async (ids) => new Map(ids.map((id) => [id, NAMES[id] ?? "A friend"])),
@@ -56,10 +60,11 @@ function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Dr
         return next;
       },
       sentSince: async (userId, since, to) => [...rows.values()].filter((r) => r.clerkUserId === userId && r.createdAt > since && (!to || r.toUserId === to)).length,
+      held: async (a, b) => [...rows.values()].filter((r) => r.status === "held" && ((r.clerkUserId === a && r.toUserId === b) || (r.clerkUserId === b && r.toUserId === a))),
       between: async (a, b) => [...rows.values()].filter((r) => (r.clerkUserId === a && r.toUserId === b) || (r.clerkUserId === b && r.toUserId === a)).reverse(),
     },
   };
-  return { deps, rows, posts, notified, drafted, calendarsRead, booked, tick: (ms: number) => { clock += ms; }, get permissions() { return permissions; } };
+  return { deps, rows, posts, notified, drafted, calendarsRead, booked, friendRequests, connect: () => { connected = true; }, tick: (ms: number) => { clock += ms; }, get permissions() { return permissions; } };
 }
 
 const context = { mateId: "mate_k", chatId: "chat_kwame" };
@@ -278,5 +283,70 @@ describe("someone not on Mates", () => {
     await guestReply(request.token!, { action: "pick", slot: 2, email: " Yaw@Example.com ", name: "Yaw" }, h.deps);
     expect(h.booked[0]).toMatchObject({ organiser: KWAME, guests: ["yaw@example.com"] });
     expect(await guestView("nope", h.deps)).toBeNull();
+  });
+});
+
+describe("someone on Mates who isn't a friend yet", () => {
+  it("asks the mate for their email, or a link, without claiming they're not on Mates", async () => {
+    const h = harness({ friends: false });
+    const result = await sendToFriend(KWAME, { friend: "Samuel", kind: "ask", text: "Free Saturday?" }, context, h.deps);
+    expect(result).toMatchObject({ ok: false, notFriend: true });
+    expect((result as { error: string }).error).toMatch(/isn't one of the user's friends yet.*email/);
+    expect((result as { error: string }).error).not.toMatch(/isn't on Mates/);
+  });
+
+  it("sends a friend request to their email and holds the request until they accept", async () => {
+    const h = harness({ friends: false });
+    const result = await sendToFriend(KWAME, { friend: "Ama", kind: "find_time", text: "Lunch", email: "Ama@Example.com", meeting: { kind: "lunch", title: "Lunch with Ama", durationMin: 60 } }, context, h.deps);
+    expect(result).toMatchObject({ ok: true, summary: { status: "held" } });
+    expect(h.friendRequests).toEqual([{ from: KWAME, email: "ama@example.com" }]);
+    const request = (result as { request: MateRequest }).request;
+    expect(request).toMatchObject({ status: "held", toUserId: AMA });
+    expect((result as { card: { label: string } }).card.label).toBe("Waiting for Ama to accept");
+    // Nothing reaches Ama, and no calendar is read, until she accepts.
+    expect(h.posts).toEqual([]);
+    expect(h.calendarsRead).toEqual([]);
+
+    h.connect();
+    await releaseHeld(AMA, KWAME, h.deps);
+    expect(h.rows.get(request.id)).toMatchObject({ status: "waiting", toChatId: `mate_lead_${AMA}` });
+    expect(h.rows.get(request.id)!.slots).toHaveLength(3);
+    expect(h.notified.find((n) => n.userId === AMA)?.title).toBe("Kwame wants lunch with ama");
+    expect(h.posts.find((p) => p.chatId === "chat_kwame")!.content).toEqual([{ type: "text", text: "Ama accepted your friend request, so I’ve sent them some times for lunch with ama." }]);
+  });
+
+  it("goes straight through when the email belongs to someone already a friend", async () => {
+    const h = harness();
+    const result = await sendToFriend(KWAME, { friend: "Mama", kind: "tell", text: "On my way", email: "ama@example.com" }, context, h.deps);
+    expect(result).toMatchObject({ ok: true, summary: { status: "delivered", to: "Ama" } });
+    expect(h.friendRequests).toEqual([]);
+  });
+
+  it("makes a link, sent to the email's owner, when nobody on Mates has that email", async () => {
+    const h = harness({ friends: false });
+    const result = await sendToFriend(KWAME, { friend: "Yaw", kind: "ask", text: "Free Saturday?", email: "yaw@example.com" }, context, h.deps);
+    expect(result).toMatchObject({ ok: true, summary: { status: "link_ready" } });
+    expect((result as { request: MateRequest }).request.guestEmail).toBe("yaw@example.com");
+  });
+
+  it("refuses the user's own email", async () => {
+    const h = harness({ friends: false });
+    expect(await sendToFriend(KWAME, { friend: "Me", kind: "ask", text: "Hi", email: "kwame@example.com" }, context, h.deps)).toMatchObject({ ok: false, error: expect.stringMatching(/own email/) });
+  });
+});
+
+describe("what you call your friends", () => {
+  it("finds a friend by your nickname for them, or their own name", async () => {
+    const byNickname = harness({ nickname: "Sammy" });
+    expect(await sendToFriend(KWAME, { friend: "sammy", kind: "tell", text: "Running late" }, context, byNickname.deps)).toMatchObject({ ok: true });
+    const byOwnName = harness({ nickname: "Sammy" });
+    expect(await sendToFriend(KWAME, { friend: "Ama", kind: "tell", text: "Running late" }, context, byOwnName.deps)).toMatchObject({ ok: true });
+  });
+
+  it("matches nicknames like names: whole words, case-insensitive", () => {
+    const friends = [{ name: "Sammy", aliases: ["Samuel"] }, { name: "Uncle Kofi", aliases: ["Kofi"] }];
+    expect(matchFriend(friends, "samuel agbenyo")).toEqual([friends[0]]);
+    expect(matchFriend(friends, "uncle kofi")).toEqual([friends[1]]);
+    expect(matchFriend(friends, "Sam")).toEqual([friends[0]]);
   });
 });

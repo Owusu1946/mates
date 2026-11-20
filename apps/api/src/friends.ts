@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { randomInt } from "node:crypto";
 import { and, count, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
@@ -36,15 +37,15 @@ export type FriendStore = {
   declineInvite(code: string, userId: string, at: Date): Promise<boolean>;
   side(owner: string, friend: string): Promise<Friend | null>;
   /** Creates or updates one side of a friendship. */
-  putSide(owner: string, friend: string, values: Partial<Pick<Friend, "permissions" | "status">>): Promise<void>;
+  putSide(owner: string, friend: string, values: Partial<Pick<Friend, "permissions" | "status" | "nickname">>): Promise<void>;
   activeFriends(userId: string): Promise<Friend[]>;
   openRequestsTo(userId: string, now: Date): Promise<Invite[]>;
   openRequestsFrom(userId: string, now: Date): Promise<Invite[]>;
 };
 
 export type People = {
-  /** First names (or a fallback) for showing people to each other. */
-  names(userIds: string[]): Promise<Map<string, string>>;
+  /** First names (or a fallback) for showing people to each other; with `viewer`, what they call them. */
+  names(userIds: string[], viewer?: string): Promise<Map<string, string>>;
   /** The account with this verified email, if any. */
   byEmail(email: string): Promise<string | null>;
 };
@@ -53,6 +54,8 @@ export type FriendDeps = {
   store: FriendStore;
   people: People;
   notify(userId: string, message: { title: string; body: string; data: Record<string, unknown> }): Promise<unknown>;
+  /** Two people just became friends: requests held for that go out now. */
+  onConnected?(a: string, b: string): Promise<unknown>;
   now(): number;
 };
 
@@ -89,28 +92,41 @@ export const dbFriendStore: FriendStore = {
     getDb().select().from(friendInvites).where(and(eq(friendInvites.clerkUserId, userId), sql`${friendInvites.toUserId} IS NOT NULL`, isNull(friendInvites.acceptedAt), isNull(friendInvites.declinedAt), gt(friendInvites.expiresAt, now))),
 };
 
+/** The first word of a name, tidied: "samuel agbenyo" → "Samuel". */
+export const firstName = (name: string) => {
+  const word = name.trim().split(/\s+/)[0] ?? "";
+  return word.charAt(0).toUpperCase() + word.slice(1);
+};
+
 const clerk = async () => {
   const { createClerkClient } = await import("@clerk/backend");
   return createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 };
 
 export const clerkPeople: People = {
-  async names(userIds) {
+  async names(userIds, viewer) {
     const ids = [...new Set(userIds)];
     const names = new Map<string, string>();
     if (!ids.length) return names;
     const rows = await getDb().select({ id: profiles.clerkUserId, name: profiles.displayName }).from(profiles).where(inArray(profiles.clerkUserId, ids));
-    for (const row of rows) if (row.name?.trim()) names.set(row.id, row.name.trim().split(/\s+/)[0]!);
+    for (const row of rows) if (row.name?.trim()) names.set(row.id, firstName(row.name));
     const missing = ids.filter((id) => !names.has(id));
     if (missing.length) {
       try {
         const { data } = await (await clerk()).users.getUserList({ userId: missing, limit: missing.length });
-        for (const user of data) names.set(user.id, user.firstName?.trim() || user.username || "A friend");
+        // Someone who signed up with only an email has no name yet: the start of their email keeps
+        // friends tell-apart-able until they set one.
+        for (const user of data) names.set(user.id, user.firstName?.trim() || user.username || user.primaryEmailAddress?.emailAddress.split("@")[0] || "A friend");
       } catch {
         // Clerk unreachable: the fallback below still names everyone.
       }
     }
     for (const id of ids) if (!names.has(id)) names.set(id, "A friend");
+    if (viewer) {
+      const own = await getDb().select({ id: friends.friendUserId, nickname: friends.nickname }).from(friends)
+        .where(and(eq(friends.clerkUserId, viewer), inArray(friends.friendUserId, ids), sql`${friends.nickname} IS NOT NULL`));
+      for (const row of own) if (row.nickname?.trim()) names.set(row.id, row.nickname.trim());
+    }
     return names;
   },
   async byEmail(email) {
@@ -120,7 +136,14 @@ export const clerkPeople: People = {
   },
 };
 
-export const realFriendDeps = (): FriendDeps => ({ store: dbFriendStore, people: clerkPeople, notify: pushToUser, now: () => Date.now() });
+export const realFriendDeps = (): FriendDeps => ({
+  store: dbFriendStore,
+  people: clerkPeople,
+  notify: pushToUser,
+  // Imported when needed: requests depend on friends, not the other way round.
+  onConnected: async (a, b) => (await import("./mate-requests.js")).releaseHeld(a, b),
+  now: () => Date.now(),
+});
 
 // ── Rules ─────────────────────────────────────────────────────────────────────────────────
 
@@ -201,6 +224,8 @@ export async function acceptInvite(userId: string, code: string, deps = realFrie
   await deps.store.putSide(inviter, userId, { status: "active" });
   const name = (await deps.people.names([userId])).get(userId)!;
   await deps.notify(inviter, { title: `${name} is now your friend`, body: `Your mates can work together now. Try "find a time with ${name} for lunch".`, data: { url: "/friends" } }).catch(() => undefined);
+  // Anything either side asked for while waiting on this friendship goes out now.
+  await deps.onConnected?.(inviter, userId)?.catch((error: unknown) => console.warn("held_requests_failed", { message: error instanceof Error ? error.message : String(error) }));
   return { friendUserId: inviter, name: preview.name };
 }
 
@@ -209,7 +234,8 @@ export async function declineInvite(userId: string, code: string, deps = realFri
 }
 
 export type FriendsView = {
-  friends: { userId: string; name: string; permissions: FriendPermissions; since: string }[];
+  /** `name` is what you call them: your nickname for them, else their own name (`ownName`). */
+  friends: { userId: string; name: string; ownName: string; nickname: string | null; permissions: FriendPermissions; since: string }[];
   requests: { code: string; name: string; at: string }[];
   sent: { code: string; name: string; at: string }[];
 };
@@ -221,7 +247,7 @@ export async function listFriends(userId: string, deps = realFriendDeps()): Prom
   const mutual = (await Promise.all(mine.map(async (row) => ((await deps.store.side(row.friendUserId, userId))?.status === "active" ? row : null)))).filter((row): row is Friend => !!row);
   const names = await deps.people.names([...mutual.map((f) => f.friendUserId), ...incoming.map((i) => i.clerkUserId), ...outgoing.map((i) => i.toUserId!)]);
   return {
-    friends: mutual.map((f) => ({ userId: f.friendUserId, name: names.get(f.friendUserId)!, permissions: { ...DEFAULT_FRIEND_PERMISSIONS, ...f.permissions }, since: f.createdAt.toISOString() })).sort((a, b) => a.name.localeCompare(b.name)),
+    friends: mutual.map((f) => ({ userId: f.friendUserId, name: f.nickname?.trim() || names.get(f.friendUserId)!, ownName: names.get(f.friendUserId)!, nickname: f.nickname ?? null, permissions: { ...DEFAULT_FRIEND_PERMISSIONS, ...f.permissions }, since: f.createdAt.toISOString() })).sort((a, b) => a.name.localeCompare(b.name)),
     requests: incoming.map((i) => ({ code: i.code, name: names.get(i.clerkUserId)!, at: i.createdAt.toISOString() })),
     sent: outgoing.map((i) => ({ code: i.code, name: names.get(i.toUserId!)!, at: i.createdAt.toISOString() })),
   };
@@ -270,4 +296,39 @@ export async function deleteFriendRowsAbout(userId: string) {
     getDb().delete(friends).where(eq(friends.friendUserId, userId)),
     getDb().delete(friendInvites).where(eq(friendInvites.toUserId, userId)),
   ]);
+}
+
+/** What you call a friend ("Sammy"); null or empty goes back to their own name. */
+export async function setNickname(userId: string, friendUserId: string, nickname: string | null, deps = realFriendDeps()) {
+  const side = await deps.store.side(userId, friendUserId);
+  if (side?.status !== "active") throw new FriendError("You're not connected to this person.");
+  const value = nickname?.trim().slice(0, 40) || null;
+  await deps.store.putSide(userId, friendUserId, { nickname: value });
+  return value;
+}
+
+// ── Your own name, as friends see it ──────────────────────────────────────────────────────
+
+export const nameSchema = z.object({ name: z.string().trim().min(1).max(40) });
+
+/** Your name as friends see it (null until you set one), and a suggestion from your sign-in. */
+export async function myName(userId: string) {
+  const [row] = await getDb().select({ name: profiles.displayName }).from(profiles).where(eq(profiles.clerkUserId, userId));
+  let suggestion: string | null = null;
+  if (!row?.name) {
+    try {
+      const user = await (await clerk()).users.getUser(userId);
+      suggestion = [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || null;
+    } catch {
+      suggestion = null;
+    }
+  }
+  return { name: row?.name ?? null, suggestion };
+}
+
+export async function setMyName(userId: string, name: string) {
+  const value = name.trim().replace(/\s+/g, " ").slice(0, 40);
+  await getDb().insert(profiles).values({ clerkUserId: userId, displayName: value })
+    .onConflictDoUpdate({ target: profiles.clerkUserId, set: { displayName: value, updatedAt: new Date() } });
+  return { name: value, suggestion: null };
 }

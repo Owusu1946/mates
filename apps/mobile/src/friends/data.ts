@@ -5,7 +5,8 @@ import { createApiClient } from "../data/api";
 
 /** What a friend's mate may do with yours without asking you first. */
 export type FriendPermissions = { freeTimes: boolean; messages: boolean; answers: boolean };
-export type Friend = { userId: string; name: string; permissions: FriendPermissions; since: string };
+/** `name` is what you call them: your nickname, else their own name (`ownName`). */
+export type Friend = { userId: string; name: string; ownName: string; nickname: string | null; permissions: FriendPermissions; since: string };
 export type FriendsData = {
   friends: Friend[];
   requests: { code: string; name: string; at: string }[];
@@ -82,6 +83,15 @@ export function useFriendActions() {
       },
       ...settle,
     }),
+    setNickname: useMutation({
+      mutationFn: async ({ friend, nickname }: { friend: string; nickname: string | null }) =>
+        read<{ nickname: string | null }>(await api.v1.friends[":userId"].$patch({ param: { userId: friend }, json: { nickname } }), "Couldn’t save that."),
+      onMutate: ({ friend, nickname }) => {
+        const value = nickname?.trim() || null;
+        client.setQueryData<FriendsData>(["friends", userId], (data) => data && { ...data, friends: data.friends.map((f) => (f.userId === friend ? { ...f, nickname: value, name: value ?? f.ownName } : f)) });
+      },
+      ...settle,
+    }),
     remove: useMutation({
       mutationFn: async (friend: string) => read<{ ok: true }>(await api.v1.friends[":userId"].$delete({ param: { userId: friend } }), "Couldn’t remove them."),
       ...settle,
@@ -115,5 +125,28 @@ export function useFriendActivity(friendUserId: string | undefined) {
     enabled: !!friendUserId,
     queryFn: async () =>
       (await read<{ items: FriendActivity[] }>(await api.v1.friends[":userId"].activity.$get({ param: { userId: friendUserId! } }), "Couldn’t load this.")).items,
+  });
+}
+
+export type MyName = { name: string | null; suggestion: string | null };
+
+/** Your name as friends see it: null until you set one, with a suggestion from your sign-in. */
+export function useMyName() {
+  const api = useApi();
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: ["my-name", userId],
+    enabled: !!userId,
+    queryFn: async () => read<MyName>(await api.v1.profile.name.$get(), "Couldn’t load your name."),
+  });
+}
+
+export function useSetMyName() {
+  const api = useApi();
+  const { userId } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => read<MyName>(await api.v1.profile.name.$put({ json: { name } }), "Couldn’t save your name."),
+    onSuccess: (data) => client.setQueryData(["my-name", userId], data),
   });
 }

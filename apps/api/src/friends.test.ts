@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   acceptInvite, areFriends, blockFriend, createInviteLink, declineInvite, INVITE_DAYS, INVITES_PER_DAY, inviteByEmail, listFriends, newCode, previewInvite,
-  removeFriend, permissionsFor, setPermissions, type Friend, type FriendDeps, type Invite,
+  removeFriend, permissionsFor, setNickname, setPermissions, type Friend, type FriendDeps, type Invite,
 } from "./friends.js";
 
 vi.mock("./db/client.js", () => ({ getDb: () => { throw new Error("no database in tests"); } }));
@@ -16,11 +16,13 @@ function harness() {
   const invites = new Map<string, Invite>();
   const sides = new Map<string, Friend>();
   const notified: { userId: string; title: string }[] = [];
+  const connected: [string, string][] = [];
   const key = (a: string, b: string) => `${a}>${b}`;
   const open = (i: Invite, now: Date) => !i.acceptedAt && !i.declinedAt && i.expiresAt > now;
   const deps: FriendDeps = {
     now: () => clock,
     notify: async (userId, message) => { notified.push({ userId, title: message.title }); },
+    onConnected: async (a, b) => { connected.push([a, b]); },
     people: {
       names: async (ids) => new Map(ids.map((id) => [id, ({ [KWAME]: "Kwame", [AMA]: "Ama", [KOFI]: "Kofi" } as Record<string, string>)[id] ?? "A friend"])),
       byEmail: async (email) => ({ "ama@example.com": AMA, "kwame@example.com": KWAME } as Record<string, string>)[email] ?? null,
@@ -49,14 +51,14 @@ function harness() {
       side: async (a, b) => sides.get(key(a, b)) ?? null,
       putSide: async (a, b, values) => {
         const existing = sides.get(key(a, b));
-        sides.set(key(a, b), { clerkUserId: a, friendUserId: b, permissions: { freeTimes: true, messages: true, answers: false }, status: "active", createdAt: new Date(clock), updatedAt: new Date(clock), ...existing, ...values });
+        sides.set(key(a, b), { clerkUserId: a, friendUserId: b, permissions: { freeTimes: true, messages: true, answers: false }, nickname: null, status: "active", createdAt: new Date(clock), updatedAt: new Date(clock), ...existing, ...values });
       },
       activeFriends: async (userId) => [...sides.values()].filter((s) => s.clerkUserId === userId && s.status === "active"),
       openRequestsTo: async (userId, now) => [...invites.values()].filter((i) => i.toUserId === userId && open(i, now)),
       openRequestsFrom: async (userId, now) => [...invites.values()].filter((i) => i.clerkUserId === userId && !!i.toUserId && open(i, now)),
     },
   };
-  return { deps, invites, sides, notified, tick: (ms: number) => { clock += ms; } };
+  return { deps, invites, sides, notified, connected, tick: (ms: number) => { clock += ms; } };
 }
 
 const codeOf = (url: string) => new URL(url).searchParams.get("c")!;
@@ -192,5 +194,22 @@ describe("after connecting", () => {
     expect((await previewInvite(fromAma, KWAME, h.deps))?.state).toBe("unavailable");
     await expect(acceptInvite(KWAME, fromAma, h.deps)).rejects.toThrow(/doesn't work/);
     expect(await areFriends(KWAME, AMA, h.deps)).toBe(false);
+  });
+});
+
+describe("names", () => {
+  it("lets you call a friend what you like, and clear it again", async () => {
+    const h = harness();
+    await acceptInvite(AMA, codeOf((await createInviteLink(KWAME, h.deps)).url), h.deps);
+    expect(await setNickname(KWAME, AMA, "  Sis  ", h.deps)).toBe("Sis");
+    expect((await listFriends(KWAME, h.deps)).friends[0]).toMatchObject({ name: "Sis", ownName: "Ama", nickname: "Sis" });
+    expect(await setNickname(KWAME, AMA, "", h.deps)).toBeNull();
+    expect((await listFriends(KWAME, h.deps)).friends[0]).toMatchObject({ name: "Ama", nickname: null });
+  });
+
+  it("releases anything held for the friendship once it's accepted", async () => {
+    const h = harness();
+    await acceptInvite(AMA, codeOf((await createInviteLink(KWAME, h.deps)).url), h.deps);
+    expect(h.connected).toEqual([[KWAME, AMA]]);
   });
 });

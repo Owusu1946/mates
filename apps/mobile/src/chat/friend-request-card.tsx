@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Linking, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
-import Animated, { FadeIn, LinearTransition, ZoomIn } from "react-native-reanimated";
+import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { FriendAvatar } from "../friends/friend-avatar";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
@@ -113,8 +113,14 @@ export function FriendRequestCard({ state }: { state: WorkflowCard }) {
         </View>
       )}
 
+      {sent && request.status === "held" && (
+        <Text style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 12.5, lineHeight: 17 }}>
+          {name} is on Mates, so I sent a friend request. As soon as they accept, I’ll {request.kind === "find_time" ? "send them some times" : request.kind === "ask" ? "ask them" : "pass it on"}.
+        </Text>
+      )}
+
       {request.booked && (
-        <Animated.View entering={ZoomIn.springify().damping(16)} style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 12, borderRadius: 16, borderCurve: "continuous", backgroundColor: colors.surface }}>
+        <Animated.View entering={FadeIn.duration(220)} style={{ flexDirection: "row", alignItems: "center", gap: 14, padding: 12, borderRadius: 16, borderCurve: "continuous", backgroundColor: colors.surface }}>
           <View style={{ width: 52, height: 56, borderRadius: 12, overflow: "hidden", backgroundColor: colors.background, alignItems: "center" }}>
             <View style={{ alignSelf: "stretch", backgroundColor: colors.error, paddingVertical: 2, alignItems: "center" }}>
               <Text style={{ color: "#ffffff", fontFamily: "DMSans_700Bold", fontSize: 10.5, letterSpacing: 0.6 }}>{new Date(request.booked.start).toLocaleDateString(undefined, { month: "short" }).toUpperCase()}</Text>
@@ -170,7 +176,7 @@ export function FriendRequestCard({ state }: { state: WorkflowCard }) {
       {sent && request.guest && (
         <Animated.View entering={FadeIn.duration(180)} style={{ gap: 6 }}>
           <Text style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 12.5, lineHeight: 17 }}>
-            {name} isn’t on Mates yet. Send them the link: they {request.kind === "find_time" ? "pick a time" : request.kind === "ask" ? "answer" : "see it"} on a web page, no app needed.
+            {name} isn’t one of your friends yet. Send them the link: they {request.kind === "find_time" ? "pick a time" : request.kind === "ask" ? "answer" : "see it"} on a web page, with or without Mates. Or tell me their email and I’ll add them as a friend.
           </Text>
           <CardButton label={`Send ${name} the link`} onPress={() => void shareLink()} />
         </Animated.View>

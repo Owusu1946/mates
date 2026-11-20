@@ -1,5 +1,6 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { useState } from "react";
+import { Alert, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 import { useFriendActions, useFriendActivity, useFriends, type FriendActivity, type FriendPermissions } from "../../src/friends/data";
 import { FriendAvatar } from "../../src/friends/friend-avatar";
@@ -57,6 +58,8 @@ export default function FriendScreen() {
           Friends since {new Date(friend.since).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}
         </Text>
       </Animated.View>
+
+      <Nickname friendUserId={friend.userId} ownName={friend.ownName} nickname={friend.nickname} />
 
       <View style={{ gap: 8 }}>
         <Text style={{ color: colors.textSecondary, fontFamily: font.semibold, fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase" }}>
@@ -134,6 +137,39 @@ function Activity({ friendUserId, name }: { friendUserId: string; name: string }
           ))}
         </Group>
       )}
+    </View>
+  );
+}
+
+/** What you call this friend ("Sammy", "Uncle Kofi"): shown to you, and what your mate listens for. */
+function Nickname({ friendUserId, ownName, nickname }: { friendUserId: string; ownName: string; nickname: string | null }) {
+  const { colors } = useTheme();
+  const { setNickname } = useFriendActions();
+  const [value, setValue] = useState(nickname ?? "");
+  const save = () => {
+    const next = value.trim() || null;
+    if (next === (nickname ?? null)) return;
+    haptic.selection();
+    setNickname.mutate({ friend: friendUserId, nickname: next });
+  };
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: colors.textSecondary, fontFamily: font.semibold, fontSize: 13, letterSpacing: 0.3, textTransform: "uppercase" }}>What you call them</Text>
+      <TextInput
+        value={value}
+        onChangeText={setValue}
+        onBlur={save}
+        onSubmitEditing={save}
+        returnKeyType="done"
+        placeholder={ownName}
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="words"
+        maxLength={40}
+        style={{ height: 48, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.surface, color: colors.text, fontFamily: font.regular, fontSize: 16 }}
+      />
+      <Text style={{ color: colors.textMuted, fontFamily: font.regular, fontSize: 13, lineHeight: 18, paddingHorizontal: 4 }}>
+        Your mate knows them as {value.trim() || ownName}{value.trim() && value.trim() !== ownName ? ` or ${ownName}` : ""}. Only you see this.
+      </Text>
     </View>
   );
 }

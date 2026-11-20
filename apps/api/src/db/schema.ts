@@ -1106,6 +1106,8 @@ export const friends = pgTable("friends", {
   clerkUserId: text("clerk_user_id").notNull(),
   friendUserId: text("friend_user_id").notNull(),
   permissions: jsonb("permissions").$type<FriendPermissions>().notNull().default(DEFAULT_FRIEND_PERMISSIONS),
+  /** What this person calls their friend ("Sammy", "Uncle Kofi"); shown to them and matched when they name the friend in chat. */
+  nickname: text("nickname"),
   status: text("status").$type<FriendStatus>().notNull().default("active"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -1131,8 +1133,8 @@ export type MateRequestKind = "tell" | "ask" | "find_time";
 export type MeetingDetails = { kind: string; title: string; durationMin: number; from: string; to: string; place?: string | null; timezone: string };
 export type MeetingSlot = { start: string; end: string; reason: string };
 export type MeetingBooking = { start: string; end: string; eventId?: string | null; link?: string | null };
-/** delivered: an update that needs nothing back. waiting: on the friend's tap. */
-export type MateRequestStatus = "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
+/** delivered: an update that needs nothing back. waiting: on the friend's tap. held: until they accept a friend request. */
+export type MateRequestStatus = "held" | "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
 export type MateRequestAnswer = { text: string; by: "mate" | "person" };
 
 /**
