@@ -6,5 +6,7 @@ module.exports = () => ({
   bundleIdentifier: ".ShareExtension",
   deploymentTarget: "17.0",
   frameworks: ["SwiftUI"],
-  entitlements: {},
+  entitlements: {
+    "keychain-access-groups": ["$(AppIdentifierPrefix)app.askorin.mates.share-auth"],
+  },
 });

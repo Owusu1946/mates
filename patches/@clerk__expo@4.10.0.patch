@@ -1,0 +1,33 @@
+diff --git a/ios/ClerkNativeBridge.swift b/ios/ClerkNativeBridge.swift
+index 377cf304efa94a5ecaca518ef365d0a74d0e542f..1ee4fb1b9207f1c79101d89fe4aa5c1ad3bcb942 100644
+--- a/ios/ClerkNativeBridge.swift
++++ b/ios/ClerkNativeBridge.swift
+@@ -477,6 +477,16 @@ final class ClerkNativeBridge {
+     return Bundle.main.bundleIdentifier
+   }
+ 
++  /// Optional shared Keychain access group for trusted app extensions.
++  private static var keychainAccessGroup: String? {
++    guard let custom = Bundle.main.object(forInfoDictionaryKey: "ClerkKeychainAccessGroup") as? String,
++      !custom.isEmpty
++    else {
++      return nil
++    }
++    return custom
++  }
++
+   @MainActor
+   func configure(publishableKey: String, bearerToken: String? = nil) async throws {
+     configurationDepth += 1
+@@ -709,7 +719,10 @@ final class ClerkNativeBridge {
+     guard let service = keychainService else {
+       return .init(middleware: middleware)
+     }
+-    return .init(keychainConfig: .init(service: service), middleware: middleware)
++    return .init(
++      keychainConfig: .init(service: service, accessGroup: keychainAccessGroup),
++      middleware: middleware
++    )
+   }
+ 
+   @MainActor

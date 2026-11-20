@@ -2,9 +2,15 @@
 
 ## Context
 
-The mobile working tree has the first native scaffold (not committed): an iOS share-extension target, App Group entitlements, a minimal mate cache published by the host app and cleared on sign-out, and placeholder extension UI. It does not yet send shares, and the Clerk credential path for an extension is unproven. The desired flow is: share a URL or file from another app, choose a mate (last used preselected), add an optional note, send, and have the resulting user message and run appear in that mate's chat with the existing push path.
+Commit 1 adds the iOS share-extension scaffold: an iOS target, App Group entitlements, a minimal mate cache published by the host app and cleared on sign-out, and placeholder extension UI. The extension does not yet send shares, and its Clerk credential path is unproven. The desired flow is: share a URL, image, or PDF from another app, choose a mate (last used preselected), add an optional note, send, and have the resulting user message and run appear in that mate's chat with the existing push path.
 
-The mobile plan is in [`share-sheet-plan.md`](./share-sheet-plan.md). The outstanding product choice that most affects backend scope is how a voice note should be represented: transcript text, stored audio attachment, or both. Multi-item scope also needs confirmation.
+The mobile plan and progress are in [`share-sheet-plan.md`](./share-sheet-plan.md). First-release scope is one item per share; voice notes are deferred. No audio API work is requested for this release.
+
+## Mobile auth gate
+
+Clerk's native iOS SDK documents sharing sessions across trusted apps/extensions through a common Keychain service and access group ([shared-session requirements](https://clerk.com/docs/ios/reference/native-mobile/shared-session-sync)). The Team ID `6KBN2JVL76`, shared Keychain service/group, and extension-side ClerkKit token check are now configured. A local patch to `@clerk/expo` adds the access-group option to the host app's native Clerk configuration. The first extension build failed because ClerkKit is linked to the `ClerkExpo` CocoaPods target but is not available to the share-extension target. This is the immediate mobile blocker; the signed-device proof has not happened. Expo SecureStore documents iOS access groups ([SecureStore API](https://docs.expo.dev/versions/latest/sdk/securestore/#types)), and the app must still verify extension token refresh and sign-out behavior once the extension can compile.
+
+Mobile should finish the auth spike before implementing the iOS send flow. First link ClerkKit to the extension and compile it; then verify extension-side token refresh, API authorization, sign-out propagation, and the no-session case on a signed build. If no valid session is available, retain the pending share and offer “Open in Mates to refresh your session.” Do not add a backend token-exchange endpoint for this flow. Team ID is configured; signed Keychain Sharing still requires valid provisioning credentials and device validation.
 
 ## Existing backend behavior to build on
 
@@ -16,12 +22,10 @@ The mobile plan is in [`share-sheet-plan.md`](./share-sheet-plan.md). The outsta
 
 ## Ken's backend scope
 
-1. **First confirm voice-note behavior and MIME formats with mobile.** Do not add general audio/video upload support by default.
-2. **If transcript text is sufficient:** check whether `/v1/transcribe` accepts the exact source formats and size range from iOS/Android. That route returns transcript text; it does not store/link the original recording. If it fits, no new attachment endpoint should be needed.
-3. **If audio must remain attached:** add only the required audio MIME/extension support to attachment validation and define how the agent consumes audio (transcribe during analysis, pass audio through, or preserve audio plus transcript). Review provider/model limits before accepting audio into the general attachment pipeline.
-4. **Preserve retry and push behavior.** Run submissions are idempotent by `requestKey`, but attachment uploads are not. The mobile flow uploads before creating a run, so determine whether unlinked attachments need cleanup or whether retry can safely retain/reuse an upload. Verify share-originated runs trigger the existing push follow-up and keep `chatId` in notification data.
-5. **Keep API changes narrow and backward compatible.** Add contract changes only when request/response behavior changes. Add focused API tests for new audio types, limits, ownership, run linking, and push eligibility as applicable.
-6. **Own API deployment when needed.** Document required environment/configuration changes (if any), deploy the API before the dependent native app release, and report the deployed version/commit plus a smoke-check result to mobile. Do not put server credentials in `apps/mobile` or the iOS App Group.
+1. **No audio behavior is in the first-release scope.** Do not add audio/video upload or transcription support unless mobile reopens that scope.
+2. **Preserve retry and push behavior.** Run submissions are idempotent by `requestKey`, but attachment uploads are not. The mobile flow uploads before creating a run, so determine whether unlinked attachments need cleanup or whether retry can safely retain/reuse an upload. Verify share-originated runs trigger the existing push follow-up and keep `chatId` in notification data.
+3. **Keep API changes narrow and backward compatible.** Add contract changes only when request/response behavior changes. No API change is currently indicated for one URL, image, or PDF per share.
+4. **Own API deployment only if a concrete backend change is needed.** Document required environment/configuration changes, deploy before a dependent native app release, and report the deployed version/commit plus a smoke-check result to mobile. Do not put server credentials in `apps/mobile` or the iOS App Group.
 
 The iOS extension credential design is a mobile/native concern. Do not add a `/v1/token` or similar exchange endpoint as a shortcut; Clerk's session token is a short-lived JWT, and any long-lived credential exchange needs an explicit reviewed authorization model.
 
@@ -33,4 +37,4 @@ The iOS extension credential design is a mobile/native concern. Do not add a `/v
 
 ## Coordination gate
 
-Please wait for the voice-note decision before implementing audio-specific API behavior. The photo/PDF/link path can use the existing endpoints and should remain independent of any optional audio work.
+There is no backend implementation or deployment task for the chosen first-release scope at this time. Keep the API unchanged unless investigation finds a concrete contract gap; coordinate with mobile before reopening audio scope.

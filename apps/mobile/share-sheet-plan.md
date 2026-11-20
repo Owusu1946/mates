@@ -6,6 +6,21 @@ From another app, share a link or supported file to a mate, optionally add an in
 
 Out of scope: sharing content from Mates to other apps; that already exists.
 
+## First-release decisions and progress
+
+- **Content:** URLs, images, and PDFs only. Voice notes are deferred; do not add audio upload or transcription behavior to this release.
+- **Share count:** one item per share. The extension activation rules and send flow should stay single-item for this release.
+- **Commit 1 scaffold:** adds the iOS target, App Group wiring, minimal mate cache, and placeholder extension UI. This is not yet a usable send flow.
+- **Authentication gate:** still open. Do not begin the end-to-end iOS send flow until extension authentication is proved or the expired-session fallback is agreed and implemented.
+
+### Clerk extension-auth investigation
+
+The installed `@clerk/expo` version is 4.10.0. Source inspection shows its built-in token cache uses `expo-secure-store` and caches Clerk's native device token under `__clerk_client_jwt`; that is separate from the short-lived session JWT returned by `getToken()`. Expo SecureStore supports a shared iOS Keychain `accessGroup`, and Clerk's native iOS SDK supports sharing sessions when each target uses the same Keychain service, access group, Clerk publishable key, and Apple Developer Team ([Clerk shared-session requirements](https://clerk.com/docs/ios/reference/native-mobile/shared-session-sync), [Expo SecureStore access-group option](https://docs.expo.dev/versions/latest/sdk/securestore/#types)).
+
+The integration is not yet proved for this Expo app: the installed Expo Clerk native bridge configures the Keychain service but does not expose an access-group option. A local pnpm patch now configures the same Keychain access group in the host app and a minimal SwiftUI extension check attempts `Clerk.shared.auth.getToken()`. The Apple Team ID (`6KBN2JVL76`), shared Keychain group, and service are configured in Expo and extension target config. However, the extension build currently fails because the `ClerkKit` Swift package product is linked to the `ClerkExpo` CocoaPods target, not the share-extension target; the extension cannot import it yet. Resolve that target dependency cleanly, then verify sign-in, extension-side session refresh, sign-out propagation, and API authorization on a signed iOS build. Do not place session JWTs in App Group defaults or add a token-exchange endpoint as a shortcut.
+
+If the extension has no valid session, retain the pending share and offer **Open in Mates to refresh your session**. Team ID configuration is in place, but signed Keychain Sharing still needs validation on a device with working provisioning credentials.
+
 ## Current baseline
 
 - Mobile already uploads attachments through `POST /v1/attachments` and starts work through `POST /v1/runs`.
@@ -13,16 +28,14 @@ Out of scope: sharing content from Mates to other apps; that already exists.
 - `/v1/transcribe` exists, but returns transcript text and does not store an audio attachment. Decide whether that meets the product meaning of “share a voice note.”
 - Run completion already enters the follow-up/push path. Reuse it; do not add a separate push mechanism unless verification shows a gap.
 - `useMates()` caches the full mates response in AsyncStorage under the per-user `mates` cache key. An iOS extension cannot read that app sandbox.
-- The widget target already names App Group `group.app.askorin.mates`. The host app's checked-in `Mates.entitlements` is empty, so the app currently lacks the matching entitlement in that file. Verify and fix the host app entitlement before relying on the group; add the same group to the share target.
-- `expo-sharing` is installed for outbound sharing but is not configured as an inbound share plugin. SDK 57 also supports inbound Android intents through its config plugin and incoming-share APIs; configure and use that for Android if its payload behavior fits. Its inbound iOS extension opens the main app, so it does not satisfy the requested in-extension iOS UI. `expo-apple-targets` is not installed. Existing widget code uses `expo-widgets`, so the targets must coexist in prebuild and signing.
+- The widget target already names App Group `group.app.askorin.mates`. Commit 1 adds the group to `ios.entitlements` in `app.json`; prebuild verified the host app and share target entitlements. The generated `ios/` files are ignored and should remain generated.
+- `expo-sharing` is installed for outbound sharing but is not configured as an inbound share plugin. SDK 57 also supports inbound Android intents through its config plugin and incoming-share APIs; configure and use that for Android if its payload behavior fits. Its inbound iOS extension opens the main app, so it does not satisfy the requested in-extension iOS UI. Commit 1 added `@bacons/apple-targets`; existing widget code uses `expo-widgets`, so both targets must continue to coexist through prebuild and signing.
 - `uploadAttachment()` depends on `expo/fetch` and `expo-file-system`; `resolveApiUrl()` can inspect Expo Constants in development. Do not assume those app helpers or Expo modules are available in a separate extension process.
 
-## Decisions before implementation
+## Remaining implementation gates
 
-1. **Voice notes:** transcribe to text with the existing endpoint, upload/store audio as an attachment, or do both. If audio is an attachment, settle supported iOS/Android MIME types and whether the mate receives playable audio, transcription, or both.
-2. **Multiple items:** support one item per share or several. If several, use the existing maximum of four attachments and define whether 4 MiB is per item or total. Current API enforcement is per file.
-3. **iOS authentication:** prove how the extension can refresh Clerk credentials while the main app is not running. Clerk session tokens are short-lived JWTs; copying one at sign-in does not provide a durable credential. The existing `@clerk/expo/token-cache` uses `expo-secure-store`, but do not assume it can use a Keychain access group shared with an extension. Verify the exact cache API and Clerk refresh requirements. If a supported shared Keychain cache cannot be established, the fallback is explicit: keep the share pending and offer “Open in Mates to refresh your session.” Do not add a backend token-exchange endpoint around a long-lived credential without a reviewed auth design.
-4. **Failure recovery:** define how pending content moves to Mates after upload/run failure and how retry avoids duplicate run submissions or repeated uploads.
+1. **iOS authentication:** complete the auth spike described above. The host app and extension now declare a shared Clerk Keychain service/access group, but extension-side ClerkKit linking currently blocks compilation. After fixing the package linkage, verify auth on a signed build. Use the pending-share fallback whenever no valid token can be obtained.
+2. **Failure recovery:** define how pending content moves to Mates after upload/run failure and how retry avoids duplicate run submissions or repeated uploads.
 
 The App Group identifier is already established for the widget as `group.app.askorin.mates`; use it consistently after fixing host-app entitlement generation.
 
@@ -69,19 +82,17 @@ The shared mate cache should contain only the signed-in user's mate IDs, names, 
 ### 5. Verify native builds and user outcomes
 
 - Build iOS and Android binaries; these target/manifest changes cannot ship by OTA alone.
-- Verify links, supported photos/PDFs, chosen voice-note behavior, one/multiple item policy, last-used mate, note submission, signed-out/expired auth, upload failure, run failure after upload, and the size boundary.
+- Verify URLs, supported images/PDFs, the one-item rule, last-used mate, note submission, signed-out/expired auth, upload failure, run failure after upload, and the size boundary. Voice notes are out of scope for this release.
 - Confirm accepted shares appear in the selected chat and that the current push path is attempted. Push is best-effort, so the share UI confirms server acceptance rather than promising device receipt.
 
 ## Commit estimate
 
-Plan for **three mobile implementation commits**, plus **one API commit if audio attachment support is required**:
+The chosen first release is **three mobile implementation commits**. Voice-note support is deferred, so there is no audio API commit in the current scope. Reopen the API estimate only if a later product decision adds audio or an existing contract gap is found.
 
-1. `feat(mobile): add iOS share target and shared context` — target/config/App Group/auth spike and minimal app-to-extension data bridge.
+1. `feat(mobile): add iOS share target and shared context` — target/config/App Group and minimal app-to-extension data bridge. The Clerk auth spike remains a gate before the send-flow commit.
 2. `feat(mobile): share content with a mate on iOS` — payload handling, mate/note UI, upload/run, and recovery.
 3. `feat(mobile): receive shares on Android` — intent registration, route, payload handling, and shared send flow.
-4. `feat(api): support shared voice-note attachments` — conditional on the chosen voice-note behavior; include contract and tests.
-
-If voice notes are transcribed through the existing endpoint and no API change is needed, expect **three implementation commits**. Keep tests with the commit that introduces each behavior. The two planning documents are separate planning artifacts, not part of that implementation estimate.
+Keep tests with the commit that introduces each behavior. The two planning documents are separate planning artifacts, not part of that implementation estimate.
 
 ## Expo native-code approach
 
