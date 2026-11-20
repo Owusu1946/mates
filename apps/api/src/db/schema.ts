@@ -162,7 +162,7 @@ export const agentRuns = pgTable(
     pendingToolkit: text("pending_toolkit"),
     messages: jsonb("messages").$type<Record<string, unknown>[]>().notNull(),
     /** In a group, the hand-offs still to run after this mate, kept while it waits on the user. */
-    groupQueue: jsonb("group_queue").$type<{ mateId: string; task: string; assignments: { mateId: string; task: string }[]; replies: { name: string; text: string }[] }>(),
+    groupQueue: jsonb("group_queue").$type<{ mateId: string; task: string; assignments: { mateId: string; task: string }[]; replies: { mateId?: string; name: string; text: string }[]; comparison?: { mateIds: string[]; failedIds: string[]; question: string } }>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

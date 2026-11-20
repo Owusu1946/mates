@@ -53,6 +53,22 @@ export function collaborationAssignments(mentioned: PersonaMate[], leaderId: str
   return { handoff: "", assignments };
 }
 
+/** A conservative first-release trigger: multiple tagged mates, one shared decision question. */
+export function isComparisonRequest(text: string, mentioned: readonly PersonaMate[]) {
+  if (mentioned.length < 2) return false;
+  let visible = visibleMentionText(text);
+  for (const mate of [...mentioned].sort((a, b) => b.name.length - a.name.length)) {
+    const name = mate.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    visible = visible.replace(new RegExp(`@${name}(?=$|[\\s,?.!;:])`, "gi"), "@mate");
+  }
+  // Keep distinct asks such as "@Esi check the budget; @Kojo check visas" on the ordinary relay.
+  if (!/@mate(?:\s*(?:,|and|&)\s*|\s+)@mate/i.test(visible)) return false;
+  // A link's query string is not another question from the user.
+  const withoutUrlQueries = visible.replace(/https?:\/\/\S+/gi, (url) => url.replace(/\?[^?\s]+/g, ""));
+  if ((withoutUrlQueries.match(/\?/g) ?? []).length > 1) return false;
+  return /\?|\bask\b.*\b(?:if|whether|what|which|should|would|do|does|is|are)\b|\b(?:compare|recommend|suggest|advise|opinion|thoughts|whether)\b/i.test(visible);
+}
+
 /**
  * A mate's reply that opens as another mate ("Ama: Hello again!") speaks for them: that opening is
  * dropped. Only a leading name and colon, plain or bold, of a mate who isn't the speaker.
@@ -228,4 +244,90 @@ export function handoffCard(leader: PersonaMate, items: { mate: PersonaMate; tas
     label: round ? `Round ${round}` : asked ? `You asked ${tagged.join(" and ")}` : `${leader.name} handed off`,
     handoff: { round, from: summary(leader), ...(asked && !round ? { asked: true } : {}), items: items.map((i) => ({ mate: summary(i.mate), task: i.task, status: i.status })) },
   };
+}
+
+const comparisonSchema = z.object({
+  per_mate: z.array(z.object({ mate_id: z.string(), recommendation: z.string(), basis: z.string() })),
+  disagreements: z.array(z.string()),
+  suggestion: z.string(),
+});
+
+/** The model supplies wording; mate identity and role always come from the actual relay. */
+export async function comparisonCard(input: {
+  leader: PersonaMate;
+  mates: PersonaMate[];
+  replies: { mateId: string; text: string }[];
+  failed: PersonaMate[];
+  question: string;
+  signal: AbortSignal;
+  meter?: MeterContext;
+}): Promise<WorkflowCard> {
+  const answered = input.mates.filter((mate) => input.replies.some((reply) => reply.mateId === mate.id && reply.text.trim()));
+  const failed = input.mates.filter((mate) => input.failed.some((item) => item.id === mate.id) || !answered.some((item) => item.id === mate.id));
+  const base = {
+    kind: "comparison" as const,
+    phase: "done" as const,
+    label: `${input.leader.name}'s take`,
+    comparison: {
+      lead: { id: input.leader.id, name: input.leader.name },
+      failedMates: failed.map(({ id, name }) => ({ id, name })),
+    },
+  };
+  if (!answered.length) return { ...base, comparison: { ...base.comparison, perMate: [], disagreements: [], suggestion: "No mate could answer this time. Please try again." } };
+
+  const roster = answered.map((mate) => ({
+    id: mate.id,
+    name: mate.name,
+    role: mate.roleDescription || mate.role,
+    answer: input.replies.find((reply) => reply.mateId === mate.id)!.text.slice(0, 4_000),
+  }));
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    signal: AbortSignal.any([input.signal, AbortSignal.timeout(20_000)]),
+    headers: { authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: CHAT_MODEL,
+      max_tokens: 700,
+      usage: { include: true },
+      reasoning: { effort: "low" },
+      messages: [
+        { role: "system", content: `You are ${input.leader.name}, the lead mate. Turn the mates' answers into a short decision summary. Use only what each mate actually said. Give each answering mate a brief recommendation and the basis they stated; if either is absent, say "No clear recommendation" or "No basis given". List only substantive disagreements. If they agree, return an empty disagreements array. Give your own concise suggestion based only on the answers. Never write a recommendation for a mate who did not answer.` },
+        { role: "user", content: JSON.stringify({ question: input.question.slice(0, 2_000), answers: roster, could_not_answer: failed.map((mate) => mate.name) }) },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "mate_comparison",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              per_mate: { type: "array", items: { type: "object", properties: { mate_id: { type: "string" }, recommendation: { type: "string" }, basis: { type: "string" } }, required: ["mate_id", "recommendation", "basis"], additionalProperties: false } },
+              disagreements: { type: "array", items: { type: "string" } },
+              suggestion: { type: "string" },
+            },
+            required: ["per_mate", "disagreements", "suggestion"],
+            additionalProperties: false,
+          },
+        },
+      },
+    }),
+  });
+  if (!response.ok) throw new Error(`Comparison summary failed: ${response.status}`);
+  const result = (await response.json()) as { choices?: { message?: { content?: string } }[]; usage?: OpenRouterUsage };
+  if (input.meter) void meterOpenRouter(input.meter, CHAT_MODEL, result.usage);
+  const summary = comparisonSchema.parse(JSON.parse(result.choices?.[0]?.message?.content ?? "null"));
+  const rows = new Map(summary.per_mate.map((row) => [row.mate_id, row]));
+  const perMate = answered.map((mate) => {
+    const row = rows.get(mate.id);
+    return {
+      mate: { id: mate.id, name: mate.name, role: mate.roleDescription || mate.role },
+      recommendation: row?.recommendation.trim().slice(0, 300) || "No clear recommendation",
+      basis: row?.basis.trim().slice(0, 400) || "No basis given",
+    };
+  });
+  const suggestion = summary.suggestion.trim().slice(0, 600);
+  if (!suggestion) throw new Error("Comparison summary has no suggestion");
+  const disagreements = answered.length > 1 ? summary.disagreements.map((item) => item.trim().slice(0, 300)).filter(Boolean).slice(0, 3) : [];
+  return { ...base, comparison: { ...base.comparison, perMate, disagreements, suggestion } };
 }
