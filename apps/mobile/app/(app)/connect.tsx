@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, ZoomIn } from "react-native-reanimated";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChatIcon } from "../../src/chat/chat-icon";
 import { useToast } from "../../src/components/toast";
@@ -55,10 +55,10 @@ export default function ConnectScreen() {
           <Message title={closed.title} body={closed.body} />
         ) : (
           <>
-            <Animated.View entering={ZoomIn.springify().damping(14)} style={{ flexDirection: "row", alignItems: "center" }}>
+            <Animated.View entering={FadeIn.duration(220)} style={{ flexDirection: "row", alignItems: "center" }}>
               <FriendAvatar userId={c ?? invite.name} name={invite.name} size={76} />
               {done && (
-                <Animated.View entering={ZoomIn.delay(120).springify()} style={{ marginLeft: -18, width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.background, backgroundColor: colors.text, alignItems: "center", justifyContent: "center" }}>
+                <Animated.View entering={FadeIn.duration(200)} style={{ marginLeft: -18, width: 40, height: 40, borderRadius: 20, borderWidth: 3, borderColor: colors.background, backgroundColor: colors.text, alignItems: "center", justifyContent: "center" }}>
                   <ChatIcon name="check" color={colors.background} size={20} />
                 </Animated.View>
               )}
