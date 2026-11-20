@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { router } from "expo-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { useMates } from "../../src/mates/data";
 import { canRetryPendingShare, discardPendingShare, readPendingShare, sendPendingShare } from "../../src/share/pending";
@@ -14,6 +14,16 @@ export default function PendingShareScreen() {
   const { colors } = useTheme();
   const mate = useMates().data?.mates.find((item) => item.id === share?.mateId);
   const retryReady = !!share && canRetryPendingShare(share);
+
+  useEffect(() => {
+    if (!share || retryReady) return;
+    const timer = setInterval(() => {
+      const current = readPendingShare(userId ?? "");
+      if (!current || current.id !== share.id) setShare(null);
+      else if (current.state !== share.state || current.uploadedId !== share.uploadedId || canRetryPendingShare(current)) setShare(current);
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [retryReady, share, userId]);
 
   const retry = async () => {
     if (!share || sending || !retryReady) return;
@@ -57,7 +67,7 @@ export default function PendingShareScreen() {
             {!!share.fileName && <Text style={{ color: colors.textSecondary, fontSize: 14 }}>{share.fileName}</Text>}
           </View>
           {!!error && <Text accessibilityRole="alert" style={{ color: colors.error, fontSize: 14 }}>{error}</Text>}
-          {!retryReady && <Text style={{ color: colors.textSecondary }}>The share extension is still sending this item. Open Mates again if it does not finish.</Text>}
+          {!retryReady && <Text style={{ color: colors.textSecondary }}>The share extension is still sending this item. This screen will update when it finishes.</Text>}
           <Pressable
             accessibilityRole="button"
             disabled={sending || !retryReady}

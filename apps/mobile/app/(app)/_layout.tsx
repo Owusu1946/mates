@@ -58,7 +58,14 @@ function AuthenticatedStack({ userId }: { userId: string }) {
     const listener = AppState.addEventListener("change", state => {
       if (state === "active") void openPending();
     });
-    return () => listener.remove();
+    // The extension can finish while Mates remains active, without an AppState event.
+    const timer = Platform.OS === "ios" ? setInterval(() => {
+      if (AppState.currentState === "active") void openPending();
+    }, 2000) : null;
+    return () => {
+      listener.remove();
+      if (timer) clearInterval(timer);
+    };
   }, [router, userId]);
   const handledResponses = useRef(new Map<string, number>());
   useEffect(() => {
