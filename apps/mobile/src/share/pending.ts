@@ -3,6 +3,7 @@ import { File } from "expo-file-system";
 import { Platform } from "react-native";
 import { uploadAttachment } from "../chat/attachments";
 import { runRequest } from "../chat/background-chat";
+import { createApiClient } from "../data/api";
 
 const storage = new ExtensionStorage("group.app.askorin.mates");
 const PENDING_KEY = "share.pending.v1";
@@ -38,6 +39,35 @@ function savePendingShare(share: PendingShare) {
   storage.set(PENDING_KEY, JSON.stringify(share));
 }
 
+/** Attach a share turn to the current conversation before submitRun creates its assistant row. */
+async function saveShareMessage(share: PendingShare, uploadedId: string | undefined, getToken: () => Promise<string | null>) {
+  const api = createApiClient(getToken);
+  const response = await api.v1.chats[":id"].messages.$get({ param: { id: share.chatId } });
+  if (!response.ok) throw new Error("Couldn’t load this chat before sharing. Try again.");
+  const { messages } = await response.json();
+  const messageId = `user_share_${share.id}`;
+  if (messages.some((item) => item.message.id === messageId)) return;
+
+  const parents = new Set(messages.flatMap((item) => item.parentId ? [item.parentId] : []));
+  const candidate = messages.filter((item) => typeof item.message.id === "string" && !parents.has(item.message.id)).at(-1)?.message.id;
+  const head = typeof candidate === "string" ? candidate : null;
+  const content = [share.note, share.link ?? ""].filter(Boolean).join("\n\n");
+  const message = {
+    id: messageId,
+    role: "user" as const,
+    createdAt: new Date().toISOString(),
+    content: content ? [{ type: "text", text: content }] : [],
+    ...(uploadedId && share.fileName ? {
+      attachments: [{ id: uploadedId, name: share.fileName, type: share.contentType?.startsWith("image/") ? "image" : "file" }],
+    } : {}),
+  };
+  const saved = await api.v1.chats[":id"].messages.$put(
+    { param: { id: share.chatId } },
+    { init: { body: JSON.stringify({ parentId: head, message }), headers: { "content-type": "application/json" } } },
+  );
+  if (!saved.ok) throw new Error("Couldn’t add this share to the chat. Try again.");
+}
+
 export function discardPendingShare(share: PendingShare) {
   if (readPendingShare(share.userId)?.id !== share.id) return;
   storage.remove(PENDING_KEY);
@@ -50,7 +80,7 @@ export function discardPendingShare(share: PendingShare) {
 export async function sendPendingShare(share: PendingShare, getToken: () => Promise<string | null>) {
   const current = readPendingShare(share.userId);
   if (current?.id !== share.id) throw new Error("This share is no longer pending.");
-  let uploadedId = current.uploadedId;
+  let uploadedId = current.uploadedId ?? undefined;
   if (current.filePath && !uploadedId) {
     if (!current.fileName || !current.contentType) throw new Error("The shared file is no longer available.");
     const uploaded = await uploadAttachment({
@@ -62,6 +92,7 @@ export async function sendPendingShare(share: PendingShare, getToken: () => Prom
     savePendingShare({ ...current, uploadedId });
   }
   const content = [current.note, current.link ?? ""].filter(Boolean).join("\n\n");
+  await saveShareMessage(current, uploadedId, getToken);
   const { runId } = await runRequest<{ runId: string }>(getToken, "runs", {
     chatId: current.chatId,
     requestKey: `share_${current.id}`,
