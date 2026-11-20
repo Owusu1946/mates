@@ -32,9 +32,20 @@ enum SharePayload {
   static func load(from context: NSExtensionContext?) async throws -> SharePayload {
     guard let providers = context?.inputItems
       .compactMap({ $0 as? NSExtensionItem })
-      .flatMap({ $0.attachments ?? [] }), providers.count == 1, let provider = providers.first else {
+      .flatMap({ $0.attachments ?? [] }) else {
       throw LoadError.noItem
     }
+    // Some share sources attach a primary file plus a URL or text preview as
+    // separate providers. Prefer the actual file and ignore that metadata.
+    let files = providers.filter {
+      $0.hasItemConformingToTypeIdentifier(UTType.pdf.identifier)
+        || $0.hasItemConformingToTypeIdentifier(UTType.image.identifier)
+    }
+    guard files.count <= 1 else { throw LoadError.noItem }
+    guard let provider = files.first ?? providers.first(where: {
+      $0.hasItemConformingToTypeIdentifier(UTType.url.identifier)
+        || $0.hasItemConformingToTypeIdentifier(UTType.plainText.identifier)
+    }) else { throw LoadError.noItem }
 
     if provider.hasItemConformingToTypeIdentifier(UTType.url.identifier) {
       let item = try await loadItem(provider, type: UTType.url.identifier)

@@ -51,10 +51,15 @@ function addClerkKitToShareTarget(project, xcode) {
   const productBuildFile = [...project.values()].find(
     (object) =>
       xcode.PBXBuildFile.is(object) && object.props.productRef?.uuid === productDependency.uuid,
-  ) ?? project.createModel({ isa: "PBXBuildFile", productRef: productDependency });
+  );
+  const targetBuildFile = productBuildFile && frameworksPhase.props.files.some(
+    ({ uuid }) => uuid === productBuildFile.uuid,
+  )
+    ? productBuildFile
+    : project.createModel({ isa: "PBXBuildFile", productRef: productDependency });
 
-  if (!frameworksPhase.props.files.some(({ uuid }) => uuid === productBuildFile.uuid)) {
-    frameworksPhase.props.files.push(productBuildFile);
+  if (!frameworksPhase.props.files.some(({ uuid }) => uuid === targetBuildFile.uuid)) {
+    frameworksPhase.props.files.push(targetBuildFile);
   }
 
   return project;
