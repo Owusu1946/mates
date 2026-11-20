@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  computerInput, computerView, ensureComputer, handBack, IDLE_STOP_MS, stopComputer, sweepComputers, takeOver,
+  computerInput, computerView, ensureComputer, handBack, IDLE_STOP_MS, MAX_ON_MS, START_STALE_MS, startFromApp, stopComputer, stopFromApp, sweepComputers, takeOver,
   type Computer, type ComputerDeps, type ComputerGoal,
 } from "./computers.js";
 import type { Desktop } from "./desktop/types.js";
@@ -18,6 +18,7 @@ function harness(start?: Partial<Computer>) {
   const goals = new Map<string, ComputerGoal>();
   const calls: string[] = [];
   const typed: string[] = [];
+  const providerState = { value: "started" as string | undefined };
   const recorded: { key?: string; seconds?: number; costMicros: number }[] = [];
   const base: Computer = {
     id: "c1", clerkUserId: USER, provider: "daytona", providerId: null, snapshot: null, state: "off", onSince: null,
@@ -47,7 +48,8 @@ function harness(start?: Partial<Computer>) {
         goals.set(id, next);
         return next;
       },
-      idleSince: async (before) => [...rows.values()].filter((r) => r.state === "on" && r.lastActiveAt && r.lastActiveAt < before
+      idleSince: async (before, onBefore) => [...rows.values()].filter((r) => r.state === "on"
+        && (((r.lastActiveAt ?? r.updatedAt) < before && (r.lastViewedAt ?? r.updatedAt) < before) || (!!r.onSince && r.onSince < onBefore))
         && ![...goals.values()].some((g) => g.computerId === r.id && ["running", "waiting"].includes(g.status))),
     },
     provider: {
@@ -57,13 +59,16 @@ function harness(start?: Partial<Computer>) {
       stop: async () => { calls.push("stop"); },
       liveUrl: async (_id, viewOnly) => { calls.push(viewOnly ? "url:view" : "url:control"); return { url: `https://live/${viewOnly ? "view" : "control"}`, token: "t", expiresAt: clock + 600_000 }; },
       expireLiveUrl: async () => { calls.push("expire"); },
+      state: async () => { calls.push("state"); return providerState.value; },
+      keepAlive: async () => { calls.push("keepalive"); },
+      isGone: (error) => error instanceof Error && error.message === "gone",
     },
   };
   const addGoal = (status: ComputerGoal["status"], waitingFor: ComputerGoal["waitingFor"] = null) => {
-    const goal = { id: "g1", computerId: "c1", clerkUserId: USER, status, waitingFor, steps: [], goal: "Make a table", mateId: null } as unknown as ComputerGoal;
+    const goal = { id: "g1", computerId: "c1", clerkUserId: USER, status, waitingFor, steps: [], goal: "Make a table", mateId: null, question: null, chatId: null } as unknown as ComputerGoal;
     goals.set(goal.id, goal);
   };
-  return { deps, rows, goals, calls, typed, recorded, addGoal, tick: (ms: number) => { clock += ms; }, row: () => rows.get("c1")! };
+  return { deps, rows, goals, calls, typed, recorded, addGoal, providerState, tick: (ms: number) => { clock += ms; }, row: () => rows.get("c1")! };
 }
 
 describe("ensureComputer", () => {
@@ -152,9 +157,56 @@ describe("take over and hand back", () => {
 describe("computerView", () => {
   it("is view-only while a mate drives, and marks that someone is watching", async () => {
     const h = harness({ providerId: "sbx", state: "on" });
-    const view = await computerView(USER, h.deps);
+    h.addGoal("running");
+    const view = await computerView(USER, h.deps, { watching: true });
     expect(view.liveUrl).toBe("https://live/view");
     expect(h.row().lastViewedAt?.getTime()).toBe(1_000_000);
+  });
+
+  it("gives the user the mouse whenever no task is on it", async () => {
+    const h = harness({ providerId: "sbx", state: "on", controller: "mate" });
+    const view = await computerView(USER, h.deps);
+    expect(view).toMatchObject({ controller: "user", liveUrl: "https://live/control" });
+  });
+
+  it("only counts as watching when the live view is on screen", async () => {
+    const h = harness({ providerId: "sbx", state: "on" });
+    await computerView(USER, h.deps);
+    expect(h.row().lastViewedAt).toBeNull();
+  });
+
+  it("keeps a watched desktop alive on Daytona, at most once a minute", async () => {
+    const h = harness({ providerId: "sbx", state: "on" });
+    await computerView(USER, h.deps, { watching: true });
+    await computerView(USER, h.deps, { watching: true });
+    expect(h.calls.filter((c) => c === "keepalive")).toHaveLength(1);
+  });
+
+  it("notices a desktop Daytona stopped behind our back, and charges its time", async () => {
+    const h = harness({ providerId: "sbx", state: "on", onSince: new Date(1_000_000) });
+    h.providerState.value = "stopped";
+    h.tick(120_000);
+    const view = await computerView(USER, h.deps, { watching: true });
+    expect(view.state).toBe("off");
+    expect(view.liveUrl).toBeNull();
+    expect(h.recorded).toHaveLength(1);
+  });
+
+  it("forgets a desktop that was deleted, so the next start makes a new one", async () => {
+    const h = harness({ providerId: "sbx", state: "on", onSince: new Date(1_000_000) });
+    h.providerState.value = "gone";
+    const view = await computerView(USER, h.deps, { watching: true });
+    expect(view.state).toBe("off");
+    expect(h.row().providerId).toBeNull();
+  });
+
+  it("picks up a start whose process died", async () => {
+    const h = harness({ providerId: "sbx", state: "starting", updatedAt: new Date(1_000_000) });
+    h.tick(START_STALE_MS + 1);
+    await computerView(USER, h.deps);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.calls).toContain("start");
+    expect(h.row().state).toBe("on");
   });
 
   it("reuses a live link while it has time left", async () => {
@@ -174,6 +226,7 @@ describe("computerView", () => {
 describe("computerInput", () => {
   it("refuses to type unless the user has taken over", async () => {
     const h = harness({ providerId: "sbx", state: "on", controller: "mate" });
+    h.addGoal("running");
     await expect(computerInput(USER, { text: "hunter2" }, h.deps)).rejects.toThrow(/Take over/);
     expect(h.typed).toEqual([]);
   });
@@ -183,5 +236,70 @@ describe("computerInput", () => {
     await computerInput(USER, { text: "hunter2", key: "Enter" }, h.deps);
     expect(h.typed).toEqual(["hunter2", "<enter>"]);
     expect(JSON.stringify([...h.rows.values()])).not.toContain("hunter2");
+  });
+});
+
+describe("startFromApp", () => {
+  it("answers at once with the computer starting, gives the user the mouse, and comes on in the background", async () => {
+    const h = harness();
+    const view = await startFromApp(USER, h.deps);
+    expect(view).toMatchObject({ state: "starting", controller: "user", setup: true });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.calls).toEqual(["create", "start"]);
+    expect(h.row()).toMatchObject({ state: "on", controller: "user" });
+  });
+
+  it("shares one start between a tap and a mate's goal", async () => {
+    const h = harness({ providerId: "sbx" });
+    await Promise.all([startFromApp(USER, h.deps), ensureComputer(USER, h.deps)]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(h.calls.filter((c) => c === "start")).toHaveLength(1);
+  });
+
+  it("leaves the mouse with a mate that is mid-task", async () => {
+    const h = harness({ providerId: "sbx", state: "on", controller: "mate" });
+    h.addGoal("running");
+    const view = await startFromApp(USER, h.deps);
+    expect(view.controller).toBe("mate");
+  });
+
+  it("makes a new desktop when the old one was deleted on Daytona", async () => {
+    const h = harness({ providerId: "sbx", state: "off" });
+    let first = true;
+    h.deps.provider.start = async () => { h.calls.push("start"); if (first) { first = false; throw new Error("gone"); } return {} as Desktop; };
+    const { computer } = await ensureComputer(USER, h.deps);
+    expect(h.calls).toEqual(["start", "create", "start"]);
+    expect(computer.state).toBe("on");
+  });
+});
+
+describe("stopFromApp", () => {
+  it("cancels the task and turns the computer off straight away", async () => {
+    const h = harness({ providerId: "sbx", state: "on", onSince: new Date(1_000_000) });
+    h.addGoal("running");
+    const view = await stopFromApp(USER, h.deps);
+    expect(h.goals.get("g1")).toMatchObject({ cancelRequested: true });
+    expect(h.calls).toContain("stop");
+    expect(view.state).toBe("off");
+  });
+});
+
+describe("sweeping a desktop in use", () => {
+  it("keeps a desktop on while its live view is open, up to the cap", async () => {
+    const h = harness({ providerId: "sbx", state: "on", onSince: new Date(1_000_000), lastActiveAt: new Date(1_000_000) });
+    h.tick(IDLE_STOP_MS + 1);
+    h.row().lastViewedAt = new Date(1_000_000 + IDLE_STOP_MS);
+    expect(await sweepComputers(h.deps)).toBe(0);
+    h.tick(MAX_ON_MS);
+    h.row().lastViewedAt = new Date(1_000_000 + IDLE_STOP_MS + MAX_ON_MS);
+    expect(await sweepComputers(h.deps)).toBe(1);
+  });
+});
+
+describe("hand back with no task", () => {
+  it("keeps the mouse with the user", async () => {
+    const h = harness({ providerId: "sbx", state: "on", controller: "user" });
+    const view = await handBack(USER, h.deps);
+    expect(view.controller).toBe("user");
   });
 });

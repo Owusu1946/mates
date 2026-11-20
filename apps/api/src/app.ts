@@ -31,7 +31,7 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
-import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, stopFromApp, takeOver } from "./computers.js";
+import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
@@ -1228,7 +1228,15 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     .get("/v1/computer", auth, async (c) => {
       const userId = c.get("userId");
       if (!(await computerAvailableFor(userId))) return c.json({ available: false as const });
-      return c.json({ available: true as const, ...(await computerView(userId)) });
+      // `watching=1` comes only from screens showing the live view; it keeps an idle desktop on.
+      return c.json({ available: true as const, ...(await computerView(userId, undefined, { watching: c.req.query("watching") === "1" })) });
+    })
+    .post("/v1/computer/start", auth, async (c) => {
+      const userId = c.get("userId");
+      if (!(await computerAvailableFor(userId))) return c.json(failure("COMPUTER_PLAN", "The computer comes with Pro and Max.", c.get("requestId")), 403);
+      await assertUsage(userId, "computer");
+      try { return c.json(await startFromApp(userId)); }
+      catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
     })
     .get("/v1/computer/goals/:id", auth, async (c) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid goal", c.get("requestId")), 400);
