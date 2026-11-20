@@ -86,7 +86,7 @@ export type WorkflowCard = {
   /** A request between your mate and a friend's: an update or a question, as the viewer sees it. */
   friendRequest?: {
     id: string;
-    kind: "tell" | "ask";
+    kind: "tell" | "ask" | "find_time";
     /** sent: you asked; received: a friend's mate asked you. */
     role: "sent" | "received";
     friendUserId: string;
@@ -98,6 +98,12 @@ export type WorkflowCard = {
     /** The receiver's mate's suggested answer, only on the receiver's card while it waits. */
     draft?: string;
     answer?: { text: string; by: "mate" | "person" };
+    /** find_time: what it is, the three times on offer while it waits, and the booking once picked. */
+    meeting?: { title: string; kind: string; durationMin: number; place: string | null };
+    slots?: { start: string; end: string; reason: string }[];
+    booked?: { start: string; end: string; link: string | null; ics: string | null };
+    /** Someone not on Mates: the link and message for the sender to send them, while it waits. */
+    guest?: { url: string; message: string };
   };
   /** Connect GitHub so a mate can open pull requests; Continue retries the request. */
   github?: { mate: string };

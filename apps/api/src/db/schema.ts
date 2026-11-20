@@ -1126,7 +1126,11 @@ export const friendInvites = pgTable("friend_invites", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("friend_invites_user_idx").on(t.clerkUserId, t.createdAt), index("friend_invites_to_idx").on(t.toUserId)]);
 
-export type MateRequestKind = "tell" | "ask";
+export type MateRequestKind = "tell" | "ask" | "find_time";
+/** What a find_time request is for; times are ISO strings. */
+export type MeetingDetails = { kind: string; title: string; durationMin: number; from: string; to: string; place?: string | null; timezone: string };
+export type MeetingSlot = { start: string; end: string; reason: string };
+export type MeetingBooking = { start: string; end: string; eventId?: string | null; link?: string | null };
 /** delivered: an update that needs nothing back. waiting: on the friend's tap. */
 export type MateRequestStatus = "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
 export type MateRequestAnswer = { text: string; by: "mate" | "person" };
@@ -1143,7 +1147,12 @@ export const mateRequests = pgTable("mate_requests", {
   clerkUserId: text("clerk_user_id").notNull(),
   fromMateId: uuid("from_mate_id").references(() => mates.id, { onDelete: "set null" }),
   fromChatId: text("from_chat_id").references(() => chats.id, { onDelete: "set null" }),
-  toUserId: text("to_user_id").notNull(),
+  /** The friend; null for someone not on Mates, who answers on the web page their token opens. */
+  toUserId: text("to_user_id"),
+  guestName: text("guest_name"),
+  guestEmail: text("guest_email"),
+  /** Opens the guest page and the calendar file; unguessable. */
+  token: text("token").unique(),
   /** The friend's lead mate chat, where their card lives. */
   toChatId: text("to_chat_id").references(() => chats.id, { onDelete: "set null" }),
   /** What was asked or said, in the sender's mate's words. */
@@ -1153,6 +1162,9 @@ export const mateRequests = pgTable("mate_requests", {
   /** The friend's mate's suggested answer, shown to the friend when it waits on them. */
   draft: text("draft"),
   answer: jsonb("answer").$type<MateRequestAnswer>(),
+  meeting: jsonb("meeting").$type<MeetingDetails>(),
+  slots: jsonb("slots").$type<MeetingSlot[]>(),
+  booked: jsonb("booked").$type<MeetingBooking>(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   answeredAt: timestamp("answered_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { FriendPermissions } from "./db/schema.js";
 import { isSensitiveQuestion, type Draft } from "./mate-answer.js";
 import {
+  guestReply, guestView, icsForToken, meetingWindow,
   activityWith, cancelRequest, matchFriend, PER_FRIEND_PER_DAY, replyToRequest, REQUEST_HOURS, requestFor, sendToFriend, type MateRequest, type RequestDeps,
 } from "./mate-requests.js";
 
@@ -12,13 +13,16 @@ const AMA = "user_ama";
 const NAMES: Record<string, string> = { [KWAME]: "Kwame", [AMA]: "Ama" };
 
 /** Kwame and Ama as friends, an in-memory store, and a scripted answering mate. */
-function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Draft; friends?: boolean } = {}) {
-  let clock = 1_000_000_000;
+function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Draft; friends?: boolean; busy?: Record<string, { start: number; end: number }[] | null>; noGoogle?: boolean } = {}) {
+  // Monday 23 November 2026, 09:00 in Accra.
+  let clock = Date.parse("2026-11-23T09:00:00Z");
   let seq = 0;
   const rows = new Map<string, MateRequest>();
   const posts: { chatId: string; messageId: string; content: unknown[] }[] = [];
   const notified: { userId: string; title: string; body: string }[] = [];
   const drafted: string[] = [];
+  const calendarsRead: string[] = [];
+  const booked: { organiser: string; guests: string[]; title: string }[] = [];
   let permissions: FriendPermissions = { freeTimes: true, messages: true, answers: false, ...options.permissions };
   const connected = options.friends !== false;
   const deps: RequestDeps = {
@@ -31,7 +35,13 @@ function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Dr
     leadChat: async (userId) => `mate_lead_${userId}`,
     post: async (chatId, messageId, content) => { posts.push({ chatId, messageId, content }); },
     notify: async (userId, message) => { notified.push({ userId, title: message.title, body: message.body }); },
+    busy: async (userId) => { calendarsRead.push(userId); return options.busy?.[userId] === undefined ? [] : options.busy[userId]!; },
+    clock: async () => ({ timezone: "Africa/Accra", quiet: { start: 22, end: 8 } }),
+    email: async (userId) => `${NAMES[userId]!.toLowerCase()}@example.com`,
+    book: async (organiser, event) => { booked.push({ organiser, guests: event.guests, title: event.title }); return options.noGoogle ? null : { eventId: "evt_1", link: "https://calendar.google.com/evt_1" }; },
+    token: () => `tok${++seq}`,
     store: {
+      byToken: async (token) => [...rows.values()].find((r) => r.token === token) ?? null,
       create: async (row) => {
         const request = { ...row, id: `r${++seq}`, answer: row.answer ?? null, answeredAt: row.answeredAt ?? null, createdAt: new Date(clock), updatedAt: new Date(clock) } as MateRequest;
         rows.set(request.id, request);
@@ -49,7 +59,7 @@ function harness(options: { permissions?: Partial<FriendPermissions>; draft?: Dr
       between: async (a, b) => [...rows.values()].filter((r) => (r.clerkUserId === a && r.toUserId === b) || (r.clerkUserId === b && r.toUserId === a)).reverse(),
     },
   };
-  return { deps, rows, posts, notified, drafted, tick: (ms: number) => { clock += ms; }, get permissions() { return permissions; } };
+  return { deps, rows, posts, notified, drafted, calendarsRead, booked, tick: (ms: number) => { clock += ms; }, get permissions() { return permissions; } };
 }
 
 const context = { mateId: "mate_k", chatId: "chat_kwame" };
@@ -182,5 +192,91 @@ describe("who can be reached", () => {
     const h = harness();
     for (let i = 0; i < PER_FRIEND_PER_DAY; i++) await sendToFriend(KWAME, { friend: "Ama", kind: "tell", text: `Update ${i}` }, context, h.deps);
     expect(await sendToFriend(KWAME, { friend: "Ama", kind: "tell", text: "One more" }, context, h.deps)).toMatchObject({ ok: false, error: expect.stringMatching(/tomorrow/) });
+  });
+});
+
+describe("find a time", () => {
+  const lunch = { friend: "Ama", kind: "find_time" as const, text: "Lunch with Ama", meeting: { kind: "lunch" as const, title: "Lunch with Ama", durationMin: 60 } };
+
+  it("reads both calendars when the friend allows it, and offers three times on different days", async () => {
+    const h = harness();
+    const result = await sendToFriend(KWAME, lunch, context, h.deps);
+    expect(result).toMatchObject({ ok: true, summary: { status: "waiting" } });
+    expect(h.calendarsRead.sort()).toEqual([AMA, KWAME].sort());
+    const request = (result as { request: MateRequest }).request;
+    expect(request.policy).toBe("allowed");
+    expect(new Set(request.slots!.map((s) => s.start.slice(0, 10))).size).toBe(3);
+    expect(h.notified[0]).toMatchObject({ userId: AMA, title: "Kwame wants lunch with ama" });
+  });
+
+  it("never reads the friend's calendar when they've turned free times off", async () => {
+    const h = harness({ permissions: { freeTimes: false } });
+    const result = await sendToFriend(KWAME, lunch, context, h.deps);
+    expect(h.calendarsRead).toEqual([KWAME]);
+    expect((result as { request: MateRequest }).request.policy).toBe("asked");
+  });
+
+  it("books the picked time in the organiser's calendar with the friend invited, and tells them", async () => {
+    const h = harness();
+    const { request } = (await sendToFriend(KWAME, lunch, context, h.deps)) as { request: MateRequest };
+    const card = await replyToRequest(AMA, request.id, { action: "pick", slot: 1 }, h.deps);
+    expect(card.friendRequest).toMatchObject({ status: "answered", booked: { start: request.slots![1]!.start, link: "https://calendar.google.com/evt_1" } });
+    expect(h.booked).toEqual([{ organiser: KWAME, guests: ["ama@example.com"], title: "Lunch with Ama" }]);
+    expect(h.notified.at(-1)).toMatchObject({ userId: KWAME, title: "Booked with Ama" });
+    await expect(replyToRequest(AMA, request.id, { action: "pick", slot: 0 }, h.deps)).rejects.toThrow(/no longer open/);
+  });
+
+  it("is still agreed without Google: the card offers a calendar file", async () => {
+    const h = harness({ noGoogle: true });
+    const { request } = (await sendToFriend(KWAME, lunch, context, h.deps)) as { request: MateRequest };
+    const card = await replyToRequest(AMA, request.id, { action: "pick", slot: 0 }, h.deps);
+    expect(card.friendRequest?.booked?.ics).toMatch(/\/site\/requests\/tok\d+\/ics$/);
+    expect(await icsForToken(request.token!, h.deps)).toContain("SUMMARY:Lunch with Ama");
+  });
+
+  it("says so when nothing in the window works", async () => {
+    const all = [{ start: Date.parse("2026-11-01T00:00:00Z"), end: Date.parse("2026-12-31T00:00:00Z") }];
+    const h = harness({ busy: { [AMA]: all } });
+    expect(await sendToFriend(KWAME, lunch, context, h.deps)).toMatchObject({ ok: false, error: expect.stringMatching(/No time/) });
+  });
+
+  it("looks from today to a week out by default, and never more than three weeks", () => {
+    const now = Date.parse("2026-11-23T09:00:00Z");
+    const week = meetingWindow({ kind: "lunch", title: "x", durationMin: 60 }, "Africa/Accra", now);
+    expect(new Date(week.from).toISOString()).toBe("2026-11-23T00:00:00.000Z");
+    expect(new Date(week.to).toISOString().slice(0, 10)).toBe("2026-11-29");
+    const long = meetingWindow({ kind: "lunch", title: "x", durationMin: 60, from: "2026-11-20", to: "2027-06-01" }, "Africa/Accra", now);
+    expect(new Date(long.from).toISOString().slice(0, 10)).toBe("2026-11-23");
+    expect(new Date(long.to).toISOString().slice(0, 10)).toBe("2026-12-14");
+  });
+});
+
+describe("someone not on Mates", () => {
+  it("asks the mate to confirm they're a guest before making a link", async () => {
+    const h = harness({ friends: false });
+    expect(await sendToFriend(KWAME, { friend: "Yaw", kind: "ask", text: "Free Saturday?" }, context, h.deps)).toMatchObject({ ok: false, notFriend: true, error: expect.stringMatching(/guest: true/) });
+  });
+
+  it("makes a link for the sender to share, and the guest answers on the page", async () => {
+    const h = harness({ friends: false });
+    const result = await sendToFriend(KWAME, { friend: "Yaw", kind: "ask", text: "Free Saturday?", guest: true }, context, h.deps);
+    expect(result).toMatchObject({ ok: true, summary: { status: "link_ready" } });
+    const card = (result as { card: { friendRequest?: { guest?: { url: string; message: string } } } }).card;
+    expect(card.friendRequest?.guest?.message).toContain("Kwame’s mate has a quick question for you");
+    const token = (result as { request: MateRequest }).request.token!;
+    expect(await guestView(token, h.deps)).toMatchObject({ from: "Kwame", to: "Yaw", kind: "ask", status: "waiting" });
+    await guestReply(token, { action: "answer", text: "Yes, after 2pm" }, h.deps);
+    expect(h.posts.at(-1)!.content.at(-1)).toEqual({ type: "text", text: "Yaw says: Yes, after 2pm" });
+    await expect(guestReply(token, { action: "answer", text: "again" }, h.deps)).rejects.toThrow(/already/);
+  });
+
+  it("lets a guest pick a time, inviting the email they give", async () => {
+    const h = harness({ friends: false });
+    const result = await sendToFriend(KWAME, { friend: "Yaw", kind: "find_time", text: "Coffee", guest: true, meeting: { kind: "coffee", title: "Coffee with Yaw", durationMin: 45 } }, context, h.deps);
+    const request = (result as { request: MateRequest }).request;
+    expect(h.calendarsRead).toEqual([KWAME]);
+    await guestReply(request.token!, { action: "pick", slot: 2, email: " Yaw@Example.com ", name: "Yaw" }, h.deps);
+    expect(h.booked[0]).toMatchObject({ organiser: KWAME, guests: ["yaw@example.com"] });
+    expect(await guestView("nope", h.deps)).toBeNull();
   });
 });
