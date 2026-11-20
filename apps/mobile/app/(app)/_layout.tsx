@@ -58,7 +58,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         return;
       }
       // A screen of the app itself (Friends, the computer) when there's no chat to open.
-      if (typeof data?.url === "string" && /^\/[a-z-]+$/.test(data.url) && typeof chatId !== "string") {
+      if (typeof data?.url === "string" && /^\/(?:[a-z-]+|page\/[0-9a-f-]{36})$/.test(data.url) && typeof chatId !== "string") {
         router.push(data.url as never);
         return;
       }
@@ -192,6 +192,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="call" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="computer" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="deck/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+          <Stack.Screen name="page/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
         </Stack>
         <CallPill />
       </View>

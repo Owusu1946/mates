@@ -51,6 +51,7 @@ import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
 import { renderPptx } from "./deck-pptx.js";
 import { cancelDeck, deckFilename, deckView, ownedDeck, startDeckEdit, undoDeck } from "./decks.js";
+import { cancelPage, ownedPage, pageHtmlForOwner, pageView, publicPage, sharePage, undoPage, unsharePage } from "./pages.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
 import { keytermsFor, transcribe, transcriptionConfigured } from "./transcription.js";
 import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
@@ -290,6 +291,17 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return session ? c.json(session) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
     })
     .post("/site/meetings/:id/leave", async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), c.req.query("t")) }))
+    // A shared page, for the website to render at pages.askorin.app/<slug>: the document and the
+    // mate's name and colour, nothing about the owner. Private pages and revoked links are 404.
+    .get("/site/pages/:slug", async (c) => {
+      const page = await publicPage(c.req.param("slug"));
+      if (!page) {
+        c.header("cache-control", "public, max-age=0, s-maxage=30");
+        return c.json(failure("NOT_FOUND", "This page isn't available.", c.get("requestId")), 404);
+      }
+      c.header("cache-control", "public, max-age=0, s-maxage=30, stale-while-revalidate=300");
+      return c.json(page);
+    })
     // An invite link's page on the website: only the inviter's first name and whether it still works.
     .get("/site/invites/:code", async (c) => {
       c.header("cache-control", "no-store");
@@ -861,6 +873,35 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
           "cache-control": "private, no-store",
         },
       });
+    })
+    .get("/v1/pages/:id", auth, async (c) => {
+      const row = await ownedPage(c.get("userId"), c.req.param("id"));
+      return row ? c.json(pageView(row)) : c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+    })
+    // The page as the app's viewer shows it: the same renderer as the public page, private pages too.
+    .get("/v1/pages/:id/html", auth, async (c) => {
+      const html = await pageHtmlForOwner(c.get("userId"), c.req.param("id"));
+      if (!html) return c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+      return c.html(html, 200, { "cache-control": "private, no-store" });
+    })
+    .post("/v1/pages/:id/share", auth, async (c) => {
+      const body = z.object({ confirmed: z.boolean().optional() }).safeParse(await c.req.json().catch(() => ({})));
+      const result = await sharePage(c.get("userId"), c.req.param("id"), body.success ? body.data.confirmed === true : false);
+      if (result.status === "error") return c.json(failure(result.code === 404 ? "NOT_FOUND" : "CONFLICT", result.error, c.get("requestId")), result.code);
+      return c.json(result);
+    })
+    .post("/v1/pages/:id/unshare", auth, async (c) => {
+      const card = await unsharePage(c.get("userId"), c.req.param("id"));
+      return card ? c.json({ card }) : c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+    })
+    .post("/v1/pages/:id/undo", auth, async (c) => {
+      const result = await undoPage(c.get("userId"), c.req.param("id"));
+      if (!result.row) return c.json(failure(result.status === 404 ? "NOT_FOUND" : "CONFLICT", result.error ?? "There's nothing to undo.", c.get("requestId")), result.status ?? 409);
+      return c.json(pageView(result.row));
+    })
+    .post("/v1/pages/:id/cancel", auth, async (c) => {
+      const row = await cancelPage(c.get("userId"), c.req.param("id"));
+      return row ? c.json(pageView(row)) : c.json(failure("CONFLICT", "This page is no longer being made.", c.get("requestId")), 409);
     })
     .get("/v1/missions", auth, async (c) => {
       const chatId = chatIdSchema.safeParse(c.req.query("chatId"));

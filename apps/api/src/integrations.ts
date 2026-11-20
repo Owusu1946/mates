@@ -14,7 +14,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer" | "friend_request";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer" | "friend_request" | "page";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -81,6 +81,23 @@ export type WorkflowCard = {
     steps: { at: string; label: string }[];
     summary?: string;
     evidence?: { label: string; url?: string }[];
+    error?: string;
+  };
+  /** A page a mate made: building progress, its sections, and whether it's shared. */
+  page?: {
+    pageId: string;
+    title: string;
+    emoji: string | null;
+    status: "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
+    built: number;
+    total: number;
+    version: number;
+    sections: string[];
+    shared: boolean;
+    url?: string;
+    /** The latest change in a line. */
+    summary?: string;
+    updatedAt: string;
     error?: string;
   };
   /** A request between your mate and a friend's: an update or a question, as the viewer sees it. */

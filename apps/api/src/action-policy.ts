@@ -118,6 +118,8 @@ export function activityLabel(slug: string) {
     computer_use: "Using the computer",
     cooper_make_deck: "Planning the deck",
     cooper_edit_deck: "Updating the slides",
+    cooper_create_page: "Planning the page",
+    cooper_update_page: "Updating the page",
     cooper_watch: "Setting up the watch",
     cooper_watch_triggers: "Checking what it can watch",
   };
