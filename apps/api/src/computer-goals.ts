@@ -126,6 +126,7 @@ export async function announceGoal(id: string) {
             { type: "text", text },
           ],
           status: { type: "complete", reason: "stop" },
+          metadata: { custom: { computerGoalId: goal.id } },
         },
       }).onConflictDoNothing(),
       getDb().update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, goal.chatId)),
