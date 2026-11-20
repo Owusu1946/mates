@@ -14,7 +14,7 @@ const button = (name: string): ScreenElement => ({ id: name, role: "push button"
 type Harness = { goal: ComputerGoal; actions: string[] };
 
 /** A fake desktop, a scripted model and an in-memory goal, so a whole run can be driven in a test. */
-function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], options: { elements?: ScreenElement[]; watching?: boolean; onSleep?: (h: Harness) => void } = {}) {
+function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], options: { elements?: ScreenElement[]; watching?: boolean; controller?: Computer["controller"]; onSleep?: (h: Harness) => void } = {}) {
   let clock = 1_000_000;
   const actions: string[] = [];
   const models: string[] = [];
@@ -25,7 +25,8 @@ function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], o
     waitingFor: null, question: null, reply: null, approvals: [], cancelRequested: false, steps: [], summary: null, evidence: [],
     recordingPath: null, model: null, costUsd: null, error: null, createdAt: new Date(0), updatedAt: new Date(0),
   };
-  const computer = { id: "c1", lastViewedAt: options.watching ? new Date(clock) : null } as Computer;
+  const computer = { id: "c1", lastViewedAt: options.watching ? new Date(clock) : null, controller: options.controller ?? "mate" } as Computer;
+  const touched: Partial<Computer>[] = [];
   const desktop: Desktop = {
     id: "sbx",
     screenshot: async () => ({ jpegBase64: "x", width: 1024, height: 768 }),
@@ -46,7 +47,7 @@ function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], o
   const h = {
     get goal() { return goal; },
     set goal(next: ComputerGoal) { goal = next; },
-    actions, models, announced, notified,
+    actions, models, announced, notified, touched,
     deps: {
       store: {
         load: async () => goal,
@@ -56,7 +57,7 @@ function harness(script: (Action | Error | ((input: ThinkInput) => Action))[], o
           return goal;
         },
         computer: async () => computer,
-        touchComputer: async () => undefined,
+        touchComputer: async (_id, values) => { touched.push(values); },
       },
       ensure: async () => ({ computer, desktop }),
       think: async (input) => {
@@ -181,6 +182,24 @@ describe("executeComputerGoal", () => {
     await executeComputerGoal("g1", signal(), h.deps);
     expect(seen.some((line) => line.includes("took over"))).toBe(true);
     expect(h.goal.status).toBe("done");
+  });
+
+  it("waits for the user to hand back when they're using the computer by hand", async () => {
+    const h = harness([done()], {
+      watching: true,
+      controller: "user",
+      onSleep: (x) => { if (x.goal.waitingFor === "user_control") x.goal = { ...x.goal, status: "running", waitingFor: null, reply: "handback" }; },
+    });
+    await executeComputerGoal("g1", signal(), h.deps);
+    expect(h.goal.steps.map((s) => s.label)).toContain("Waiting for you to hand back the mouse");
+    expect(h.goal.status).toBe("done");
+  });
+
+  it("takes the mouse when the user left it held but walked away", async () => {
+    const h = harness([done()], { controller: "user" });
+    await executeComputerGoal("g1", signal(), h.deps);
+    expect(h.touched[0]).toEqual({ controller: "mate" });
+    expect(h.goal.steps.map((s) => s.label)).not.toContain("Waiting for you to hand back the mouse");
   });
 
   it("stops cleanly when cancelled, and still tidies up", async () => {

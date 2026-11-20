@@ -183,6 +183,8 @@ export async function executeComputerGoal(goalId: string, signal: AbortSignal, d
       const latest = await checkCancel();
       if (latest.status === "running") {
         goal = (await deps.store.update(goalId, { reply: null, question: null })) ?? latest;
+        // "Continue" after signing in means the user is done with the mouse too.
+        if (computer) await deps.store.touchComputer(computer.id, { controller: "mate" });
         return latest.reply ?? "continue";
       }
       if (deps.now() - started > WAIT_LIMIT_MS) throw new Stop("failed", { error: "Nobody answered in time, so I stopped." });
@@ -193,6 +195,16 @@ export async function executeComputerGoal(goalId: string, signal: AbortSignal, d
     await step("Starting the computer");
     ({ computer, desktop } = await deps.ensure(goal.clerkUserId));
     recording = await desktop.startRecording(`goal-${goalId}`);
+    // The user is working on it by hand right now: wait for them rather than grab the mouse.
+    // If they've walked away, the mate takes it.
+    const userHere = !!computer.lastViewedAt && deps.now() - computer.lastViewedAt.getTime() < WATCHING_MS;
+    if (computer.controller === "user" && userHere) {
+      await step("Waiting for you to hand back the mouse");
+      await waitForUser("user_control", `${mateName} is ready to start. Hand back the mouse when you're done.`);
+      history.push("The user was using the computer when you started. Check the screen before doing anything.");
+    } else if (computer.controller === "user") {
+      await deps.store.touchComputer(computer.id, { controller: "mate" });
+    }
     await step("Looking at the screen");
 
     for (let turn = 0; turn < MAX_STEPS; turn++) {
