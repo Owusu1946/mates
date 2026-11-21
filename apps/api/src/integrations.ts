@@ -14,7 +14,7 @@ export type AppConnection = {
   status: string;
 };
 export type WorkflowCard = {
-  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer" | "friend_request" | "page";
+  kind: "step" | "connection" | "choice" | "results" | "browser" | "schedule" | "approval" | "memory" | "plan" | "speaker" | "team" | "handoff" | "comparison" | "note" | "code" | "sources" | "call" | "deck" | "watch" | "prep" | "consult" | "memories" | "mate" | "github" | "rides" | "ride_location" | "computer" | "friend_request" | "page";
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
@@ -52,6 +52,14 @@ export type WorkflowCard = {
     asked?: boolean;
     from: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] };
     items: { mate: { id: string; name: string; color: string; shape?: string; gradient: [string, string, string] }; task: string; status: "queued" | "working" | "review" | "changes" | "done" | "waiting" | "failed"; step?: string; id?: string }[];
+  };
+  /** A lead mate's decision summary after several mates answered the same question. */
+  comparison?: {
+    lead: { id: string; name: string };
+    perMate: { mate: { id: string; name: string; role: string }; recommendation: string; basis: string }[];
+    disagreements: string[];
+    suggestion: string;
+    failedMates: { id: string; name: string }[];
   };
   /** A job on the mates' computer: live steps, check results, and the pull request it opened. */
   code?: {

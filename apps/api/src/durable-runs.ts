@@ -11,7 +11,7 @@ import { createChatStore, chatIdSchema } from "./chats.js";
 import { createAgentResponse } from "./agent-chat.js";
 import { linkAttachments } from "./attachments.js";
 import { ownedPersonas, personaPreamble, resolvePersona, type Persona, type PersonaMate } from "./mates.js";
-import { handoffCard, collaborationAssignments, directCollaborationPlan, directCollaborationRoster, parseMentions, planGroupTurn, queuedSpeaker, speakerCard, visibleMentionText, withQueuedSpeakers, type Assignment, type HandoffStatus } from "./groups.js";
+import { comparisonCard, handoffCard, collaborationAssignments, directCollaborationPlan, directCollaborationRoster, isComparisonRequest, parseMentions, planGroupTurn, queuedSpeaker, speakerCard, visibleMentionText, withQueuedSpeakers, type Assignment, type HandoffStatus } from "./groups.js";
 import { afterRunInChat, IDLE_ROUNDS_BEFORE_CHECKIN, missionNotesOf, saveNote, yieldMissionRound } from "./missions.js";
 import { applyDecision, boardCard, decideRound, LIMITS, listTasks, notesByTitle, orphanedTasks, readyTasks, requeueInterrupted, setTask, stuckTasks, taskBrief, taskByAgentRun, type BoardTask } from "./workboard.js";
 import { pushToUser } from "./delivery.js";
@@ -233,7 +233,7 @@ export async function executeDelegation(
    * teammate's buffer (parallel work) only reports its current step. Returns whether it errored;
    * only errors in the run's own content fail the run.
    */
-  const consume = async (response: Response, target: Content = content, onStep?: (label: string) => void) => {
+  const consume = async (response: Response, target: Content = content, onStep?: (label: string) => void, allowPartial = false) => {
     if (!response.ok || !response.body) throw new Error("The agent could not start. Check server integrations.");
     let errored = false;
     const reader = response.body.getReader();
@@ -255,7 +255,7 @@ export async function executeDelegation(
             if (handoff?.reason) throw new RunHandoffRequested(handoff.reason);
             if (payload.error) {
               errored = true;
-              if (target === content) failure = "This request couldn’t finish. Earlier findings have been saved.";
+              if (target === content && !allowPartial) failure = "This request couldn’t finish. Earlier findings have been saved.";
             }
             if (!sawResponseToken && (payload.choices as { delta?: { content?: string } }[] | undefined)?.[0]?.delta?.content) {
               sawResponseToken = true;
@@ -489,7 +489,7 @@ export async function executeDelegation(
     // or a previous collaboration turn is waiting to resume.
     let directRoster: PersonaMate[] | null = null;
     let directPlan: ReturnType<typeof directCollaborationPlan> = null;
-    let pausedQueue: { mateId: string; task: string; assignments: { mateId: string; task: string }[]; replies: { name: string; text: string }[] } | null = null;
+    let pausedQueue: typeof agentRuns.$inferSelect.groupQueue = null;
     if (request.resumeRunId) {
       const [paused] = await getDb().select({ groupQueue: agentRuns.groupQueue }).from(agentRuns).where(eq(agentRuns.id, request.resumeRunId));
       pausedQueue = paused?.groupQueue ?? null;
@@ -507,6 +507,7 @@ export async function executeDelegation(
       }
       directRoster = directCollaborationRoster({ resume: !!request.resumeRunId, hasGroupQueue: !!pausedQueue, leader, attached: persona.mates, plan: directPlan });
     }
+    let comparisonDone = false;
     if (persona.kind !== "group" && !directRoster) {
       await consume(await runMate(leader, agentRunId, personaPreamble(leader), { resume: { resumeRunId: request.resumeRunId, choice: request.choice } }));
     } else {
@@ -516,8 +517,12 @@ export async function executeDelegation(
         speaking = withQueuedSpeakers(speaking, queuedIds, await ownedPersonas(run.clerkUserId));
       }
       const textSince = (from: number) => content.slice(from).filter((p) => p.type === "text").map((p) => String(p.text)).join("\n").trim();
-      let replies: { name: string; text: string }[] = [];
+      let replies: { mateId?: string; name: string; text: string }[] = [];
       let mentioned: PersonaMate[] = [];
+      let comparisonMates: PersonaMate[] = [];
+      let comparisonFailures: PersonaMate[] = [];
+      let comparisonWaiting = false;
+      let comparisonQuestion = request.messages.at(-1)?.content ?? "";
       const hasTeam = speaking.some((m) => m.id !== leader.id);
       let steps: { assignment: Assignment; runId: string; resume?: { resumeRunId?: string; choice?: string } }[];
       const pausedTask = request.resumeRunId ? await taskByAgentRun(request.resumeRunId) : null;
@@ -529,6 +534,9 @@ export async function executeDelegation(
         // A paused mate continues where it stopped, then the hand-offs queued behind it run.
         const queue = pausedQueue;
         replies = queue?.replies ?? [];
+        comparisonMates = (queue?.comparison?.mateIds ?? []).flatMap((mateId) => speaking.find((mate) => mate.id === mateId) ?? []);
+        comparisonFailures = (queue?.comparison?.failedIds ?? []).flatMap((mateId) => speaking.find((mate) => mate.id === mateId) ?? []);
+        comparisonQuestion = queue?.comparison?.question ?? comparisonQuestion;
         steps = [
           { assignment: { mateId: queue?.mateId ?? leader.id, task: queue?.task ?? "" }, runId: request.resumeRunId, resume: { resumeRunId: request.resumeRunId, choice: request.choice } },
           ...(queue?.assignments ?? []).map((assignment) => ({ assignment, runId: randomUUID() })),
@@ -541,6 +549,7 @@ export async function executeDelegation(
         // A direct chat: tagged mates answer, then the primary mate coordinates. Chief of Staff
         // with no name picks among the mates already attached to this chat.
         mentioned = directPlan.mentioned;
+        if (isComparisonRequest(request.messages.at(-1)?.content ?? "", mentioned)) comparisonMates = mentioned;
         const plan = directPlan.mentioned.length
           ? collaborationAssignments(directPlan.mentioned, leader.id)
           : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn), meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
@@ -549,10 +558,11 @@ export async function executeDelegation(
           mergePayload(content, { choices: [{ delta: { content: plan.handoff } }] });
           await persist("progress");
         }
-        steps = plan.assignments.map((assignment, i) => ({ assignment, runId: i === 0 ? agentRunId : randomUUID() }));
+        steps = plan.assignments.filter((assignment) => !comparisonMates.length || mentioned.some((mate) => mate.id === assignment.mateId)).map((assignment, i) => ({ assignment, runId: i === 0 ? agentRunId : randomUUID() }));
       } else {
         // Tagged mates answer in the order they were tagged; otherwise the leader hands off.
         mentioned = parseMentions(request.messages.at(-1)?.content ?? "", speaking);
+        if (isComparisonRequest(request.messages.at(-1)?.content ?? "", mentioned)) comparisonMates = mentioned;
         const plan = mentioned.length
           ? { handoff: "", assignments: mentioned.map((mate) => ({ mateId: mate.id, task: "" })) }
           : await planGroupTurn({ members: speaking, leaderId: leader.id, turns: request.messages.map((turn) => turn.role === "user" ? { ...turn, content: visibleMentionText(turn.content) } : turn), meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
@@ -601,23 +611,54 @@ export async function executeDelegation(
         // transcript of "Name: text" lines would invite them to continue it in someone else's voice.
         const coordinating = mate.id === leader.id && hasTeam && !mentioned.some((m) => m.id === leader.id) && !step.resume;
         const others = speaking.filter((m) => m.id !== mate.id).map((m) => m.name);
-        await consume(await runMate(mate, agentRunId, personaPreamble(mate, { members: speaking, task: step.assignment.task || undefined, coordinating, earlier: replies }), { resume: step.resume, coordinator: coordinating, others }));
-        replies.push({ name: mate.name, text: textSince(from) });
+        const preamble = personaPreamble(mate, { members: speaking, task: step.assignment.task || undefined, coordinating, earlier: replies }) +
+          (comparisonMates.length ? " For this shared decision question, answer briefly with your recommendation and what you based it on. If you lack evidence, say so." : "");
+        let interrupted = false;
+        try {
+          interrupted = await consume(await runMate(mate, agentRunId, preamble, { resume: step.resume, coordinator: coordinating, others }), content, undefined, comparisonMates.length > 0);
+        } catch (error) {
+          if (!comparisonMates.length || signal.aborted || error instanceof RunHandoffRequested || error instanceof UsageLimitError) throw error;
+          interrupted = true;
+        }
         const [state] = await getDb().select({ status: agentRuns.status }).from(agentRuns).where(eq(agentRuns.id, agentRunId));
-        await setRelay(i, state?.status.startsWith("waiting") ? "waiting" : failure || state?.status === "failed" ? "failed" : "done");
-        if (state?.status.startsWith("waiting")) {
+        const waiting = state?.status.startsWith("waiting") && !interrupted;
+        // A stream may fail after a useful answer has already reached the chat. Keep that answer
+        // in the comparison instead of calling its author someone who couldn't answer.
+        const answer = textSince(from);
+        const stepFailed = comparisonMates.length ? !waiting && !answer : interrupted || state?.status === "failed";
+        if (stepFailed && comparisonMates.length) comparisonFailures.push(mate);
+        else if (!stepFailed && !waiting) replies.push({ mateId: mate.id, name: mate.name, text: answer });
+        await setRelay(i, waiting ? "waiting" : failure || stepFailed ? "failed" : "done");
+        if (waiting) {
+          comparisonWaiting = true;
           // Waiting on the user (connect an app, sign in): keep the rest for when they resume.
           await getDb()
             .update(agentRuns)
-            .set({ groupQueue: { mateId: mate.id, task: step.assignment.task, assignments: steps.slice(i + 1).map((s) => s.assignment), replies: replies.slice(0, -1) } })
+            .set({ groupQueue: { mateId: mate.id, task: step.assignment.task, assignments: steps.slice(i + 1).map((s) => s.assignment), replies, ...(comparisonMates.length ? { comparison: { mateIds: comparisonMates.map((item) => item.id), failedIds: comparisonFailures.map((item) => item.id), question: comparisonQuestion } } : {}) } })
             .where(eq(agentRuns.id, agentRunId));
           break;
         }
         if (failure) break;
       }
+      if (comparisonMates.length && !comparisonWaiting && !failure && !signal.aborted) {
+        try {
+          const card = await comparisonCard({ leader, mates: comparisonMates, replies: replies.flatMap((reply) => reply.mateId ? [{ mateId: reply.mateId, text: reply.text }] : []), failed: comparisonFailures, question: visibleMentionText(comparisonQuestion), signal, meter: { userId: run.clerkUserId, source: "chat", ref: run.id } });
+          mergePayload(content, { cooper: { id: `comparison_${id}`, state: card } });
+          await persist("progress");
+          comparisonDone = true;
+        } catch (error) {
+          if (signal.aborted) throw error;
+          // Keep the mate answers even if the structured closer is unavailable.
+          const missing = comparisonMates.filter((mate) => !replies.some((reply) => reply.mateId === mate.id)).map((mate) => mate.name);
+          mergePayload(content, { cooper: { id: `speaker_${id}_lead`, state: speakerCard(leader) } });
+          mergePayload(content, { choices: [{ delta: { content: `${missing.length ? `${missing.join(" and ")} couldn't answer. ` : ""}I couldn't put together a reliable comparison right now. The mates' answers are above.` } }] });
+          await persist("progress");
+          comparisonDone = true;
+        }
+      }
     }
     const [agent] = await getDb().select().from(agentRuns).where(eq(agentRuns.id, agentRunId));
-    status = signal.aborted ? userCancelled ? "cancelled" : "failed" : failure ? "failed" : agent?.status.startsWith("waiting") ? "waiting" : agent?.status === "failed" ? "failed" : "completed";
+    status = signal.aborted ? userCancelled ? "cancelled" : "failed" : failure ? "failed" : agent?.status.startsWith("waiting") ? "waiting" : comparisonDone ? "completed" : agent?.status === "failed" ? "failed" : "completed";
   } catch (error) {
     if (lostOwnership) {
       status = "running";

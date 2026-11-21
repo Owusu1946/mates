@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { collaborationAssignments, directCollaborationPlan, directCollaborationRoster, handoffCard, normalisePlan, parseMentions, queuedSpeaker, stripSpeakerPrefix, visibleMentionText, withQueuedSpeakers } from "./groups.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { collaborationAssignments, comparisonCard, directCollaborationPlan, directCollaborationRoster, handoffCard, isComparisonRequest, normalisePlan, parseMentions, queuedSpeaker, stripSpeakerPrefix, visibleMentionText, withQueuedSpeakers } from "./groups.js";
 import { DAY_NAMES, dayName, leaderSetupSchema, MATE_SHAPES, mateChatId, mateInputSchema, personaPreamble, previewOf, randomShape, ROLE_PRESETS, type PersonaMate } from "./mates.js";
 
 const mate = (id: string, name: string, role = "research", roleDescription = ""): PersonaMate => ({ id, name, role, roleDescription, color: "teal", shape: "hexagon" });
@@ -168,5 +168,65 @@ describe("handoff relay", () => {
   it("gives a mate created without a shape a random one of any shape", () => {
     const seen = new Set(Array.from({ length: 600 }, () => randomShape()));
     expect([...seen].sort()).toEqual([...MATE_SHAPES].sort());
+  });
+});
+
+describe("mate comparison", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("recognizes one shared question to tagged mates, but not separate work", () => {
+    expect(isComparisonRequest("Ask @Ama and @Ama Lee if this trip fits the budget.", [ama, amaLee])).toBe(true);
+    expect(isComparisonRequest("Ask @Ama{00000000-0000-0000-0000-000000000002} and @Ama Lee{00000000-0000-0000-0000-000000000003} if this trip fits the budget.", [ama, amaLee])).toBe(true);
+    expect(isComparisonRequest("@Ama and @Ama Lee, should we take the trip?", [ama, amaLee])).toBe(true);
+    expect(isComparisonRequest("@Ama and @Ama Lee, does https://example.com/trip?ref=chat fit our budget?", [ama, amaLee])).toBe(true);
+    expect(isComparisonRequest("@Ama, check the budget; @Ama Lee, check visas.", [ama, amaLee])).toBe(false);
+    expect(isComparisonRequest("@Ama, what is the budget? @Ama Lee, what is the visa rule?", [ama, amaLee])).toBe(false);
+    expect(isComparisonRequest("@Ama, should we go?", [ama])).toBe(false);
+  });
+
+  it("uses only real answering mates and keeps a failed mate out of recommendations", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      choices: [{ message: { content: JSON.stringify({
+        per_mate: [
+          { mate_id: ama.id, recommendation: "Go by bus", basis: "The fare fits the budget" },
+          { mate_id: amaLee.id, recommendation: "Fly", basis: "Invented" },
+        ],
+        disagreements: ["Ama Lee thinks the flight is better"],
+        suggestion: "Take the bus if the fare still holds",
+      }) } }],
+    })));
+    const card = await comparisonCard({ leader: scout, mates: [ama, amaLee], replies: [{ mateId: ama.id, text: "Go by bus; the fare fits the budget." }], failed: [amaLee], question: "Should we go?", signal: new AbortController().signal });
+    expect(card.comparison?.perMate).toEqual([{ mate: { id: ama.id, name: ama.name, role: ama.role }, recommendation: "Go by bus", basis: "The fare fits the budget" }]);
+    expect(card.comparison?.failedMates).toEqual([{ id: amaLee.id, name: amaLee.name }]);
+    expect(card.comparison?.disagreements).toEqual([]);
+  });
+
+  it("makes an honest card when every mate fails without calling the model", async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal("fetch", fetch);
+    const card = await comparisonCard({ leader: scout, mates: [ama, amaLee], replies: [], failed: [ama, amaLee], question: "Should we go?", signal: new AbortController().signal });
+    expect(card.comparison?.perMate).toEqual([]);
+    expect(card.comparison?.failedMates).toHaveLength(2);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps two grounded recommendations and their disagreement", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({
+      choices: [{ message: { content: JSON.stringify({
+        per_mate: [
+          { mate_id: ama.id, recommendation: "Go", basis: "Bus fare is affordable" },
+          { mate_id: amaLee.id, recommendation: "Wait", basis: "Lodging exceeds the limit" },
+        ],
+        disagreements: ["Whether the lodging cost makes the trip affordable"],
+        suggestion: "Check a cheaper place to stay before booking",
+      }) } }],
+    })));
+    const card = await comparisonCard({ leader: scout, mates: [ama, amaLee], replies: [
+      { mateId: ama.id, text: "Go; the bus fare is affordable." },
+      { mateId: amaLee.id, text: "Wait; lodging exceeds the limit." },
+    ], failed: [], question: "Should we take the trip?", signal: new AbortController().signal });
+    expect(card.comparison?.perMate.map((row) => row.mate.id)).toEqual([ama.id, amaLee.id]);
+    expect(card.comparison?.disagreements).toEqual(["Whether the lodging cost makes the trip affordable"]);
+    expect(card.comparison?.suggestion).toBe("Check a cheaper place to stay before booking");
   });
 });
