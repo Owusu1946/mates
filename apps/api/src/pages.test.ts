@@ -121,3 +121,15 @@ describe("building a page", () => {
     expect(JSON.stringify(modelSchema(await import("zod").then(({ z }) => z.object({ a: z.string().max(3) }))))).not.toContain("maxLength");
   });
 });
+
+describe("routing a request for a page", () => {
+  it("makes a Mates page, never another app's page, unless the user names the app", async () => {
+    const { pageInstructions, pagesOffInstructions } = await import("./pages.js");
+    expect(pageInstructions).toContain("cooper_create_page");
+    expect(pageInstructions).toMatch(/Never make it in WordPress, Notion/);
+    expect(pageInstructions).toMatch(/never ask the user to connect an app for it, unless they name that app/);
+    // While Pages is off the tool isn't offered, so the instructions mustn't name it.
+    expect(pagesOffInstructions).not.toContain("cooper_create_page");
+    expect(pagesOffInstructions).toMatch(/only if the user names that app/);
+  });
+});
