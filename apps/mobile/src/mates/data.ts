@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 import { createApiClient } from "../data/api";
 import { readCache, writeCache } from "../data/offline-cache";
+import { writeShareMates } from "../share/shared-context";
 
 export type Gradient = [string, string, string];
 /** `shape` is the mascot silhouette (see SHAPE_NAMES in @muse-clone/mascot); older payloads may lack it. */
@@ -58,6 +59,7 @@ export function useMates() {
     queryFn: async () => {
       const data = await read<MatesData>(await api.v1.mates.$get(), "Couldn’t load your mates.");
       writeCache("mates", data);
+      if (userId) writeShareMates(userId, data.mates.map(({ id, name, chatId }) => ({ id, name, chatId })));
       return data;
     },
     staleTime: 60_000,

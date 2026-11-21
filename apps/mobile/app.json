@@ -46,6 +46,15 @@
         }
       ],
       "expo-notifications",
+      [
+        "expo-sharing",
+        {
+          "android": {
+            "enabled": true,
+            "singleShareMimeTypes": ["text/plain", "image/*", "application/pdf"]
+          }
+        }
+      ],
       "@sentry/react-native/expo",
       [
         "expo-camera",
@@ -75,6 +84,12 @@
       "expo-image",
       "expo-asset",
       [
+        "@clerk/expo",
+        {
+          "keychainService": "app.askorin.mates.share-auth"
+        }
+      ],
+      [
         "expo-location",
         {
           "locationWhenInUsePermission": "Mates uses your location when you ask for rides from where you are."
@@ -84,6 +99,8 @@
       "@config-plugins/react-native-webrtc",
       "./plugins/with-mates-widget-mascot",
       "expo-widgets",
+      "./plugins/with-mates-share-clerk",
+      "@bacons/apple-targets",
       [
         "expo-build-properties",
         {
@@ -98,8 +115,18 @@
     },
     "ios": {
       "bundleIdentifier": "app.askorin.mates",
+      "appleTeamId": "6KBN2JVL76",
       "deploymentTarget": "17.0",
+      "entitlements": {
+        "com.apple.security.application-groups": [
+          "group.app.askorin.mates"
+        ],
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)app.askorin.mates.share-auth"
+        ]
+      },
       "infoPlist": {
+        "ClerkKeychainAccessGroup": "$(AppIdentifierPrefix)app.askorin.mates.share-auth",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": ["audio"],
         "UIApplicationSceneManifest": {

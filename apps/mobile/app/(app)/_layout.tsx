@@ -1,4 +1,4 @@
-import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, useRouter } from "expo-router";
+import { DarkTheme, DefaultTheme, Redirect, Stack, ThemeProvider, useRouter, useSegments } from "expo-router";
 import { Linking } from "react-native";
 import * as Notifications from "expo-notifications";
 import { useAuth } from "@clerk/expo";
@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef } from "react";
 import {
   ActivityIndicator,
   AppState,
+  Platform,
   StyleSheet,
   View,
 } from "react-native";
@@ -27,10 +28,46 @@ import { CallProvider } from "../../src/call/call-model";
 import { CallPill } from "../../src/call/call-pill";
 import { LeaderGate } from "../../src/onboarding/leader-gate";
 import { useCacheReady } from "../../src/data/offline-cache";
+import { canRetryPendingShare, readPendingShare } from "../../src/share/pending";
+import { readAndroidPendingShare } from "../../src/share/android-pending";
 import { takePendingInvite } from "../../src/friends/pending-invite";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
+  const segments = useSegments();
+  const segmentsRef = useRef(segments);
+  segmentsRef.current = segments;
+  const promptedShare = useRef<string | null>(null);
+  const openingShare = useRef(false);
+  useEffect(() => {
+    const openPending = async () => {
+      if (openingShare.current) return;
+      openingShare.current = true;
+      try {
+        const pending = Platform.OS === "ios"
+          ? readPendingShare(userId)
+          : await readAndroidPendingShare(userId);
+        if (!pending || promptedShare.current === pending.id || (Platform.OS === "ios" && !canRetryPendingShare(pending))) return;
+        promptedShare.current = pending.id;
+        const onShareRoute = segmentsRef.current.at(-1) === "share-pending" || segmentsRef.current.at(-1) === "share-receive";
+        if (!onShareRoute) router.push(Platform.OS === "ios" ? "/(app)/share-pending" : "/(app)/share-receive");
+      } finally {
+        openingShare.current = false;
+      }
+    };
+    void openPending();
+    const listener = AppState.addEventListener("change", state => {
+      if (state === "active") void openPending();
+    });
+    // The extension can finish while Mates remains active, without an AppState event.
+    const timer = Platform.OS === "ios" ? setInterval(() => {
+      if (AppState.currentState === "active") void openPending();
+    }, 2000) : null;
+    return () => {
+      listener.remove();
+      if (timer) clearInterval(timer);
+    };
+  }, [router, userId]);
   const handledResponses = useRef(new Map<string, number>());
   useEffect(() => {
     const open = (response: Notifications.NotificationResponse) => {
@@ -178,6 +215,8 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
           <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="memory-import" options={{ title: "Import memories" }} />
+          <Stack.Screen name="share-pending" options={{ title: "Finish sharing", presentation: "modal" }} />
+          <Stack.Screen name="share-receive" options={{ title: "Share to a mate", presentation: "modal" }} />
           <Stack.Screen name="permissions" options={{ title: "Permissions", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="friends" options={{ title: "Friends", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="connect" options={{ headerShown: false, presentation: "modal" }} />

@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@assistant-ui/react-native": "^0.1.46",
-    "@clerk/expo": "^4.6.8",
+    "@bacons/apple-targets": "5.0.0",
+    "@clerk/expo": "4.10.0",
     "@config-plugins/react-native-webrtc": "^15.0.2",
     "@expo-google-fonts/dm-sans": "0.4.2",
     "@expo/metro-runtime": "~57.0.18",

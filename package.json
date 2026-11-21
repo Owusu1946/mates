@@ -31,7 +31,8 @@
       }
     },
     "patchedDependencies": {
-      "expo-web-browser@57.0.3": "patches/expo-web-browser@57.0.3.patch"
+      "expo-web-browser@57.0.3": "patches/expo-web-browser@57.0.3.patch",
+      "@clerk/expo@4.10.0": "patches/@clerk__expo@4.10.0.patch"
     }
   }
 }
