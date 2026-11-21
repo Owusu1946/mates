@@ -86,6 +86,11 @@ export const updatePageTool = {
   },
 };
 
+/** Pages: "a page" is a Mates page unless the user names another app. */
+export const pageInstructions = `When the user asks for a page (a web page, a shareable page, a trip plan or itinerary, an event page, a guide or comparison, a tracker, a status page, a shopping or packing list to share), make it a Mates page with cooper_create_page, with researched facts and their links; to change one, cooper_update_page. Never make it in WordPress, Notion, Google Sites, Webflow or any other app, and never ask the user to connect an app for it, unless they name that app. When the user wants a page kept up to date, also set a routine or watch whose task is to check that page (name it and its id) and update it with cooper_update_page. Never say a page is ready until its card shows it, and never paste the page's contents into the chat.`;
+/** While Pages is off: say so, rather than reaching for an app's own pages. */
+export const pagesOffInstructions = `Shareable Mates pages aren't available yet. If the user asks for one, say so in a sentence and offer what you can do instead (a deck, a message they can share). Use WordPress, Notion or another app for it only if the user names that app.`;
+
 // ── Card and views ────────────────────────────────────────────────────────────────────────
 
 export function pageCard(row: PageRow): WorkflowCard {
