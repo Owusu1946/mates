@@ -37,6 +37,7 @@
     "@t3-oss/env-core": "^0.13.11",
     "@trigger.dev/sdk": "4.7.3",
     "drizzle-orm": "^0.45.2",
+    "e2b": "2.64.0",
     "hono": "^4.9.8",
     "livekit-server-sdk": "^2.19.2",
     "luxon": "^3.7.2",

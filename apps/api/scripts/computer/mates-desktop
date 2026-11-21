@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# The mates' desktop on E2B: the screen, xfce, the VNC server and noVNC (the live view on port 6080).
+#
+#   mates-desktop run      start everything, then stay in the foreground (the template's start command)
+#   mates-desktop start    start whatever isn't running, and return once the live view answers
+#   mates-desktop status   exit 0 only if everything is up
+#   mates-desktop password control|view PASSWORD   sets one live-view password (8 letters or digits)
+#   mates-desktop disconnect   drops every live-view connection (they reconnect with a password that still works)
+#
+# Mirrors E2B's desktop-js (packages/desktop-js/src/sandbox.ts: _start and VNCServer), run inside the
+# sandbox so a new desktop is already on when it's created. The live view's passwords live in
+# ~/.mates/vncpasswd, which x11vnc re-reads on every connection (-passwdfile read:): line 1 is the
+# control password, the line after __BEGIN_VIEWONLY__ the watch-only one. The API rotates them.
+set -u
+
+export DISPLAY=:0
+WIDTH=1024
+HEIGHT=768
+VNC_PORT=5900
+NOVNC_PORT=6080
+PASSWD="$HOME/.mates/vncpasswd"
+
+screen_up() { xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; }
+xfce_up() { pgrep -x xfce4-session >/dev/null && pgrep -x xfwm4 >/dev/null; }
+vnc_up() { pgrep -x x11vnc >/dev/null; }
+novnc_up() { netstat -tuln 2>/dev/null | grep -q ":$NOVNC_PORT "; }
+
+# Waits up to $2 seconds for check $1.
+wait_for() {
+  local i=0
+  while ! "$1"; do
+    i=$((i + 1))
+    [ "$i" -gt $(($2 * 2)) ] && return 1
+    sleep 0.5
+  done
+}
+
+random_password() { tr -dc 'A-Za-z0-9' </dev/urandom | head -c 8; }
+
+start() {
+  if ! screen_up; then
+    setsid Xvfb "$DISPLAY" -ac -screen 0 "${WIDTH}x${HEIGHT}x24" -retro -dpi 96 -nolisten tcp -nolisten unix >/tmp/xvfb.log 2>&1 < /dev/null &
+    wait_for screen_up 15 || { echo "the screen didn't start" >&2; return 1; }
+  fi
+  # Never blank or lock: someone may be watching, and a mate can't type a password it doesn't have.
+  xset s off -dpms >/dev/null 2>&1 || true
+  if ! xfce_up; then
+    setsid startxfce4 >/tmp/xfce.log 2>&1 < /dev/null &
+    wait_for xfce_up 60 || { echo "the desktop didn't start" >&2; return 1; }
+  fi
+  pkill -x xfce4-screensaver >/dev/null 2>&1 || true
+  if [ ! -s "$PASSWD" ]; then
+    mkdir -p "$(dirname "$PASSWD")"
+    printf '%s\n__BEGIN_VIEWONLY__\n%s\n' "$(random_password)" "$(random_password)" >"$PASSWD"
+    chmod 600 "$PASSWD"
+  fi
+  if ! vnc_up; then
+    x11vnc -bg -display "$DISPLAY" -forever -shared -wait 50 -rfbport "$VNC_PORT" -passwdfile "read:$PASSWD" -o /tmp/x11vnc.log >/dev/null 2>&1
+    wait_for vnc_up 10 || { echo "the VNC server didn't start" >&2; return 1; }
+  fi
+  if ! novnc_up; then
+    (cd /opt/noVNC/utils && setsid ./novnc_proxy --vnc "localhost:$VNC_PORT" --listen "$NOVNC_PORT" --web /opt/noVNC >/tmp/novnc.log 2>&1 < /dev/null &)
+    wait_for novnc_up 15 || { echo "the live view didn't start" >&2; return 1; }
+  fi
+}
+
+# Sets one of the two live-view passwords, keeping the other. VNC passwords are 8 characters.
+password() {
+  local role="${1:-}" pw="${2:-}" control view
+  [[ "$pw" =~ ^[A-Za-z0-9]{8}$ ]] || { echo "a password is 8 letters or digits" >&2; return 2; }
+  control="$(sed -n 1p "$PASSWD" 2>/dev/null)"
+  view="$(sed -n 3p "$PASSWD" 2>/dev/null)"
+  [[ "$control" =~ ^[A-Za-z0-9]{8}$ ]] || control="$(random_password)"
+  [[ "$view" =~ ^[A-Za-z0-9]{8}$ ]] || view="$(random_password)"
+  case "$role" in
+    control) control="$pw" ;;
+    view) view="$pw" ;;
+    *) echo "control or view" >&2; return 2 ;;
+  esac
+  mkdir -p "$(dirname "$PASSWD")"
+  (umask 077 && printf '%s\n__BEGIN_VIEWONLY__\n%s\n' "$control" "$view" >"$PASSWD.tmp") && mv "$PASSWD.tmp" "$PASSWD"
+}
+
+case "${1:-}" in
+  run)
+    start || exit 1
+    # The template's start command is expected to keep running; everything above is detached.
+    exec tail -f /dev/null
+    ;;
+  start) start ;;
+  status) screen_up && xfce_up && vnc_up && novnc_up ;;
+  password) password "${2:-}" "${3:-}" ;;
+  disconnect) x11vnc -R disconnect:all -display "$DISPLAY" >/dev/null 2>&1 || true ;;
+  *) echo "usage: mates-desktop run|start|status|password|disconnect" >&2; exit 2 ;;
+esac
