@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   computerInput, computerView, ensureComputer, handBack, IDLE_STOP_MS, MAX_ON_MS, START_STALE_MS, startFromApp, stopComputer, stopFromApp, sweepComputers, takeOver,
-  type Computer, type ComputerDeps, type ComputerGoal,
+  type Computer, type ComputerDeps, type ComputerGoal, type DesktopProvider,
 } from "./computers.js";
 import type { Desktop } from "./desktop/types.js";
 
@@ -52,7 +52,9 @@ function harness(start?: Partial<Computer>) {
         && (((r.lastActiveAt ?? r.updatedAt) < before && (r.lastViewedAt ?? r.updatedAt) < before) || (!!r.onSince && r.onSince < onBefore))
         && ![...goals.values()].some((g) => g.computerId === r.id && ["running", "waiting"].includes(g.status))),
     },
-    provider: {
+    active: "daytona",
+    providers: {
+      daytona: {
       create: async () => { calls.push("create"); return { providerId: sbx, snapshot: "mates-desktop-1" }; },
       start: async () => { calls.push("start"); return desktop; },
       attach: async () => desktop,
@@ -62,6 +64,25 @@ function harness(start?: Partial<Computer>) {
       state: async () => { calls.push("state"); return providerState.value; },
       keepAlive: async () => { calls.push("keepalive"); },
       isGone: (error) => error instanceof Error && error.message === "gone",
+      delete: async () => { calls.push("delete"); },
+      error: (error) => (error instanceof Error && error.message.length < 200 ? error.message : "The computer couldn't be reached."),
+      configured: () => true,
+      },
+      // The other service: records its calls with a prefix, for the switch.
+      e2b: {
+        create: async () => { calls.push("e2b:create"); return { providerId: "e2b-sbx", snapshot: "mates-desktop-v1" }; },
+        start: async () => { calls.push("e2b:start"); return desktop; },
+        attach: async () => desktop,
+        stop: async () => { calls.push("e2b:stop"); },
+        liveUrl: async (_id, viewOnly) => { calls.push(viewOnly ? "e2b:url:view" : "e2b:url:control"); return { url: `https://e2b/${viewOnly ? "view" : "control"}`, token: "t", expiresAt: clock + 600_000 }; },
+        expireLiveUrl: async () => { calls.push("e2b:expire"); },
+        state: async () => { calls.push("e2b:state"); return providerState.value; },
+        keepAlive: async () => { calls.push("e2b:keepalive"); },
+        isGone: () => false,
+        delete: async () => { calls.push("e2b:delete"); },
+        error: () => "The computer service had a problem. Try again in a minute.",
+        configured: () => true,
+      } satisfies DesktopProvider,
     },
   };
   const addGoal = (status: ComputerGoal["status"], waitingFor: ComputerGoal["waitingFor"] = null) => {
@@ -91,7 +112,7 @@ describe("ensureComputer", () => {
 
   it("marks the computer as errored with a plain sentence when the provider fails", async () => {
     const h = harness({ providerId: "sbx" });
-    h.deps.provider.start = async () => { throw new Error("socket hang up"); };
+    h.deps.providers.daytona.start = async () => { throw new Error("socket hang up"); };
     await expect(ensureComputer(USER, h.deps)).rejects.toThrow("socket hang up");
     expect(h.row()).toMatchObject({ state: "error", error: "socket hang up" });
   });
@@ -266,7 +287,7 @@ describe("startFromApp", () => {
   it("makes a new desktop when the old one was deleted on Daytona", async () => {
     const h = harness({ providerId: "sbx", state: "off" });
     let first = true;
-    h.deps.provider.start = async () => { h.calls.push("start"); if (first) { first = false; throw new Error("gone"); } return {} as Desktop; };
+    h.deps.providers.daytona.start = async () => { h.calls.push("start"); if (first) { first = false; throw new Error("gone"); } return {} as Desktop; };
     const { computer } = await ensureComputer(USER, h.deps);
     expect(h.calls).toEqual(["start", "create", "start"]);
     expect(computer.state).toBe("on");
@@ -301,5 +322,54 @@ describe("hand back with no task", () => {
     const h = harness({ providerId: "sbx", state: "on", controller: "user" });
     const view = await handBack(USER, h.deps);
     expect(view.controller).toBe("user");
+  });
+});
+
+describe("switching providers", () => {
+  it("changes nothing while the setting stays on Daytona", async () => {
+    const h = harness({ providerId: "sbx", state: "off" });
+    await ensureComputer(USER, h.deps);
+    expect(h.calls).toEqual(["start"]);
+    expect(h.row().provider).toBe("daytona");
+  });
+
+  it("makes new desktops on the active service", async () => {
+    const h = harness();
+    h.deps.active = "e2b";
+    const { computer } = await ensureComputer(USER, h.deps);
+    expect(h.calls).toEqual(["e2b:create", "e2b:start"]);
+    expect(computer).toMatchObject({ provider: "e2b", providerId: "e2b-sbx", snapshot: "mates-desktop-v1", state: "on" });
+  });
+
+  it("moves a Daytona desktop on its next start: the old one is deleted, a new one made", async () => {
+    const h = harness({ providerId: "sbx", state: "off" });
+    h.deps.active = "e2b";
+    await ensureComputer(USER, h.deps);
+    expect(h.calls).toEqual(["delete", "e2b:create", "e2b:start"]);
+    expect(h.row()).toMatchObject({ provider: "e2b", providerId: "e2b-sbx", state: "on" });
+  });
+
+  it("still moves when the old desktop can't be deleted", async () => {
+    const h = harness({ providerId: "sbx", state: "off" });
+    h.deps.active = "e2b";
+    h.deps.providers.daytona.delete = async () => { throw new Error("daytona is down"); };
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await ensureComputer(USER, h.deps);
+    warn.mockRestore();
+    expect(h.calls).toEqual(["e2b:create", "e2b:start"]);
+    expect(h.row()).toMatchObject({ provider: "e2b", state: "on" });
+  });
+
+  it("keeps using a computer's own service until it moves", async () => {
+    // On Daytona and on; the setting changed to E2B meanwhile. Stopping, the live view and typing
+    // all go to Daytona, where the desktop actually is.
+    const h = harness({ providerId: "sbx", state: "on", controller: "user", onSince: new Date(999_000) });
+    h.deps.active = "e2b";
+    await computerView(USER, h.deps, { watching: true });
+    await computerInput(USER, { text: "hi" }, h.deps);
+    await stopComputer(h.row(), h.deps);
+    expect(h.calls.filter((call) => call.startsWith("e2b:"))).toEqual([]);
+    expect(h.calls).toEqual(expect.arrayContaining(["state", "url:control", "stop"]));
+    expect(h.recorded).toHaveLength(1);
   });
 });
