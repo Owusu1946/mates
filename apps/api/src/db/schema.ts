@@ -877,7 +877,7 @@ export const usageEvents = pgTable("usage_events", {
 ]);
 
 export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer" | "friend" | "page";
-export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona";
+export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona" | "e2b";
 
 /**
  * The two refilling allowances. A window starts with the first use after the last one ended and

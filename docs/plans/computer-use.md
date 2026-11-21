@@ -5,6 +5,7 @@ Mates get their own computer and use it the way a person does. They open the bro
 
 **Decisions so far (Ken, 2026-11-19):**
 - **Provider: Daytona.**
+- **Update (2026-11-21): moving to E2B,** because Daytona below Tier 3 can't reach the open internet. See [E2B](#e2b) below. `COMPUTER_PROVIDER` picks the service for new desktops; each computer keeps its own, so both run side by side and rollback is one setting.
 - **The best capabilities come first.** We save money only where it costs no quality: an idle machine is stopped, nobody pays for a screen nobody needs, and nothing is done twice. We never save money by using a weaker model or making the agent less able.
 - **Watchable and human-like.** The work happens on the visible desktop at a pace a person can follow, so the preview always shows what the mate is doing.
 
@@ -40,6 +41,15 @@ The mate can do anything a person at a Linux desktop can:
 3. **Plan → act → verify, always.** Each step checks its own result before the next. The mate never says something happened without evidence: a confirmation page, a file it read back, an email that arrived.
 4. **Code owns state and rules; the model owns meaning.** Trackers, statuses, timers, approval gates, spend caps and "never submit twice" live in the database and in code. The model decides what a screen means and what to write.
 5. **Stop paying when idle.** The machine is stopped the moment it isn't needed and starts in seconds with everything where it was. Watching inboxes, waiting for replies and timing follow-ups run on the server (watches and routines), not on a running desktop.
+
+## E2B
+Source of truth: github.com/e2b-dev/E2B (`packages/js-sdk`, `packages/desktop-js`), github.com/e2b-dev/desktop (`template/`) and docs.e2b.dev. The adapter is `apps/api/src/desktop/e2b.ts`; its header lists every fact it relies on.
+- **Template:** `scripts/computer-template.ts` builds `mates-desktop-v<N>` on E2B's `desktop` template (Ubuntu 22.04, xfce, Chrome, LibreOffice, x11vnc, noVNC). Its start command (`scripts/computer/mates-desktop run`) boots the whole desktop during the build, so a new computer is on when it's created (about 6s warm).
+- **Stop is pause:** memory and disk are kept (about 2s to pause, 1s to resume) and every window comes back as it was. Paused desktops are kept until deleted.
+- **Live view:** noVNC on port 6080, public traffic on (the page's websocket can't send E2B's traffic token). x11vnc guards it with two passwords, control and watch-only, rotated per link; watch-only is enforced by the server.
+- **Accessibility:** `mates-a11y` (pyatspi) prints the same tree shape as Daytona's API. Chrome needs `ACCESSIBILITY_ENABLED=1` to join the bus, and `--password-store=basic` so it never asks for a keyring password.
+- **Limits:** Hobby runs 10 desktops at once and at most 1 hour before E2B pauses one; Pro is 100 at once and 24 hours.
+- **Check it end to end:** `pnpm exec tsx scripts/computer-smoke.ts` makes a desktop, drives it through the adapter and deletes it.
 
 ## Daytona
 Facts from Daytona's docs, as of November 2026. Re-check the exact defaults when we build.

@@ -9,7 +9,8 @@
  * - A private sandbox's preview needs auth; a signed preview URL carries it and can be expired.
  */
 import { Daytona, DaytonaError, DaytonaNotFoundError, DaytonaRateLimitError, type Sandbox } from "@daytonaio/sdk";
-import { INTERACTIVE_ROLES, type Desktop, type ScreenElement } from "./types.js";
+import { flattenElements, type RawNode } from "./elements.js";
+import type { Desktop, ScreenElement } from "./types.js";
 
 export const NOVNC_PORT = 6080;
 /** How long a live-view link works. The app re-fetches it while open; a leaked one dies quickly. */
@@ -155,25 +156,6 @@ export async function liveUrl(providerId: string, viewOnly: boolean): Promise<{ 
 export async function expireLiveUrl(providerId: string, token: string) {
   const sandbox = await sandboxOf(providerId);
   await sandbox.expireSignedPreviewUrl(NOVNC_PORT, token);
-}
-
-type RawNode = { id?: string; role?: string; name?: string; states?: string[]; bounds?: { x?: number; y?: number; width?: number; height?: number }; children?: RawNode[] };
-
-/** Flattens the accessibility tree to the visible controls a person could act on. */
-export function flattenElements(root: RawNode | undefined, limit: number, screen = { width: 1024, height: 768 }): ScreenElement[] {
-  const out: ScreenElement[] = [];
-  const walk = (node: RawNode) => {
-    if (out.length >= limit) return;
-    const b = node.bounds;
-    const states = node.states ?? [];
-    const onScreen = !!b && (b.width ?? 0) > 0 && (b.height ?? 0) > 0 && (b.x ?? -1) >= 0 && (b.y ?? -1) >= 0 && (b.x ?? 0) < screen.width && (b.y ?? 0) < screen.height;
-    if (node.id && node.role && INTERACTIVE_ROLES.has(node.role) && onScreen && states.includes("showing")) {
-      out.push({ id: node.id, role: node.role, name: (node.name ?? "").slice(0, 80), bounds: { x: b!.x!, y: b!.y!, width: b!.width!, height: b!.height! }, focused: states.includes("focused") });
-    }
-    for (const child of node.children ?? []) walk(child);
-  };
-  if (root) walk(root);
-  return out;
 }
 
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64");

@@ -19,7 +19,7 @@ const DEFAULTS = {
   BROWSER_MINUTE: 2_000,
   /** Modal sandbox, 2 CPU and 4 GiB: about $0.13 an hour. */
   SANDBOX_MINUTE: 2_100,
-  /** Daytona desktop, 4 vCPU ($0.0504 each) and 8 GiB ($0.0162 each): about $0.33 an hour. */
+  /** A desktop, 4 vCPU ($0.0504 each) and 8 GiB ($0.0162 each): about $0.33 an hour, the same on Daytona and E2B. */
   COMPUTER_MINUTE: 5_520,
   /** Parallel Search: $1 per 1,000 fast requests, $5 per 1,000 advanced. */
   SEARCH_FAST: 1_000,

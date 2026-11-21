@@ -1,0 +1,9 @@
+#!/bin/sh
+# Chrome on the mates' desktop: page controls exposed to AT-SPI (the agent reads them as elements),
+# no first-run screens, and passwords kept by Chrome itself: without --password-store=basic it asks
+# for a keyring password on first run, a dialog that would stop every mate. Installed as
+# /usr/local/bin/google-chrome, ahead of /usr/bin on PATH;
+# /usr/local/bin/chromium points here too, so commands written for either browser work.
+# Chrome joins the accessibility bus only when told assistive tech is on.
+export ACCESSIBILITY_ENABLED=1
+exec /usr/bin/google-chrome-stable --force-renderer-accessibility --no-first-run --no-default-browser-check --password-store=basic "$@"

@@ -2,6 +2,7 @@ import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
 import { computerGoals, computers, type ComputerGoalStatus } from "./db/schema.js";
 import * as daytona from "./desktop/daytona.js";
+import * as e2b from "./desktop/e2b.js";
 import type { Desktop } from "./desktop/types.js";
 import { userPlan } from "./usage/gate.js";
 import { canUseComputer, type PlanId } from "./usage/plans.js";
@@ -26,14 +27,22 @@ export const WATCHING_MS = 10_000;
 const STOPPING_WAIT_MS = 90_000;
 /** A start that hasn't finished in this long, and isn't running in this process, is picked up again. */
 export const START_STALE_MS = 90_000;
-/** How often a watched desktop resets Daytona's idle timer and is checked against Daytona's own state. */
+/** How often a watched desktop resets the provider's idle timer and is checked against its own state. */
 const PROVIDER_CHECK_MS = 60_000;
 export const LIVE_GOAL: ComputerGoalStatus[] = ["running", "waiting"];
 
-export const computerConfigured = () => daytona.daytonaConfigured();
+/**
+ * Which service runs the desktops. COMPUTER_PROVIDER picks it for new desktops; each computer
+ * remembers its own (computers.provider), so both run side by side and switching back is one setting.
+ * A computer on the other service moves on its next start (see bringUp).
+ */
+export type ProviderName = "daytona" | "e2b";
+export const activeProviderName = (): ProviderName => (process.env.COMPUTER_PROVIDER === "e2b" ? "e2b" : "daytona");
+
+export const computerConfigured = () => desktopProviders[activeProviderName()].configured();
 export const computerAvailable = (plan: PlanId) => computerConfigured() && canUseComputer(plan);
 
-// ── What the lifecycle depends on, injectable so it can be tested without Daytona ─────────
+// ── What the lifecycle depends on, injectable so it can be tested without a provider ──────
 
 export type ComputerStore = {
   byUser(userId: string): Promise<Computer | null>;
@@ -58,9 +67,17 @@ export type DesktopProvider = {
   keepAlive(providerId: string): Promise<void>;
   /** The error means the desktop no longer exists, so a new one has to be made. */
   isGone(error: unknown): boolean;
+  /** Deletes the desktop and its disk for good. Already gone counts as done. */
+  delete(providerId: string): Promise<void>;
+  /** A plain sentence for a failure, safe to show the user. */
+  error(error: unknown): string;
+  configured(): boolean;
 };
 
-export type ComputerDeps = { store: ComputerStore; provider: DesktopProvider; record: typeof recordUsage; now(): number };
+export type ComputerDeps = { store: ComputerStore; providers: Record<ProviderName, DesktopProvider>; active: ProviderName; record: typeof recordUsage; now(): number };
+
+/** The service a computer's desktop lives on. */
+const providerOf = (computer: Pick<Computer, "provider">, deps: ComputerDeps) => deps.providers[computer.provider as ProviderName] ?? deps.providers.daytona;
 
 export const dbComputerStore: ComputerStore = {
   byUser: async (userId) => (await getDb().select().from(computers).where(eq(computers.clerkUserId, userId)))[0] ?? null,
@@ -98,19 +115,38 @@ export const dbComputerStore: ComputerStore = {
     )),
 };
 
-const daytonaProvider: DesktopProvider = {
-  create: daytona.createDesktopSandbox,
-  start: daytona.startDesktop,
-  attach: daytona.attachDesktop,
-  stop: daytona.stopDesktop,
-  liveUrl: daytona.liveUrl,
-  expireLiveUrl: daytona.expireLiveUrl,
-  state: daytona.desktopState,
-  keepAlive: daytona.keepDesktopAlive,
-  isGone: daytona.desktopGone,
+export const desktopProviders: Record<ProviderName, DesktopProvider> = {
+  daytona: {
+    create: daytona.createDesktopSandbox,
+    start: daytona.startDesktop,
+    attach: daytona.attachDesktop,
+    stop: daytona.stopDesktop,
+    liveUrl: daytona.liveUrl,
+    expireLiveUrl: daytona.expireLiveUrl,
+    state: daytona.desktopState,
+    keepAlive: daytona.keepDesktopAlive,
+    isGone: daytona.desktopGone,
+    delete: daytona.deleteDesktop,
+    error: daytona.desktopError,
+    configured: daytona.daytonaConfigured,
+  },
+  e2b: {
+    create: e2b.createDesktopSandbox,
+    start: e2b.startDesktop,
+    attach: e2b.attachDesktop,
+    stop: e2b.stopDesktop,
+    liveUrl: e2b.liveUrl,
+    expireLiveUrl: e2b.expireLiveUrl,
+    state: e2b.desktopState,
+    keepAlive: e2b.keepDesktopAlive,
+    isGone: e2b.desktopGone,
+    delete: e2b.deleteDesktop,
+    error: e2b.desktopError,
+    configured: e2b.e2bConfigured,
+  },
 };
 
-export const realComputerDeps = (): ComputerDeps => ({ store: dbComputerStore, provider: daytonaProvider, record: recordUsage, now: () => Date.now() });
+export const realComputerDeps = (): ComputerDeps => ({ store: dbComputerStore, providers: desktopProviders, active: activeProviderName(), record: recordUsage, now: () => Date.now() });
 
 export class ComputerError extends Error {}
 
@@ -138,29 +174,47 @@ async function bringUp(userId: string, deps: ComputerDeps): Promise<{ computer: 
   }
   try {
     if (row.state !== "on") row = (await deps.store.update(row.id, { state: "starting", error: null }))!;
+    // On the other service since the switch: a fresh desktop there, and the old one deleted.
+    if (row.providerId && row.provider !== deps.active) row = await moveDesktop(row, deps);
     let desktop: Desktop;
     try {
       if (!row.providerId) row = await createDesktop(row, deps);
-      desktop = await deps.provider.start(row.providerId!);
+      desktop = await providerOf(row, deps).start(row.providerId!);
     } catch (error) {
-      // Deleted on Daytona's side (by hand, or lost): make a new one rather than failing forever.
-      if (!row.providerId || !deps.provider.isGone(error)) throw error;
+      // Deleted on the provider's side (by hand, or lost): make a new one rather than failing forever.
+      if (!row.providerId || !providerOf(row, deps).isGone(error)) throw error;
       row = await createDesktop(row, deps);
-      desktop = await deps.provider.start(row.providerId!);
+      desktop = await providerOf(row, deps).start(row.providerId!);
     }
     const now = new Date(deps.now());
     row = (await deps.store.update(row.id, { state: "on", onSince: row.onSince ?? now, lastActiveAt: now, error: null }))!;
     return { computer: row, desktop };
   } catch (error) {
-    const message = daytona.desktopError(error);
+    const message = providerOf(row, deps).error(error);
     await deps.store.update(row.id, { state: "error", error: message });
     throw new ComputerError(message);
   }
 }
 
+/** New desktops are made on the active service. */
 async function createDesktop(row: Computer, deps: ComputerDeps) {
-  const created = await deps.provider.create(row.clerkUserId);
-  return (await deps.store.update(row.id, { providerId: created.providerId, snapshot: created.snapshot, onSince: null }))!;
+  const created = await deps.providers[deps.active].create(row.clerkUserId);
+  return (await deps.store.update(row.id, { provider: deps.active, providerId: created.providerId, snapshot: created.snapshot, onSince: null }))!;
+}
+
+/**
+ * Leaves the old service: its desktop is deleted (its logins and files go with it), and the row is
+ * cleared for a new one on the active service. A failed delete doesn't hold the user up; the old
+ * desktop stops on its own there.
+ */
+async function moveDesktop(row: Computer, deps: ComputerDeps) {
+  const old = providerOf(row, deps);
+  try {
+    await old.delete(row.providerId!);
+  } catch {
+    console.warn("computer_move_delete_failed", { id: row.id, from: row.provider });
+  }
+  return (await deps.store.update(row.id, { provider: deps.active, providerId: null, snapshot: null }))!;
 }
 
 /**
@@ -190,7 +244,7 @@ export async function stopComputer(computer: Computer, deps = realComputerDeps()
   await dropLiveUrls(claimed, deps);
   let stopped = true;
   try {
-    if (claimed.providerId) await deps.provider.stop(claimed.providerId);
+    if (claimed.providerId) await providerOf(claimed, deps).stop(claimed.providerId);
   } catch {
     stopped = false;
   }
@@ -198,11 +252,11 @@ export async function stopComputer(computer: Computer, deps = realComputerDeps()
   if (onSince) {
     const seconds = Math.max(0, Math.round((deps.now() - onSince.getTime()) / 1000));
     void deps.record({
-      userId: claimed.clerkUserId, source: "computer", provider: "daytona", ref: claimed.id, seconds,
+      userId: claimed.clerkUserId, source: "computer", provider: claimed.provider as ProviderName, ref: claimed.id, seconds,
       costMicros: perMinute("COMPUTER_MINUTE", seconds, 60), estimated: true, key: `computer:${claimed.id}:${onSince.getTime()}`,
     });
   }
-  // A failed stop leaves it marked error, and Daytona's own auto-stop is the backstop.
+  // A failed stop leaves it marked error, and the provider's own auto-stop (or pause) is the backstop.
   await deps.store.update(claimed.id, stopped
     ? { state: "off", onSince: null, controller: "mate", error: null }
     : { state: "error", onSince: null, controller: "mate", error: "The computer didn't stop cleanly; it will stop on its own." });
@@ -230,7 +284,7 @@ async function dropLiveUrls(computer: Computer, deps: ComputerDeps, only?: "cont
     const key = cacheKey(computer.providerId, viewOnly);
     const cached = liveUrls.get(key);
     liveUrls.delete(key);
-    if (cached) await deps.provider.expireLiveUrl(computer.providerId, cached.token).catch(() => undefined);
+    if (cached) await providerOf(computer, deps).expireLiveUrl(computer.providerId, cached.token).catch(() => undefined);
   }
 }
 
@@ -242,7 +296,7 @@ async function liveUrlFor(computer: Computer, viewOnly: boolean, deps: ComputerD
   const key = cacheKey(computer.providerId, viewOnly);
   const cached = liveUrls.get(key);
   if (cached && cached.expiresAt - deps.now() > 60_000) return cached.url;
-  const fresh = await deps.provider.liveUrl(computer.providerId, viewOnly);
+  const fresh = await providerOf(computer, deps).liveUrl(computer.providerId, viewOnly);
   liveUrls.set(key, fresh);
   return fresh.url;
 }
@@ -253,8 +307,8 @@ const controllerOf = (computer: Computer, goal: ComputerGoal | null): Computer["
 const lastProviderCheck = new Map<string, number>();
 
 /**
- * While someone watches a desktop that's on: resets Daytona's idle timer (the user may be working
- * by hand, which Daytona can't see), and notices one that stopped or vanished behind our back.
+ * While someone watches a desktop that's on: resets the provider's idle timer (the user may be
+ * working by hand, which it can't see), and notices one that stopped or vanished behind our back.
  * At most once a minute per desktop. Returns the row as it now stands.
  */
 async function checkProvider(computer: Computer, deps: ComputerDeps): Promise<Computer> {
@@ -263,13 +317,14 @@ async function checkProvider(computer: Computer, deps: ComputerDeps): Promise<Co
   if (deps.now() - last < PROVIDER_CHECK_MS) return computer;
   lastProviderCheck.set(computer.providerId, deps.now());
   try {
-    const state = await deps.provider.state(computer.providerId);
+    const provider = providerOf(computer, deps);
+    const state = await provider.state(computer.providerId);
     if (state === "started") {
-      await deps.provider.keepAlive(computer.providerId);
+      await provider.keepAlive(computer.providerId);
       return computer;
     }
     if (state === "starting") return computer;
-    // Stopped (Daytona's own backstop) or deleted: charge the time it was on and show it off.
+    // Stopped or paused (the provider's own backstop) or deleted: charge the time it was on and show it off.
     await stopComputer(computer, deps);
     if (state === "gone") return (await deps.store.update(computer.id, { providerId: null, snapshot: null, state: "off", error: null })) ?? computer;
     return (await deps.store.byUser(computer.clerkUserId)) ?? computer;
@@ -296,7 +351,7 @@ export type ComputerView = {
 
 /**
  * What the app shows. `watching` means the live view is on screen: that keeps an idle desktop on,
- * slows the mate to a pace people can follow, and keeps Daytona from auto-stopping it.
+ * slows the mate to a pace people can follow, and keeps the provider from auto-stopping it.
  */
 export async function computerView(userId: string, deps = realComputerDeps(), options: { watching?: boolean } = {}): Promise<ComputerView> {
   let computer = await deps.store.byUser(userId);
@@ -363,7 +418,7 @@ export async function computerInput(userId: string, input: { text?: string; key?
   const computer = await deps.store.byUser(userId);
   if (!computer || computer.state !== "on" || !computer.providerId) throw new ComputerError("The computer is off.");
   if (controllerOf(computer, await deps.store.liveGoal(computer.id)) !== "user") throw new ComputerError("Take over the computer before typing.");
-  const desktop = await deps.provider.attach(computer.providerId);
+  const desktop = await providerOf(computer, deps).attach(computer.providerId);
   if (input.text) await desktop.type(input.text);
   if (input.key) await desktop.press(input.key.toLowerCase());
   await deps.store.update(computer.id, { lastActiveAt: new Date(deps.now()) });
@@ -389,7 +444,9 @@ export async function stopFromApp(userId: string, deps = realComputerDeps()) {
 /** Deletes the user's desktop and everything on it (logins, files), for account deletion. */
 export async function deleteComputerFor(userId: string) {
   const computer = await dbComputerStore.byUser(userId);
-  if (computer?.providerId && computerConfigured()) await daytona.deleteDesktop(computer.providerId);
+  if (!computer?.providerId) return;
+  const provider = desktopProviders[computer.provider as ProviderName];
+  if (provider?.configured()) await provider.delete(computer.providerId);
 }
 
 export async function computerAvailableFor(userId: string) {
