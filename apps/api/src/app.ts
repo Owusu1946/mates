@@ -31,6 +31,8 @@ import {
 import { getEnv } from "./env.js";
 import { browserView, browserInput, closeBrowser, pauseBrowser } from "./browser.js";
 import { cancelComputerGoal, computerCard, ownedGoal, replySchema, replyToGoal } from "./computer-goals.js";
+import { activityWith, cancelRequest, guestReply, guestView, icsForToken, replyToRequest, RequestError, requestFor } from "./mate-requests.js";
+import { acceptInvite, blockFriend, createInviteLink, declineInvite, FriendError, inviteByEmail, listFriends, myName, nameSchema, previewInvite, removeFriend, setMyName, setNickname, setPermissions } from "./friends.js";
 import { ComputerError, INPUT_KEYS, computerAvailableFor, computerInput, computerView, handBack, startFromApp, stopFromApp, takeOver } from "./computers.js";
 import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, submitRun, workerConfigured } from "./durable-runs.js";
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
@@ -49,6 +51,7 @@ import { deleteAccount } from "./account.js";
 import { cancelCodeRun, codeCard, ownedCodeRun } from "./code-runs.js";
 import { renderPptx } from "./deck-pptx.js";
 import { cancelDeck, deckFilename, deckView, ownedDeck, startDeckEdit, undoDeck } from "./decks.js";
+import { cancelPage, ownedPage, pageHtmlForOwner, pageView, publicPage, sharePage, undoPage, unsharePage } from "./pages.js";
 import { recordVisit, referrerHost, visitStats } from "./site-visits.js";
 import { keytermsFor, transcribe, transcriptionConfigured } from "./transcription.js";
 import { CallError, callContext, callsConfigured, callTaskSchema, endCall, endCallSchema, getCall, inviteCallMate, inviteMateSchema, startCall, startCallSchema, startCallTask, verifyCallToken } from "./calls.js";
@@ -288,6 +291,47 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return session ? c.json(session) : c.json(failure("NOT_FOUND", "This meeting has ended", c.get("requestId")), 404);
     })
     .post("/site/meetings/:id/leave", async (c) => c.json({ ok: await leaveMeeting(c.req.param("id"), c.req.query("t")) }))
+    // A shared page, for the website to render at pages.askorin.app/<slug>: the document and the
+    // mate's name and colour, nothing about the owner. Private pages and revoked links are 404.
+    .get("/site/pages/:slug", async (c) => {
+      const page = await publicPage(c.req.param("slug"));
+      if (!page) {
+        c.header("cache-control", "public, max-age=0, s-maxage=30");
+        return c.json(failure("NOT_FOUND", "This page isn't available.", c.get("requestId")), 404);
+      }
+      c.header("cache-control", "public, max-age=0, s-maxage=30, stale-while-revalidate=300");
+      return c.json(page);
+    })
+    // An invite link's page on the website: only the inviter's first name and whether it still works.
+    .get("/site/invites/:code", async (c) => {
+      c.header("cache-control", "no-store");
+      const preview = await previewInvite(c.req.param("code"), null);
+      return preview ? c.json({ name: preview.name, open: preview.state === "open" }) : c.json(failure("NOT_FOUND", "This invite link doesn't work.", c.get("requestId")), 404);
+    })
+    // A request to someone not on Mates, on the page their link opens: only what the token unlocks.
+    .get("/site/requests/:token", async (c) => {
+      c.header("cache-control", "no-store");
+      const view = await guestView(c.req.param("token"));
+      return view ? c.json(view) : c.json(failure("NOT_FOUND", "This link doesn't work.", c.get("requestId")), 404);
+    })
+    .post("/site/requests/:token/reply", bodyLimit({ maxSize: 4_000 }), validator("json", (value, c) => {
+      const name = z.string().trim().max(40).optional();
+      const parsed = z.union([
+        z.object({ action: z.literal("answer"), text: z.string().trim().min(1).max(1_000), name }),
+        z.object({ action: z.literal("pick"), slot: z.number().int().min(0).max(5), email: z.string().trim().max(320).optional(), name }),
+        z.object({ action: z.literal("decline") }),
+      ]).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Answer, pick a time, or pass.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try { return c.json(await guestReply(c.req.param("token"), c.req.valid("json"))); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), 409); }
+    })
+    .get("/site/requests/:token/ics", async (c) => {
+      const ics = await icsForToken(c.req.param("token"));
+      if (!ics) return c.json(failure("NOT_FOUND", "Nothing booked yet.", c.get("requestId")), 404);
+      return c.body(ics, 200, { "content-type": "text/calendar; charset=utf-8", "content-disposition": 'attachment; filename="meeting.ics"', "cache-control": "no-store" });
+    })
     // The deck the mate is presenting, for its share page (?s=) or its camera page as a fallback (?t=).
     .get("/site/meetings/:id/presentation", async (c) => {
       c.header("cache-control", "no-store");
@@ -830,6 +874,35 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         },
       });
     })
+    .get("/v1/pages/:id", auth, async (c) => {
+      const row = await ownedPage(c.get("userId"), c.req.param("id"));
+      return row ? c.json(pageView(row)) : c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+    })
+    // The page as the app's viewer shows it: the same renderer as the public page, private pages too.
+    .get("/v1/pages/:id/html", auth, async (c) => {
+      const html = await pageHtmlForOwner(c.get("userId"), c.req.param("id"));
+      if (!html) return c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+      return c.html(html, 200, { "cache-control": "private, no-store" });
+    })
+    .post("/v1/pages/:id/share", auth, async (c) => {
+      const body = z.object({ confirmed: z.boolean().optional() }).safeParse(await c.req.json().catch(() => ({})));
+      const result = await sharePage(c.get("userId"), c.req.param("id"), body.success ? body.data.confirmed === true : false);
+      if (result.status === "error") return c.json(failure(result.code === 404 ? "NOT_FOUND" : "CONFLICT", result.error, c.get("requestId")), result.code);
+      return c.json(result);
+    })
+    .post("/v1/pages/:id/unshare", auth, async (c) => {
+      const card = await unsharePage(c.get("userId"), c.req.param("id"));
+      return card ? c.json({ card }) : c.json(failure("NOT_FOUND", "Page not found", c.get("requestId")), 404);
+    })
+    .post("/v1/pages/:id/undo", auth, async (c) => {
+      const result = await undoPage(c.get("userId"), c.req.param("id"));
+      if (!result.row) return c.json(failure(result.status === 404 ? "NOT_FOUND" : "CONFLICT", result.error ?? "There's nothing to undo.", c.get("requestId")), result.status ?? 409);
+      return c.json(pageView(result.row));
+    })
+    .post("/v1/pages/:id/cancel", auth, async (c) => {
+      const row = await cancelPage(c.get("userId"), c.req.param("id"));
+      return row ? c.json(pageView(row)) : c.json(failure("CONFLICT", "This page is no longer being made.", c.get("requestId")), 409);
+    })
     .get("/v1/missions", auth, async (c) => {
       const chatId = chatIdSchema.safeParse(c.req.query("chatId"));
       if (!chatId.success) return c.json(failure("INVALID_CHAT_ID", "Invalid chat ID", c.get("requestId")), 400);
@@ -1278,6 +1351,85 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       // Never log this body: it can be a password.
       try { await computerInput(c.get("userId"), input); return c.json({ ok: true }); }
       catch (error) { return c.json(failure("COMPUTER_UNAVAILABLE", error instanceof ComputerError ? error.message : "The computer couldn't be reached.", c.get("requestId")), 409); }
+    })
+    .get("/v1/friends", auth, async (c) => c.json(await listFriends(c.get("userId"))))
+    .post("/v1/friends/invites", auth, async (c) => {
+      try { return c.json(await createInviteLink(c.get("userId"))); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't make an invite. Try again.", c.get("requestId")), 429); }
+    })
+    .post("/v1/friends/invites/email", auth, validator("json", (value, c) => {
+      const parsed = z.object({ email: z.string().trim().email().max(320) }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Enter a valid email address.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      try { return c.json(await inviteByEmail(c.get("userId"), c.req.valid("json").email)); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), error instanceof FriendError ? 429 : 502); }
+    })
+    .get("/v1/friends/invites/:code", auth, async (c) => {
+      const preview = await previewInvite(c.req.param("code"), c.get("userId"));
+      return preview ? c.json(preview) : c.json(failure("NOT_FOUND", "This invite link doesn't work.", c.get("requestId")), 404);
+    })
+    .post("/v1/friends/invites/:code/accept", auth, async (c) => {
+      try { return c.json(await acceptInvite(c.get("userId"), c.req.param("code"))); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't connect. Try again.", c.get("requestId")), 409); }
+    })
+    .post("/v1/friends/invites/:code/decline", auth, async (c) => {
+      try { await declineInvite(c.get("userId"), c.req.param("code")); return c.json({ ok: true }); }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't do that.", c.get("requestId")), 409); }
+    })
+    .get("/v1/profile/name", auth, async (c) => c.json(await myName(c.get("userId"))))
+    .put("/v1/profile/name", auth, validator("json", (value, c) => {
+      const parsed = nameSchema.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Enter a name, up to 40 characters.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => c.json(await setMyName(c.get("userId"), c.req.valid("json").name)))
+    .patch("/v1/friends/:userId", auth, validator("json", (value, c) => {
+      const parsed = z.object({
+        permissions: z.object({ freeTimes: z.boolean(), messages: z.boolean(), answers: z.boolean() }).partial().refine((p) => Object.keys(p).length > 0).optional(),
+        nickname: z.string().trim().max(40).nullable().optional(),
+      }).refine((v) => v.permissions !== undefined || v.nickname !== undefined).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Choose what to share, or what to call them.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const body = c.req.valid("json");
+      try {
+        const permissions = body.permissions ? await setPermissions(c.get("userId"), c.req.param("userId"), body.permissions) : undefined;
+        const nickname = body.nickname !== undefined ? await setNickname(c.get("userId"), c.req.param("userId"), body.nickname) : undefined;
+        return c.json({ ...(permissions ? { permissions } : {}), ...(nickname !== undefined ? { nickname } : {}) });
+      }
+      catch (error) { return c.json(failure("FRIENDS", error instanceof FriendError ? error.message : "Couldn't save that.", c.get("requestId")), 409); }
+    })
+    .get("/v1/friends/:userId/activity", auth, async (c) => c.json({ items: await activityWith(c.get("userId"), c.req.param("userId")) }))
+    .get("/v1/requests/:id", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      const card = await requestFor(c.get("userId"), c.req.param("id"));
+      return card ? c.json({ card }) : c.json(failure("NOT_FOUND", "Request not found", c.get("requestId")), 404);
+    })
+    .post("/v1/requests/:id/reply", auth, validator("json", (value, c) => {
+      const parsed = z.union([
+        z.object({ action: z.literal("send"), text: z.string().trim().min(1).max(1_000).optional(), always: z.boolean().optional() }),
+        z.object({ action: z.literal("decline") }),
+        z.object({ action: z.literal("pick"), slot: z.number().int().min(0).max(5) }),
+      ]).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_INPUT", "Send an answer or pass.", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      try { return c.json({ card: await replyToRequest(c.get("userId"), c.req.param("id"), c.req.valid("json")) }); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't send that. Try again.", c.get("requestId")), 409); }
+    })
+    .post("/v1/requests/:id/cancel", auth, async (c) => {
+      if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid request", c.get("requestId")), 400);
+      try { return c.json({ card: await cancelRequest(c.get("userId"), c.req.param("id")) }); }
+      catch (error) { return c.json(failure("REQUEST", error instanceof RequestError ? error.message : "Couldn't cancel that.", c.get("requestId")), 409); }
+    })
+    .delete("/v1/friends/:userId", auth, async (c) => {
+      await removeFriend(c.get("userId"), c.req.param("userId"));
+      return c.json({ ok: true });
+    })
+    .post("/v1/friends/:userId/block", auth, async (c) => {
+      await blockFriend(c.get("userId"), c.req.param("userId"));
+      return c.json({ ok: true });
     })
     .use("/internal/*", async (c, next) => {
       if (!adminAuthorized(c.req.header("x-admin-key"))) return c.json(failure("UNAUTHORIZED", "Admin key required", c.get("requestId")), 401);

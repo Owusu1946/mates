@@ -353,6 +353,7 @@ async function stopRounds(chatId: string) {
           createdAt: new Date().toISOString(),
           content: [{ type: "tool-call", toolCallId: `skipped_${messageId}`, toolName: "cooper_workflow", args: {}, argsText: "{}", result: { kind: "step", phase: "done", label: "Step skipped" } }],
           status: { type: "complete", reason: "stop" },
+          metadata: { custom: {} },
         },
       })
       .where(and(eq(chatMessages.chatId, chatId), eq(chatMessages.id, messageId)));

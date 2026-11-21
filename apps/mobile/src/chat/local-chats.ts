@@ -3,6 +3,7 @@ import type {
   ThreadHistoryAdapter,
 } from "@assistant-ui/react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { withMetadata } from "./remote-chats";
 
 type StoredMessage = Awaited<
   ReturnType<ThreadHistoryAdapter["load"]>
@@ -172,8 +173,9 @@ export function createLocalChats(userId: string) {
             ...item,
             message: {
               ...item.message,
+              metadata: withMetadata(item.message.metadata),
               createdAt: new Date(item.message.createdAt),
-            },
+            } as typeof item.message,
           })),
         };
       },

@@ -295,6 +295,41 @@
       "when": 1795104607552,
       "tag": "0041_rainy_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1795177418421,
+      "tag": "0042_friends",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1795178197539,
+      "tag": "0043_mate_requests",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1795179117229,
+      "tag": "0044_find_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1795182813547,
+      "tag": "0045_friend_nickname",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1795197776643,
+      "tag": "0046_pages",
+      "breakpoints": true
     }
   ]
 }

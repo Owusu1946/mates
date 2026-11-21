@@ -18,6 +18,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
+import type { PageDoc, PageKind } from "@muse-clone/pages";
 import type { PlanId } from "../usage/plans.js";
 
 export const profiles = pgTable(
@@ -875,7 +876,7 @@ export const usageEvents = pgTable("usage_events", {
   index("usage_events_created_idx").on(t.createdAt),
 ]);
 
-export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer";
+export type UsageSource = "chat" | "routine" | "call" | "meeting" | "deck" | "code" | "browser" | "search" | "attachment" | "transcribe" | "memory" | "embed" | "watch" | "habit" | "prep" | "rides" | "review" | "computer" | "friend" | "page";
 export type UsageProvider = "openrouter" | "livekit" | "recall" | "browserbase" | "modal" | "parallel" | "deepgram" | "sail" | "daytona";
 
 /**
@@ -1089,3 +1090,137 @@ export const billingEvents = pgTable("billing_events", {
   receivedAt: timestamp("received_at", { withTimezone: true }).defaultNow().notNull(),
   processedAt: timestamp("processed_at", { withTimezone: true }),
 }, (t) => [index("billing_events_status_idx").on(t.status, t.receivedAt), index("billing_events_user_idx").on(t.clerkUserId)]);
+
+/**
+ * What a friend's mate may do with yours without asking you first. Anything not allowed here (and
+ * every kind of request without its own switch) waits for your tap, with "Always allow" to add it.
+ * - freeTimes: see when you're free, never what you're doing.
+ * - messages: pass on updates ("running 10 minutes late").
+ * - answers: your mate answers their questions from what it knows about you.
+ */
+export type FriendPermissions = { freeTimes: boolean; messages: boolean; answers: boolean };
+export const DEFAULT_FRIEND_PERMISSIONS: FriendPermissions = { freeTimes: true, messages: true, answers: false };
+export type FriendStatus = "active" | "removed" | "blocked";
+
+/** One side of a friendship: what this person lets that friend's mate do. Accepting writes both sides. */
+export const friends = pgTable("friends", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  friendUserId: text("friend_user_id").notNull(),
+  permissions: jsonb("permissions").$type<FriendPermissions>().notNull().default(DEFAULT_FRIEND_PERMISSIONS),
+  /** What this person calls their friend ("Sammy", "Uncle Kofi"); shown to them and matched when they name the friend in chat. */
+  nickname: text("nickname"),
+  status: text("status").$type<FriendStatus>().notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.clerkUserId, t.friendUserId] }), index("friends_friend_idx").on(t.friendUserId)]);
+
+/**
+ * An invite to connect: a single-use link shared anywhere, or a request to one existing user found
+ * by email (`toUserId`), which shows in their Friends requests.
+ */
+export const friendInvites = pgTable("friend_invites", {
+  code: text("code").primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  toUserId: text("to_user_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedBy: text("accepted_by"),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  declinedAt: timestamp("declined_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("friend_invites_user_idx").on(t.clerkUserId, t.createdAt), index("friend_invites_to_idx").on(t.toUserId)]);
+
+export type MateRequestKind = "tell" | "ask" | "find_time";
+/** What a find_time request is for; times are ISO strings. */
+export type MeetingDetails = { kind: string; title: string; durationMin: number; from: string; to: string; place?: string | null; timezone: string };
+export type MeetingSlot = { start: string; end: string; reason: string };
+export type MeetingBooking = { start: string; end: string; eventId?: string | null; link?: string | null };
+/** delivered: an update that needs nothing back. waiting: on the friend's tap. held: until they accept a friend request. */
+export type MateRequestStatus = "held" | "delivered" | "waiting" | "answered" | "declined" | "expired" | "cancelled";
+export type MateRequestAnswer = { text: string; by: "mate" | "person" };
+
+/**
+ * A request from one person's mate to a friend's: pass on an update, ask a question. Whether it
+ * goes through on its own or waits for the friend is decided in code (./mate-requests), from the
+ * friend's permissions for the sender; `policy` records which it was.
+ */
+export const mateRequests = pgTable("mate_requests", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  kind: text("kind").$type<MateRequestKind>().notNull(),
+  /** The sender. */
+  clerkUserId: text("clerk_user_id").notNull(),
+  fromMateId: uuid("from_mate_id").references(() => mates.id, { onDelete: "set null" }),
+  fromChatId: text("from_chat_id").references(() => chats.id, { onDelete: "set null" }),
+  /** The friend; null for someone not on Mates, who answers on the web page their token opens. */
+  toUserId: text("to_user_id"),
+  guestName: text("guest_name"),
+  guestEmail: text("guest_email"),
+  /** Opens the guest page and the calendar file; unguessable. */
+  token: text("token").unique(),
+  /** The friend's lead mate chat, where their card lives. */
+  toChatId: text("to_chat_id").references(() => chats.id, { onDelete: "set null" }),
+  /** What was asked or said, in the sender's mate's words. */
+  text: text("text").notNull(),
+  status: text("status").$type<MateRequestStatus>().notNull(),
+  policy: text("policy").$type<"allowed" | "asked">().notNull(),
+  /** The friend's mate's suggested answer, shown to the friend when it waits on them. */
+  draft: text("draft"),
+  answer: jsonb("answer").$type<MateRequestAnswer>(),
+  meeting: jsonb("meeting").$type<MeetingDetails>(),
+  slots: jsonb("slots").$type<MeetingSlot[]>(),
+  booked: jsonb("booked").$type<MeetingBooking>(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  answeredAt: timestamp("answered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("mate_requests_from_idx").on(t.clerkUserId, t.createdAt), index("mate_requests_to_idx").on(t.toUserId, t.createdAt)]);
+
+export type PageStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
+/** What the user asked for and the facts the mate gathered: the brief every section is written from. */
+export type PageRequest = { kind: PageKind; topic: string; audience: string | null; facts: { text: string; url: string | null }[] };
+
+/**
+ * A page a mate made: a validated document of blocks (packages/pages), drawn by our renderer in
+ * the app and at pages.askorin.app/<slug> once shared. Private until the owner shares the link.
+ */
+export const pages = pgTable("pages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  mateId: uuid("mate_id").references(() => mates.id, { onDelete: "set null" }),
+  kind: text("kind").$type<PageKind>().notNull(),
+  title: text("title").notNull(),
+  /** The public link's last part; unguessable, and only served while `visibility` is "link". */
+  slug: text("slug").notNull().unique(),
+  visibility: text("visibility").$type<"private" | "link">().notNull().default("private"),
+  request: jsonb("request").$type<PageRequest>().notNull(),
+  /** Null until the outline lands; sections fill in as they're written. */
+  doc: jsonb("doc").$type<PageDoc>(),
+  status: text("status").$type<PageStatus>().notNull().default("queued"),
+  version: integer("version").notNull().default(0),
+  /** The latest change in a line ("Moved dinner to 8pm"), for readers. */
+  summary: text("summary"),
+  /** Sections written so far while building, out of `total`, for the live card. */
+  built: integer("built").notNull().default(0),
+  total: integer("total").notNull().default(0),
+  costUsd: real("cost_usd").notNull().default(0),
+  cancelRequested: boolean("cancel_requested").notNull().default(false),
+  error: text("error"),
+  sharedAt: timestamp("shared_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("pages_user_idx").on(t.clerkUserId, t.createdAt),
+  index("pages_chat_idx").on(t.chatId, t.createdAt),
+]);
+
+/** Every saved version of a page, so any change can be undone and readers see what changed. */
+export const pageVersions = pgTable("page_versions", {
+  pageId: uuid("page_id").notNull().references(() => pages.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  doc: jsonb("doc").$type<PageDoc>().notNull(),
+  summary: text("summary"),
+  /** The change that made this version; null for the first build, "undo:N" for an undo. */
+  instruction: text("instruction"),
+  costUsd: real("cost_usd").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [primaryKey({ columns: [t.pageId, t.version] })]);

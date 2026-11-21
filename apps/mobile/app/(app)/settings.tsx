@@ -74,6 +74,7 @@ function useSettings() {
     openNoticed: () => router.push("/noticed"),
     openApps: () => router.push("/connections"),
     openPermissions: () => router.push("/permissions"),
+    openFriends: () => router.push("/friends"),
     openNotifications: () => void Linking.openSettings(),
     showIntro: () => router.push({ pathname: "/(onboarding)", params: { preview: "1" } }),
     signOut: () => {
@@ -150,6 +151,7 @@ function IosSettings({ s }: { s: Settings }) {
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
           <LinkRow title="What I’ve noticed" icon="sparkles" color="#FF9500" onPress={s.openNoticed} />
           <LinkRow title="Apps" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
+          <LinkRow title="Friends" icon="person.2.fill" color="#FF9500" onPress={s.openFriends} />
           <LinkRow title="Permissions" icon="hand.raised" color="#34C759" onPress={s.openPermissions} />
           <LinkRow title="Notifications" icon="bell.badge" color="#FF3B30" external onPress={s.openNotifications} />
         </Section>
@@ -203,6 +205,7 @@ function AndroidSettings({ s }: { s: Settings }) {
           {row("Memory", s.openMemory)}
           {row("What I’ve noticed", s.openNoticed)}
           {row("Apps", s.openApps)}
+          {row("Friends", s.openFriends)}
           {row("Permissions", s.openPermissions)}
           {row("Notifications", s.openNotifications)}
         </FieldGroup.Section>

@@ -30,6 +30,7 @@ import { LeaderGate } from "../../src/onboarding/leader-gate";
 import { useCacheReady } from "../../src/data/offline-cache";
 import { canRetryPendingShare, readPendingShare } from "../../src/share/pending";
 import { readAndroidPendingShare } from "../../src/share/android-pending";
+import { takePendingInvite } from "../../src/friends/pending-invite";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
@@ -93,6 +94,11 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         else router.push("/(app)");
         return;
       }
+      // A screen of the app itself (Friends, the computer) when there's no chat to open.
+      if (typeof data?.url === "string" && /^\/(?:[a-z-]+|page\/[0-9a-f-]{36})$/.test(data.url) && typeof chatId !== "string") {
+        router.push(data.url as never);
+        return;
+      }
       // A mate's or group's result (a routine, a background task) opens in their chat.
       const inMateChat = data?.chatKind === "mate" || data?.chatKind === "group";
       if (typeof chatId === "string" && (inMateChat || typeof data?.delegationId !== "string")) {
@@ -105,6 +111,10 @@ function AuthenticatedStack({ userId }: { userId: string }) {
     const listener = Notifications.addNotificationResponseReceivedListener(open);
     void Notifications.getLastNotificationResponseAsync().then(response => { if (response) { open(response); void Notifications.clearLastNotificationResponseAsync(); } }).catch(() => {});
     return () => listener.remove();
+  }, [router]);
+  // An invite link opened before signing in opens now.
+  useEffect(() => {
+    void takePendingInvite().then((code) => { if (code) router.push({ pathname: "/connect", params: { c: code } }); });
   }, [router]);
   const { getToken } = useAuth();
   const tokenRef = useRef(getToken);
@@ -208,6 +218,9 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="share-pending" options={{ title: "Finish sharing", presentation: "modal" }} />
           <Stack.Screen name="share-receive" options={{ title: "Share to a mate", presentation: "modal" }} />
           <Stack.Screen name="permissions" options={{ title: "Permissions", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="friends" options={{ title: "Friends", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="connect" options={{ headerShown: false, presentation: "modal" }} />
+          <Stack.Screen name="friend" options={{ title: "" }} />
           <Stack.Screen name="noticed" options={{ title: "What I’ve noticed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="usage" options={{ title: "Plan & usage", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="paywall" options={{ title: "Plans", presentation: "modal" }} />
@@ -218,6 +231,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           <Stack.Screen name="call" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="computer" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
           <Stack.Screen name="deck/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
+          <Stack.Screen name="page/[id]" options={{ headerShown: false, presentation: "fullScreenModal", animation: "slide_from_bottom" }} />
         </Stack>
         <CallPill />
       </View>

@@ -585,6 +585,7 @@ async function announce(id: string) {
               { type: "text", text },
             ],
             status: { type: "complete", reason: "stop" },
+            metadata: { custom: { codeRunId: run.id } },
           },
         })
         .onConflictDoNothing(),
