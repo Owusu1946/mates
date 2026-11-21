@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
@@ -73,7 +73,7 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
 
   const lineStyle = { fontFamily: "DMSans_500Medium", fontSize: 14.5, letterSpacing: 0.1 } as const;
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, gap: 4 }}>
+    <Animated.View style={{ marginVertical: 4, gap: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Pressable
           accessibilityRole="button"

@@ -3,7 +3,7 @@ import { useAui, useAuiState } from "@assistant-ui/react-native";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { AppLogo } from "../connections/app-connection";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
@@ -68,7 +68,7 @@ export function PlanCard({ state }: { state: WorkflowCard }) {
   const lineStyle = { fontFamily: "DMSans_500Medium", fontSize: 14.5, letterSpacing: 0.1 } as const;
 
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, gap: 8 }}>
+    <Animated.View style={{ marginVertical: 4, gap: 8 }}>
       {/* The summary line: what's proposed, happening, or done. Finished, it folds the rows away. */}
       <Pressable
         accessibilityRole={finished ? "button" : "header"}

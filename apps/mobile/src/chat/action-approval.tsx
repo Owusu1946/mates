@@ -2,7 +2,7 @@ import { useAui, useAuiState } from "@assistant-ui/react-native";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { AppLogo } from "../connections/app-connection";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
@@ -51,7 +51,7 @@ export function ActionApproval({ state }: { state: WorkflowCard }) {
             : { text: "Done.", done: true };
 
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, padding: 14, gap: 12, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}>
+    <Animated.View style={{ marginVertical: 4, padding: 14, gap: 12, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {state.name ? <AppLogo name={state.name} logo={state.logo} size={30} /> : null}
         <View style={{ flex: 1, gap: 1 }}>
