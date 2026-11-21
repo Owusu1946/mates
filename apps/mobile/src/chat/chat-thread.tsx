@@ -11,10 +11,11 @@ import {
 } from "@assistant-ui/react-native";
 import * as Clipboard from "expo-clipboard";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   Alert,
   Keyboard,
   KeyboardAvoidingView,
@@ -53,7 +54,7 @@ import { useTheme } from "../theme/provider";
 import * as WebBrowser from "expo-web-browser";
 import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
-import { ChatSyncNotice } from "./chat-sync";
+import { ChatSyncContext, ChatSyncNotice } from "./chat-sync";
 import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard } from "./workflow-card";
 import { PulseDot } from "./pulse-dot";
 import { NEEDS_YOU, useComputer } from "../computer/use-computer";
@@ -653,6 +654,27 @@ function UserText({ text }: { text: string }) {
   );
 }
 
+/**
+ * A tool call's card. One component for the life of the app: assistant-ui mounts `renderToolCall`
+ * as a component, so a new function each render would unmount and remount every card in the
+ * message on every streamed token (losing what's typed in them, refetching, flickering).
+ */
+function ToolCallPart({ part }: { part: { result?: unknown } }) {
+  const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
+  // A stopped reply: cards that were still spinning read "Stopped".
+  const card = shownCard(part.result as WorkflowCard | undefined, cancelled);
+  if (!card) return <></>;
+  return (
+    card.kind === "rides" ? <RidesCard state={card} /> : card.kind === "ride_location" ? <RideLocationCard state={card} /> : card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "comparison" ? <ComparisonCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : card.kind === "computer" ? <ComputerCard state={card} /> : card.kind === "friend_request" ? <FriendRequestCard state={card} /> : card.kind === "page" ? <PageCard state={card} /> : ["choice", "results"].includes(
+      card.kind,
+    ) ? (
+      <AppResponseCard state={card} />
+    ) : (
+      <ToolWorkflowCard state={card} />
+    )
+  );
+}
+
 /** A card as shown: in a stopped reply, one still spinning reads "Stopped" instead. */
 function shownCard(card: WorkflowCard | undefined, cancelled: boolean): WorkflowCard | undefined {
   if (!card || !cancelled || card.phase !== "running") return card;
@@ -741,21 +763,7 @@ function ChatMessage() {
           }}
         >
           <MessagePrimitive.Content
-            renderToolCall={({ part }) => {
-              // A stopped reply: cards that were still spinning read "Stopped".
-              const card = shownCard(part.result as WorkflowCard | undefined, cancelled);
-              return card ? (
-                card.kind === "rides" ? <RidesCard state={card} /> : card.kind === "ride_location" ? <RideLocationCard state={card} /> : card.kind === "approval" ? <ActionApproval state={card} /> : card.kind === "speaker" ? <SpeakerLabel state={card} /> : card.kind === "team" ? <TeamCard state={card} /> : card.kind === "mate" ? <MateCard state={card} /> : card.kind === "handoff" ? <HandoffCard state={card} /> : card.kind === "comparison" ? <ComparisonCard state={card} /> : card.kind === "note" ? <NoteChip state={card} /> : card.kind === "code" ? <CodeCard state={card} /> : card.kind === "github" ? <GitHubConnectCard state={card} /> : card.kind === "deck" ? <DeckCard state={card} /> : card.kind === "sources" ? <SourcesCard state={card} /> : card.kind === "memory" ? <MemoryCard state={card} /> : card.kind === "memories" ? <MemoriesChip state={card} /> : card.kind === "consult" ? <ConsultCard state={card} /> : card.kind === "plan" ? <PlanCard state={card} /> : card.kind === "schedule" ? <ScheduleCard state={card} /> : card.kind === "watch" ? <WatchCard state={card} /> : card.kind === "prep" ? <MeetingPrepCard state={card} /> : card.kind === "browser" ? <BrowserCard state={card} /> : card.kind === "computer" ? <ComputerCard state={card} /> : card.kind === "friend_request" ? <FriendRequestCard state={card} /> : card.kind === "page" ? <PageCard state={card} /> : ["choice", "results"].includes(
-                  card.kind,
-                ) ? (
-                  <AppResponseCard state={card} />
-                ) : (
-                  <ToolWorkflowCard state={card} />
-                )
-              ) : (
-                <></>
-              );
-            }}
+            renderToolCall={ToolCallPart}
             renderText={({ part }) =>
               user ? (
                 <UserText text={part.text} />
@@ -1066,6 +1074,33 @@ const AWAY_FROM_BOTTOM = 280;
  */
 const MESSAGE_GAP = 18;
 const KEEP_POSITION = { minIndexForVisible: 0 };
+const NO_PAGING = { hasMore: false, loading: false };
+const noSubscribe = () => () => {};
+
+/**
+ * Older messages, loaded when the user scrolls to the top. Only after they've scrolled the chat
+ * themselves: the list draws from the top before it settles at the newest message, which would
+ * otherwise load a page on every open.
+ */
+function useEarlierMessages() {
+  const sync = useContext(ChatSyncContext);
+  const remoteId = useAuiState((state) => state.threadListItem.remoteId);
+  const threadId = useAuiState((state) => state.threadListItem.id);
+  const paging = useSyncExternalStore(sync?.paging.subscribe ?? noSubscribe, () => sync?.paging.get(remoteId) ?? NO_PAGING);
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => setScrolled(false), [threadId]);
+  const onUserScroll = useCallback(() => setScrolled(true), []);
+  const history = useMemo(
+    () => (sync && scrolled && (paging.hasMore || paging.loading) ? { hasMore: paging.hasMore, isLoadingMore: paging.loading, loadMore: () => sync.paging.loadMore(threadId) } : undefined),
+    [sync, scrolled, paging, threadId],
+  );
+  return { history, loading: paging.loading, onUserScroll };
+}
+
+function EarlierLoading() {
+  const colors = useChatColors();
+  return <ActivityIndicator accessibilityLabel="Loading earlier messages" color={colors.mutedForeground} style={{ paddingBottom: 16 }} />;
+}
 
 /**
  * `topInset` and `bottomInset`: the floating header's and composer's heights, kept clear at the
@@ -1112,6 +1147,23 @@ function ChatBody({
     ),
     [],
   );
+  const earlier = useEarlierMessages();
+  const onDrag = useCallback(() => {
+    earlier.onUserScroll();
+    onScrollBeginDrag();
+  }, [earlier.onUserScroll, onScrollBeginDrag]);
+  const contentStyle = useMemo(
+    () => ({
+      width: "100%" as const,
+      maxWidth: 768,
+      alignSelf: "center" as const,
+      paddingHorizontal: 12,
+      paddingTop: topInset + 12,
+      // The last row brings its own gap.
+      paddingBottom: bottomInset + 16 - MESSAGE_GAP,
+    }),
+    [topInset, bottomInset],
+  );
   return (
     <View style={{ flex: 1, minHeight: 0, paddingTop: isEmpty ? topInset : 0, paddingBottom: isEmpty ? bottomInset : 0 }}>
       {isEmpty && (loading || isLoading) ? (
@@ -1123,28 +1175,23 @@ function ChatBody({
           ref={listRef}
           onScroll={onScroll}
           onContentSizeChange={onContentSizeChange}
-          onScrollBeginDrag={onScrollBeginDrag}
+          onScrollBeginDrag={onDrag}
+          history={earlier.history}
+          ListHeaderComponent={earlier.loading ? EarlierLoading : undefined}
           scrollEventThrottle={64}
           autoScroll
-          // Draw far more of the chat than FlatList's defaults, so fewer rows are guessed at: message
-          // heights vary a lot (a line of text, a rides card, a deck), so guesses are poor.
+          // Draw more of the chat than FlatList's defaults, so fewer rows are guessed at: message
+          // heights vary a lot (a line of text, a rides card, a deck), so guesses are poor. Chats
+          // open a page at a time, so this no longer means every message stays drawn.
           initialNumToRender={30}
           maxToRenderPerBatch={20}
-          windowSize={41}
+          windowSize={21}
           // Holding the top message still while rows above it are drawn is for reading back. At the
           // bottom, auto-scroll keeps the latest message in view; with both on, they take turns
           // moving the list and it swings up and down as rows are measured.
           maintainVisibleContentPosition={away ? KEEP_POSITION : undefined}
           style={{ flex: 1 }}
-          contentContainerStyle={{
-            width: "100%",
-            maxWidth: 768,
-            alignSelf: "center",
-            paddingHorizontal: 12,
-            paddingTop: topInset + 12,
-            // The last row brings its own gap.
-            paddingBottom: bottomInset + 16 - MESSAGE_GAP,
-          }}
+          contentContainerStyle={contentStyle}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
           showsVerticalScrollIndicator={false}

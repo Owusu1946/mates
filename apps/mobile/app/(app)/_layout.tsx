@@ -18,7 +18,14 @@ import {
   View,
 } from "react-native";
 import { createChatModel } from "../../src/chat/chat-model";
-import { createRemoteChats } from "../../src/chat/remote-chats";
+import { createRemoteChats, type HistoryPage } from "../../src/chat/remote-chats";
+import { planMerge } from "../../src/chat/history-merge";
+
+/** How often an open chat checks its runs while one is going, and when none is. */
+const ACTIVE_CHECK = 2000;
+const IDLE_CHECK = 20_000;
+/** Run statuses that won't change again on their own (the server's terminalRun). */
+const FINISHED_RUN = new Set(["completed", "failed", "cancelled", "waiting"]);
 import { ChatSyncContext } from "../../src/chat/chat-sync";
 import { useSession } from "../../src/session/provider";
 import { useTheme } from "../../src/theme/provider";
@@ -163,36 +170,67 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       useEffect(() => {
         let disposed = false;
         let busy = false;
-        let fingerprint = "";
-        const recover = async () => {
-          const id = aui.threadListItem.getState().remoteId;
+        let loadingEarlier = false;
+        // This chat's runs as "id:updatedAt". Unknown until the first check, which still looks at
+        // the newest messages if the chat has runs: one may have finished after a reply's stream
+        // broke off (the app went to the background), with nothing left to change after.
+        let fingerprint: string | null = null;
+        let active = false;
+        let lastCheck = 0;
+        const remote = () => aui.threadListItem.getState().remoteId;
+        // Server rows into the open chat: only what changed is swapped in, so the rest of the chat
+        // keeps its rows and its place. Never while this phone is streaming a reply.
+        const merge = (id: string, page: HistoryPage, keepHead = false) => {
+          if (disposed || id !== remote() || streamingHere.current > 0) return undefined;
+          const plan = planMerge(local.thread.export(), page.messages, { realParents: chats.parentsOf(id), serverHead: page.headId, keepHead });
+          if (plan) local.thread.import(plan);
+          return plan;
+        };
+        // Runs change as a mate works elsewhere (a routine, a mission, the computer). Check often
+        // only while one is going in this chat; otherwise now and then, and on coming back.
+        const check = async (force = false) => {
+          const id = remote();
           if (disposed || busy || !id || streamingHere.current > 0 || AppState.currentState !== "active") return;
+          if (!force && !active && Date.now() - lastCheck < IDLE_CHECK) return;
           busy = true;
+          lastCheck = Date.now();
           try {
-            const capabilities = await runRequest<{ durableRuns: boolean }>(() => tokenRef.current(), "capabilities");
-            if (!capabilities.durableRuns) return;
-            const { runs } = await runRequest<{ runs: { id: string; updatedAt: string }[] }>(() => tokenRef.current(), `runs?chatId=${encodeURIComponent(id)}`);
+            const { runs } = await runRequest<{ runs: { id: string; status: string; updatedAt: string }[] }>(() => tokenRef.current(), `runs?chatId=${encodeURIComponent(id)}`);
+            if (id !== remote()) return;
+            active = runs.some(run => !FINISHED_RUN.has(run.status));
             const next = runs.map(run => `${run.id}:${run.updatedAt}`).join("|");
-            if (next !== fingerprint && streamingHere.current === 0) {
-              const saved = await history.loadFresh();
-              if (!disposed && streamingHere.current === 0) local.thread.import(saved);
-              fingerprint = next;
+            if (next !== fingerprint && (fingerprint !== null || runs.length > 0)) {
+              const plan = merge(id, await history.refresh());
+              // Fell further behind than the newest few: fill the gap with a full page.
+              const caughtUp = plan && !plan.connected ? merge(id, await history.refresh(true)) : plan;
+              if (caughtUp === undefined) return; // a reply started streaming; look again next time
             }
-          } catch { /* Keep cached history while disconnected. */ }
+            fingerprint = next;
+          } catch { /* Keep what's on screen while disconnected. */ }
           finally { busy = false; }
         };
-        const timer = setInterval(() => void recover(), 2000);
-        const listener = AppState.addEventListener("change", state => { if (state === "active") void recover(); });
-        void recover();
-        return () => { disposed = true; clearInterval(timer); listener.remove(); };
-      }, [aui, history, local]);
-      // A cached chat on screen picks up the server copy as soon as it arrives, unless the user has
-      // already moved it on (sent a message, a run is going), which the next sync covers.
-      useEffect(() => chats.onFreshHistory((id, repository, shownHeadId) => {
-        const thread = local.thread.getState();
-        if (id !== aui.threadListItem.getState().remoteId || streamingHere.current > 0 || thread.messages.at(-1)?.id !== shownHeadId) return;
-        local.thread.import(repository);
-      }), [aui, local, chats]);
+        const timer = setInterval(() => void check(), ACTIVE_CHECK);
+        const listener = AppState.addEventListener("change", state => { if (state === "active") void check(true); });
+        void check(true);
+        // A cached chat on screen picks up the server's newest page as soon as it arrives.
+        const unfresh = chats.onFreshHistory((id, page) => void merge(id, page));
+        // Scrolling to the top loads the page above the oldest message on the branch on screen.
+        const unearlier = chats.sync.paging.register(aui.threadListItem.getState().id, async () => {
+          const id = remote();
+          if (disposed || loadingEarlier || !id || streamingHere.current > 0) return;
+          const shown = local.thread.export();
+          const byId = new Map(shown.messages.map(item => [item.message.id, item]));
+          let top = shown.headId ?? shown.messages.at(-1)?.message.id;
+          for (let parent = top && byId.get(top)?.parentId; parent && byId.has(parent); parent = byId.get(parent)?.parentId) top = parent;
+          if (!top) return;
+          loadingEarlier = true;
+          try {
+            merge(id, await history.loadEarlier(top), true);
+          } catch { /* Try again on the next scroll to the top. */ }
+          finally { loadingEarlier = false; }
+        });
+        return () => { disposed = true; clearInterval(timer); listener.remove(); unfresh(); unearlier(); };
+      }, [aui, history, local, chats]);
       return local;
     },
   });

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
@@ -34,6 +34,8 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `code-runs/${initial!.runId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 2_000 : false),
+    // A finished run never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 0 : Infinity),
   });
   const code = live.data?.code ?? initial;
   if (!code) return null;
@@ -71,7 +73,7 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
 
   const lineStyle = { fontFamily: "DMSans_500Medium", fontSize: 14.5, letterSpacing: 0.1 } as const;
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, gap: 4 }}>
+    <Animated.View style={{ marginVertical: 4, gap: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Pressable
           accessibilityRole="button"

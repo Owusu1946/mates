@@ -1,7 +1,7 @@
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useRouter } from "expo-router";
 import { Pressable, Text, View } from "react-native";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { ShimmerText } from "../chat/shimmer-text";
 import { CardButton } from "../chat/card-button";
 import { haptic } from "../haptics";
@@ -52,7 +52,7 @@ export function PageCard({ state }: { state: WorkflowCard }) {
     : failed ? "Couldn’t finish" : card.status === "cancelled" ? "Stopped" : card.version > 1 && card.summary ? `Updated ${ago(card.updatedAt)} · ${card.summary}` : card.shared ? "Shared" : "Private";
 
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 6, gap: 10 }}>
+    <Animated.View style={{ marginVertical: 6, gap: 10 }}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={ready ? `Open ${card.title}` : `${card.title}, ${status}`}

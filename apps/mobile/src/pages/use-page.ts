@@ -21,6 +21,9 @@ export function usePage(pageId: string | undefined) {
     enabled: !!pageId,
     queryFn: () => runRequest<PageView>(getToken, `pages/${pageId}`),
     refetchInterval: (query) => (pageBusy(query.state.data?.page.status) ? 2_000 : false),
+    // A finished page is fresh for a while, so cards scrolled back into view don't refetch it; it
+    // can still change later (an edit from chat), so not for good.
+    staleTime: (query) => (pageBusy(query.state.data?.page.status) ? 0 : 30_000),
   });
 }
 

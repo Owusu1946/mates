@@ -5,7 +5,7 @@ import { useIsFocused, useRouter } from "expo-router";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { LiveView } from "../computer/live-view";
 import { useComputer, type ComputerStatus } from "../computer/use-computer";
 import { haptic } from "../haptics";
@@ -41,6 +41,8 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `computer/goals/${initial!.goalId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.computer?.status ?? "done") ? 2_000 : false),
+    // A finished goal never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (ACTIVE.includes(query.state.data?.computer?.status ?? "done") ? 0 : Infinity),
   });
   const card = live.data ?? state;
   const goal = card.computer ?? initial;
@@ -73,7 +75,7 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
     ]);
 
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, gap: 8 }}>
+    <Animated.View style={{ marginVertical: 4, gap: 8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <View style={{ flex: 1 }}>
           {goal.status === "running" || goal.status === "queued" ? (

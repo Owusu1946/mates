@@ -66,6 +66,59 @@ export function mayApplyAttach(currentRemovedAt: Date | null, sentAt: Date | nul
   return sentAt !== null && currentRemovedAt.getTime() <= sentAt.getTime();
 }
 
+/** The newest leaf, not the newest row: rows saved with a skewed clock can sort a reply before its question. */
+export function headOf(nodes: { id: string; parentId: string | null }[]) {
+  const parents = new Set(nodes.map((node) => node.parentId));
+  const leaves = nodes.filter((node) => !parents.has(node.id));
+  return (leaves.at(-1) ?? nodes.at(-1))?.id ?? null;
+}
+
+/**
+ * Which messages make up one page of a chat, newest first. A page is the last `limit` messages on
+ * the current branch, plus every branch that splits off inside that span, so the branch picker
+ * still works for what's on screen: everything below the page's top message's parent. With
+ * `before` (the oldest message the app has), it's the span above that, without what the app already
+ * holds. `nodes` are in saved order.
+ */
+export function historyPageIds(nodes: { id: string; parentId: string | null }[], options: { limit: number; before?: string | null }) {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const children = new Map<string | null, string[]>();
+  for (const node of nodes) {
+    const list = children.get(node.parentId) ?? [];
+    list.push(node.id);
+    children.set(node.parentId, list);
+  }
+  const below = (top: string | null) => {
+    const out = new Set<string>();
+    const pending = [...(children.get(top) ?? [])];
+    while (pending.length) {
+      const id = pending.pop()!;
+      if (out.has(id)) continue;
+      out.add(id);
+      pending.push(...(children.get(id) ?? []));
+    }
+    return out;
+  };
+  const headId = headOf(nodes);
+  let start: string | null;
+  if (options.before) {
+    const oldest = byId.get(options.before);
+    start = oldest?.parentId ?? null;
+    if (!oldest || !start || !byId.has(start)) return { ids: new Set<string>(), hasMore: false, headId };
+  } else {
+    start = headId;
+  }
+  let top: string | null = null;
+  for (let id = start, n = 0; id && n < options.limit; n++) {
+    top = id;
+    id = byId.get(id)?.parentId ?? null;
+  }
+  const topParent = top ? byId.get(top)?.parentId ?? null : null;
+  const span = topParent && byId.has(topParent) ? below(topParent) : new Set(nodes.map((node) => node.id));
+  if (options.before) for (const id of below(start)) span.delete(id);
+  return { ids: span, hasMore: !!topParent && byId.has(topParent), headId };
+}
+
 export function createChatStore() {
   const owned = (userId: string, id: string) =>
     and(eq(chats.id, id), eq(chats.clerkUserId, userId));
@@ -187,6 +240,24 @@ export function createChatStore() {
         parentId: row.parentId,
         message: row.message,
       }));
+    },
+    /**
+     * One page of a chat (see historyPageIds): the ids and parents are read first, which is cheap,
+     * then only the page's messages in full.
+     */
+    async historyPage(userId: string, id: string, options: { limit: number; before?: string | null }) {
+      if (!(await this.get(userId, id))) return null;
+      const nodes = await getDb()
+        .select({ id: chatMessages.id, parentId: chatMessages.parentId })
+        .from(chatMessages)
+        .where(eq(chatMessages.chatId, id))
+        .orderBy(chatMessages.createdAt, chatMessages.id);
+      const page = historyPageIds(nodes, options);
+      const ids = [...page.ids];
+      const rows = ids.length
+        ? await getDb().select().from(chatMessages).where(and(eq(chatMessages.chatId, id), inArray(chatMessages.id, ids))).orderBy(chatMessages.createdAt, chatMessages.id)
+        : [];
+      return { messages: rows.map((row) => ({ parentId: row.parentId, message: row.message })), hasMore: page.hasMore, headId: page.headId };
     },
     async save(userId: string, id: string, item: SavedMessage) {
       if (!(await this.get(userId, id))) return false;

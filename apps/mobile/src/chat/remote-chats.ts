@@ -5,6 +5,7 @@ import type {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createApiClient } from "../data/api";
 import { readCache, readHistoryCache, writeCache, writeHistoryCache } from "../data/offline-cache";
+import { rootPage } from "./history-merge";
 
 type HistoryItem = Awaited<
   ReturnType<ThreadHistoryAdapter["load"]>
@@ -21,12 +22,25 @@ type TitleStream = Awaited<
 type TitleChunk =
   TitleStream extends ReadableStream<infer Chunk> ? Chunk : never;
 type Repository = Awaited<ReturnType<ThreadHistoryAdapter["load"]>>;
-export type ChatHistory = ThreadHistoryAdapter & { loadFresh(): Promise<Repository> };
+/** Server rows, ready to import, with the server's newest message and whether older ones are left. */
+export type HistoryPage = { messages: Repository["messages"]; headId: string | null; hasMore: boolean };
+export type ChatHistory = ThreadHistoryAdapter & {
+  /** The newest few messages, for bringing an open chat up to date; `wide` for a bigger page. */
+  refresh(wide?: boolean): Promise<HistoryPage>;
+  /** The page above `oldestId` (the top of what's loaded). */
+  loadEarlier(oldestId: string): Promise<HistoryPage>;
+};
+/** Whether a chat has older messages to load, and whether they're loading. */
+export type ChatPaging = { hasMore: boolean; loading: boolean };
 
 /** Cache key for the chat list the runtime opens chats from. */
 const THREADS = "threads";
 /** Messages kept per chat on the device: the newest branch only, enough to fill a screen or two. */
 const CACHED_MESSAGES = 40;
+/** Messages per page when opening a chat or scrolling back. */
+const PAGE = 50;
+/** Messages fetched to bring an open chat up to date: a reply being written is always among them. */
+const TAIL = 12;
 
 /** The newest leaf, not the newest row: rows saved with a skewed clock can sort a reply before its question. */
 function headOf(items: HistoryItem[]) {
@@ -208,19 +222,45 @@ export function createRemoteChats(
     return chats;
   }
 
-  // Chats refreshed from the server while a cached copy was on screen, for the open thread to pick
-  // up. `shownHeadId` is the cached copy's newest message, so a thread that moved on is left alone.
-  type FreshListener = (id: string, repository: Repository, shownHeadId: string | undefined) => void;
+  // Chats refreshed from the server while a cached copy was on screen, for the open thread to merge.
+  type FreshListener = (id: string, page: HistoryPage) => void;
   const freshListeners = new Set<FreshListener>();
-  async function fetchHistory(id: string) {
-    const data = await (await checked(endpoint(id).messages.$get({ param: { id } }))).json();
+
+  // Per chat: every message's real parent as the server knows it (pages arrive re-rooted at their
+  // top), and whether older messages are left to load.
+  const parents = new Map<string, Map<string, string | null>>();
+  const paging = new Map<string, ChatPaging>();
+  const pagingListeners = new Set<() => void>();
+  const NO_PAGING: ChatPaging = { hasMore: false, loading: false };
+  const earlier = new Map<string, () => Promise<void>>();
+  function setPaging(id: string, value: Partial<ChatPaging>) {
+    const current = paging.get(id) ?? NO_PAGING;
+    const next = { ...current, ...value };
+    if (next.hasMore === current.hasMore && next.loading === current.loading) return;
+    paging.set(id, next);
+    pagingListeners.forEach((listener) => listener());
+  }
+
+  async function fetchPage(id: string, limit: number, before?: string) {
+    const query = before ? { limit, before } : { limit };
+    const data = await (await checked(endpoint(id).messages.$get({ param: { id }, query }))).json();
     if (!("messages" in data)) throw new Error("Chat not found");
     const items = data.messages as unknown as HistoryItem[];
-    return { items, changed: writeHistoryCache(id, recentBranch(items)) };
+    const known = parents.get(id) ?? new Map<string, string | null>();
+    for (const item of items) known.set(item.message.id, item.parentId ?? null);
+    parents.set(id, known);
+    const page: HistoryPage = {
+      messages: toRepository(items).messages,
+      // A server from before paging sends the whole history and no head: work it out from the rows.
+      headId: "headId" in data && typeof data.headId === "string" ? data.headId : (headOf(items) ?? null),
+      hasMore: "hasMore" in data && data.hasMore === true,
+    };
+    return { items, page };
   }
-  async function revalidate(id: string, shownHeadId: string | undefined) {
-    const { items, changed } = await fetchHistory(id);
-    if (changed) freshListeners.forEach((listener) => listener(id, toRepository(items), shownHeadId));
+  async function revalidate(id: string) {
+    const { items, page } = await fetchPage(id, PAGE);
+    setPaging(id, { hasMore: page.hasMore });
+    if (writeHistoryCache(id, recentBranch(items))) freshListeners.forEach((listener) => listener(id, page));
   }
 
   const list: RemoteThreadListAdapter = {
@@ -285,24 +325,38 @@ export function createRemoteChats(
     getLocalId: () => string,
   ): ChatHistory {
     return {
-      // Cached messages first so the chat draws at once; the server copy follows and, if it
-      // differs, reaches the open thread through onFreshHistory.
+      // Cached messages first so the chat draws at once; the server's newest page follows and, if
+      // it differs, reaches the open thread through onFreshHistory. Older messages load on scroll.
       async load() {
         const id = getRemoteId();
         if (!id) return { messages: [] };
         const cached = readHistoryCache<HistoryItem[]>(id);
         if (cached?.length) {
-          const shown = toRepository(cached);
-          void revalidate(id, shown.headId ?? undefined).catch(() => undefined);
-          return shown;
+          void revalidate(id).catch(() => undefined);
+          return toRepository(cached);
         }
-        return toRepository((await fetchHistory(id)).items);
+        const { items, page } = await fetchPage(id, PAGE);
+        setPaging(id, { hasMore: page.hasMore });
+        writeHistoryCache(id, recentBranch(items));
+        return toRepository(rootPage(items));
       },
-      /** Always from the server, for recovering a run that finished elsewhere. */
-      async loadFresh() {
+      async refresh(wide = false) {
         const id = getRemoteId();
-        if (!id) return { messages: [] };
-        return toRepository((await fetchHistory(id)).items);
+        if (!id) return { messages: [], headId: null, hasMore: false };
+        return (await fetchPage(id, wide ? PAGE : TAIL)).page;
+      },
+      async loadEarlier(oldestId) {
+        const id = getRemoteId();
+        if (!id) return { messages: [], headId: null, hasMore: false };
+        setPaging(id, { loading: true });
+        try {
+          const { page } = await fetchPage(id, PAGE, oldestId);
+          setPaging(id, { hasMore: page.hasMore, loading: false });
+          return page;
+        } catch (cause) {
+          setPaging(id, { loading: false });
+          throw cause;
+        }
       },
       async append(item) {
         await enqueue(getRemoteId() ?? getLocalId(), item);
@@ -333,6 +387,8 @@ export function createRemoteChats(
         freshListeners.delete(listener);
       };
     },
+    /** Every message's real parent in a chat, as far as the server has said. */
+    parentsOf: (id: string) => parents.get(id) ?? new Map<string, string | null>(),
     sync: {
       subscribe(listener: () => void) {
         listeners.add(listener);
@@ -342,6 +398,23 @@ export function createRemoteChats(
       },
       getSnapshot: () => error,
       retry: () => serialized(flush),
+      paging: {
+        subscribe(listener: () => void) {
+          pagingListeners.add(listener);
+          return () => {
+            pagingListeners.delete(listener);
+          };
+        },
+        get: (id: string | undefined) => (id && paging.get(id)) || NO_PAGING,
+        /** The open thread's runtime says how to load its earlier messages, by local thread id. */
+        register(threadId: string, load: () => Promise<void>) {
+          earlier.set(threadId, load);
+          return () => {
+            if (earlier.get(threadId) === load) earlier.delete(threadId);
+          };
+        },
+        loadMore: (threadId: string) => void earlier.get(threadId)?.(),
+      },
     },
   };
 }

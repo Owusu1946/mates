@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import { Alert, Linking, Platform, Pressable, Share, Text, TextInput, View } from "react-native";
-import Animated, { FadeIn, LinearTransition } from "react-native-reanimated";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { FriendAvatar } from "../friends/friend-avatar";
 import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
@@ -36,6 +36,8 @@ export function FriendRequestCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `requests/${initial!.id}`)).card,
     refetchInterval: (query) => (query.state.data?.friendRequest?.status === "waiting" ? 3_000 : false),
+    // An answered request never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (query.state.data?.friendRequest?.status === "waiting" ? 0 : Infinity),
   });
   const card = live.data ?? state;
   const request = card.friendRequest ?? initial;
@@ -85,7 +87,7 @@ export function FriendRequestCard({ state }: { state: WorkflowCard }) {
   };
 
   return (
-    <Animated.View layout={LinearTransition.duration(200)} style={{ marginVertical: 4, gap: 10 }}>
+    <Animated.View style={{ marginVertical: 4, gap: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <FriendAvatar userId={request.friendUserId} name={name} size={26} />
         <View style={{ flex: 1 }}>
