@@ -41,6 +41,8 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `computer/goals/${initial!.goalId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.computer?.status ?? "done") ? 2_000 : false),
+    // A finished goal never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (ACTIVE.includes(query.state.data?.computer?.status ?? "done") ? 0 : Infinity),
   });
   const card = live.data ?? state;
   const goal = card.computer ?? initial;

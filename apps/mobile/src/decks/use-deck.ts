@@ -35,6 +35,9 @@ export function useDeck(deckId: string | undefined) {
     enabled: !!deckId,
     queryFn: async () => (await runRequest<{ deck: DeckView; card: WorkflowCard }>(getToken, `decks/${deckId}`)).deck,
     refetchInterval: (query) => (deckBusy(query.state.data?.status) ? 1_500 : false),
+    // A finished deck is fresh for a while, so cards scrolled back into view don't refetch it; it
+    // can still change later (an edit from chat), so not for good.
+    staleTime: (query) => (deckBusy(query.state.data?.status) ? 0 : 30_000),
   });
 }
 

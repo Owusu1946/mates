@@ -36,6 +36,8 @@ export function FriendRequestCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `requests/${initial!.id}`)).card,
     refetchInterval: (query) => (query.state.data?.friendRequest?.status === "waiting" ? 3_000 : false),
+    // An answered request never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (query.state.data?.friendRequest?.status === "waiting" ? 0 : Infinity),
   });
   const card = live.data ?? state;
   const request = card.friendRequest ?? initial;

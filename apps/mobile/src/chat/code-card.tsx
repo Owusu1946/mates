@@ -34,6 +34,8 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `code-runs/${initial!.runId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 2_000 : false),
+    // A finished run never changes, so a card scrolled back into view doesn't fetch it again.
+    staleTime: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 0 : Infinity),
   });
   const code = live.data?.code ?? initial;
   if (!code) return null;
