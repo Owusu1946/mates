@@ -51,7 +51,7 @@ function savePendingShare(share: PendingShare) {
 /** Attach a share turn to the current conversation before submitRun creates its assistant row. */
 async function saveShareMessage(share: PendingShare, uploadedId: string | undefined, getToken: () => Promise<string | null>) {
   const api = createApiClient(getToken);
-  const response = await api.v1.chats[":id"].messages.$get({ param: { id: share.chatId } });
+  const response = await api.v1.chats[":id"].messages.$get({ param: { id: share.chatId }, query: {} });
   if (!response.ok) throw new Error("Couldn’t load this chat before sharing. Try again.");
   const { messages } = await response.json();
   const messageId = `user_share_${share.id}`;
