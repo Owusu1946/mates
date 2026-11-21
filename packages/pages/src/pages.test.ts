@@ -69,7 +69,8 @@ describe("renderPage", () => {
     expect(html).toContain('role="img" aria-label="Spend by day"');
     expect(html).toContain('data-key="abc:b5:1" checked');
     expect(html).toContain('id="source-1"');
-    expect(html).toContain("Updated 2h ago · Moved dinner to 8pm");
+    expect(html).toContain("Last edited</span><span class=\"v\">2h ago · Moved dinner to 8pm");
+    expect(html).toContain("Made by</span>");
   });
 
   it("escapes everything from the document, and only links http(s)", () => {
