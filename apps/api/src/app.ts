@@ -1123,7 +1123,19 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
         );
       return c.json({ ok: true });
     })
-    .get("/v1/chats/:id/messages", auth, async (c) => {
+    // With `limit`, one page: the newest messages (or those above `before`), so a long chat opens
+    // without downloading all of it. Without, the whole history, for app versions from before paging.
+    .get("/v1/chats/:id/messages", auth, validator("query", (value, c) => {
+      const parsed = z.object({ limit: z.coerce.number().int().min(1).max(200).optional(), before: z.string().min(1).max(160).optional() }).safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_QUERY", "Invalid page", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const { limit, before } = c.req.valid("query");
+      if (limit) {
+        const page = await dependencies.chats.historyPage(c.get("userId"), c.req.param("id"), { limit, before: before ?? null });
+        if (!page) return c.json(failure("NOT_FOUND", "Chat not found", c.get("requestId")), 404);
+        return c.json(page);
+      }
       const messages = await dependencies.chats.history(
         c.get("userId"),
         c.req.param("id"),
