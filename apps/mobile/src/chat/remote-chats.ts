@@ -251,7 +251,8 @@ export function createRemoteChats(
     parents.set(id, known);
     const page: HistoryPage = {
       messages: toRepository(items).messages,
-      headId: "headId" in data && typeof data.headId === "string" ? data.headId : null,
+      // A server from before paging sends the whole history and no head: work it out from the rows.
+      headId: "headId" in data && typeof data.headId === "string" ? data.headId : (headOf(items) ?? null),
       hasMore: "hasMore" in data && data.hasMore === true,
     };
     return { items, page };
