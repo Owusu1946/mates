@@ -118,6 +118,9 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <section class="launch" id="download" aria-labelledby="launch-title">
       <Logo size={40} />
+      <div class="launch-mascot" aria-hidden="true">
+        <Mascot client:visible size={200} state="excited" />
+      </div>
       <h2 id="launch-title">Meet your team when Mates launches.</h2>
       <p>Join the waitlist for iPhone and Android. We’ll email you when you can get started.</p>
       <StoreButtons />
@@ -150,7 +153,15 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     letter-spacing: -0.01em;
   }
   .demo-caption { margin: 20px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-  .launch { width: min(760px, calc(100% - 40px)); margin: 120px auto 0; padding: 48px 0; text-align: center; }
+  .launch { position: relative; width: min(760px, calc(100% - 40px)); margin: 120px auto 0; padding: 48px 0; text-align: center; }
+  .launch-mascot {
+    position: absolute;
+    top: -48px;
+    right: -8%;
+    opacity: 0.9;
+    pointer-events: none;
+    filter: drop-shadow(0 20px 32px rgba(15, 23, 42, 0.12));
+  }
   .launch h2 { margin: 20px 0 0; font-size: clamp(30px, 4vw, 48px); letter-spacing: -0.04em; line-height: 1.1; font-weight: 600; }
   .launch p { max-width: 48ch; margin: 20px auto 28px; color: var(--muted); font-size: 18px; line-height: 1.6; }
   .nav {
@@ -282,6 +293,13 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     filter: blur(20px);
   }
   @media (max-width: 860px) {
+    .launch-mascot {
+      position: relative;
+      top: auto;
+      right: auto;
+      margin: -16px auto 8px;
+      transform: scale(0.85);
+    }
     nav {
       display: none;
     }
