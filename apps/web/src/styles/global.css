@@ -1,10 +1,10 @@
 :root {
   color-scheme: light;
-  --bg: #ffffff;
-  --text: #111110;
+  --bg: #faf9f6;
+  --text: #26251f;
   --muted: #6b6a66;
   --soft: #f4f3f0;
-  --line: rgba(17, 17, 16, 0.08);
+  --line: rgba(38, 37, 31, 0.13);
   --panel: #f7f6f3;
   --accent: #d27e41;
   --accent-soft: #fbeee3;
@@ -23,6 +23,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 72px;
 }
 html,
 body {

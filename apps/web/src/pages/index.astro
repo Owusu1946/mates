@@ -1,15 +1,11 @@
 ---
 import Faq from "../components/Faq.astro";
-import Workflows from "../components/Workflows.astro";
 import LocalEdge from "../components/LocalEdge.astro";
 import Footer from "../components/Footer.astro";
-import HeroStage from "../components/HeroStage.astro";
-import HeroMascot from "../components/HeroMascot";
 import Logo from "../components/Logo.astro";
 import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
-import Roles from "../components/Roles.astro";
-import StoreButtons from "../components/StoreButtons.astro";
+import WaitlistButton from "../components/WaitlistButton.astro";
 import Waitlist from "../components/Waitlist";
 import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
@@ -20,7 +16,7 @@ import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
-  { label: "Product", href: "#features" },
+  { label: "How it works", href: "#features" },
   { label: "Pricing", href: "#pricing" },
 ];
 const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
@@ -40,33 +36,16 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   </header>
 
   <main id="main-content" tabindex="-1">
-    <section class="hero">
-      <h1>
-        Your AI team
-        <span class="inline-mascot"><HeroMascot client:idle size={96} /></span>
-        in your pocket
-      </h1>
-
-      <p class="lede">
-        Research, routines, ride quotes, meeting notes, and pull requests — mates use the apps you connect and bring the work back.
-      </p>
-
-      <div class="hero-ctas">
-        <StoreButtons />
+    <section class="hero" id="features">
+      <div class="hero-copy">
+        <h1>Your personal team of AI mates.</h1>
+        <p class="lede">Give your lead mate a task. Follow the handoff and review the result in the same chat.</p>
+        <WaitlistButton />
       </div>
-
-      <div class="stage">
-        <HeroStage />
-      </div>
+      <Team />
     </section>
 
-    <Workflows />
-
     <LocalEdge />
-
-    <Roles />
-
-    <Team />
 
     <Calls />
 
@@ -82,8 +61,8 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <section class="launch" id="download" aria-labelledby="launch-title">
       <h2 id="launch-title">iPhone and Android, soon.</h2>
-      <p>Join the waitlist. We’ll email you when it’s ready.</p>
-      <StoreButtons />
+      <p>Get an email when Mates launches.</p>
+      <WaitlistButton />
     </section>
   </main>
 
@@ -131,108 +110,32 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   }
 
   .hero {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
     align-items: center;
-    padding: 48px 16px 0;
-    text-align: center;
-    overflow: hidden;
+    gap: clamp(40px, 6vw, 96px);
+    width: min(1120px, calc(100% - 48px));
+    margin: clamp(56px, 8vw, 112px) auto;
   }
-
   h1 {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 0.18em;
+    max-width: 10ch;
     margin: 0;
-    font-size: clamp(40px, 7vw, 84px);
-    font-weight: 560;
-    letter-spacing: -0.055em;
-    line-height: 0.96;
-    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-  .inline-mascot {
-    display: inline-flex;
-    width: 0.92em;
-    height: 0.92em;
-  }
-  .inline-mascot :global(span) {
-    width: 100% !important;
-    height: 100% !important;
-  }
-  .inline-mascot :global(svg) {
-    width: 100%;
-    height: 100%;
-  }
-
-  .lede {
-    max-width: 42ch;
+    font-size: clamp(54px, 6vw, 86px);
+    font-weight: 475;
+    letter-spacing: -0.064em;
+    line-height: 1.01;
     text-wrap: balance;
-    margin: 22px auto 0;
+  }
+  .lede {
+    max-width: 36ch;
+    margin: 24px 0 28px;
     color: var(--muted);
-    font-size: clamp(16px, 1.5vw, 19px);
-    line-height: 1.55;
-    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
-  }
-  .hero-ctas {
-    margin-top: 28px;
-    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
-  }
-  .inline-mascot :global(.hero-mascot) {
-    display: inline-flex;
-    cursor: pointer;
-  }
-
-  /* The phone rises out of the fold, cropped like a product shot. */
-  .stage {
-    position: relative;
-    width: 100%;
-    height: 640px;
-    margin-top: 56px;
-    display: flex;
-    justify-content: center;
-    -webkit-mask-image: linear-gradient(#000 78%, transparent);
-    mask-image: linear-gradient(#000 78%, transparent);
-    animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
-  }
-  @keyframes rise {
-    from { opacity: 0; transform: translateY(18px); }
-    to { opacity: 1; transform: none; }
-  }
-  .stage::before {
-    content: "";
-    position: absolute;
-    top: 80px;
-    width: min(900px, 100%);
-    height: 480px;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(210, 126, 65, 0.22), transparent);
-    filter: blur(20px);
+    font-size: clamp(17px, 1.6vw, 20px);
+    line-height: 1.5;
   }
   @media (max-width: 860px) {
-    nav {
-      display: none;
-    }
-    .nav {
-      height: 56px;
-      padding: 0 16px;
-    }
-    .hero {
-      padding-top: 28px;
-    }
-    .stage {
-      margin-top: 40px;
-    }
-  }
-  @media (max-width: 420px) {
-    .stage {
-      height: 570px;
-      margin-top: 48px;
-    }
-    .stage > :global(*) {
-      transform: scale(0.88);
-      transform-origin: top center;
-    }
+    nav { display: none; }
+    .nav { height: 56px; padding: 0 16px; }
+    .hero { grid-template-columns: 1fr; max-width: 540px; gap: 36px; margin-block: 40px; }
   }
 </style>
