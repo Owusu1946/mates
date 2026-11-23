@@ -21,7 +21,7 @@ const plans: Plan[] = [
     features: [
       "Up to 5 mates, each with their own role and memory",
       "One mission at a time, with handoffs and shared notes",
-      "Sign in to hundreds of apps",
+      "Connect the apps you choose",
       "3 routines on a schedule",
       "Voice calls with up to 2 mates",
     ],
@@ -48,7 +48,7 @@ const plans: Plan[] = [
       "3x Plus usage",
       "Up to 20 mates",
       "5 missions running at the same time",
-      "Unlimited routines",
+      "Unlimited saved routines; usage limits apply",
       "The mates’ computer on the flagship model: ship code as pull requests",
     ],
   },
@@ -74,7 +74,7 @@ const yearlyPerMonth = (plan: Plan) => {
 
 <section class="pricing" id="pricing">
   <h2>Pricing</h2>
-  <p class="sub">One person, a whole team of mates. Cancel anytime.</p>
+  <p class="sub">Plans start at $8 a month. Join the waitlist for launch access.</p>
 
   <input class="billing" type="radio" name="billing" id="billing-monthly" value="monthly" aria-label="Monthly billing" checked />
   <input class="billing" type="radio" name="billing" id="billing-yearly" value="yearly" aria-label="Yearly billing" />
@@ -82,6 +82,8 @@ const yearlyPerMonth = (plan: Plan) => {
     <label for="billing-monthly">Monthly</label>
     <label for="billing-yearly">Yearly <span class="save">{FREE_MONTHS} months free</span></label>
   </div>
+
+  <p class="usage-note">All plans have usage limits. Connected apps and computer work depend on access and availability. No payment is taken when you join the waitlist.</p>
 
   <div class="plans">
     {
@@ -100,7 +102,7 @@ const yearlyPerMonth = (plan: Plan) => {
           <div class="billed monthly">Billed monthly</div>
           <div class="billed yearly">Billed yearly at ${yearlyTotal(plan)}</div>
 
-          <a href="#download" class="pill-button dark get" data-waitlist>Get {plan.name}</a>
+          <a href="#download" class="pill-button dark get" data-waitlist>Join the waitlist</a>
 
           <div class="intro">{plan.intro}</div>
           <ul>
@@ -181,6 +183,14 @@ const yearlyPerMonth = (plan: Plan) => {
     color: var(--success);
     font-size: 12px;
     font-weight: 600;
+  }
+
+  .usage-note {
+    max-width: 64ch;
+    margin: 20px auto 0;
+    color: var(--muted);
+    line-height: 1.6;
+    font-size: 15px;
   }
 
   .plans {
