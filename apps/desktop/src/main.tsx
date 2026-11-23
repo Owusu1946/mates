@@ -271,30 +271,11 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
   const [status, setStatus] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showDates, setShowDates] = useState(loadShowDates)
-  const [mateQuery, setMateQuery] = useState('')
   const [composerText, setComposerText] = useState<Partial<Record<Mate['name'], string>>>({})
   const composer = useRef<HTMLTextAreaElement>(null)
-  const search = useRef<HTMLInputElement>(null)
   const activityHeading = useRef<HTMLHeadingElement>(null)
   const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
   const mateDrafts = drafts.filter((draft) => draft.mate === selectedMate.name)
-  const visibleMates = team.filter(({ name, role }) =>
-    `${name} ${role}`.toLowerCase().includes(mateQuery.trim().toLowerCase()),
-  )
-
-  useEffect(() => {
-    function focusSearch(event: KeyboardEvent) {
-      const input = search.current
-      if (event.key.toLowerCase() !== 'k' || (!event.ctrlKey && !event.metaKey)
-        || !input || input.offsetParent === null || document.querySelector('dialog:modal')) return
-      event.preventDefault()
-      input.focus()
-      input.select()
-    }
-
-    window.addEventListener('keydown', focusSearch)
-    return () => window.removeEventListener('keydown', focusSearch)
-  }, [])
 
   function openConversation(mate: Mate) {
     setSelectedMate(mate)
@@ -382,22 +363,10 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
           >
             <span aria-hidden="true">+</span> New draft
           </button>
-          <div className="mate-search">
-            <input
-              ref={search}
-              aria-label="Search mates"
-              aria-keyshortcuts="Control+K Meta+K"
-              type="search"
-              placeholder="Search mates"
-              value={mateQuery}
-              onChange={(event) => setMateQuery(event.target.value)}
-            />
-            {!mateQuery && <kbd aria-hidden="true">{navigator.userAgent.includes('Macintosh') ? '⌘ K' : 'Ctrl K'}</kbd>}
-          </div>
           <nav className="mates-navigation" aria-label="Mates">
             <h2>Mates</h2>
             <ul className="mate-list">
-              {visibleMates.map((mate) => (
+              {team.map((mate) => (
                 <li key={mate.name}>
                   <button
                     type="button"
@@ -416,7 +385,6 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
                 </li>
               ))}
             </ul>
-            {visibleMates.length === 0 && <p className="no-mates">No mates found</p>}
           </nav>
           <nav aria-label="Workspace">
             <button type="button" aria-current={view === 'Activity' ? 'page' : undefined} onClick={() => openActivity()}>

@@ -96,6 +96,9 @@ export function EntryFlow({ onStart, onReturn }: {
         <div className="entry-body">
           {step === 'pick' && (
             <>
+              <button className="entry-link entry-back" type="button" onClick={() => setStep('welcome')}>
+                <span aria-hidden="true">←</span> Back
+              </button>
               <h1 id="entry-heading" ref={heading} tabIndex={-1}>Pick your first mate.</h1>
               <p className="entry-description">They’ll be selected when you open your workspace. The whole team will be there.</p>
               <div className="starter-grid" role="group" aria-label="First mate">
@@ -120,9 +123,6 @@ export function EntryFlow({ onStart, onReturn }: {
               <div className="entry-actions">
                 <button className="primary-button" type="button" onClick={() => onStart(mate)}>
                   Open workspace
-                </button>
-                <button className="secondary-button" type="button" onClick={() => setStep('welcome')}>
-                  Back
                 </button>
               </div>
             </>

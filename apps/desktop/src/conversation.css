@@ -16,34 +16,6 @@
 
 .new-draft { width: 100%; }
 
-.mate-search {
-  position: relative;
-}
-
-.mate-search input {
-  width: 100%;
-  min-height: 34px;
-  padding: 6px 9px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--canvas);
-  color: inherit;
-  font: inherit;
-  font-size: 12px;
-}
-
-.mate-search:has(kbd) input { padding-right: 45px; }
-.mate-search input:focus { outline: none; border-color: var(--accent); }
-
-.mate-search kbd {
-  position: absolute;
-  top: 9px;
-  right: 7px;
-  color: var(--muted);
-  font-size: 10px;
-  pointer-events: none;
-}
-
 .mates-navigation { display: block; }
 
 .mates-navigation h2 {
@@ -71,7 +43,6 @@
 .mates-navigation .avatar { width: 32px; height: 32px; border-radius: 7px; }
 .mates-navigation .mate-label { gap: 2px; font-size: 13px; }
 .mates-navigation .mate-label > span { font-size: 11px; }
-.no-mates { padding: 8px; color: var(--muted); font-size: 12px; }
 
 .workspace { min-height: 0; overflow: auto; }
 
