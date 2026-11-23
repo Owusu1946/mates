@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { executeRideConversation, rideResultReply, ridesEnabled } from "./ride-conversation.js";
-import { createSailAdapter } from "./sail.js";
+import { createSailAdapter, type TripPoint } from "./sail.js";
 import { rideCard } from "./ride-card.js";
+import { rideHandoff } from "./ride-links.js";
 
 function setup(results: unknown[]) {
   const callTool = vi.fn();
@@ -81,6 +82,41 @@ describe("ride conversation", () => {
     const card = rideCard({ from: "Osu", to: "Airport", country: "gh" }, result, "Check ride prices from Osu to Airport");
     expect(card).toMatchObject({ kind: "rides", rides: { country: "gh", from: "Osu", to: "Airport" } });
     expect(JSON.stringify(card)).not.toContain("5.556123");
+  });
+
+  it("puts resolved route links on the card without adding coordinates to the model result", async () => {
+    const from = { lat: 5.55, lng: -0.18, name: "Osu" };
+    const to = { lat: 5.60, lng: -0.17, name: "Airport City" };
+    const { run } = setup([
+      { places: [{ placeId: "a", name: "Osu" }] }, { places: [{ placeId: "b", name: "Airport City" }] },
+      { place: { placeId: "a", ...from } }, { place: { placeId: "b", ...to } },
+      { options: [
+        { provider: "uber", name: "UberX", price: { amount: 38, currency: "GHS" } },
+        { provider: "yango", name: "Economy", price: { amount: 35, currency: "GHS" } },
+        { provider: "bolt", name: "Economy", price: { amount: 37, currency: "GHS" } },
+      ] },
+    ]);
+    let trip: { from: TripPoint; to: TripPoint } | undefined;
+    const result = await executeRideConversation({ from: "Osu", to: "Airport City", country: "gh", mode: "rides" }, { run, onResolvedTrip: (value) => { trip = value; } });
+    expect(JSON.stringify(result)).not.toContain("5.55");
+    const card = rideCard({}, result, "Compare rides", trip);
+    expect(card?.rides?.handoffs).toHaveLength(3);
+    const handoffs = Object.fromEntries((card?.rides?.rides ?? []).map((option, index) => [option.provider, card?.rides?.handoffs?.[index]]));
+    expect(handoffs.uber?.url).toContain("uber://riderequest");
+    expect(handoffs.yango?.url).toContain("yango.go.link/route");
+    expect(handoffs.bolt).toMatchObject({ prefilled: false, url: "https://bolt.eu/en/rides/" });
+  });
+
+  it("encodes provider routes and rejects invalid or unknown handoffs", () => {
+    const from = { lat: 5.55, lng: -0.18, name: "Osu" };
+    const to = { lat: 5.60, lng: -0.17, name: "Airport City" };
+    const uber = rideHandoff("uber", from, to);
+    expect(new URL(uber!.url).searchParams.get("dropoff[nickname]")).toBe("Airport City");
+    const yango = rideHandoff("yango", from, to);
+    expect(new URL(yango!.url).searchParams.get("end-lat")).toBe("5.6");
+    expect(new URL(yango!.url).searchParams.get("adj_fallback")).toContain("gto=-0.17%2C5.6");
+    expect(rideHandoff("unknown", from, to)).toBeNull();
+    expect(rideHandoff("uber", { ...from, lat: 999 }, to)).toBeNull();
   });
 
   it("keeps available rides with no price", async () => {

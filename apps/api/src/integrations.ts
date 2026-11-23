@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "./db/client.js";
 import { integrationSessions } from "./db/schema.js";
 import type { RideSummary } from "./mcp/ride-conversation.js";
+import type { RideHandoff } from "./mcp/ride-links.js";
 
 export type AppConnection = {
   slug: string;
@@ -18,7 +19,7 @@ export type WorkflowCard = {
   phase: "running" | "done" | "error" | "waiting";
   label: string;
   detail?: string;
-  rides?: RideSummary;
+  rides?: RideSummary & { handoffs?: (RideHandoff | null)[] };
   rideLocation?: { destination: string; country: "gh" | "gb"; mode: "best" | "rides" | "transit" };
   routineId?: string;
   routineVersion?: number;
