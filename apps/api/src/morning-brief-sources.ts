@@ -101,11 +101,12 @@ async function commuteCandidate(events: Record<string, unknown>[], origin: strin
       return handoff ? [{ ...parsed.data, provider, handoff }] : [];
     });
     const best = options.reduce<(typeof options)[number] | undefined>((lowest, item) => !lowest || item.price.amount < lowest.price.amount ? item : lowest, undefined);
-    if (!best) return [];
+    if (!best) continue;
     const leaveAt = best.durationMinutes ? event.begins.getTime() - (best.durationMinutes + 10) * 60_000 : null;
     const leave = leaveAt && leaveAt > at.getTime() ? `Leave by ${localTime(new Date(leaveAt), timezone)}; ` : "";
     const amount = new Intl.NumberFormat("en-GH", { style: "currency", currency: "GHS", maximumFractionDigits: 0 }).format(best.price.amount);
-    return [{ id: `commute:${event.id}`, section: "rides", text: `${event.title} at ${localTime(event.begins, timezone)} in ${event.location}. ${leave}${best.provider[0]!.toUpperCase()}${best.provider.slice(1)} is about ${amount} (estimate now).`, action: { kind: "rides", url: best.handoff.url, ...(best.handoff.fallbackUrl ? { fallbackUrl: best.handoff.fallbackUrl } : {}) }, priority: 2 }];
+    const checkedAt = DateTime.now().setZone(timezone).toFormat("d LLL, HH:mm");
+    return [{ id: `commute:${event.id}`, section: "rides", text: `${event.title} at ${localTime(event.begins, timezone)} in ${event.location}. ${leave}${best.provider[0]!.toUpperCase()}${best.provider.slice(1)} is about ${amount} (estimate checked ${checkedAt}).`, action: { kind: "rides", url: best.handoff.url, ...(best.handoff.fallbackUrl ? { fallbackUrl: best.handoff.fallbackUrl } : {}) }, priority: 2 }];
   }
   return [];
 }

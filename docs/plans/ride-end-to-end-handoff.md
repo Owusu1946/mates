@@ -1,7 +1,7 @@
 # Rides end to end — implementation and Ken handoff
 
 **Branch:** `feat/ride-end-to-end`  
-**Status:** Ride-card slice is at `447654b`; Sammy committed the Morning brief merge at `b4ef81e`. Commute integration and migration `0050` are unstaged for a separate review. This handoff is untracked; no deployment by the agent.
+**Status:** Ride-card slice is at `447654b`, Morning brief merge at `b4ef81e`, and commute integration with migration `0050` at `90dde4f`. Deployment and device checks are pending.
 
 ## Scope and current state
 
@@ -28,18 +28,18 @@ Uber's native `uber://riderequest` link carries both points; the web fallback us
 ## Deployment and device checks for Ken
 
 1. Review `RIDES_ENABLED` on the API and Trigger worker and keep the existing rollout state until device checks pass.
-2. Set `UBER_CLIENT_ID` on the API if Uber web fallback will be supported; this is a public app identifier, not an API secret. No new native build dependency or migration is introduced by this slice.
+2. Set `UBER_CLIENT_ID` on the API if Uber web fallback will be supported; this is a public app identifier, not an API secret. The ride-card action adds no native dependency. The commute setting requires migration `0050`.
 3. With a safe test API/worker, compare a named trip in Ghana. Tap each row on iOS and Android with the app installed and uninstalled. Confirm Uber/Yango receive both points, Bolt opens its official page with the in-card route-entry note, and no Mates booking occurs.
 4. Confirm a failed app open uses the web fallback, older card versions without handoffs still render, quote refresh works, and a stale quote is marked as such.
 5. Review persisted card URLs and account deletion against the privacy decision above.
 
 ## Morning brief integration
 
-Morning brief is now merged from `feat/morning-brief-v2` at `b4ef81e`. The unstaged commute slice adds a "Start from" setting, shares one calendar read between calendar and commute sections, checks the next physical meeting through Sail, and posts a ride estimate with a provider action. It skips when the origin is absent, a place is ambiguous, an event is online or all-day, Sail returns no valid Ghana quote, or `RIDES_ENABLED` is off. Quote selection is code-controlled; the existing brief model selects whether the candidate appears.
+Morning brief is merged from `feat/morning-brief-v2` at `b4ef81e`. The commute slice at `90dde4f` adds a "Start from" setting, shares one calendar read between calendar and commute sections, checks the next physical meeting through Sail, and posts a ride estimate with a provider action. It skips when the origin is absent, a place is ambiguous, an event is online or all-day, Sail returns no valid Ghana quote, or `RIDES_ENABLED` is off. It tries the next meeting when an earlier one has no supported GHS quote. Quote selection is code-controlled; the existing brief model selects whether the candidate appears.
 
 Migration `0050_flaky_vance_astro.sql` adds the nullable `commute_origin` setting. Apply it after `0047`, `0048`, and `0049`. For safe rollout, users must explicitly enable the Commute section and enter an origin; existing briefs keep that section off.
 
-**Travel time limitation:** A live public Sail ride lookup on 2026-11-23 returned `etaMinutes` (pickup wait) but no trip duration. The collector never uses pickup wait as travel time. It shows “Leave by” only if a ride option later supplies a valid `durationMinutes`; today the expected line has meeting time, location and “estimate now” fare without a leave-by claim. Ken should confirm whether Sail has a supported travel-duration field or arrange a separate route-time source before describing leave-by as shipped.
+**Travel time limitation:** A live public Sail ride lookup on 2026-11-23 returned `etaMinutes` (pickup wait) but no trip duration. The collector never uses pickup wait as travel time. It shows “Leave by” only if a ride option later supplies a valid `durationMinutes`; today the expected line has meeting time, location and a fare stamped with the time it was checked, without a leave-by claim. A saved brief may be opened hours later, so the quote is not presented as current then. Ken should confirm whether Sail has a supported travel-duration field or arrange a separate route-time source before describing leave-by as shipped.
 
 Ken should verify a calendar event with a physical location, an unambiguous origin such as a name plus address, price/action display, feedback muting, no-connected-calendar behavior, and missing/partial Sail results. The brief setting and collector use Ghana (`country: gh`); do not enable it for other countries until origin and region selection are designed.
 

@@ -21,7 +21,7 @@ describe("morning commute", () => {
     expect(mocks.runRideRequest).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ country: "gh", mode: "rides", from: { kind: "search", query: "Osu, Accra" }, to: { kind: "search", query: "Airport City, Accra" } }));
     expect(lines.find((line) => line.section === "rides")).toMatchObject({ id: "commute:meeting-1", action: { kind: "rides", url: "https://bolt.eu/en/rides/" } });
     expect(lines.find((line) => line.section === "rides")?.text).toContain("Leave by 09:10");
-    expect(lines.find((line) => line.section === "rides")?.text).toContain("estimate now");
+    expect(lines.find((line) => line.section === "rides")?.text).toContain("estimate checked");
   });
 
   it("omits commute without an origin or an unambiguous physical event", async () => {
@@ -45,5 +45,14 @@ describe("morning commute", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]!.text).not.toContain("Leave by");
     expect(lines[0]!.action).toMatchObject({ kind: "rides", url: expect.stringContaining("yango.go.link/route") });
+  });
+
+  it("tries the next meeting when the first has no GHS-priced ride", async () => {
+    const later = { ...event, id: "meeting-2", summary: "Client pitch", start: { dateTime: "2026-11-23T14:00:00Z" }, end: { dateTime: "2026-11-23T15:00:00Z" } };
+    mocks.appTool.mockResolvedValue({ items: [event, later] });
+    mocks.runRideRequest.mockResolvedValueOnce({ ...trip, result: { options: [{ provider: "bolt", name: "Economy", price: { amount: 38, currency: "USD" } }] } }).mockResolvedValueOnce(trip);
+    const lines = await collectBriefCandidates("user-1", at, "Africa/Accra", ["rides"], "Osu, Accra");
+    expect(mocks.runRideRequest).toHaveBeenCalledTimes(2);
+    expect(lines).toMatchObject([{ id: "commute:meeting-2" }]);
   });
 });
