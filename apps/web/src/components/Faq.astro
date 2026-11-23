@@ -22,11 +22,11 @@ const faqs = [
 ---
 
 <section class="faq" id="faq">
-  <h2>FAQs</h2>
+  <div class="intro"><h2>A few<br />good questions.</h2><a href="#download" data-waitlist>Join the waitlist <span aria-hidden="true">↗</span></a></div>
   <div class="list">
     {
-      faqs.map((item, index) => (
-        <details name="faq" open={index === 0}>
+      faqs.map((item) => (
+        <details name="faq">
           <summary>
             {item.q}
             <span class="sign" aria-hidden="true" />
@@ -43,16 +43,20 @@ const faqs = [
     display: grid;
     grid-template-columns: 1fr 1.25fr;
     gap: 48px;
-    width: min(1240px, calc(100% - 32px));
+    width: min(1120px, calc(100% - 40px));
     margin: 140px auto 0;
-    padding: 0 56px;
+    padding: 40px 0 0;
+    border-top: 1px solid var(--line);
   }
   h2 {
     margin: 0;
-    font-size: clamp(32px, 3.6vw, 48px);
+    font-size: clamp(38px, 4vw, 56px);
+    line-height: 1.05;
     font-weight: 500;
     letter-spacing: -0.04em;
   }
+  .intro a { display: inline-flex; gap: 12px; margin-top: 24px; padding-block: 8px; font-size: 14px; }
+  .intro a:hover { text-decoration: underline; text-underline-offset: 4px; }
   details {
     border-bottom: 1px solid var(--line);
   }
@@ -76,13 +80,13 @@ const faqs = [
     outline-offset: 4px;
     border-radius: 4px;
   }
-  /* A plus that turns into a cross when open. */
+  /* The open question uses a minus. */
   .sign {
     position: relative;
     width: 18px;
     height: 18px;
     flex: none;
-    transition: transform 0.25s ease;
+    transition: transform 180ms ease;
   }
   .sign::before,
   .sign::after {
@@ -97,10 +101,14 @@ const faqs = [
   }
   .sign::after {
     transform: rotate(90deg);
+    transition: transform 180ms ease;
   }
   details[open] .sign {
-    transform: rotate(45deg);
+    transform: rotate(180deg);
   }
+  details[open] .sign::after { transform: rotate(0); }
+  details[open] p { animation: answer-in 180ms ease-out; }
+  @keyframes answer-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   p {
     max-width: 54ch;
     margin: 0;

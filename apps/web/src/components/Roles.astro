@@ -32,7 +32,7 @@ const roles: Role[] = [
     gradient: mate("blue"),
     shape: "triangle",
     state: "working",
-    lead: "Ship features while you sleep.",
+    lead: "A change you can review.",
     body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
     thread: [
       { stamp: "Tuesday 7:38 PM" },
@@ -49,8 +49,8 @@ const roles: Role[] = [
     gradient: mate("green"),
     shape: "circle",
     state: "curious",
-    lead: "Inbox zero, every morning.",
-    body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
+    lead: "Start with the mail that needs you.",
+    body: "Finds the messages that need a reply and prepares drafts for you to review.",
     thread: [
       { stamp: "Monday 10:12 PM" },
       { me: "every morning: sort my inbox, draft replies to anything urgent, archive newsletters." },
@@ -74,7 +74,7 @@ const roles: Role[] = [
       { stamp: "4:31 PM" },
       { them: "2 stays near the castle, a day-by-day plan, and 5 food spots locals rate." },
       { event: "Wrote a note", value: "Cape Coast, July", icon: "note" },
-      { them: "nothing booked until you say go." },
+      { them: "The itinerary is ready to review." },
     ],
   },
   {
@@ -108,23 +108,7 @@ const roles: Role[] = [
       { them: "I’ll check in every morning." },
     ],
   },
-  {
-    id: "brief",
-    name: "Daily Brief",
-    gradient: mate("rose"),
-    shape: "squircle",
-    state: "happy",
-    lead: "Your morning in one message.",
-    body: "Calendar, weather, leave-by times, and what still needs you — before the day starts running you.",
-    thread: [
-      { stamp: "Yesterday 9:40 PM" },
-      { me: "weekdays at 7: brief me — calendar, weather, leave-by for the first meeting." },
-      { event: "Created routine", value: "Morning brief · 7:00", icon: "clock" },
-      { stamp: "7:00 AM" },
-      { them: "3 meetings. First at 10:00 — Airport City. Leave by 9:12 if you’re driving." },
-      { them: "Rain after 2pm. One urgent: contract needs your signature today." },
-    ],
-  },
+
 ];
 
 const icons = {
@@ -137,7 +121,8 @@ const icons = {
 
 <section class="roles" id="roles" data-roles>
   <div class="side">
-    <h2>Give each mate a job</h2>
+    <h2>Give each mate a job.</h2>
+    <p class="section-note">Pick a role. See what comes back.</p>
 
     <div class="chips" role="tablist" aria-label="Mate roles">
       {
@@ -166,7 +151,8 @@ const icons = {
       ))
     }
 
-    <a href="#download" class="pill-button light more">Get the app</a>
+    <button type="button" class="pill-button dark more" data-waitlist>Build your crew <span aria-hidden="true">↗</span></button>
+    <p class="availability">Join the waitlist for iPhone and Android.</p>
   </div>
 
   <div class="stage">
@@ -211,8 +197,9 @@ const icons = {
       tab.addEventListener("click", () => select(tab));
       tab.addEventListener("keydown", (event) => {
         const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-        if (!step) return;
-        const next = tabs[(index + step + tabs.length) % tabs.length]!;
+        if (!step && event.key !== "Home" && event.key !== "End") return;
+        event.preventDefault();
+        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + step + tabs.length) % tabs.length]!;
         next.focus();
         select(next);
       });
@@ -221,22 +208,27 @@ const icons = {
 </script>
 
 <style>
+  .section-note, .availability { color: var(--muted); line-height: 1.5; }
+  .section-note { margin: 16px 0 0; font-size: 17px; }
+  .availability { margin: 12px 0 0; font-size: 13px; }
+  button.more { border: 0; font-family: inherit; cursor: pointer; }
+
   .roles {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 48px;
     align-items: start;
-    width: min(1240px, calc(100% - 32px));
+    width: min(1120px, calc(100% - 40px));
     margin: 140px auto 0;
   }
   .side {
-    padding: 40px 0 0 56px;
+    padding: 32px 0 0;
   }
   h2 {
     margin: 0;
     font-size: clamp(28px, 3.2vw, 42px);
-    font-weight: 600;
-    letter-spacing: -0.035em;
+    font-weight: 500;
+    letter-spacing: -0.045em;
     line-height: 1.1;
   }
   .chips {
