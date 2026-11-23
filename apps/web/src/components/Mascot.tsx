@@ -30,12 +30,20 @@ export default function Mascot({ size, state = "happy", gradient = DEFAULT_GRADI
   const silhouette = SHAPES[shape];
 
   useEffect(() => {
-    setLive(true);
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updateMotion = () => setLive(!motion.matches);
+    updateMotion();
+    if (motion.addEventListener) motion.addEventListener("change", updateMotion);
+    else motion.addListener(updateMotion);
     const node = box.current;
-    if (!node || typeof IntersectionObserver === "undefined") return;
+    const removeMotionListener = () => {
+      if (motion.removeEventListener) motion.removeEventListener("change", updateMotion);
+      else motion.removeListener(updateMotion);
+    };
+    if (!node || typeof IntersectionObserver === "undefined") return removeMotionListener;
     const observer = new IntersectionObserver(([entry]) => setVisible(!!entry?.isIntersecting), { rootMargin: "80px" });
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); removeMotionListener(); };
   }, []);
 
   return (

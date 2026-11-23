@@ -84,3 +84,25 @@ a {
     transition: none !important;
   }
 }
+
+/* Keep keyboard navigation visible and section headings clear of the sticky header. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent-deep);
+  outline-offset: 4px;
+}
+section[id] { scroll-margin-top: 88px; }
+.skip-link {
+  position: fixed;
+  top: 12px;
+  left: 16px;
+  z-index: 200;
+  padding: 12px 18px;
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 8px;
+  transform: translateY(-160%);
+}
+.skip-link:focus { transform: none; }
+@media (max-width: 860px) { section[id] { scroll-margin-top: 76px; } }

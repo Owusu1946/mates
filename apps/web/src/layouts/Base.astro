@@ -11,6 +11,7 @@ interface Props {
   imageAlt?: string;
   /** Keep a page out of search results (utility pages like the share-card source). */
   noindex?: boolean;
+  skipToContent?: boolean;
 }
 
 const NAME = "Mates";
@@ -20,6 +21,7 @@ const {
   image = "/og.png",
   imageAlt = "Mates: three phones illustrating AI teammates working together",
   noindex = false,
+  skipToContent = false,
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
@@ -75,6 +77,7 @@ const structuredData = {
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />}
   </head>
   <body>
+    {skipToContent && <a class="skip-link" href="#main-content">Skip to content</a>}
     <slot />
     {
       !noindex && (

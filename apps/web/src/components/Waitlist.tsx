@@ -59,11 +59,14 @@ export default function Waitlist({ api }: { api: string }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") return close();
       if (event.key !== "Tab" || !card.current) return;
-      const items = Array.prototype.slice.call(card.current.querySelectorAll("button, input:not([tabindex='-1']), a[href]")) as HTMLElement[];
+      const items = Array.prototype.slice.call(card.current.querySelectorAll("button:not(:disabled), input:not(:disabled):not([tabindex='-1']), a[href]")) as HTMLElement[];
       if (!items.length) return;
       const first = items[0]!;
       const last = items[items.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
+      if (!card.current.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
