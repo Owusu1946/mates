@@ -87,23 +87,29 @@ export async function executeMorningBrief(briefId: string, now = new Date()) {
     await getDb().batch([
       getDb().insert(chatMessages).values({ chatId, id: messageId, parentId: head?.id ?? null, message }).onConflictDoNothing(),
       getDb().update(chats).set({ updatedAt: createdAt }).where(eq(chats.id, chatId)),
-      getDb().update(morningBriefs).set({ status: "posted", chatId, leaseUntil: null, updatedAt: createdAt }).where(eq(morningBriefs.id, brief.id)),
+      getDb().update(morningBriefs).set({ status: "posted", chatId, leaseUntil: null, error: null, updatedAt: createdAt }).where(eq(morningBriefs.id, brief.id)),
     ]);
   } catch (error) {
-    await getDb().update(morningBriefs).set({ status: brief.attempts >= 3 ? "failed" : "queued", leaseUntil: null, error: error instanceof Error ? error.name : "Unknown error", updatedAt: new Date() }).where(eq(morningBriefs.id, brief.id));
+    await getDb().update(morningBriefs).set({ status: brief.attempts >= 3 ? "failed" : "queued", leaseUntil: null, error: (error instanceof Error ? error.message : String(error)).slice(0, 500), updatedAt: new Date() }).where(eq(morningBriefs.id, brief.id));
     throw error;
   }
 }
 
 /** Claim the push before sending, so a timeout cannot produce a second notification. */
 export async function sendPendingMorningPushes(now = new Date()) {
+  await getDb().update(morningBriefs).set({ error: "Push window expired before notification" }).where(and(eq(morningBriefs.status, "posted"), isNull(morningBriefs.pushAttemptedAt), isNull(morningBriefs.error), lt(morningBriefs.scheduledFor, new Date(now.getTime() - PUSH_WINDOW_MS))));
   const ready = await getDb().select().from(morningBriefs).where(and(eq(morningBriefs.status, "posted"), isNull(morningBriefs.pushAttemptedAt), gte(morningBriefs.scheduledFor, new Date(now.getTime() - PUSH_WINDOW_MS)))).orderBy(morningBriefs.scheduledFor).limit(20);
   for (const brief of ready) {
     if (!brief.chatId || !brief.lines?.length || await inQuietHours(brief.clerkUserId, now)) continue;
     const [claimed] = await getDb().update(morningBriefs).set({ pushAttemptedAt: now }).where(and(eq(morningBriefs.id, brief.id), isNull(morningBriefs.pushAttemptedAt))).returning({ id: morningBriefs.id });
     if (!claimed) continue;
-    const accepted = await pushToUser(brief.clerkUserId, { title: "Your morning", body: brief.lines[0]!.text, data: { chatId: brief.chatId, chatKind: "mate", morningBriefId: brief.id } });
-    if (accepted) await getDb().update(morningBriefs).set({ pushAcceptedAt: new Date() }).where(eq(morningBriefs.id, brief.id));
+    try {
+      const accepted = await pushToUser(brief.clerkUserId, { title: "Your morning", body: brief.lines[0]!.text, data: { chatId: brief.chatId, chatKind: "mate", morningBriefId: brief.id } });
+      await getDb().update(morningBriefs).set(accepted ? { pushAcceptedAt: new Date() } : { error: "Push was not accepted by any device" }).where(eq(morningBriefs.id, brief.id));
+    } catch (error) {
+      // The provider might have accepted the push before a later failure. Do not retry blindly.
+      await getDb().update(morningBriefs).set({ error: `Push outcome unknown: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500) }).where(eq(morningBriefs.id, brief.id));
+    }
   }
 }
 
