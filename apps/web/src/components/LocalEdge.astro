@@ -3,17 +3,17 @@ const tiles = [
   {
     title: "Morning brief",
     lines: [
-      { who: "them", text: "First meeting 10:00, Airport City. Leave by 9:12." },
-      { who: "you", text: "Move it if it clashes with stand-up." },
-      { who: "them", text: "It does. I can propose 1:30 — you approve first." },
+      { who: "them", text: "Your first meeting is at 10 in Airport City." },
+      { who: "you", text: "Anything else before lunch?" },
+      { who: "them", text: "One reminder: send Ama the revised agenda." },
     ],
   },
   {
     title: "Rides in GHS",
     lines: [
       { who: "you", text: "Circle to the airport. Under ₵60." },
-      { who: "them", text: "Yango Comfort ₵52 · ~7 min." },
-      { who: "them", text: "Trotro + short ride ₵23 · ~35 min." },
+      { who: "them", text: "Yango Comfort · estimated GH₵52." },
+      { who: "them", text: "Trotro + short ride · estimated GH₵23." },
     ],
   },
   {
@@ -27,7 +27,7 @@ const tiles = [
 ];
 ---
 <section class="local" id="local" aria-labelledby="local-title">
-  <h2 id="local-title">Built for the day you actually have.</h2>
+  <h2 id="local-title">A day in Accra, in three examples.</h2>
   <div class="grid">
     {tiles.map((tile) => (
       <article class="tile">

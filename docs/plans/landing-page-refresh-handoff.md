@@ -4,15 +4,15 @@ Branch: `feat/landing-page-refresh`
 Baseline: `ec7e328`  
 Owner: Sammy  
 Reviewer/deployment: Ken  
-Status: three slices committed manually; final focus-return fix and this handoff awaiting commit; not deployed
+Status: ready for preview review on this branch.
 
-## Changes
+## Current homepage
 
-1. Copy and accuracy (`a28b2ad`): consistent prelaunch/waitlist wording, clearer hero/FAQ, Starter price metadata, usage notes, illustrative hero conversations without unsupported weather or acceptance claims.
-2. Structure (`6129baf`): three workflow examples, user-control section, compact closing CTA, reduced decorative mascot repetition, clearer connection and authorization copy.
-3. Polish (`63c8f7b`, plus final focus-return fix in working tree): skip link and keyboard focus, sticky-header anchor offsets, tighter header spacing, scrollable short-screen menu, synchronous menu dismissal to avoid competing focus traps, disabled controls excluded from waitlist focus cycling, focus restored to menu opener after dialog, and mascot reduced-motion support including preference changes.
-
-No API, schema, new dependencies or env variables were added. Existing interactive demos remain illustrative; this PR does not release new app capabilities.
+- The hero pairs the waitlist with an example from an Accra meetup. Open Ivy’s draft with a tap or the keyboard.
+- Ghana examples, calls, Google Meet and the code demo follow the hero. Example fares illustrate the interaction.
+- Pricing shows the four default monthly USD prices from the API. The comparison expands in place. Mobile obtains local and yearly offers from the store.
+- At 390px and 1280px, headless Chrome checks covered horizontal fit, keyboard opening of the draft, pricing and FAQ, reduced-motion draft styling and the waitlist dialog. The phone-width pass also exercised the mobile menu.
+- API, worker and database deployments are unnecessary for this web change.
 
 ## Local preview
 
@@ -31,16 +31,16 @@ Open the URL Astro prints (normally http://127.0.0.1:4321). Root `pnpm dev` star
 - Diff whitespace checks passed.
 - Build warning: roughly 520 KB minified LiveKit chunk; output references found in meeting utility assets, not landing HTML. This is not a measured landing-page transfer or speed regression.
 - Build warning: local Node 26 differs from Vercel function runtime Node 24. Validate with the deployment runtime.
-- Browser automation was unavailable. No rendered screenshot, keyboard-device, screen-reader, Lighthouse or real submission pass is claimed.
+- Physical-device, screen-reader, Lighthouse and staging signup checks remain with Ken.
 
 ## Ken review and deployment checks
 
 - [ ] Confirm prelaunch status is still accurate. When listings are live, update store links, waitlist and pricing CTAs together.
 - [ ] Verify prices, yearly billing, feature entitlements and deployment availability against actual billing config. Metadata starts at USD 8; confirm this remains the correct advertised monthly offer.
-- [ ] Review claims in Roles, Calls, Slack and Computer against deployed capabilities. Slack remains labelled Coming soon. Hidden meetings/decks/outbound-call sections remain hidden; do not infer availability from code presence.
+- [ ] Check the visible Calls, Google Meet, Computer and Ghana examples against capabilities enabled for launch.
 - [ ] Confirm the approval language reflects standing routine instructions as well as one-off requests. No blanket promise that every external action requires a fresh approval.
-- [ ] Preview desktop widths 1024/1440 and mobile 320/375/390, plus short landscape and 200% zoom. Check header fit, pricing, phone crop, workflow/control sections and footer.
-- [ ] Keyboard: skip to main, all section links, pricing radios, open/close mobile menu, Escape, rapid repeat taps and breakpoint changes.
+- [ ] Preview desktop widths 1024/1440 and mobile 320/375/390, plus short landscape and 200% zoom. Check header fit, the hero draft, meeting tiles, pricing disclosure and footer.
+- [ ] Keyboard: skip to main, all section links, pricing disclosure, open/close mobile menu, Escape, rapid repeat taps and breakpoint changes.
 - [ ] Mobile menu to waitlist: only one visible active dialog; Tab stays in waitlist; disabled submit/input do not break cycling; closing returns to visible menu button; page scrolling unlocks.
 - [ ] Check form success/failure/retry against staging; no duplicate submissions or unwanted real signups. Verify main CTA still works after dialog close/reopen.
 - [ ] Reduced motion: reload and change system setting while open; mascot becomes static and existing demos settle appropriately.
