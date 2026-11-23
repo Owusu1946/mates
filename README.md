@@ -2,11 +2,12 @@
 
 Mates is a mobile app for building a team of AI "mates". Each mate has a role, a personality and a mascot. They chat with you, call you, work in your connected apps (Gmail, Notion, Calendar and more), search the web, and write code that ships as GitHub pull requests while you're away.
 
-This repository is a **pnpm + Turborepo monorepo** with everything in one place: the mobile app, the API, the background worker and the landing page.
+This repository is a **pnpm + Turborepo monorepo** with everything in one place: the mobile and desktop apps, the API, the background worker and the landing page.
 
 | Path | What it is | Stack |
 | --- | --- | --- |
 | `apps/mobile` | The iOS/Android app | Expo SDK 57, Expo Router, assistant-ui, Clerk |
+| `apps/desktop` | Desktop starter app | Electron, Vite, React |
 | `apps/api` | HTTP API and background worker | Hono, Drizzle ORM + Neon Postgres, Trigger.dev, OpenRouter |
 | `apps/web` | Landing page at agents.askorin.app | Astro with React islands |
 | `packages/api-contract` | Typed API contract shared by app and server | TypeScript |
@@ -84,6 +85,18 @@ This starts the API and Metro together. Scan the QR code with Expo Go (iOS: the 
 Run all commands from the **repository root**. `pnpm --filter <package>` targets one workspace.
 
 ---
+
+## Run the desktop app
+
+Use Node.js 22.12 or newer. From the repository root after `pnpm install`, run `pnpm dev:desktop`.
+The shell uses sample data and runs without API credentials.
+
+To build the renderer and open it in Electron without the dev server, run:
+
+```sh
+pnpm --filter @muse-clone/desktop build
+pnpm --filter @muse-clone/desktop start
+```
 
 ## Environment variables
 

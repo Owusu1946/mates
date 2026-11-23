@@ -1,0 +1,26 @@
+{
+  "name": "@muse-clone/desktop",
+  "productName": "Mates",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.mjs",
+  "scripts": {
+    "dev": "node electron/launch.mjs --dev",
+    "start": "node electron/launch.mjs",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.3",
+    "electron": "^45.4.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.6"
+  }
+}
