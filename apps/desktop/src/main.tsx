@@ -128,6 +128,92 @@ function DraftEditor({ editor, onClose, onSave }: {
   )
 }
 
+function MateFilter({ value, onChange }: {
+  value: string
+  onChange: (value: string) => void
+}) {
+  const trigger = useRef<HTMLButtonElement>(null)
+  const popover = useRef<HTMLDivElement>(null)
+  const options = [
+    { value: '', label: 'All mates' },
+    ...team.map((mate) => ({ value: mate.name, label: mate.name, mate })),
+  ]
+
+  return (
+    <div className="activity-filter">
+      <span id="mate-filter-label">Filter by mate</span>
+      <button
+        ref={trigger}
+        className="secondary-button filter-trigger"
+        type="button"
+        popoverTarget="mate-filter-options"
+        aria-labelledby="mate-filter-label mate-filter-value"
+      >
+        <span id="mate-filter-value">{value || 'All mates'}</span>
+        <span className="filter-chevron" aria-hidden="true" />
+      </button>
+      <div
+        ref={popover}
+        id="mate-filter-options"
+        className="filter-options"
+        popover="auto"
+        role="group"
+        aria-labelledby="mate-filter-label"
+        onToggle={(event) => {
+          if (event.newState === 'open') {
+            event.currentTarget.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus()
+          }
+        }}
+        onKeyDown={(event) => {
+          const buttons = Array.from(event.currentTarget.querySelectorAll('button'))
+          const focused = buttons.findIndex((button) => button === document.activeElement)
+          const last = buttons.length - 1
+          let next: number
+          switch (event.key) {
+            case 'ArrowDown':
+              next = focused === last ? 0 : focused + 1
+              break
+            case 'ArrowUp':
+              next = focused <= 0 ? last : focused - 1
+              break
+            case 'Home':
+              next = 0
+              break
+            case 'End':
+              next = last
+              break
+            default:
+              return
+          }
+          event.preventDefault()
+          buttons[next]?.focus()
+        }}
+      >
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={value === option.value}
+            onClick={() => {
+              onChange(option.value)
+              popover.current?.hidePopover()
+              trigger.current?.focus()
+            }}
+          >
+            <span className="filter-avatar">
+              {'mate' in option && (
+                <img src={option.mate.image} alt="" width="22" height="22" />
+              )}
+            </span>
+            <span>{option.label}</span>
+            {value === option.value && <span className="filter-check" aria-hidden="true">✓</span>}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function App() {
   const [view, setView] = useState<(typeof views)[number]>('Team')
   const [selectedMate, setSelectedMate] = useState<Mate>(team[0])
@@ -136,6 +222,13 @@ function App() {
   const [filter, setFilter] = useState('')
   const [status, setStatus] = useState('')
   const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
+  const mateDraftCount = drafts.filter((draft) => draft.mate === selectedMate.name).length
+
+  function openActivity(mate = '') {
+    setFilter(mate)
+    setStatus('')
+    setView('Activity')
+  }
 
   function openEditor(next: Editor) {
     setStatus('')
@@ -175,6 +268,10 @@ function App() {
               type="button"
               aria-current={view === name ? 'page' : undefined}
               onClick={() => {
+                if (name === 'Activity') {
+                  openActivity()
+                  return
+                }
                 setStatus('')
                 setView(name)
               }}
@@ -237,6 +334,15 @@ function App() {
                   >
                     Draft a request
                   </button>
+                  {mateDraftCount > 0 && (
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => openActivity(selectedMate.name)}
+                    >
+                      View drafts ({mateDraftCount})
+                    </button>
+                  )}
                 </div>
               </div>
             </section>
@@ -248,15 +354,7 @@ function App() {
                 <h1 id="activity-heading">Activity</h1>
                 <p className="subtitle">Request drafts saved on this device.</p>
               </div>
-              {drafts.length > 0 && (
-                <div className="activity-filter">
-                  <label htmlFor="mate-filter">Filter by mate</label>
-                  <select id="mate-filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
-                    <option value="">All mates</option>
-                    {team.map((mate) => <option key={mate.name}>{mate.name}</option>)}
-                  </select>
-                </div>
-              )}
+              {drafts.length > 0 && <MateFilter value={filter} onChange={setFilter} />}
             </div>
             {visibleDrafts.length === 0 ? (
               <div className="activity-empty">
