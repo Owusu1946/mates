@@ -16,53 +16,51 @@ const plans: Plan[] = [
   {
     name: "Starter",
     monthly: 8,
-    tagline: "For handing off the everyday.",
-    intro: "Includes:",
+    tagline: "Everyday handoffs.",
+    intro: "Includes",
     features: [
-      "Up to 5 mates, each with their own role and memory",
-      "One mission at a time, with handoffs and shared notes",
-      "Connect the apps you choose",
-      "Morning brief & ride quotes where available",
-      "3 routines on a schedule",
-      "Voice calls with up to 2 mates",
+      "Up to 5 mates",
+      "1 active mission",
+      "3 routines",
+      "Connected apps you choose",
     ],
   },
   {
     name: "Plus",
     monthly: 15,
-    tagline: "For real projects with a team.",
-    intro: "Everything in Starter, plus:",
+    tagline: "A small team on it.",
+    intro: "Everything in Starter, plus",
     features: [
-      "2x Starter usage",
+      "2× Starter usage",
       "Up to 10 mates",
-      "2 missions running at the same time",
-      "10 routines on a schedule",
-      "Group calls with up to 4 mates",
+      "2 active missions",
+      "10 routines",
+      "5 watches",
     ],
   },
   {
     name: "Pro",
     monthly: 40,
-    tagline: "For mates who work all day.",
-    intro: "Everything in Plus, plus:",
+    tagline: "Computer and code.",
+    intro: "Everything in Plus, plus",
     features: [
-      "3x Plus usage",
+      "6× Starter usage",
       "Up to 20 mates",
-      "5 missions running at the same time",
-      "Unlimited saved routines; usage limits apply",
-      "The mates’ computer on the flagship model: ship code as pull requests",
+      "5 active missions",
+      "Unlimited saved routines",
+      "Mates’ computer · GitHub PRs",
     ],
   },
   {
     name: "Max",
     monthly: 80,
-    tagline: "For a team that never clocks off.",
-    intro: "Everything in Pro, plus:",
+    tagline: "No five-hour cap.",
+    intro: "Everything in Pro, plus",
     features: [
-      "6x Plus usage",
-      "10 missions running at the same time",
-      "Choose the most capable model for any mate",
-      "Earliest access to new features and models",
+      "12× Starter usage",
+      "10 active missions",
+      "No 5-hour session limit",
+      "Earliest models and features",
     ],
   },
 ];
@@ -75,7 +73,7 @@ const yearlyPerMonth = (plan: Plan) => {
 
 <section class="pricing" id="pricing">
   <h2>Pricing</h2>
-  <p class="sub">Plans start at $8 a month. Join the waitlist for launch access.</p>
+  <p class="sub">$8–$80 / month. Same plans as in the app.</p>
 
   <input class="billing" type="radio" name="billing" id="billing-monthly" value="monthly" aria-label="Monthly billing" checked />
   <input class="billing" type="radio" name="billing" id="billing-yearly" value="yearly" aria-label="Yearly billing" />
@@ -84,12 +82,12 @@ const yearlyPerMonth = (plan: Plan) => {
     <label for="billing-yearly">Yearly <span class="save">{FREE_MONTHS} months free</span></label>
   </div>
 
-  <p class="usage-note">All plans have usage limits. Connected apps and computer work depend on access and availability. No payment is taken when you join the waitlist.</p>
+  <p class="usage-note">Usage is metered. Computer and coding are Pro and Max. Watches start on Plus. No charge to join the waitlist.</p>
 
   <div class="plans">
     {
       plans.map((plan) => (
-        <article class="plan">
+        <article class={`plan${plan.name === "Pro" ? " featured" : ""}`}>
           <h3>{plan.name}</h3>
           <p class="tagline">{plan.tagline}</p>
           <div class="price monthly">
@@ -204,9 +202,20 @@ const yearlyPerMonth = (plan: Plan) => {
   .plan {
     display: flex;
     flex-direction: column;
-    padding: 36px 28px;
-    border-radius: 32px;
+    padding: 32px 26px;
+    border-radius: 22px;
     background: var(--panel);
+    border: 1px solid transparent;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease, background 0.25s ease;
+  }
+  .plan:hover {
+    transform: translateY(-3px);
+    border-color: var(--line);
+    background: var(--bg);
+  }
+  .plan.featured {
+    background: var(--bg);
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
   }
   h3 {
     margin: 0;

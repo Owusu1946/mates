@@ -136,8 +136,8 @@ export default function Waitlist({ api }: { api: string }) {
 
             {phase !== "done" ? (
               <form className="wl-body" onSubmit={submit} noValidate>
-                <h2 id="wl-title">Get early access</h2>
-                <p>Mates is coming to iPhone and Android. Join the waitlist and we’ll tell you the moment it’s ready.</p>
+                <h2 id="wl-title">Join the waitlist</h2>
+                <p>iPhone and Android. One email when it’s ready.</p>
                 <div className={`wl-field${error ? " invalid" : ""}`}>
                   <input
                     ref={input}

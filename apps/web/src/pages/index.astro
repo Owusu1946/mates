@@ -1,11 +1,10 @@
 ---
-import Mascot from "../components/Mascot";
 import Faq from "../components/Faq.astro";
 import Workflows from "../components/Workflows.astro";
 import LocalEdge from "../components/LocalEdge.astro";
-import Control from "../components/Control.astro";
 import Footer from "../components/Footer.astro";
 import HeroStage from "../components/HeroStage.astro";
+import HeroMascot from "../components/HeroMascot";
 import Logo from "../components/Logo.astro";
 import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
@@ -16,20 +15,12 @@ import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
 import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
-import Slack from "../components/Slack.astro";
-// Coming soon, hidden until built: import PhoneCalls from "../components/PhoneCalls.astro";
 import Meet from "../components/Meet.astro";
-// Coming soon, hidden until built: import Decks from "../components/Decks.astro";
-// Coming soon, hidden until built: import More from "../components/More.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
-  { label: "Features", href: "#features" },
-  { label: "Missions", href: "#team" },
-  { label: "Meet", href: "#meet" },
-  { label: "Calls", href: "#calls" },
-  { label: "Computer", href: "#computer" },
+  { label: "Product", href: "#features" },
   { label: "Pricing", href: "#pricing" },
 ];
 const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
@@ -50,36 +41,19 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
   <main id="main-content" tabindex="-1">
     <section class="hero">
-      <a href="#local" class="announce">
-        <strong>New: morning brief, rides in GHS, and Meet notes</strong>
-        <span class="dot">·</span>
-        <span class="more-link">See real-day workflows</span>
-        <span class="arrow" aria-hidden="true">↗</span>
-      </a>
-
       <h1>
         Your AI team
-        <span class="inline-mascot"><Mascot client:idle size={96} /></span>
+        <span class="inline-mascot"><HeroMascot client:idle size={96} /></span>
         in your pocket
       </h1>
 
       <p class="lede">
-        Give mates real jobs — research, handoffs, morning routines, commute quotes, and pull requests.
-        They use the apps you connect and bring finished work back to you.
+        Research, routines, ride quotes, meeting notes, and pull requests — mates use the apps you connect and bring the work back.
       </p>
-
-      <ul class="hero-pills" aria-label="What Mates handles">
-        <li>Morning brief &amp; calendar</li>
-        <li>Rides &amp; transit (GHS)</li>
-        <li>Meetings &amp; notes</li>
-        <li>Code → GitHub PRs</li>
-      </ul>
 
       <div class="hero-ctas">
         <StoreButtons />
       </div>
-
-      <p class="demo-caption">Illustrative product demos · Mates is currently in development.</p>
 
       <div class="stage">
         <HeroStage />
@@ -96,33 +70,19 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Calls />
 
-    {/* Coming soon, hidden until built: <PhoneCalls /> */}
-
     <Meet />
-
-    <Slack />
-
-    {/* Coming soon, hidden until built: <Decks /> */}
 
     <Computer />
 
-    <Control />
-
     <Apps />
-
-    {/* Coming soon, hidden until built: <More /> */}
 
     <Pricing />
 
     <Faq />
 
     <section class="launch" id="download" aria-labelledby="launch-title">
-      <Logo size={40} />
-      <div class="launch-mascot" aria-hidden="true">
-        <Mascot client:visible size={200} state="excited" />
-      </div>
-      <h2 id="launch-title">Meet your team when Mates launches.</h2>
-      <p>Join the waitlist for iPhone and Android. We’ll email you when you can get started.</p>
+      <h2 id="launch-title">iPhone and Android, soon.</h2>
+      <p>Join the waitlist. We’ll email you when it’s ready.</p>
       <StoreButtons />
     </section>
   </main>
@@ -132,105 +92,51 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 </Base>
 
 <style>
-  .hero-pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    justify-content: center;
-    max-width: 640px;
-    margin: 24px auto 0;
-    padding: 0;
-    list-style: none;
-  }
-  .hero-pills li {
-    padding: 8px 14px;
-    border-radius: 999px;
-    border: 1px solid var(--line);
-    background: var(--bg);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    letter-spacing: -0.01em;
-  }
-  .demo-caption { margin: 20px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
-  .launch { position: relative; width: min(760px, calc(100% - 40px)); margin: 120px auto 0; padding: 48px 0; text-align: center; }
-  .launch-mascot {
-    position: absolute;
-    top: -48px;
-    right: -8%;
-    opacity: 0.9;
-    pointer-events: none;
-    filter: drop-shadow(0 20px 32px rgba(15, 23, 42, 0.12));
-  }
-  .launch h2 { margin: 20px 0 0; font-size: clamp(30px, 4vw, 48px); letter-spacing: -0.04em; line-height: 1.1; font-weight: 600; }
-  .launch p { max-width: 48ch; margin: 20px auto 28px; color: var(--muted); font-size: 18px; line-height: 1.6; }
+  .launch { width: min(640px, calc(100% - 40px)); margin: 112px auto 0; padding: 8px 0 32px; text-align: center; }
+  .launch h2 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.045em; line-height: 1.1; }
+  .launch p { max-width: 36ch; margin: 14px auto 28px; color: var(--muted); font-size: 17px; line-height: 1.55; }
   .nav {
     position: sticky;
     top: 0;
     z-index: 10;
     display: flex;
     align-items: center;
-    gap: clamp(16px, 2.5vw, 32px);
-    height: 72px;
-    padding: 0 24px;
-    background: rgba(255, 255, 255, 0.82);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    backdrop-filter: saturate(180%) blur(16px);
+    gap: 28px;
+    height: 64px;
+    padding: 0 28px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
   }
   .brand {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: 19px;
-    font-weight: 600;
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 560;
     letter-spacing: -0.03em;
   }
   nav {
     display: flex;
-    gap: clamp(12px, 2vw, 28px);
-    font-size: 15px;
+    gap: 22px;
+    font-size: 14px;
   }
   nav a {
-    color: var(--text);
-    transition: opacity 0.15s ease;
+    color: var(--muted);
+    transition: color 0.2s ease;
   }
   nav a:hover {
-    opacity: 0.6;
+    color: var(--text);
   }
 
   .hero {
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 36px 16px 0;
+    padding: 48px 16px 0;
     text-align: center;
     overflow: hidden;
-  }
-  .announce {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 15px;
-  }
-  .announce strong {
-    font-weight: 600;
-  }
-  .announce .dot {
-    color: var(--muted);
-  }
-  .announce .arrow {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    margin-left: 6px;
-    border-radius: 50%;
-    background: var(--soft);
-    font-size: 13px;
-    transition: transform 0.15s ease;
-  }
-  .announce:hover .arrow {
-    transform: translate(2px, -2px);
   }
 
   h1 {
@@ -239,11 +145,12 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     justify-content: center;
     flex-wrap: wrap;
     gap: 0.18em;
-    margin: 28px 0 0;
-    font-size: clamp(36px, 6.4vw, 76px);
-    font-weight: 600;
-    letter-spacing: -0.05em;
-    line-height: 1;
+    margin: 0;
+    font-size: clamp(40px, 7vw, 84px);
+    font-weight: 560;
+    letter-spacing: -0.055em;
+    line-height: 0.96;
+    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .inline-mascot {
     display: inline-flex;
@@ -260,15 +167,21 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   }
 
   .lede {
-    max-width: 68ch;
+    max-width: 42ch;
     text-wrap: balance;
-    margin: 20px auto 0;
+    margin: 22px auto 0;
     color: var(--muted);
-    font-size: clamp(16px, 1.6vw, 19px);
-    line-height: 1.5;
+    font-size: clamp(16px, 1.5vw, 19px);
+    line-height: 1.55;
+    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
   }
   .hero-ctas {
-    margin-top: 32px;
+    margin-top: 28px;
+    animation: rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+  }
+  .inline-mascot :global(.hero-mascot) {
+    display: inline-flex;
+    cursor: pointer;
   }
 
   /* The phone rises out of the fold, cropped like a product shot. */
@@ -276,11 +189,16 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     position: relative;
     width: 100%;
     height: 640px;
-    margin-top: 64px;
+    margin-top: 56px;
     display: flex;
     justify-content: center;
     -webkit-mask-image: linear-gradient(#000 78%, transparent);
     mask-image: linear-gradient(#000 78%, transparent);
+    animation: rise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to { opacity: 1; transform: none; }
   }
   .stage::before {
     content: "";
@@ -293,43 +211,18 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     filter: blur(20px);
   }
   @media (max-width: 860px) {
-    .launch-mascot {
-      position: relative;
-      top: auto;
-      right: auto;
-      margin: -16px auto 8px;
-      transform: scale(0.85);
-    }
     nav {
       display: none;
     }
     .nav {
+      height: 56px;
       padding: 0 16px;
     }
-    .nav {
-      height: 60px;
-    }
     .hero {
-      padding-top: 24px;
-    }
-    .announce {
-      font-size: 14px;
-    }
-    h1 {
-      margin-top: 22px;
+      padding-top: 28px;
     }
     .stage {
-      margin-top: 48px;
-    }
-  }
-  /* Phones: the announcement keeps just its headline and arrow. */
-  @media (max-width: 520px) {
-    .announce .dot,
-    .announce .more-link {
-      display: none;
-    }
-    .lede {
-      margin-top: 16px;
+      margin-top: 40px;
     }
   }
   @media (max-width: 420px) {
