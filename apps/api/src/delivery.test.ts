@@ -26,6 +26,8 @@ describe("findingPushBody", () => {
   it("uses a concise first line from the saved result", () => {
     expect(findingPushBody("completed", { summary: "Prices rose 3% this week.\nMore detail follows." }))
       .toBe("Prices rose 3% this week.");
+    expect(findingPushBody("completed", { summary: "Done." })).toBe("Done.");
+    expect(findingPushBody("completed", undefined)).toBe("Your result is ready to view.");
   });
 
   it("labels waiting and failed runs accurately", () => {
@@ -33,6 +35,8 @@ describe("findingPushBody", () => {
       .toBe("Needs your input: Please choose one of these two options.");
     expect(findingPushBody("failed", { summary: "Calendar access expired." }))
       .toBe("Couldn’t finish: Calendar access expired.");
+    expect(findingPushBody("failed", { summary: "Your result is ready." }))
+      .toBe("This task couldn’t be completed.");
   });
 
   it("uses clear fallbacks and caps long previews", () => {
