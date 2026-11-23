@@ -56,20 +56,32 @@ const draftLimit = 4000
 
 type Editor = { mate: Mate; draft?: Draft }
 
-function DraftEditor({ editor, onClose, onSave }: {
+function DraftEditor({ editor, onClose, onSave, onDelete }: {
   editor: Editor
   onClose: () => void
   onSave: (text: string) => boolean
+  onDelete: (draft: Draft) => boolean
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const textarea = useRef<HTMLTextAreaElement>(null)
+  const keepEditing = useRef<HTMLButtonElement>(null)
   const [text, setText] = useState(editor.draft?.text ?? '')
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     dialog.current?.showModal()
-    textarea.current?.focus()
   }, [])
+
+  useEffect(() => {
+    if (confirmingDelete) keepEditing.current?.focus()
+    else textarea.current?.focus()
+  }, [confirmingDelete])
+
+  function showDeleteConfirmation(show: boolean) {
+    setFailed(false)
+    setConfirmingDelete(show)
+  }
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -82,9 +94,57 @@ function DraftEditor({ editor, onClose, onSave }: {
     }
   }
 
+  if (confirmingDelete && editor.draft) {
+    const draft = editor.draft
+    return (
+      <dialog
+        ref={dialog}
+        className="draft-dialog"
+        aria-labelledby="draft-heading"
+        aria-describedby="delete-description"
+        onClose={onClose}
+        onCancel={(event) => {
+          event.preventDefault()
+          showDeleteConfirmation(false)
+        }}
+      >
+        <div className="draft-heading">
+          <div>
+            <h2 id="draft-heading">Delete this draft?</h2>
+            <p id="delete-description">This removes the saved request for {editor.mate.name} from Activity.</p>
+          </div>
+        </div>
+        {failed && <p className="save-error" role="alert">Could not delete the draft on this device. Try again.</p>}
+        <div className="draft-actions">
+          <button ref={keepEditing} type="button" className="secondary-button" onClick={() => showDeleteConfirmation(false)}>
+            Keep draft
+          </button>
+          <button
+            type="button"
+            className="danger-button"
+            onClick={() => {
+              if (onDelete(draft)) dialog.current?.close()
+              else setFailed(true)
+            }}
+          >
+            Delete draft
+          </button>
+        </div>
+      </dialog>
+    )
+  }
+
   return (
     <dialog ref={dialog} className="draft-dialog" aria-labelledby="draft-heading" onClose={onClose}>
-      <form onSubmit={save}>
+      <form
+        onSubmit={save}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) {
+            event.preventDefault()
+            event.currentTarget.requestSubmit()
+          }
+        }}
+      >
         <div className="draft-heading">
           <span className="avatar" data-color={editor.mate.color}>
             <img src={editor.mate.image} alt="" width="38" height="38" />
@@ -118,10 +178,23 @@ function DraftEditor({ editor, onClose, onSave }: {
         )}
         {failed && <p className="save-error" role="alert">Could not save the draft on this device. Try again.</p>}
         <div className="draft-actions">
+          {editor.draft && (
+            <button type="button" className="delete-link" onClick={() => showDeleteConfirmation(true)}>
+              Delete draft
+            </button>
+          )}
           <button type="button" className="secondary-button" onClick={() => dialog.current?.close()}>
             Cancel
           </button>
-          <button type="submit" className="primary-button" disabled={!text.trim()}>Save draft</button>
+          <button
+            type="submit"
+            className="primary-button"
+            disabled={!text.trim()}
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            title="Save draft (Ctrl or Cmd + Enter)"
+          >
+            Save draft
+          </button>
         </div>
       </form>
     </dialog>
@@ -221,6 +294,7 @@ function App() {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [filter, setFilter] = useState('')
   const [status, setStatus] = useState('')
+  const activityHeading = useRef<HTMLHeadingElement>(null)
   const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
   const mateDraftCount = drafts.filter((draft) => draft.mate === selectedMate.name).length
 
@@ -243,15 +317,38 @@ function App() {
       text,
       updatedAt: Date.now(),
     }
-    const next = [draft, ...drafts.filter(({ id }) => id !== draft.id)]
+    return updateDrafts(
+      [draft, ...drafts.filter(({ id }) => id !== draft.id)],
+      view === 'Team' ? 'Draft saved in Activity.' : 'Draft saved.',
+    )
+  }
+
+  function updateDrafts(next: Draft[], message: string) {
     try {
       storeDrafts(next)
     } catch {
       return false
     }
     setDrafts(next)
-    setStatus(view === 'Team' ? 'Draft saved in Activity.' : 'Draft saved.')
+    setStatus(message)
     return true
+  }
+
+  function deleteDraft(draft: Draft) {
+    const next = drafts.filter(({ id }) => id !== draft.id)
+    if (!updateDrafts(next, 'Draft deleted.')) return false
+    if (next.length === 0) setFilter('')
+    requestAnimationFrame(() => activityHeading.current?.focus())
+    return true
+  }
+
+  async function copyDraft(draft: Draft) {
+    try {
+      await navigator.clipboard.writeText(draft.text)
+      setStatus('Draft copied.')
+    } catch {
+      setStatus('Could not copy the draft.')
+    }
   }
 
   return (
@@ -351,7 +448,7 @@ function App() {
           <section className="activity" aria-labelledby="activity-heading">
             <div className="activity-header">
               <div>
-                <h1 id="activity-heading">Activity</h1>
+                <h1 id="activity-heading" ref={activityHeading} tabIndex={-1}>Activity</h1>
                 <p className="subtitle">Request drafts saved on this device.</p>
               </div>
               {drafts.length > 0 && <MateFilter value={filter} onChange={setFilter} />}
@@ -385,16 +482,26 @@ function App() {
                         </time>
                         <p>{draft.text}</p>
                       </div>
-                      {mate && (
+                      <div className="draft-row-actions">
                         <button
                           className="secondary-button"
                           type="button"
-                          aria-label={`Edit draft for ${draft.mate}`}
-                          onClick={() => openEditor({ mate, draft })}
+                          aria-label={`Copy draft for ${draft.mate}`}
+                          onClick={() => void copyDraft(draft)}
                         >
-                          Edit
+                          Copy
                         </button>
-                      )}
+                        {mate && (
+                          <button
+                            className="secondary-button"
+                            type="button"
+                            aria-label={`Edit draft for ${draft.mate}`}
+                            onClick={() => openEditor({ mate, draft })}
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
                     </li>
                   )
                 })}
@@ -404,7 +511,9 @@ function App() {
         )}
         <div className="save-status" role="status">{status}</div>
       </main>
-      {editor && <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} />}
+      {editor && (
+        <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} onDelete={deleteDraft} />
+      )}
     </div>
   )
 }

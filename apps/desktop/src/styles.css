@@ -280,7 +280,8 @@ h2 {
 }
 
 .primary-button,
-.secondary-button {
+.secondary-button,
+.danger-button {
   min-height: 36px;
   padding: 7px 12px;
   border: 1px solid var(--line);
@@ -298,6 +299,14 @@ h2 {
 
 .primary-button:not(:disabled):hover { background: #264531; }
 .secondary-button:hover { background: var(--rail); }
+
+.danger-button {
+  border-color: #963c30;
+  background: #963c30;
+  color: #fffefa;
+}
+
+.danger-button:hover { background: #793126; }
 
 .primary-button:disabled,
 .text-button:disabled {
@@ -435,6 +444,18 @@ h2 {
 
 .draft-list .avatar { flex-shrink: 0; }
 
+.draft-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+@media (max-width: 480px) {
+  .draft-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .draft-entry,
+  .draft-row-actions { grid-column: 2; }
+}
+
 .draft-entry {
   flex: 1;
   min-width: 0;
@@ -512,9 +533,22 @@ h2 {
 .draft-actions {
   display: flex;
   justify-content: end;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 20px;
 }
+
+.delete-link {
+  margin-right: auto;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: #963c30;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.delete-link:hover { text-decoration: underline; }
 
 .save-status:not(:empty) {
   position: fixed;
