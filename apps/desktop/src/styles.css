@@ -333,6 +333,12 @@ h2 {
   anchor-name: --mate-filter;
 }
 
+.filter-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .filter-chevron {
   width: 7px;
   height: 7px;
@@ -347,7 +353,7 @@ h2 {
   position-anchor: --mate-filter;
   inset: calc(anchor(bottom) + 6px) anchor(right) auto auto;
   position-try-fallbacks: flip-block, flip-inline;
-  width: 168px;
+  width: anchor-size(width, 132px);
   margin: 0;
   padding: 5px;
   border: 1px solid var(--line);
@@ -358,13 +364,12 @@ h2 {
 }
 
 .filter-options button {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
+  display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   min-height: 34px;
-  padding: 4px 8px;
+  padding: 4px 7px;
   border: 0;
   border-radius: 6px;
   background: transparent;
@@ -379,8 +384,10 @@ h2 {
 
 .filter-options button[aria-pressed="true"] { background: var(--selected); }
 
-.filter-avatar { display: grid; place-items: center; }
-.filter-check { color: var(--accent); }
+.filter-check {
+  margin-left: auto;
+  color: var(--accent);
+}
 
 .draft-dialog textarea {
   padding: 8px 10px;
@@ -391,9 +398,9 @@ h2 {
   font: inherit;
 }
 
-.draft-dialog textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.draft-dialog textarea:focus {
+  border-color: var(--accent);
+  outline: none;
 }
 
 .activity-empty,
@@ -484,7 +491,7 @@ h2 {
   display: block;
   width: 100%;
   margin-top: 8px;
-  resize: vertical;
+  resize: none;
   font-size: 14px;
   line-height: 1.5;
 }

@@ -134,6 +134,7 @@ function MateFilter({ value, onChange }: {
 }) {
   const trigger = useRef<HTMLButtonElement>(null)
   const popover = useRef<HTMLDivElement>(null)
+  const selectedMate = team.find((mate) => mate.name === value)
   const options = [
     { value: '', label: 'All mates' },
     ...team.map((mate) => ({ value: mate.name, label: mate.name, mate })),
@@ -149,7 +150,10 @@ function MateFilter({ value, onChange }: {
         popoverTarget="mate-filter-options"
         aria-labelledby="mate-filter-label mate-filter-value"
       >
-        <span id="mate-filter-value">{value || 'All mates'}</span>
+        <span id="mate-filter-value" className="filter-value">
+          {selectedMate && <img src={selectedMate.image} alt="" width="22" height="22" />}
+          {selectedMate?.name ?? 'All mates'}
+        </span>
         <span className="filter-chevron" aria-hidden="true" />
       </button>
       <div
@@ -200,11 +204,7 @@ function MateFilter({ value, onChange }: {
               trigger.current?.focus()
             }}
           >
-            <span className="filter-avatar">
-              {'mate' in option && (
-                <img src={option.mate.image} alt="" width="22" height="22" />
-              )}
-            </span>
+            {'mate' in option && <img src={option.mate.image} alt="" width="22" height="22" />}
             <span>{option.label}</span>
             {value === option.value && <span className="filter-check" aria-hidden="true">✓</span>}
           </button>
