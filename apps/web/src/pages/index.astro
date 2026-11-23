@@ -2,6 +2,7 @@
 import Mascot from "../components/Mascot";
 import Faq from "../components/Faq.astro";
 import Workflows from "../components/Workflows.astro";
+import LocalEdge from "../components/LocalEdge.astro";
 import Control from "../components/Control.astro";
 import Footer from "../components/Footer.astro";
 import HeroStage from "../components/HeroStage.astro";
@@ -17,7 +18,7 @@ import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
 import Slack from "../components/Slack.astro";
 // Coming soon, hidden until built: import PhoneCalls from "../components/PhoneCalls.astro";
-// Coming soon, hidden until built: import Meet from "../components/Meet.astro";
+import Meet from "../components/Meet.astro";
 // Coming soon, hidden until built: import Decks from "../components/Decks.astro";
 // Coming soon, hidden until built: import More from "../components/More.astro";
 import Computer from "../components/Computer.astro";
@@ -26,6 +27,7 @@ import Base from "../layouts/Base.astro";
 const nav = [
   { label: "Features", href: "#features" },
   { label: "Missions", href: "#team" },
+  { label: "Meet", href: "#meet" },
   { label: "Calls", href: "#calls" },
   { label: "Computer", href: "#computer" },
   { label: "Pricing", href: "#pricing" },
@@ -48,23 +50,30 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
   <main id="main-content" tabindex="-1">
     <section class="hero">
-      <a href="#computer" class="announce">
-        <strong>Mates can ship code now</strong>
+      <a href="#local" class="announce">
+        <strong>New: morning brief, rides in GHS, and Meet notes</strong>
         <span class="dot">·</span>
-        <span class="more-link">See how it works</span>
+        <span class="more-link">See real-day workflows</span>
         <span class="arrow" aria-hidden="true">↗</span>
       </a>
 
       <h1>
-        Meet
+        Your AI team
         <span class="inline-mascot"><Mascot client:idle size={96} /></span>
-        your mates
+        in your pocket
       </h1>
 
       <p class="lede">
-        An AI team for everyday work. Research a decision, prepare a project, or set up a recurring task.
-        Your mates work together across your connected apps and bring the results back to you.
+        Give mates real jobs — research, handoffs, morning routines, commute quotes, and pull requests.
+        They use the apps you connect and bring finished work back to you.
       </p>
+
+      <ul class="hero-pills" aria-label="What Mates handles">
+        <li>Morning brief &amp; calendar</li>
+        <li>Rides &amp; transit (GHS)</li>
+        <li>Meetings &amp; notes</li>
+        <li>Code → GitHub PRs</li>
+      </ul>
 
       <div class="hero-ctas">
         <StoreButtons />
@@ -79,6 +88,8 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Workflows />
 
+    <LocalEdge />
+
     <Roles />
 
     <Team />
@@ -87,7 +98,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     {/* Coming soon, hidden until built: <PhoneCalls /> */}
 
-    {/* Coming soon, hidden until built: <Meet /> */}
+    <Meet />
 
     <Slack />
 
@@ -118,6 +129,26 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 </Base>
 
 <style>
+  .hero-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 640px;
+    margin: 24px auto 0;
+    padding: 0;
+    list-style: none;
+  }
+  .hero-pills li {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
   .demo-caption { margin: 20px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
   .launch { width: min(760px, calc(100% - 40px)); margin: 120px auto 0; padding: 48px 0; text-align: center; }
   .launch h2 { margin: 20px 0 0; font-size: clamp(30px, 4vw, 48px); letter-spacing: -0.04em; line-height: 1.1; font-weight: 600; }

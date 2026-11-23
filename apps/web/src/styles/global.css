@@ -14,7 +14,7 @@
   /* Checks passed, work done: the same green the app's code card uses. */
   --success: #30a46c;
   --success-soft: #eaf6ef;
-  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+  --font: "DM Sans", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 *,
