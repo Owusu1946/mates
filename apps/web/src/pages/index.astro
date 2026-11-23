@@ -1,7 +1,8 @@
 ---
 import Mascot from "../components/Mascot";
 import Faq from "../components/Faq.astro";
-import FeatureCard from "../components/FeatureCard.astro";
+import Workflows from "../components/Workflows.astro";
+import Control from "../components/Control.astro";
 import Footer from "../components/Footer.astro";
 import HeroStage from "../components/HeroStage.astro";
 import Logo from "../components/Logo.astro";
@@ -69,20 +70,14 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
         <StoreButtons />
       </div>
 
+      <p class="demo-caption">Illustrative product demos · Mates is currently in development.</p>
+
       <div class="stage">
         <HeroStage />
       </div>
     </section>
 
-    <FeatureCard
-      id="features"
-      title="Message your mates like teammates"
-      body="Start with a message. Give each mate a role, work together in a group, and find background results in your Feed. View, edit, or delete what your mates remember."
-    >
-      <div slot="visual" class="big-mascot">
-        <Mascot client:visible size={520} />
-      </div>
-    </FeatureCard>
+    <Workflows />
 
     <Roles />
 
@@ -100,6 +95,8 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Computer />
 
+    <Control />
+
     <Apps />
 
     {/* Coming soon, hidden until built: <More /> */}
@@ -108,16 +105,12 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Faq />
 
-    <FeatureCard
-      id="download"
-      title="Meet your team when Mates launches."
-      body="Join the waitlist for iPhone and Android. We’ll email you when you can get started."
-    >
-      <StoreButtons slot="actions" align="start" />
-      <div slot="visual" class="big-mascot">
-        <Mascot client:visible size={520} state="excited" />
-      </div>
-    </FeatureCard>
+    <section class="launch" id="download" aria-labelledby="launch-title">
+      <Logo size={40} />
+      <h2 id="launch-title">Meet your team when Mates launches.</h2>
+      <p>Join the waitlist for iPhone and Android. We’ll email you when you can get started.</p>
+      <StoreButtons />
+    </section>
   </main>
 
   <Footer />
@@ -125,6 +118,10 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 </Base>
 
 <style>
+  .demo-caption { margin: 20px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+  .launch { width: min(760px, calc(100% - 40px)); margin: 120px auto 0; padding: 48px 0; text-align: center; }
+  .launch h2 { margin: 20px 0 0; font-size: clamp(30px, 4vw, 48px); letter-spacing: -0.04em; line-height: 1.1; font-weight: 600; }
+  .launch p { max-width: 48ch; margin: 20px auto 28px; color: var(--muted); font-size: 18px; line-height: 1.6; }
   .nav {
     position: sticky;
     top: 0;
@@ -253,21 +250,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     background: radial-gradient(closest-side, rgba(210, 126, 65, 0.22), transparent);
     filter: blur(20px);
   }
-  /* Rises out of the panel's top edge; the panel crops its lower half. */
-  .big-mascot {
-    position: absolute;
-    top: -70px;
-    right: 6%;
-    filter: drop-shadow(0 30px 40px rgba(15, 23, 42, 0.18));
-  }
-
   @media (max-width: 860px) {
-    .big-mascot {
-      top: 0;
-      right: auto;
-      transform: scale(0.6);
-      transform-origin: top center;
-    }
     nav {
       display: none;
     }
@@ -298,9 +281,6 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     }
     .lede {
       margin-top: 16px;
-    }
-    .big-mascot {
-      transform: scale(0.5);
     }
   }
   @media (max-width: 420px) {

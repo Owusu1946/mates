@@ -1,0 +1,42 @@
+---
+const workflows = [
+  { number: "01", title: "Get to a decision", prompt: "Compare these options. Show the trade-offs and your sources.", outcome: "Research you can check, with the evidence alongside the answer.", href: "#roles", link: "Meet the specialists" },
+  { number: "02", title: "Bring a team to the task", prompt: "Help me prepare the release: code changes, notes and a draft announcement.", outcome: "A lead mate coordinates the work. You can follow the contributions in the conversation.", href: "#team", link: "See a mission" },
+  { number: "03", title: "Keep useful work on repeat", prompt: "Every Monday, research this topic and bring me a summary with links.", outcome: "A scheduled routine with saved results you can return to in your Feed.", href: "#control", link: "Stay in control" },
+];
+---
+<section class="workflows" id="features" aria-labelledby="workflows-title">
+  <div class="intro">
+    <p class="eyebrow">Start with something useful</p>
+    <h2 id="workflows-title">One message.<br />A place to start.</h2>
+    <p class="description">Give a mate a task, or bring a few together. Here are three ways to put your team to work.</p>
+  </div>
+  <div class="examples">
+    {workflows.map(item => (
+      <article>
+        <span class="number" aria-hidden="true">{item.number}</span>
+        <div>
+          <h3>{item.title}</h3>
+          <blockquote>{item.prompt}</blockquote>
+          <p>{item.outcome}</p>
+          <a href={item.href}>{item.link} <span aria-hidden="true">↗</span></a>
+        </div>
+      </article>
+    ))}
+  </div>
+</section>
+<style>
+  .workflows { width: min(1128px, calc(100% - 48px)); margin: 88px auto 0; display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 88px; }
+  .eyebrow { margin: 0 0 16px; color: var(--accent-deep); font-size: 13px; font-weight: 600; }
+  h2 { margin: 0; font-size: clamp(32px, 4vw, 52px); line-height: 1.08; letter-spacing: -0.04em; font-weight: 600; }
+  .description { max-width: 34ch; color: var(--muted); font-size: 18px; line-height: 1.6; margin-top: 24px; }
+  article { display: flex; gap: 24px; padding: 28px 0; border-bottom: 1px solid var(--line); }
+  article:first-child { padding-top: 0; }
+  .number { color: var(--accent-deep); font-size: 13px; padding-top: 4px; font-variant-numeric: tabular-nums; }
+  h3 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -0.02em; }
+  blockquote { margin: 14px 0 10px; font-size: 17px; line-height: 1.5; }
+  article p { color: var(--muted); font-size: 15px; line-height: 1.6; margin: 0 0 16px; }
+  a { display: inline-block; font-size: 14px; font-weight: 600; padding-block: 6px; text-underline-offset: 4px; }
+  a:hover { text-decoration: underline; }
+  @media (max-width: 760px) { .workflows { grid-template-columns: 1fr; gap: 32px; margin-top: 56px; } .description { max-width: 46ch; } article { gap: 16px; } }
+</style>
