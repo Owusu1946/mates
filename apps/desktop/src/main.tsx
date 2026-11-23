@@ -4,13 +4,14 @@ import { createRoot } from 'react-dom/client'
 import brand from '../../../brand/mates-avatar.png'
 import { loadDrafts, storeDrafts } from './drafts'
 import type { Draft } from './drafts'
+import { Conversation } from './conversation'
 import { EntryFlow } from './entry-flow'
 import { SettingsDialog } from './settings'
 import { team } from './team'
 import type { Mate } from './team'
 import './styles.css'
 
-const views = ['Team', 'Activity'] as const
+const views = ['Chat', 'Activity'] as const
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const draftLimit = 4000
 
@@ -262,7 +263,7 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
   onOpenAccount: () => void
   onStarterChange: (mate: Mate) => boolean
 }) {
-  const [view, setView] = useState<(typeof views)[number]>('Team')
+  const [view, setView] = useState<(typeof views)[number]>('Chat')
   const [selectedMate, setSelectedMate] = useState<Mate>(initialMate)
   const [drafts, setDrafts] = useState(loadDrafts)
   const [editor, setEditor] = useState<Editor | null>(null)
@@ -270,9 +271,36 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
   const [status, setStatus] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showDates, setShowDates] = useState(loadShowDates)
+  const [mateQuery, setMateQuery] = useState('')
+  const [composerText, setComposerText] = useState<Partial<Record<Mate['name'], string>>>({})
+  const composer = useRef<HTMLTextAreaElement>(null)
+  const search = useRef<HTMLInputElement>(null)
   const activityHeading = useRef<HTMLHeadingElement>(null)
   const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
-  const mateDraftCount = drafts.filter((draft) => draft.mate === selectedMate.name).length
+  const mateDrafts = drafts.filter((draft) => draft.mate === selectedMate.name)
+  const visibleMates = team.filter(({ name, role }) =>
+    `${name} ${role}`.toLowerCase().includes(mateQuery.trim().toLowerCase()),
+  )
+
+  useEffect(() => {
+    function focusSearch(event: KeyboardEvent) {
+      const input = search.current
+      if (event.key.toLowerCase() !== 'k' || (!event.ctrlKey && !event.metaKey)
+        || !input || input.offsetParent === null || document.querySelector('dialog:modal')) return
+      event.preventDefault()
+      input.focus()
+      input.select()
+    }
+
+    window.addEventListener('keydown', focusSearch)
+    return () => window.removeEventListener('keydown', focusSearch)
+  }, [])
+
+  function openConversation(mate: Mate) {
+    setSelectedMate(mate)
+    setView('Chat')
+    setStatus('')
+  }
 
   function updateShowDates(show: boolean) {
     try {
@@ -295,17 +323,16 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
     setEditor(next)
   }
 
-  function saveDraft(text: string) {
-    if (!editor) return false
+  function saveDraft(text: string, mate: Mate, existing?: Draft) {
     const draft: Draft = {
-      id: editor.draft?.id ?? crypto.randomUUID(),
-      mate: editor.mate.name,
+      id: existing?.id ?? crypto.randomUUID(),
+      mate: mate.name,
       text,
       updatedAt: Date.now(),
     }
     return updateDrafts(
       [draft, ...drafts.filter(({ id }) => id !== draft.id)],
-      view === 'Team' ? 'Draft saved in Activity.' : 'Draft saved.',
+      'Draft saved.',
     )
   }
 
@@ -344,28 +371,60 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
           <img src={brand} alt="" width="34" height="34" />
           <span>Mates</span>
         </div>
-        <nav aria-label="Workspace">
-          {views.map((name) => (
-            <button
-              key={name}
-              type="button"
-              aria-current={view === name ? 'page' : undefined}
-              onClick={() => {
-                if (name === 'Activity') {
-                  openActivity()
-                  return
-                }
-                setStatus('')
-                setView(name)
-              }}
-            >
-              {name}
-              {name === 'Activity' && drafts.length > 0 && (
-                <span className="nav-count" aria-hidden="true">{drafts.length}</span>
-              )}
+        <div className="sidebar-conversations">
+          <button
+            type="button"
+            className="secondary-button new-draft"
+            onClick={() => {
+              openConversation(selectedMate)
+              requestAnimationFrame(() => composer.current?.focus())
+            }}
+          >
+            <span aria-hidden="true">+</span> New draft
+          </button>
+          <div className="mate-search">
+            <input
+              ref={search}
+              aria-label="Search mates"
+              aria-keyshortcuts="Control+K Meta+K"
+              type="search"
+              placeholder="Search mates"
+              value={mateQuery}
+              onChange={(event) => setMateQuery(event.target.value)}
+            />
+            {!mateQuery && <kbd aria-hidden="true">{navigator.userAgent.includes('Macintosh') ? '⌘ K' : 'Ctrl K'}</kbd>}
+          </div>
+          <nav className="mates-navigation" aria-label="Mates">
+            <h2>Mates</h2>
+            <ul className="mate-list">
+              {visibleMates.map((mate) => (
+                <li key={mate.name}>
+                  <button
+                    type="button"
+                    className="mate-row"
+                    aria-pressed={view === 'Chat' && selectedMate === mate}
+                    onClick={() => openConversation(mate)}
+                  >
+                    <span className="avatar" data-color={mate.color}>
+                      <img src={mate.image} alt="" width="30" height="30" />
+                    </span>
+                    <span className="mate-label">
+                      <strong>{mate.name}</strong>
+                      <span>{mate.role}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            {visibleMates.length === 0 && <p className="no-mates">No mates found</p>}
+          </nav>
+          <nav aria-label="Workspace">
+            <button type="button" aria-current={view === 'Activity' ? 'page' : undefined} onClick={() => openActivity()}>
+              Activity
+              {drafts.length > 0 && <span className="nav-count" aria-hidden="true">{drafts.length}</span>}
             </button>
-          ))}
-        </nav>
+          </nav>
+        </div>
         <div className="workspace-status">
           <nav aria-label="Workspace preferences">
             <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
@@ -376,66 +435,17 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
       </aside>
 
       <main className="workspace">
-        {view === 'Team' ? (
-          <div className="team-layout">
-            <section className="roster" aria-labelledby="team-heading">
-              <h1 id="team-heading">Your team</h1>
-              <p className="subtitle">Pick a mate to see what they can help with.</p>
-              <ul className="mate-list">
-                {team.map((mate) => (
-                  <li key={mate.name}>
-                    <button
-                      type="button"
-                      className="mate-row"
-                      aria-pressed={selectedMate === mate}
-                      onClick={() => setSelectedMate(mate)}
-                    >
-                      <span className="avatar" data-color={mate.color}>
-                        <img src={mate.image} alt="" width="38" height="38" />
-                      </span>
-                      <span className="mate-label">
-                        <strong>{mate.name}</strong>
-                        <span>{mate.role}</span>
-                      </span>
-                      <span className="chevron" aria-hidden="true">›</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-
-            <section className="mate-detail" aria-labelledby="mate-heading">
-              <div className="portrait" data-color={selectedMate.color}>
-                <img src={selectedMate.image} alt="" />
-              </div>
-              <div className="mate-bio">
-                <p className="role">{selectedMate.role}</p>
-                <h2 id="mate-heading">{selectedMate.name}</h2>
-                <p className="description">{selectedMate.description}</p>
-                <ul className="skills" aria-label="What this mate can help with">
-                  {selectedMate.skills.map((skill) => <li key={skill}>{skill}</li>)}
-                </ul>
-                <div className="mate-actions">
-                  <button
-                    type="button"
-                    className="primary-button"
-                    onClick={() => openEditor({ mate: selectedMate })}
-                  >
-                    Draft a request
-                  </button>
-                  {mateDraftCount > 0 && (
-                    <button
-                      type="button"
-                      className="secondary-button"
-                      onClick={() => openActivity(selectedMate.name)}
-                    >
-                      View drafts ({mateDraftCount})
-                    </button>
-                  )}
-                </div>
-              </div>
-            </section>
-          </div>
+        {view === 'Chat' ? (
+          <Conversation
+            key={selectedMate.name}
+            mate={selectedMate}
+            drafts={mateDrafts}
+            text={composerText[selectedMate.name] ?? ''}
+            composer={composer}
+            onTextChange={(value) => setComposerText((current) => ({ ...current, [selectedMate.name]: value }))}
+            onSave={(text) => saveDraft(text, selectedMate)}
+            onEdit={(draft) => openEditor({ mate: selectedMate, draft })}
+          />
         ) : (
           <section className="activity" aria-labelledby="activity-heading">
             <div className="activity-header">
@@ -451,7 +461,7 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
                 <button
                   type="button"
                   className="secondary-button"
-                  onClick={() => filter ? setFilter('') : setView('Team')}
+                  onClick={() => filter ? setFilter('') : openConversation(selectedMate)}
                 >
                   {filter ? 'Show all drafts' : 'Choose a mate'}
                 </button>
@@ -515,7 +525,7 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
         />
       )}
       {editor && (
-        <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} onDelete={deleteDraft} />
+        <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={(text) => saveDraft(text, editor.mate, editor.draft)} onDelete={deleteDraft} />
       )}
     </div>
   )

@@ -89,18 +89,10 @@ nav button[aria-current] { font-weight: 650; }
 
 .workspace-status nav { width: 100%; }
 
-.team-layout,
 .activity {
   width: min(100%, 1060px);
   margin-inline: auto;
   padding: clamp(28px, 5vw, 66px) clamp(20px, 5vw, 64px);
-}
-
-.team-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(245px, 0.95fr);
-  align-items: start;
-  gap: clamp(20px, 4vw, 52px);
 }
 
 h1,
@@ -122,8 +114,7 @@ h2 {
   line-height: 1.5;
 }
 
-.mate-list,
-.skills {
+.mate-list {
   padding: 0;
   list-style: none;
 }
@@ -174,72 +165,13 @@ h2 {
   font-size: 14px;
 }
 
-.mate-label > span,
-.chevron { color: var(--muted); }
+.mate-label > span { color: var(--muted); }
 
 .mate-label > span { font-size: 12px; }
 
-.chevron { font-size: 23px; }
-
-.mate-detail {
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: #fffefa;
-}
-
-.portrait {
-  display: grid;
-  min-height: 205px;
-  place-items: center;
-  background-color: var(--mate-color);
-  background-image: radial-gradient(#252a2526 1px, transparent 1px);
-  background-size: 14px 14px;
-}
-
-.portrait img {
-  display: block;
-  width: 168px;
-  height: 168px;
-  object-fit: contain;
-}
-
-.mate-bio { padding: 22px 25px 25px; }
-
-.role {
-  margin-bottom: 8px;
-  font-size: 13px;
-  font-weight: 650;
-  color: var(--accent);
-}
-
-.description {
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 14px;
-  line-height: 1.55;
-}
-
-.skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 20px 0 0;
-}
-
-.skills li {
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  font-size: 12px;
-}
 
 @media (max-width: 850px) {
   .shell { grid-template-columns: 144px minmax(0, 1fr); }
-}
-
-@media (max-width: 620px) {
-  .team-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
@@ -274,15 +206,6 @@ h2 {
   color: var(--muted);
   font-size: 11px;
   text-align: center;
-}
-
-.mate-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 22px;
-  padding-top: 17px;
-  border-top: 1px solid var(--line);
 }
 
 .primary-button,

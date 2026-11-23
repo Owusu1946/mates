@@ -124,6 +124,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@expojet/api-contract':
+        specifier: workspace:*
+        version: link:../../packages/api-contract
       react:
         specifier: 19.2.3
         version: 19.2.3
