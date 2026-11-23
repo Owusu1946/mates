@@ -56,7 +56,7 @@ function useSettings() {
     version: Constants.expoConfig?.version ?? "—",
     usageSummary: usageSummary(usage, trialEnd),
     hasPlan: usage?.plan.id !== undefined && usage.plan.id !== "none",
-    openUsage: () => router.push("/usage"),
+    openUsage: () => router.navigate("/usage"),
     openManage: async () => {
       try {
         if (Platform.OS === "ios") return await showManageSubscriptions();
@@ -70,14 +70,14 @@ function useSettings() {
       haptic.selection();
       theme.setMode(value);
     },
-    openMemory: () => router.push("/memory"),
-    openNoticed: () => router.push("/noticed"),
-    openApps: () => router.push("/connections"),
-    openPermissions: () => router.push("/permissions"),
-    openFriends: () => router.push("/friends"),
+    openMemory: () => router.navigate("/memory"),
+    openNoticed: () => router.navigate("/noticed"),
+    openApps: () => router.navigate("/connections"),
+    openPermissions: () => router.navigate("/permissions"),
+    openFriends: () => router.navigate("/friends"),
     openNotifications: () => void Linking.openSettings(),
-    openMorningBrief: () => router.push("/morning-brief"),
-    showIntro: () => router.push({ pathname: "/(onboarding)", params: { preview: "1" } }),
+    openMorningBrief: () => router.navigate("/morning-brief"),
+    showIntro: () => router.navigate({ pathname: "/(onboarding)", params: { preview: "1" } }),
     signOut: () => {
       if (deleting) return;
       Alert.alert("Sign out?", "You can sign back in at any time.", [
