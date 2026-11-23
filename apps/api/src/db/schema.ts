@@ -21,6 +21,7 @@ import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
 import type { PageDoc, PageKind } from "@muse-clone/pages";
 import type { PlanId } from "../usage/plans.js";
 import type { BriefSection } from "../morning-brief.js";
+import type { BriefLine } from "../morning-brief-sources.js";
 
 export const profiles = pgTable(
   "profiles",
@@ -270,6 +271,25 @@ export const morningBriefSettings = pgTable("morning_brief_settings", {
   nextRunAt: timestamp("next_run_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("morning_brief_due").on(t.enabled, t.nextRunAt)]);
+
+/** A durable local-day occurrence. A stable message ID and one push claim survive worker retries. */
+export const morningBriefs = pgTable("morning_briefs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  localDay: text("local_day").notNull(),
+  timezone: text("timezone").notNull(),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+  status: text("status").$type<"queued" | "running" | "posted" | "skipped" | "failed">().notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  lines: jsonb("lines").$type<BriefLine[]>(),
+  chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
+  pushAttemptedAt: timestamp("push_attempted_at", { withTimezone: true }),
+  pushAcceptedAt: timestamp("push_accepted_at", { withTimezone: true }),
+  error: text("error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [uniqueIndex("morning_briefs_user_day").on(t.clerkUserId, t.localDay), index("morning_briefs_queue").on(t.status, t.leaseUntil)]);
 
 export type WatchStatus = "active" | "paused" | "fired" | "expired" | "cancelled" | "failed";
 export type WatchEvidence = { url: string | null; quote: string };
