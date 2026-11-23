@@ -9,6 +9,7 @@ describe("morning brief settings", () => {
     expect(briefSettingsInput.safeParse({ ...settings, timezone: "not-a-zone" }).success).toBe(false);
     expect(briefSettingsInput.safeParse({ ...settings, time: "25:00" }).success).toBe(false);
     expect(briefSettingsInput.safeParse({ ...settings, sections: ["email", "email"] }).success).toBe(false);
+    expect(briefSettingsInput.safeParse({ ...settings, mutedSections: ["email"] }).success).toBe(false);
   });
 
   it("schedules at the chosen local time and skips weekends when off", () => {

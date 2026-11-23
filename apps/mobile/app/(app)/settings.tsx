@@ -76,6 +76,7 @@ function useSettings() {
     openPermissions: () => router.push("/permissions"),
     openFriends: () => router.push("/friends"),
     openNotifications: () => void Linking.openSettings(),
+    openMorningBrief: () => router.push("/morning-brief"),
     showIntro: () => router.push({ pathname: "/(onboarding)", params: { preview: "1" } }),
     signOut: () => {
       if (deleting) return;
@@ -148,6 +149,7 @@ function IosSettings({ s }: { s: Settings }) {
         </Section>
 
         <Section title="Mates">
+          <LinkRow title="Morning brief" icon="sunrise.fill" color="#FF9500" onPress={s.openMorningBrief} />
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
           <LinkRow title="What I’ve noticed" icon="sparkles" color="#FF9500" onPress={s.openNoticed} />
           <LinkRow title="Apps" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
@@ -202,6 +204,7 @@ function AndroidSettings({ s }: { s: Settings }) {
           {s.hasPlan ? row("Manage subscription", () => void s.openManage()) : null}
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
+          {row("Morning brief", s.openMorningBrief)}
           {row("Memory", s.openMemory)}
           {row("What I’ve noticed", s.openNoticed)}
           {row("Apps", s.openApps)}

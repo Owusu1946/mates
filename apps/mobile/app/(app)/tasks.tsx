@@ -1,6 +1,6 @@
 import { useAuth } from "@clerk/expo";
 import { useQueryClient } from "@tanstack/react-query";
-import { Stack, useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState, type ReactNode } from "react";
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { runRequest } from "../../src/chat/background-chat";
@@ -19,6 +19,7 @@ export default function RoutinesScreen() {
   const { getToken, userId } = useAuth();
   const { colors } = useTheme();
   const router = useRouter();
+  const { reminderId, reminderText } = useLocalSearchParams<{ reminderId?: string; reminderText?: string }>();
   const client = useQueryClient();
   const leaderName = useLeaderName();
   const routines = useRoutines();
@@ -108,6 +109,7 @@ export default function RoutinesScreen() {
   const paused = all.filter((r) => r.status === "paused");
   const ended = all.filter(isEnded);
   const upcoming = reminders.data ?? [];
+  const highlightedReminder = upcoming.find((reminder) => reminder.id === reminderId);
   const watching = (watches.data ?? []).filter((w) => w.status === "active" || w.status === "paused");
   const empty = routines.isSuccess && all.length === 0;
 
@@ -135,6 +137,14 @@ export default function RoutinesScreen() {
           <Text accessibilityLiveRegion="polite" style={{ color: colors.error, fontFamily: font.medium, fontSize: 14 }}>
             {error ?? "Couldn’t refresh your routines. Pull down to try again."}
           </Text>
+        )}
+
+        {typeof reminderId === "string" && (
+          <View style={{ padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface, gap: 5 }}>
+            <Text style={{ color: colors.textMuted, fontFamily: font.medium, fontSize: 13 }}>FROM YOUR MORNING BRIEF</Text>
+            <Text style={{ color: colors.text, fontFamily: font.semibold, fontSize: 17 }}>{highlightedReminder?.title ?? (typeof reminderText === "string" ? reminderText.slice(0, 160) : "Reminder")}</Text>
+            <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>{highlightedReminder ? new Date(highlightedReminder.remindAt).toLocaleString() : "This reminder may already have been sent."}</Text>
+          </View>
         )}
 
         {routines.isLoading && <Skeleton />}

@@ -268,6 +268,7 @@ export const morningBriefSettings = pgTable("morning_brief_settings", {
   timezone: text("timezone").notNull(),
   weekends: text("weekends").$type<"full" | "light" | "off">().notNull().default("light"),
   sections: jsonb("sections").$type<BriefSection[]>().notNull(),
+  mutedSections: jsonb("muted_sections").$type<BriefSection[]>().notNull().default([]),
   nextRunAt: timestamp("next_run_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("morning_brief_due").on(t.enabled, t.nextRunAt)]);
@@ -286,6 +287,7 @@ export const morningBriefs = pgTable("morning_briefs", {
   chatId: text("chat_id").references(() => chats.id, { onDelete: "set null" }),
   pushAttemptedAt: timestamp("push_attempted_at", { withTimezone: true }),
   pushAcceptedAt: timestamp("push_accepted_at", { withTimezone: true }),
+  viewedAt: timestamp("viewed_at", { withTimezone: true }),
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
