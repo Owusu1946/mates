@@ -177,3 +177,117 @@
   .entry-mascots { width: min(75%, 300px); }
   .entry-portrait { width: 130px; }
 }
+
+.welcome {
+  --welcome-line: #465144;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: clamp(24px, 4vw, 54px);
+  color: #f2f3e9;
+  background: #192019;
+}
+
+.welcome .entry-brand { color: #d5decf; }
+
+.welcome-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  align-items: center;
+  gap: clamp(30px, 7vw, 100px);
+  width: min(100%, 960px);
+  margin: auto;
+  padding-bottom: 32px;
+}
+
+.welcome-intro h1 { font-size: clamp(42px, 5.6vw, 76px); }
+.welcome-intro h1:focus { outline: none; }
+
+.welcome-intro p,
+.welcome-access p {
+  margin-top: 16px;
+  max-width: 40ch;
+  color: #b9c6b7;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.welcome-crew {
+  display: flex;
+  align-items: end;
+  gap: 5px;
+  margin: 0 0 18px -7px;
+}
+
+.welcome-crew img { width: clamp(43px, 6vw, 76px); }
+.welcome-crew img:first-child { width: clamp(85px, 12vw, 148px); }
+
+.welcome-access {
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--welcome-line);
+  border-radius: 17px;
+  background: #242d24;
+}
+
+.welcome-access h2 {
+  font-size: 23px;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.welcome-access > p { margin-top: 8px; }
+
+.phone-preview {
+  margin: 19px 0;
+  padding: 11px 13px;
+  border: 1px solid var(--welcome-line);
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.phone-preview summary { cursor: pointer; }
+
+.phone-preview-codes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.phone-preview-codes div {
+  display: grid;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #192019;
+}
+
+.phone-preview-codes strong {
+  color: #ffd3a8;
+  font: 650 20px ui-monospace, monospace;
+}
+
+.welcome-access .phone-preview p { margin-top: 8px; font-size: 12px; }
+
+.welcome-email,
+.welcome-local {
+  width: 100%;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.welcome-email { background: #e7efdf; color: #263b29; }
+.welcome-email:hover { background: #d5e3cd; }
+.welcome-local { margin-top: 5px; background: transparent; color: #e7efdf; }
+.welcome-local:hover { background: #313c31; }
+
+.welcome button:focus-visible,
+.phone-preview summary:focus-visible { outline: 2px solid #a9cfa7; outline-offset: 3px; }
+
+@media (max-width: 700px) {
+  .welcome-layout { grid-template-columns: minmax(0, 1fr); }
+}

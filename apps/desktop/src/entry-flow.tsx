@@ -47,6 +47,44 @@ export function EntryFlow({ onStart, onReturn }: {
     setStep('verify')
   }
 
+  if (step === 'welcome') {
+    return (
+      <main className="welcome" aria-labelledby="entry-heading">
+        <div className="entry-brand">
+          <img src={brand} alt="" width="36" height="36" />
+          <span>Mates</span>
+        </div>
+        <div className="welcome-layout">
+          <section className="welcome-intro">
+            <div className="welcome-crew" aria-hidden="true">
+              {team.map((item) => <img key={item.name} src={item.image} alt="" />)}
+            </div>
+            <h1 id="entry-heading" ref={heading} tabIndex={-1}>Your crew, on your computer.</h1>
+            <p>Pick a mate for research, writing, code, or the work that keeps everything on track.</p>
+          </section>
+          <section className="welcome-access" aria-labelledby="phone-preview-title">
+            <h2 id="phone-preview-title">Sign in with your phone</h2>
+            <p>Preview how you’ll approve a desktop sign-in from Mates on your phone.</p>
+            <details className="phone-preview">
+              <summary>Preview the matching code</summary>
+              <div className="phone-preview-codes">
+                <div><span>On your computer</span><strong>K7-42</strong></div>
+                <div><span>On your phone</span><strong>K7-42</strong></div>
+              </div>
+              <p>In a live sign-in, approve only if both codes match. This sample can’t sign you in.</p>
+            </details>
+            <button className="welcome-email" type="button" onClick={() => openAuth('sign-in')}>
+              Continue with email
+            </button>
+            <button className="welcome-local" type="button" onClick={() => setStep('pick')}>
+              Use a local workspace
+            </button>
+          </section>
+        </div>
+      </main>
+    )
+  }
+
   return (
     <main className="entry" aria-labelledby="entry-heading">
       <section className="entry-content">
@@ -56,21 +94,6 @@ export function EntryFlow({ onStart, onReturn }: {
         </div>
 
         <div className="entry-body">
-          {step === 'welcome' && (
-            <>
-              <h1 id="entry-heading" ref={heading} tabIndex={-1}>Meet your Mates.</h1>
-              <p className="entry-description">Pick a mate for research, writing, code, or the work that keeps everything on track.</p>
-              <div className="entry-actions">
-                <button className="primary-button" type="button" onClick={() => setStep('pick')}>
-                  Set up a local workspace
-                </button>
-                <button className="secondary-button" type="button" onClick={() => openAuth('sign-in')}>
-                  Account preview
-                </button>
-              </div>
-            </>
-          )}
-
           {step === 'pick' && (
             <>
               <h1 id="entry-heading" ref={heading} tabIndex={-1}>Pick your first mate.</h1>
