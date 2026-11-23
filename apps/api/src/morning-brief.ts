@@ -13,7 +13,8 @@ export const briefSettingsInput = z.object({
   timezone: z.string().refine((value) => IANAZone.isValidZone(value), "Choose a valid timezone"),
   weekends: z.enum(["full", "light", "off"]),
   sections: z.array(z.enum(briefSections)).min(1).max(briefSections.length).refine((items) => new Set(items).size === items.length, "Choose each section once"),
-}).strict();
+  commuteOrigin: z.string().trim().max(120).optional(),
+}).strict().refine((input) => !input.sections.includes("rides") || !!input.commuteOrigin && input.commuteOrigin.length >= 2, { path: ["commuteOrigin"], message: "Add a starting place for commute estimates" });
 export type BriefSettingsInput = z.infer<typeof briefSettingsInput>;
 
 const defaultSections: BriefSection[] = ["calendar", "email", "tasks"];
@@ -34,9 +35,9 @@ export function nextBriefAt(settings: BriefSettingsInput, after = new Date()): D
 
 export async function getBriefSettings(userId: string) {
   const [saved] = await getDb().select().from(morningBriefSettings).where(eq(morningBriefSettings.clerkUserId, userId)).limit(1);
-  if (saved) return { enabled: saved.enabled, time: saved.time, timezone: saved.timezone, weekends: saved.weekends, sections: saved.sections, mutedSections: saved.mutedSections, nextRunAt: saved.nextRunAt };
+  if (saved) return { enabled: saved.enabled, time: saved.time, timezone: saved.timezone, weekends: saved.weekends, sections: saved.sections, mutedSections: saved.mutedSections, commuteOrigin: saved.commuteOrigin ?? "", nextRunAt: saved.nextRunAt };
   const [device] = await getDb().select({ timezone: deviceTokens.timezone }).from(deviceTokens).where(eq(deviceTokens.clerkUserId, userId)).orderBy(desc(deviceTokens.updatedAt)).limit(1);
-  return { enabled: false, time: "07:00", timezone: device?.timezone ?? "Africa/Accra", weekends: "light" as const, sections: defaultSections, mutedSections: [] as BriefSection[], nextRunAt: null };
+  return { enabled: false, time: "07:00", timezone: device?.timezone ?? "Africa/Accra", weekends: "light" as const, sections: defaultSections, mutedSections: [] as BriefSection[], commuteOrigin: "", nextRunAt: null };
 }
 
 export async function putBriefSettings(userId: string, input: BriefSettingsInput) {
@@ -45,7 +46,7 @@ export async function putBriefSettings(userId: string, input: BriefSettingsInput
     target: morningBriefSettings.clerkUserId,
     set: { ...input, nextRunAt, updatedAt: new Date() },
   }).returning();
-  return { enabled: saved!.enabled, time: saved!.time, timezone: saved!.timezone, weekends: saved!.weekends, sections: saved!.sections, mutedSections: saved!.mutedSections, nextRunAt: saved!.nextRunAt };
+  return { enabled: saved!.enabled, time: saved!.time, timezone: saved!.timezone, weekends: saved!.weekends, sections: saved!.sections, mutedSections: saved!.mutedSections, commuteOrigin: saved!.commuteOrigin ?? "", nextRunAt: saved!.nextRunAt };
 }
 
 /** Viewing is recorded once, including if the chat is reopened or loaded from a push twice. */

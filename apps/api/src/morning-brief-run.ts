@@ -64,7 +64,7 @@ export async function executeMorningBrief(briefId: string, now = new Date()) {
     }
     let lines: BriefLine[] = brief.lines ?? [];
     if (!brief.lines) {
-      const candidates = await collectBriefCandidates(brief.clerkUserId, brief.scheduledFor, brief.timezone, setting.sections.filter((section) => !setting.mutedSections.includes(section)));
+      const candidates = await collectBriefCandidates(brief.clerkUserId, brief.scheduledFor, brief.timezone, setting.sections.filter((section) => !setting.mutedSections.includes(section)), setting.commuteOrigin);
       const weekend = DateTime.fromJSDate(brief.scheduledFor).setZone(brief.timezone).weekday > 5;
       lines = await composeBriefLines(brief.clerkUserId, brief.id, candidates, weekend && setting.weekends === "light");
       await getDb().update(morningBriefs).set({ lines, updatedAt: new Date() }).where(eq(morningBriefs.id, brief.id));

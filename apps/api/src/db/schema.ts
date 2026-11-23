@@ -269,6 +269,7 @@ export const morningBriefSettings = pgTable("morning_brief_settings", {
   weekends: text("weekends").$type<"full" | "light" | "off">().notNull().default("light"),
   sections: jsonb("sections").$type<BriefSection[]>().notNull(),
   mutedSections: jsonb("muted_sections").$type<BriefSection[]>().notNull().default([]),
+  commuteOrigin: text("commute_origin"),
   nextRunAt: timestamp("next_run_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("morning_brief_due").on(t.enabled, t.nextRunAt)]);

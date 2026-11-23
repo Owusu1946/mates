@@ -9,6 +9,8 @@ describe("morning brief settings", () => {
     expect(briefSettingsInput.safeParse({ ...settings, timezone: "not-a-zone" }).success).toBe(false);
     expect(briefSettingsInput.safeParse({ ...settings, time: "25:00" }).success).toBe(false);
     expect(briefSettingsInput.safeParse({ ...settings, sections: ["email", "email"] }).success).toBe(false);
+    expect(briefSettingsInput.safeParse({ ...settings, sections: ["rides"] }).success).toBe(false);
+    expect(briefSettingsInput.safeParse({ ...settings, sections: ["rides"], commuteOrigin: "Osu, Accra" }).success).toBe(true);
     expect(briefSettingsInput.safeParse({ ...settings, mutedSections: ["email"] }).success).toBe(false);
   });
 

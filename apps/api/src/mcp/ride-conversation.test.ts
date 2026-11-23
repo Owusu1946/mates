@@ -65,6 +65,16 @@ describe("ride conversation", () => {
     expect(JSON.stringify(result)).not.toContain("placeId");
   });
 
+  it("resolves a named place plus address without choosing a nearby stop", async () => {
+    const { run } = setup([
+      { places: [{ placeId: "area", name: "Osu", address: "Accra", location: { lat: 5.55, lng: -0.18 } }, { placeId: "road", name: "Osu Road", address: "Accra", location: { lat: 5.56, lng: -0.19 } }] },
+      { places: [{ placeId: "airport", name: "Airport City", address: "Accra", location: { lat: 5.60, lng: -0.17 } }] },
+      { options: [] },
+    ]);
+    const result = await executeRideConversation({ from: "Osu, Accra", to: "Airport City, Accra", country: "gh", mode: "rides" }, { run });
+    expect(result).toMatchObject({ provider: "Sail", from: "Osu", to: "Airport City" });
+  });
+
   it("summarizes quotes without coordinates or untrusted raw error details", async () => {
     const point = { lat: 5.556123, lng: -0.182123 };
     const { run } = setup([
