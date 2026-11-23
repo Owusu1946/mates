@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 import type { DeckMeta, Slide, Source, ThemeInput } from "@muse-clone/decks";
 import type { PageDoc, PageKind } from "@muse-clone/pages";
 import type { PlanId } from "../usage/plans.js";
+import type { BriefSection } from "../morning-brief.js";
 
 export const profiles = pgTable(
   "profiles",
@@ -257,6 +258,18 @@ export const routines = pgTable("routines", {
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 }, (t) => [index("routines_due").on(t.status, t.nextRunAt), index("routines_owner").on(t.clerkUserId)]);
+
+/** One system brief per person. Ordinary user-created routines remain separate. */
+export const morningBriefSettings = pgTable("morning_brief_settings", {
+  clerkUserId: text("clerk_user_id").primaryKey(),
+  enabled: boolean("enabled").notNull().default(false),
+  time: text("time").notNull().default("07:00"),
+  timezone: text("timezone").notNull(),
+  weekends: text("weekends").$type<"full" | "light" | "off">().notNull().default("light"),
+  sections: jsonb("sections").$type<BriefSection[]>().notNull(),
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [index("morning_brief_due").on(t.enabled, t.nextRunAt)]);
 
 export type WatchStatus = "active" | "paused" | "fired" | "expired" | "cancelled" | "failed";
 export type WatchEvidence = { url: string | null; quote: string };

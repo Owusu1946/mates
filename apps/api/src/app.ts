@@ -38,6 +38,7 @@ import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, 
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
+import { briefSettingsInput, getBriefSettings, putBriefSettings } from "./morning-brief.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { listGrants, removeGrant } from "./permissions.js";
@@ -578,6 +579,12 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.body(null, 200);
     })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
+    .get("/v1/morning-brief/settings", auth, async c => c.json({ settings: await getBriefSettings(c.get("userId")) }))
+    .put("/v1/morning-brief/settings", auth, validator("json", (value, c) => {
+      const parsed = briefSettingsInput.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_BRIEF_SETTINGS", "Check the brief time, timezone and sections", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => c.json({ settings: await putBriefSettings(c.get("userId"), c.req.valid("json")) }))
     .use("/v1/schedules/:id/*", async (c, next) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid schedule", c.get("requestId")), 400);
       await next();

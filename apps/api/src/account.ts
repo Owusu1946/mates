@@ -29,6 +29,7 @@ import {
   recallEntries,
   reminders,
   routines,
+  morningBriefSettings,
   slackLinks,
   slackQueue,
   slackRuns,
@@ -70,6 +71,7 @@ export const ACCOUNT_TABLES = [
   decks,
   pages,
   routines,
+  morningBriefSettings,
   // Slack: their runs and links go; the workspace's install stays for its other members.
   slackRuns,
   slackQueue,
