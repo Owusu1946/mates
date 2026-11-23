@@ -20,14 +20,16 @@ export function Conversation({ mate, drafts, text, composer, onTextChange, onSav
   const scroll = useRef<HTMLDivElement>(null)
   const mentions = useRef<HTMLDivElement>(null)
   const [mentionsDismissed, setMentionsDismissed] = useState(false)
+  const [mentionPickerOpen, setMentionPickerOpen] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
   const query = text.match(/(?:^|\s)@([^\s@]*)$/)?.[1]
-  const matches = query === undefined || mentionsDismissed ? [] : mentionMatesForChat({
+  const showMentions = mentionPickerOpen || (query !== undefined && !mentionsDismissed)
+  const matches = !showMentions ? [] : mentionMatesForChat({
     kind: 'mate',
     primaryMateId: mate.name,
     groupMembers: [],
     ownedMates: mentionableMates,
-    query,
+    query: mentionPickerOpen ? '' : query ?? '',
   })
 
   useEffect(() => {
@@ -40,6 +42,7 @@ export function Conversation({ mate, drafts, text, composer, onTextChange, onSav
     if (onSave(text.trim())) {
       onTextChange('')
       setSaveFailed(false)
+      setMentionPickerOpen(false)
     } else {
       setSaveFailed(true)
     }
@@ -98,18 +101,22 @@ export function Conversation({ mate, drafts, text, composer, onTextChange, onSav
         {matches.length > 0 && (
           <div
             ref={mentions}
+            id="composer-mate-picker"
             className="composer-mentions"
             role="group"
             aria-label="Mention a mate"
             onKeyDown={(event) => {
               if (event.key !== 'Escape') return
               setMentionsDismissed(true)
+              setMentionPickerOpen(false)
               composer.current?.focus()
             }}
           >
             {matches.map((item) => (
               <button key={item.id} type="button" onClick={() => {
-                onTextChange(mentionDraft(text, item.name))
+                const base = query === undefined ? (text.trimEnd() ? `${text.trimEnd()} @` : '@') : text
+                onTextChange(mentionDraft(base, item.name))
+                setMentionPickerOpen(false)
                 composer.current?.focus()
               }}>
                 <img src={item.image} alt="" width="22" height="22" />
@@ -122,15 +129,19 @@ export function Conversation({ mate, drafts, text, composer, onTextChange, onSav
           ref={composer}
           aria-label={`Draft a message for ${mate.name}`}
           placeholder={`Ask ${mate.name}, or @ another mate…`}
-          rows={3}
+          rows={1}
           maxLength={4000}
           value={text}
           onChange={(event) => {
             setMentionsDismissed(false)
+            setMentionPickerOpen(false)
             onTextChange(event.target.value)
           }}
           onKeyDown={(event) => {
-            if (event.key === 'Escape' && matches.length > 0) setMentionsDismissed(true)
+            if (event.key === 'Escape' && matches.length > 0) {
+              setMentionsDismissed(true)
+              setMentionPickerOpen(false)
+            }
             if (event.key === 'ArrowDown' && matches.length > 0) {
               event.preventDefault()
               mentions.current?.querySelector('button')?.focus()
@@ -142,9 +153,36 @@ export function Conversation({ mate, drafts, text, composer, onTextChange, onSav
           }}
         />
         {saveFailed && <p className="save-error" role="alert">Could not save this draft on this device.</p>}
-        <div className="composer-footer">
-          <span>Local drafts</span>
-          <button className="primary-button" type="submit" disabled={!text.trim()}>Save draft</button>
+        <div className="composer-toolbar">
+          <button
+            className="composer-mention"
+            type="button"
+            aria-label="Mention a mate"
+            aria-expanded={matches.length > 0}
+            aria-controls={matches.length > 0 ? 'composer-mate-picker' : undefined}
+            title="Mention a mate"
+            onClick={() => {
+              if (matches.length > 0) {
+                setMentionPickerOpen(false)
+                setMentionsDismissed(true)
+              } else {
+                setMentionPickerOpen(true)
+              }
+              composer.current?.focus()
+            }}
+          >
+            <span aria-hidden="true">@</span>
+          </button>
+          <button
+            className="composer-save"
+            type="submit"
+            aria-label="Save draft"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
+            title="Save draft"
+            disabled={!text.trim()}
+          >
+            <span aria-hidden="true">↑</span>
+          </button>
         </div>
       </form>
     </section>

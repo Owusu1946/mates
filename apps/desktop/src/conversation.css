@@ -133,7 +133,7 @@
   position: relative;
   width: min(calc(100% - 32px), 648px);
   margin: 12px auto clamp(12px, 3vh, 26px);
-  padding: 10px;
+  padding: 9px 10px 7px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: #fffefa;
@@ -144,10 +144,13 @@
 .conversation-composer textarea {
   display: block;
   width: 100%;
-  padding: 4px;
+  min-height: 32px;
+  max-height: 152px;
+  padding: 3px 4px 7px;
   border: 0;
   outline: none;
   resize: none;
+  field-sizing: content;
   background: transparent;
   color: inherit;
   font: inherit;
@@ -155,15 +158,36 @@
   line-height: 1.5;
 }
 
-.composer-footer {
+.composer-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding-left: 4px;
-  color: var(--muted);
-  font-size: 12px;
+  margin-top: 4px;
 }
+
+.composer-toolbar button {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.composer-mention {
+  background: transparent;
+  color: var(--muted);
+}
+
+.composer-mention:hover,
+.composer-mention[aria-expanded="true"] { background: var(--rail); color: var(--accent); }
+
+.composer-save { background: var(--accent); color: #fffefa; }
+.composer-save:not(:disabled):hover { background: #264531; }
+.composer-save:disabled { background: var(--selected); color: var(--muted); cursor: default; }
 
 .composer-mentions {
   position: absolute;
