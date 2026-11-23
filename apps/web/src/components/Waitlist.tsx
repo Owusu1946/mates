@@ -29,7 +29,11 @@ export default function Waitlist({ api }: { api: string }) {
   const returnTo = useRef<HTMLElement | null>(null);
 
   const show = useCallback((from?: HTMLElement | null) => {
-    returnTo.current = from ?? (document.activeElement as HTMLElement | null);
+    // The menu is hidden when its waitlist link opens this dialog.
+    const source = from ?? (document.activeElement as HTMLElement | null);
+    returnTo.current = source?.closest("#mobile-menu")
+      ? document.querySelector<HTMLElement>("[data-menu-open]")
+      : source;
     setOpen(true);
   }, []);
   const close = useCallback(() => {
