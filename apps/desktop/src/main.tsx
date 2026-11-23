@@ -2,54 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import brand from '../../../brand/mates-avatar.png'
-import scout from '../../web/public/mates/teardrop-sunset.png'
-import pixel from '../../web/public/mates/squircle-purple.png'
-import fern from '../../web/public/mates/pebble-teal.png'
-import dot from '../../web/public/mates/cloud-blue.png'
 import { loadDrafts, storeDrafts } from './drafts'
 import type { Draft } from './drafts'
+import { EntryFlow } from './entry-flow'
+import { team } from './team'
+import type { Mate } from './team'
 import './styles.css'
 
-const team = [
-  {
-    name: 'Scout',
-    role: 'Research',
-    image: scout,
-    color: 'peach',
-    description: 'Find sources, compare options, and turn loose questions into clear briefs.',
-    skills: ['Web research', 'Source checks', 'Briefs'],
-    prompt: 'Compare the options for … and link to the sources you used.',
-  },
-  {
-    name: 'Pixel',
-    role: 'Engineering',
-    image: pixel,
-    color: 'lilac',
-    description: 'Read through a codebase, work through bugs, and prepare changes for review.',
-    skills: ['Code review', 'Debugging', 'Pull requests'],
-    prompt: 'Review this change for regressions and suggest what to verify before merging.',
-  },
-  {
-    name: 'Fern',
-    role: 'Writing',
-    image: fern,
-    color: 'mint',
-    description: 'Turn rough notes into drafts and edit them for the people who will read them.',
-    skills: ['Drafts', 'Editing', 'Summaries'],
-    prompt: 'Turn these notes into a short update I can share with the team.',
-  },
-  {
-    name: 'Dot',
-    role: 'Operations',
-    image: dot,
-    color: 'blue',
-    description: 'Keep track of follow-ups and pull together the details before a meeting.',
-    skills: ['Meeting prep', 'Follow-ups', 'Planning'],
-    prompt: 'Turn my meeting notes into follow-ups with owners and due dates.',
-  },
-] as const
-
-type Mate = (typeof team)[number]
 const views = ['Team', 'Activity'] as const
 const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 const draftLimit = 4000
@@ -287,9 +246,12 @@ function MateFilter({ value, onChange }: {
   )
 }
 
-function App() {
+function Workspace({ initialMate, onOpenAccount }: {
+  initialMate: Mate
+  onOpenAccount: () => void
+}) {
   const [view, setView] = useState<(typeof views)[number]>('Team')
-  const [selectedMate, setSelectedMate] = useState<Mate>(team[0])
+  const [selectedMate, setSelectedMate] = useState<Mate>(initialMate)
   const [drafts, setDrafts] = useState(loadDrafts)
   const [editor, setEditor] = useState<Editor | null>(null)
   const [filter, setFilter] = useState('')
@@ -380,7 +342,12 @@ function App() {
             </button>
           ))}
         </nav>
-        <div className="workspace-status">Local workspace</div>
+        <div className="workspace-status">
+          <button type="button" className="secondary-button account-button" onClick={onOpenAccount}>
+            Account
+          </button>
+          <span>Local workspace</span>
+        </div>
       </aside>
 
       <main className="workspace">
@@ -515,6 +482,47 @@ function App() {
         <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} onDelete={deleteDraft} />
       )}
     </div>
+  )
+}
+
+const starterMateKey = 'mates.starter-mate.v1'
+
+function loadStarterMate() {
+  try {
+    const saved = localStorage.getItem(starterMateKey)
+    return team.find((mate) => mate.name === saved) ?? null
+  } catch {
+    return null
+  }
+}
+
+function App() {
+  const [starterMate, setStarterMate] = useState(loadStarterMate)
+  const [accountOpen, setAccountOpen] = useState(false)
+
+  function startWorkspace(mate: Mate) {
+    try {
+      localStorage.setItem(starterMateKey, mate.name)
+    } catch (error) {
+      console.warn('Could not save the starter mate.', error)
+    }
+    setStarterMate(mate)
+  }
+
+  return (
+    <>
+      {starterMate && (
+        <div hidden={accountOpen}>
+          <Workspace initialMate={starterMate} onOpenAccount={() => setAccountOpen(true)} />
+        </div>
+      )}
+      {(!starterMate || accountOpen) && (
+        <EntryFlow
+          onStart={startWorkspace}
+          onReturn={accountOpen ? () => setAccountOpen(false) : undefined}
+        />
+      )}
+    </>
   )
 }
 

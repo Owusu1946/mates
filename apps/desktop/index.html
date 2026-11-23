@@ -8,9 +8,28 @@
       content="default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:*; object-src 'none'; base-uri 'none'"
     />
     <title>Mates</title>
+    <style>
+      body { margin: 0; background: #f9f8f4; }
+      .startup {
+        display: grid;
+        min-height: 100vh;
+        place-content: center;
+        justify-items: center;
+        gap: 12px;
+        color: #252a25;
+        font: 650 32px system-ui, sans-serif;
+        letter-spacing: -0.06em;
+      }
+      .startup img { border-radius: 18px; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="startup" aria-label="Opening Mates">
+        <img src="../../brand/mates-avatar.png" alt="" width="82" height="82" />
+        <span>Mates</span>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
