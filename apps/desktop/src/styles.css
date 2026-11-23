@@ -56,6 +56,10 @@ button:focus-visible {
 nav { display: grid; gap: 4px; }
 
 nav button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   border: 1px solid transparent;
   border-radius: 8px;
   padding: 9px 11px;
@@ -252,4 +256,210 @@ h2 {
     border: 0;
     text-align: right;
   }
+}
+
+
+.nav-count {
+  min-width: 21px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: #f9f8f4;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.mate-actions {
+  margin-top: 22px;
+  padding-top: 17px;
+  border-top: 1px solid var(--line);
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fffefa;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.primary-button {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fffefa;
+}
+
+.primary-button:not(:disabled):hover { background: #264531; }
+.secondary-button:hover { background: var(--rail); }
+
+.primary-button:disabled,
+.text-button:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.activity-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.activity-filter {
+  display: grid;
+  gap: 6px;
+  min-width: 132px;
+}
+
+.activity-filter label,
+.draft-dialog label {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.activity-filter select,
+.draft-dialog textarea {
+  padding: 8px 10px;
+  border: 1px solid #aab5a8;
+  border-radius: 7px;
+  background: #fffefa;
+  color: inherit;
+  font: inherit;
+}
+
+.activity-filter select { font-size: 14px; }
+
+.activity-filter select:focus-visible,
+.draft-dialog textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.activity-empty,
+.draft-list {
+  margin: 28px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.activity-empty { padding-top: 26px; }
+
+.activity-empty h2,
+.draft-entry h2 {
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+.activity-empty button { margin-top: 14px; }
+
+.draft-list {
+  padding: 0;
+  list-style: none;
+}
+
+.draft-list li {
+  display: flex;
+  align-items: start;
+  gap: 13px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.draft-list .avatar { flex-shrink: 0; }
+
+.draft-entry {
+  flex: 1;
+  min-width: 0;
+}
+
+.draft-entry time {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.draft-entry p {
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.draft-dialog {
+  width: min(480px, calc(100% - 36px));
+  max-height: calc(100% - 36px);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--canvas);
+  color: inherit;
+  box-shadow: 0 20px 75px #252a2529;
+}
+
+.draft-dialog::backdrop { background: #252a2554; }
+
+.draft-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.draft-heading h2 {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+}
+
+.draft-heading p,
+.save-error {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.draft-dialog label { display: block; }
+
+.draft-dialog textarea {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  resize: vertical;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.text-button {
+  margin-top: 10px;
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.save-error { color: #963c30; }
+
+.draft-actions {
+  display: flex;
+  justify-content: end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.save-status:not(:empty) {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--rail);
+  font-size: 13px;
+  pointer-events: none;
 }

@@ -89,7 +89,7 @@ Run all commands from the **repository root**. `pnpm --filter <package>` targets
 ## Run the desktop app
 
 Use Node.js 22.12 or newer. From the repository root after `pnpm install`, run `pnpm dev:desktop`.
-The shell uses sample data and runs without API credentials.
+The shell uses a sample team and runs without API credentials. You can save and edit request drafts locally from Activity.
 
 To build the renderer and open it in Electron without the dev server, run:
 

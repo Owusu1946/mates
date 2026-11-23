@@ -13,7 +13,7 @@ delete env.ELECTRON_RUN_AS_NODE
 delete env.MATES_DESKTOP_DEV_URL
 
 const server = process.argv.includes('--dev')
-  ? await createServer({ server: { host: '127.0.0.1' } })
+  ? await createServer({ server: { host: '127.0.0.1', port: 4178, strictPort: true } })
   : undefined
 
 try {

@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import brand from '../../../brand/mates-avatar.png'
 import scout from '../../web/public/mates/teardrop-sunset.png'
 import pixel from '../../web/public/mates/squircle-purple.png'
 import fern from '../../web/public/mates/pebble-teal.png'
 import dot from '../../web/public/mates/cloud-blue.png'
+import { loadDrafts, storeDrafts } from './drafts'
+import type { Draft } from './drafts'
 import './styles.css'
 
 const team = [
@@ -15,6 +18,7 @@ const team = [
     color: 'peach',
     description: 'Find sources, compare options, and turn loose questions into clear briefs.',
     skills: ['Web research', 'Source checks', 'Briefs'],
+    prompt: 'Compare the options for … and link to the sources you used.',
   },
   {
     name: 'Pixel',
@@ -23,6 +27,7 @@ const team = [
     color: 'lilac',
     description: 'Read through a codebase, work through bugs, and prepare changes for review.',
     skills: ['Code review', 'Debugging', 'Pull requests'],
+    prompt: 'Review this change for regressions and suggest what to verify before merging.',
   },
   {
     name: 'Fern',
@@ -31,6 +36,7 @@ const team = [
     color: 'mint',
     description: 'Turn rough notes into drafts and edit them for the people who will read them.',
     skills: ['Drafts', 'Editing', 'Summaries'],
+    prompt: 'Turn these notes into a short update I can share with the team.',
   },
   {
     name: 'Dot',
@@ -39,14 +45,121 @@ const team = [
     color: 'blue',
     description: 'Keep track of follow-ups and pull together the details before a meeting.',
     skills: ['Meeting prep', 'Follow-ups', 'Planning'],
+    prompt: 'Turn my meeting notes into follow-ups with owners and due dates.',
   },
 ] as const
 
+type Mate = (typeof team)[number]
 const views = ['Team', 'Activity'] as const
+const dateFormat = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+const draftLimit = 4000
+
+type Editor = { mate: Mate; draft?: Draft }
+
+function DraftEditor({ editor, onClose, onSave }: {
+  editor: Editor
+  onClose: () => void
+  onSave: (text: string) => boolean
+}) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const textarea = useRef<HTMLTextAreaElement>(null)
+  const [text, setText] = useState(editor.draft?.text ?? '')
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    dialog.current?.showModal()
+    textarea.current?.focus()
+  }, [])
+
+  function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const body = text.trim()
+    if (!body) return
+    if (onSave(body)) {
+      dialog.current?.close()
+    } else {
+      setFailed(true)
+    }
+  }
+
+  return (
+    <dialog ref={dialog} className="draft-dialog" aria-labelledby="draft-heading" onClose={onClose}>
+      <form onSubmit={save}>
+        <div className="draft-heading">
+          <span className="avatar" data-color={editor.mate.color}>
+            <img src={editor.mate.image} alt="" width="38" height="38" />
+          </span>
+          <div>
+            <h2 id="draft-heading">Request for {editor.mate.name}</h2>
+            <p>Save a draft on this device.</p>
+          </div>
+        </div>
+        <label htmlFor="request-body">What should {editor.mate.name} help with?</label>
+        <textarea
+          id="request-body"
+          ref={textarea}
+          rows={5}
+          maxLength={draftLimit}
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+        />
+        {!editor.draft && (
+          <button
+            type="button"
+            className="text-button"
+            disabled={text.trim().length > 0}
+            onClick={() => {
+              setText(editor.mate.prompt)
+              textarea.current?.focus()
+            }}
+          >
+            Use an example
+          </button>
+        )}
+        {failed && <p className="save-error" role="alert">Could not save the draft on this device. Try again.</p>}
+        <div className="draft-actions">
+          <button type="button" className="secondary-button" onClick={() => dialog.current?.close()}>
+            Cancel
+          </button>
+          <button type="submit" className="primary-button" disabled={!text.trim()}>Save draft</button>
+        </div>
+      </form>
+    </dialog>
+  )
+}
 
 function App() {
   const [view, setView] = useState<(typeof views)[number]>('Team')
-  const [selectedMate, setSelectedMate] = useState<(typeof team)[number]>(team[0])
+  const [selectedMate, setSelectedMate] = useState<Mate>(team[0])
+  const [drafts, setDrafts] = useState(loadDrafts)
+  const [editor, setEditor] = useState<Editor | null>(null)
+  const [filter, setFilter] = useState('')
+  const [status, setStatus] = useState('')
+  const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
+
+  function openEditor(next: Editor) {
+    setStatus('')
+    setEditor(next)
+  }
+
+  function saveDraft(text: string) {
+    if (!editor) return false
+    const draft: Draft = {
+      id: editor.draft?.id ?? crypto.randomUUID(),
+      mate: editor.mate.name,
+      text,
+      updatedAt: Date.now(),
+    }
+    const next = [draft, ...drafts.filter(({ id }) => id !== draft.id)]
+    try {
+      storeDrafts(next)
+    } catch {
+      return false
+    }
+    setDrafts(next)
+    setStatus(view === 'Team' ? 'Draft saved in Activity.' : 'Draft saved.')
+    return true
+  }
 
   return (
     <div className="shell">
@@ -61,13 +174,19 @@ function App() {
               key={name}
               type="button"
               aria-current={view === name ? 'page' : undefined}
-              onClick={() => setView(name)}
+              onClick={() => {
+                setStatus('')
+                setView(name)
+              }}
             >
               {name}
+              {name === 'Activity' && drafts.length > 0 && (
+                <span className="nav-count" aria-hidden="true">{drafts.length}</span>
+              )}
             </button>
           ))}
         </nav>
-        <div className="workspace-status">Sample workspace</div>
+        <div className="workspace-status">Local workspace</div>
       </aside>
 
       <main className="workspace">
@@ -99,7 +218,7 @@ function App() {
               </ul>
             </section>
 
-            <section className="mate-detail" aria-labelledby="mate-heading" aria-live="polite">
+            <section className="mate-detail" aria-labelledby="mate-heading">
               <div className="portrait" data-color={selectedMate.color}>
                 <img src={selectedMate.image} alt="" />
               </div>
@@ -110,16 +229,84 @@ function App() {
                 <ul className="skills" aria-label="What this mate can help with">
                   {selectedMate.skills.map((skill) => <li key={skill}>{skill}</li>)}
                 </ul>
+                <div className="mate-actions">
+                  <button
+                    type="button"
+                    className="primary-button"
+                    onClick={() => openEditor({ mate: selectedMate })}
+                  >
+                    Draft a request
+                  </button>
+                </div>
               </div>
             </section>
           </div>
         ) : (
           <section className="activity" aria-labelledby="activity-heading">
-            <h1 id="activity-heading">Activity</h1>
-            <p className="subtitle">This sample workspace has no activity yet.</p>
+            <div className="activity-header">
+              <div>
+                <h1 id="activity-heading">Activity</h1>
+                <p className="subtitle">Request drafts saved on this device.</p>
+              </div>
+              {drafts.length > 0 && (
+                <div className="activity-filter">
+                  <label htmlFor="mate-filter">Filter by mate</label>
+                  <select id="mate-filter" value={filter} onChange={(event) => setFilter(event.target.value)}>
+                    <option value="">All mates</option>
+                    {team.map((mate) => <option key={mate.name}>{mate.name}</option>)}
+                  </select>
+                </div>
+              )}
+            </div>
+            {visibleDrafts.length === 0 ? (
+              <div className="activity-empty">
+                <h2>{filter ? `No drafts for ${filter}` : 'No drafts yet'}</h2>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => filter ? setFilter('') : setView('Team')}
+                >
+                  {filter ? 'Show all drafts' : 'Choose a mate'}
+                </button>
+              </div>
+            ) : (
+              <ul className="draft-list">
+                {visibleDrafts.map((draft) => {
+                  const mate = team.find(({ name }) => name === draft.mate)
+                  return (
+                    <li key={draft.id}>
+                      {mate && (
+                        <span className="avatar" data-color={mate.color}>
+                          <img src={mate.image} alt="" width="38" height="38" />
+                        </span>
+                      )}
+                      <div className="draft-entry">
+                        <h2>{draft.mate}</h2>
+                        <time dateTime={new Date(draft.updatedAt).toISOString()}>
+                          {dateFormat.format(draft.updatedAt)}
+                        </time>
+                        <p>{draft.text}</p>
+                      </div>
+                      {mate && (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          aria-label={`Edit draft for ${draft.mate}`}
+                          onClick={() => openEditor({ mate, draft })}
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </section>
         )}
+        <div className="save-status" role="status">{status}</div>
       </main>
+      {editor && <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} />}
     </div>
   )
 }
