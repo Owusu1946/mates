@@ -87,6 +87,8 @@ nav button[aria-current] { font-weight: 650; }
   color: var(--muted);
 }
 
+.workspace-status nav { width: 100%; }
+
 .team-layout,
 .activity {
   width: min(100%, 1060px);

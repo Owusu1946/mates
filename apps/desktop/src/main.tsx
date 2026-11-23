@@ -5,6 +5,7 @@ import brand from '../../../brand/mates-avatar.png'
 import { loadDrafts, storeDrafts } from './drafts'
 import type { Draft } from './drafts'
 import { EntryFlow } from './entry-flow'
+import { SettingsDialog } from './settings'
 import { team } from './team'
 import type { Mate } from './team'
 import './styles.css'
@@ -246,9 +247,20 @@ function MateFilter({ value, onChange }: {
   )
 }
 
-function Workspace({ initialMate, onOpenAccount }: {
+const showDatesKey = 'mates.activity-show-dates.v1'
+
+function loadShowDates() {
+  try {
+    return localStorage.getItem(showDatesKey) !== 'false'
+  } catch {
+    return true
+  }
+}
+
+function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
   initialMate: Mate
   onOpenAccount: () => void
+  onStarterChange: (mate: Mate) => boolean
 }) {
   const [view, setView] = useState<(typeof views)[number]>('Team')
   const [selectedMate, setSelectedMate] = useState<Mate>(initialMate)
@@ -256,9 +268,21 @@ function Workspace({ initialMate, onOpenAccount }: {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [filter, setFilter] = useState('')
   const [status, setStatus] = useState('')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [showDates, setShowDates] = useState(loadShowDates)
   const activityHeading = useRef<HTMLHeadingElement>(null)
   const visibleDrafts = filter ? drafts.filter((draft) => draft.mate === filter) : drafts
   const mateDraftCount = drafts.filter((draft) => draft.mate === selectedMate.name).length
+
+  function updateShowDates(show: boolean) {
+    try {
+      localStorage.setItem(showDatesKey, String(show))
+      setShowDates(show)
+      return true
+    } catch {
+      return false
+    }
+  }
 
   function openActivity(mate = '') {
     setFilter(mate)
@@ -343,9 +367,10 @@ function Workspace({ initialMate, onOpenAccount }: {
           ))}
         </nav>
         <div className="workspace-status">
-          <button type="button" className="secondary-button account-button" onClick={onOpenAccount}>
-            Account
-          </button>
+          <nav aria-label="Workspace preferences">
+            <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
+            <button type="button" className="account-button" onClick={onOpenAccount}>Account</button>
+          </nav>
           <span>Local workspace</span>
         </div>
       </aside>
@@ -444,9 +469,11 @@ function Workspace({ initialMate, onOpenAccount }: {
                       )}
                       <div className="draft-entry">
                         <h2>{draft.mate}</h2>
-                        <time dateTime={new Date(draft.updatedAt).toISOString()}>
-                          {dateFormat.format(draft.updatedAt)}
-                        </time>
+                        {showDates && (
+                          <time dateTime={new Date(draft.updatedAt).toISOString()}>
+                            {dateFormat.format(draft.updatedAt)}
+                          </time>
+                        )}
                         <p>{draft.text}</p>
                       </div>
                       <div className="draft-row-actions">
@@ -478,6 +505,15 @@ function Workspace({ initialMate, onOpenAccount }: {
         )}
         <div className="save-status" role="status">{status}</div>
       </main>
+      {settingsOpen && (
+        <SettingsDialog
+          starterMate={initialMate}
+          showDates={showDates}
+          onStarterChange={onStarterChange}
+          onDatesChange={updateShowDates}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
       {editor && (
         <DraftEditor editor={editor} onClose={() => setEditor(null)} onSave={saveDraft} onDelete={deleteDraft} />
       )}
@@ -500,20 +536,29 @@ function App() {
   const [starterMate, setStarterMate] = useState(loadStarterMate)
   const [accountOpen, setAccountOpen] = useState(false)
 
-  function startWorkspace(mate: Mate) {
+  function updateStarterMate(mate: Mate) {
     try {
       localStorage.setItem(starterMateKey, mate.name)
-    } catch (error) {
-      console.warn('Could not save the starter mate.', error)
+      setStarterMate(mate)
+      return true
+    } catch {
+      return false
     }
-    setStarterMate(mate)
+  }
+
+  function startWorkspace(mate: Mate) {
+    if (!updateStarterMate(mate)) setStarterMate(mate)
   }
 
   return (
     <>
       {starterMate && (
         <div hidden={accountOpen}>
-          <Workspace initialMate={starterMate} onOpenAccount={() => setAccountOpen(true)} />
+          <Workspace
+            initialMate={starterMate}
+            onOpenAccount={() => setAccountOpen(true)}
+            onStarterChange={updateStarterMate}
+          />
         </div>
       )}
       {(!starterMate || accountOpen) && (
