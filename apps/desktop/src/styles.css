@@ -540,15 +540,16 @@ h2 {
 
 .delete-link {
   margin-right: auto;
-  padding: 7px 0;
+  padding: 7px 10px;
   border: 0;
+  border-radius: 7px;
   background: transparent;
   color: #963c30;
   font-size: 13px;
   font-weight: 650;
 }
 
-.delete-link:hover { text-decoration: underline; }
+.delete-link:hover { background: #963c3014; }
 
 .save-status:not(:empty) {
   position: fixed;
