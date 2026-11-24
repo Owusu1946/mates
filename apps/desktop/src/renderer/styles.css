@@ -331,6 +331,12 @@
   }
 }
 
+/* The summon bar's window is see-through; only its pill is painted. */
+html[data-surface="summon"],
+html[data-surface="summon"] body {
+  background: transparent;
+}
+
 /* Windows and macOS give us the title bar; this is the draggable strip their buttons sit on. */
 .app-drag {
   -webkit-app-region: drag;
