@@ -1,7 +1,7 @@
 import type { Chat, Mate } from "../data/sampleCrew.ts";
 import { MateAvatar } from "./MateAvatar.tsx";
 
-const STATUS_TEXT = { idle: null, thinking: "Thinking…", working: "Working", waiting: "Waiting on you" } as const;
+const STATUS_TEXT = { idle: null, listening: "Listening…", thinking: "Thinking…", working: "Working", waiting: "Waiting on you" } as const;
 
 /** The chat's name and what its mate is up to. */
 export function ChatHeader({ chat, lead, mates }: { chat: Chat; lead: Mate; mates: Mate[] }) {

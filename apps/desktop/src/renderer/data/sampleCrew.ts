@@ -6,7 +6,7 @@ import type { MateColor } from "../theme/matePalette.ts";
  * mate from onboarding replaces Kofi (see `crewFor`). Nothing here leaves the device.
  */
 
-export type MateStatus = "idle" | "thinking" | "working" | "waiting";
+export type MateStatus = "idle" | "listening" | "thinking" | "working" | "waiting";
 
 export type Mate = {
   id: string;
@@ -127,6 +127,15 @@ function messagesFor(you: string): Record<string, Message[]> {
     ],
   };
 }
+
+/** What you "say" to each mate when holding to talk, until speech is transcribed for real. */
+export const VOICE_LINES: Record<string, string> = {
+  [LEAD_ID]: "Move my supplier call to Thursday afternoon and remind me an hour before",
+  esi: "Find me hostels near KNUST under four thousand cedis a year",
+  abena: "Book a dentist for Thursday morning somewhere near East Legon",
+  yaw: "Fix the sign-in sheet on iOS and open a pull request",
+  akua: "How much have I spent on packaging this month",
+};
 
 /** Each mate's canned replies, in order, for sending without an API. */
 export const REPLIES: Record<string, string[]> = {
