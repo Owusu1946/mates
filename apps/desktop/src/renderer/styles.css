@@ -682,6 +682,128 @@ html[data-surface="summon"] body {
   animation-play-state: var(--visible-animation-state, paused);
 }
 
+/*
+ * The MacBook notch. One black shape hangs from the top of the screen and changes size; the
+ * window around it is see-through and never resizes. Opening is a soft spring (Apple's sheet
+ * curve), closing is quicker and settles without overshoot. The panel inside fades and sharpens
+ * in a beat after the shape starts to grow, and goes first when it closes.
+ */
+html[data-surface="notch"],
+html[data-surface="notch"] body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.notch-shape {
+  --shoulder: 7px;
+  --ease-open: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-close: cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  flex-shrink: 0;
+  width: var(--w);
+  height: var(--h);
+  background: #000;
+  color: #f5f5f5;
+  border-radius: 0 0 var(--r) var(--r);
+  cursor: default;
+  contain: layout style;
+  transition:
+    width 300ms var(--ease-close),
+    height 300ms var(--ease-close),
+    border-radius 300ms var(--ease-close),
+    box-shadow 300ms var(--ease-close);
+}
+.notch-shape[data-mode="peek"] {
+  transition-duration: 340ms;
+  transition-timing-function: var(--ease-open);
+}
+.notch-shape[data-mode="open"] {
+  --shoulder: 10px;
+  box-shadow: 0 22px 48px -18px rgb(0 0 0 / 0.6);
+  transition:
+    width 460ms var(--ease-open),
+    height 460ms var(--ease-open),
+    border-radius 460ms var(--ease-open),
+    box-shadow 460ms var(--ease-open);
+}
+
+/* The concave corners where the shape meets the top of the screen, as the camera housing has. */
+.notch-shape::before,
+.notch-shape::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: var(--shoulder);
+  height: var(--shoulder);
+  transition:
+    width 300ms var(--ease-close),
+    height 300ms var(--ease-close);
+}
+.notch-shape::before {
+  left: calc(-1 * var(--shoulder));
+  background: radial-gradient(circle at 0 100%, transparent calc(var(--shoulder) - 0.5px), #000 var(--shoulder));
+}
+.notch-shape::after {
+  right: calc(-1 * var(--shoulder));
+  background: radial-gradient(circle at 100% 100%, transparent calc(var(--shoulder) - 0.5px), #000 var(--shoulder));
+}
+
+/* The ears beside the camera: the lead mate and the status. Words only show on hover. */
+.notch-ears {
+  position: absolute;
+  inset: 0 0 auto;
+  display: flex;
+  height: var(--nh);
+  align-items: center;
+  overflow: hidden;
+  transition: opacity 180ms ease-out;
+}
+.notch-shape[data-mode="open"] .notch-ears {
+  opacity: 0;
+  transition-duration: 120ms;
+}
+.notch-ear-text {
+  opacity: 0;
+  translate: 0 -2px;
+  transition:
+    opacity 140ms ease-out,
+    translate 140ms ease-out;
+}
+.notch-shape[data-mode="peek"] .notch-ear-text {
+  opacity: 1;
+  translate: 0 0;
+  transition-delay: 110ms;
+  transition-duration: 220ms;
+}
+
+/* The summon panel, laid out at its full width so nothing reflows while the shape grows. */
+.notch-content {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  translate: -50% 0;
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(6px);
+  scale: 0.97;
+  transform-origin: 50% 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease-in,
+    filter 120ms ease-in,
+    scale 200ms var(--ease-close);
+}
+.notch-shape[data-mode="open"] .notch-content {
+  opacity: 1;
+  filter: blur(0);
+  scale: 1;
+  pointer-events: auto;
+  transition:
+    opacity 240ms ease-out 120ms,
+    filter 240ms ease-out 120ms,
+    scale 420ms var(--ease-open) 60ms;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

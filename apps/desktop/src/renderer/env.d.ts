@@ -10,6 +10,14 @@ interface Window {
       openInMates(handoff: { mateId: string; question: string; answer: string }): void;
       onShown(listener: () => void): () => void;
     };
+    /** The notch's page only: take the pointer over the shape, the keyboard while open, and hand-offs. */
+    notch: {
+      setInteractive(interactive: boolean): void;
+      focus(): void;
+      blur(): void;
+      openInMates(handoff: { mateId: string; question: string; answer: string }): void;
+      onToggle(listener: () => void): () => void;
+    };
     /** A conversation handed over from the summon bar, if one is waiting. */
     takeHandoff(): Promise<{ mateId: string; question: string; answer: string } | null>;
     onHandoff(listener: () => void): () => void;
