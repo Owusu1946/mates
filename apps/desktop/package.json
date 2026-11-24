@@ -8,7 +8,7 @@
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/dev.mjs",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",

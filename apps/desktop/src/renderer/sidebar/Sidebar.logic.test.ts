@@ -10,7 +10,7 @@ test("mates come before groups, and only nine rows get a number", () => {
   assert.deepEqual(targets[7], { kind: "chat", id: "g1" });
   assert.equal(jumpNumber(targets, { kind: "chat", id: "g3" }), null);
   assert.equal(jumpNumber(targets, { kind: "chat", id: "m2" }), 2);
-  assert.equal(jumpNumber(targets, { kind: "place", id: "m2" }), null);
+  assert.equal(jumpNumber(targets, { kind: "repo", id: "m2" }), null);
 });
 
 test("only the digits 1 to 9 jump", () => {

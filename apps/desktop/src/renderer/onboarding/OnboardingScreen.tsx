@@ -10,8 +10,8 @@ import { cn } from "../lib/utils.ts";
 
 type SlotProps = HTMLAttributes<HTMLDivElement> & { children?: ReactNode };
 
-function Root({ className, wide = false, ...rest }: SlotProps & { wide?: boolean }) {
-  return <section className={cn("stagger flex w-full flex-col items-center text-center", wide ? "max-w-200" : "max-w-100", className)} {...rest} />;
+function Root({ className, ...rest }: SlotProps) {
+  return <section className={cn("stagger flex w-full max-w-100 flex-col items-center text-center", className)} {...rest} />;
 }
 
 function Back({ onClick, label = "Back" }: { onClick: () => void; label?: string }) {
@@ -19,7 +19,7 @@ function Back({ onClick, label = "Back" }: { onClick: () => void; label?: string
     <button
       type="button"
       onClick={onClick}
-      className="-ml-2 mb-3 inline-flex items-center gap-1 self-start rounded-control px-2 py-1.5 text-xs text-ink-soft transition-colors hover:bg-hover-fill hover:text-ink"
+      className="-ml-2 mb-5 inline-flex items-center gap-1 self-start rounded-control px-2 py-1.5 text-xs text-ink-soft transition-colors hover:bg-hover-fill hover:text-ink"
     >
       <Icon name="arrowLeft" size={16} />
       {label}

@@ -12,7 +12,7 @@ export function Tooltip({ content, children, side = "right" }: { content: ReactN
       <BaseTooltip.Trigger render={children} />
       <BaseTooltip.Portal>
         <BaseTooltip.Positioner side={side} sideOffset={8} className="z-50">
-          <BaseTooltip.Popup className="max-w-64 origin-(--transform-origin) rounded-lg border border-line bg-raised px-2.5 py-1.5 text-xs text-ink shadow-md shadow-black/10 transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:shadow-black/50">
+          <BaseTooltip.Popup className="motion-tooltip max-w-64 origin-(--transform-origin) rounded-lg border border-line bg-raised px-2.5 py-1.5 text-xs text-ink shadow-md shadow-black/10 dark:shadow-black/50">
             {content}
           </BaseTooltip.Popup>
         </BaseTooltip.Positioner>

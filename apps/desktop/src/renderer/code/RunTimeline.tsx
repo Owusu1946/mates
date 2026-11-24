@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import { MessageRow } from "../chat/MessageRow.tsx";
-import { useTimelineScroll } from "../chat/useTimelineScroll.ts";
+import { TimelineViewport } from "../chat/TimelineViewport.tsx";
 import type { Mate } from "../data/sampleCrew.ts";
 import type { RunItem } from "../data/sampleRuns.ts";
 import { ChangedFilesCard } from "./ChangedFilesCard.tsx";
@@ -11,6 +12,7 @@ type RunTimelineProps = {
   runId: string;
   state: RunState;
   mate: Mate;
+  composer: ReactNode;
   onAnswer: (approvalId: string, allow: boolean) => void;
   onOpenFile: (path: string) => void;
 };
@@ -22,11 +24,10 @@ const settled = "[content-visibility:auto] [contain-intrinsic-size:auto_3rem]";
  * A run, top to bottom (T3 Code's MessagesTimeline for a coding thread): your requests, the
  * mate's work folded into groups, approvals, its answers and what changed, then the turn in progress.
  */
-export function RunTimeline({ runId, state, mate, onAnswer, onOpenFile }: RunTimelineProps) {
+export function RunTimeline({ runId, state, mate, composer, onAnswer, onOpenFile }: RunTimelineProps) {
   const { items, live } = state;
   const lastItem = items.at(-1);
   const content = `${items.length}:${live?.steps.length ?? -1}:${live?.current?.id ?? ""}`;
-  const { scroller, onScroll } = useTimelineScroll(runId, content, lastItem?.type === "message" && lastItem.author === "me");
 
   const renderItem = (item: RunItem) => {
     switch (item.type) {
@@ -50,13 +51,13 @@ export function RunTimeline({ runId, state, mate, onAnswer, onOpenFile }: RunTim
   };
 
   return (
-    <div ref={scroller} tabIndex={-1} data-focus-area="timeline" className="min-h-0 flex-1 overflow-y-auto outline-none" onScroll={onScroll}>
-      <div className="mx-auto flex max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-8">
+    <TimelineViewport scrollKey={runId} contentKey={content} followLatest={lastItem?.type === "message" && lastItem.author === "me"} composer={composer}>
+      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
         {items.map((item) => (
           <div key={item.id}>{renderItem(item)}</div>
         ))}
         {live && <LiveWorkGroup key={live.id} group={live} />}
       </div>
-    </div>
+    </TimelineViewport>
   );
 }

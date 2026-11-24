@@ -38,7 +38,7 @@ export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => void }) {
   return (
     <OnboardingScreen.Root>
       <OnboardingScreen.Title>Meet your lead mate</OnboardingScreen.Title>
-      <OnboardingScreen.Body>They lead your team. You can change this later.</OnboardingScreen.Body>
+      <OnboardingScreen.Body>Choose your lead mate's name and look.</OnboardingScreen.Body>
       <OnboardingScreen.Hero className="mt-5 mb-0 h-40">
         <Mascot size={150} state={mood} gradient={gradientOf(color)} shape={shape} />
       </OnboardingScreen.Hero>
