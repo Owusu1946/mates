@@ -85,7 +85,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               opacity: choice && choice !== option.id ? 0.5 : 1,
             })}
           >
-            <AppLogo name={option.label} logo={option.logo} size={36} />
+            <AppLogo name={option.toolkit} logo={option.logo} size={36} />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text
                 style={{
@@ -169,12 +169,20 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               )}
               {!!item.metrics?.length && (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
-                  {item.metrics.map((metric) => {
+                  {item.metrics.map((metric, metricIndex) => {
                     const mate = mates.data?.mates.find((candidate) => candidate.name.trim().toLowerCase() === metric.trim().toLowerCase());
                     return (
-                      <View key={metric} style={{ flexDirection: "row", alignItems: "center", gap: mate ? 4 : 0, backgroundColor: isDark ? "#29292d" : "#f1f1f3", borderRadius: 10, paddingHorizontal: mate ? 5 : 8, paddingVertical: 3 }}>
-                        {mate && <MateAvatar gradient={mate.gradient} shape={mate.shape} size={14} still />}
-                        <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 11, lineHeight: 16, color: muted }}>{metric}</Text>
+                      <View
+                        key={`${metric}-${metricIndex}`}
+                        accessibilityRole={mate ? "image" : undefined}
+                        accessibilityLabel={mate ? metric : undefined}
+                        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: mate ? 0 : undefined, backgroundColor: isDark ? "#29292d" : "#f1f1f3", borderRadius: 10, paddingHorizontal: mate ? 5 : 8, paddingVertical: 3 }}
+                      >
+                        {mate ? (
+                          <MateAvatar gradient={mate.gradient} shape={mate.shape} size={14} still />
+                        ) : (
+                          <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 11, lineHeight: 16, color: muted }}>{metric}</Text>
+                        )}
                       </View>
                     );
                   })}

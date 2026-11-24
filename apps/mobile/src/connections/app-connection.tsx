@@ -6,7 +6,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { SvgUri } from "react-native-svg";
-import { Calendar01Icon, GoogleDocIcon, GoogleDriveIcon, GoogleSheetIcon, Mail01Icon } from "@hugeicons/core-free-icons";
+import { Calendar01Icon, GithubIcon, GoogleDocIcon, GoogleDriveIcon, GoogleSheetIcon, Mail01Icon, Notion01Icon, SlackIcon } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react-native";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
@@ -14,6 +14,19 @@ import type { AppConnection } from "@expojet/api-contract";
 import { useToast } from "../components/toast";
 
 WebBrowser.maybeCompleteAuthSession();
+
+function fallbackAppMark(name: string, isDark: boolean) {
+  const app = name.trim().toLowerCase().replace(/[^a-z]/g, "");
+  if (["gmail", "googlemail", "email"].includes(app)) return { icon: Mail01Icon, color: "#EA4335" };
+  if (["calendar", "googlecalendar"].includes(app)) return { icon: Calendar01Icon, color: "#4285F4" };
+  if (["drive", "googledrive"].includes(app)) return { icon: GoogleDriveIcon, color: "#34A853" };
+  if (["docs", "googledocs"].includes(app)) return { icon: GoogleDocIcon, color: "#4285F4" };
+  if (["sheets", "googlesheets"].includes(app)) return { icon: GoogleSheetIcon, color: "#34A853" };
+  if (app === "slack") return { icon: SlackIcon, color: "#611f69" };
+  if (app === "github") return { icon: GithubIcon, color: isDark ? "#fafafa" : "#24292f" };
+  if (app === "notion") return { icon: Notion01Icon, color: isDark ? "#fafafa" : "#18181b" };
+  return null;
+}
 
 export function AppLogo({
   name,
@@ -31,18 +44,7 @@ export function AppLogo({
     setSvgFailed(false);
   }, [logo]);
   const { isDark } = useTheme();
-  const appName = name.toLowerCase();
-  const fallback = /^(?:gmail|google mail|email)$/.test(appName)
-    ? { icon: Mail01Icon, color: "#EA4335" }
-    : appName.includes("calendar")
-      ? { icon: Calendar01Icon, color: "#4285F4" }
-      : /^(?:google )?drive$/.test(appName)
-        ? { icon: GoogleDriveIcon, color: "#34A853" }
-        : /^(?:google )?docs$/.test(appName)
-          ? { icon: GoogleDocIcon, color: "#4285F4" }
-          : /^(?:google )?sheets$/.test(appName)
-            ? { icon: GoogleSheetIcon, color: "#34A853" }
-            : null;
+  const fallback = fallbackAppMark(name, isDark);
   return (
     <View
       style={{

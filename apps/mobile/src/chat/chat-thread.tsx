@@ -754,7 +754,7 @@ function ChatMessage() {
   const limit = limitError(useAuiState((state) => state.message.status));
   const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
   const colors = useChatColors();
-  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border, codeSurface: colors.muted }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
+  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border, codeSurface: colors.background === "#18181b" ? "#48484f" : "#f1f1f3" }), [colors.background, colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
   const onTextLayout = useCallback(() => {
     if (user || !runId) return;

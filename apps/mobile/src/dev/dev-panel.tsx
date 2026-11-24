@@ -1,6 +1,5 @@
 import * as Notifications from "expo-notifications";
 import { fetch } from "expo/fetch";
-import { useRouter, useSegments } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -18,8 +17,6 @@ const sampleNotifications: Record<SampleKind, { title: string; body: string; kin
 };
 
 export function DevPanel() {
-  const router = useRouter();
-  const segments = useSegments();
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
   const [open, setOpen] = useState(false);
@@ -27,7 +24,7 @@ export function DevPanel() {
   const [expoToken, setExpoToken] = useState<string | null>(null);
   const [message, setMessage] = useState("Choose a sample to preview a task or test a notification.");
 
-  if (!__DEV__ || Platform.OS === "web" || segments.some((segment) => String(segment) === "response-ui-preview")) return null;
+  if (!__DEV__ || Platform.OS === "web") return null;
 
   const run = async (action: () => Promise<string>) => {
     setBusy(true);
@@ -107,9 +104,6 @@ export function DevPanel() {
             </View>
             <View style={styles.row}>
               <Action label="Push notification" onPress={() => sendExpoPush("ready")} disabled={busy} compact />
-            </View>
-            <View style={styles.row}>
-              <Action label="Preview chat responses" onPress={() => { setOpen(false); router.push("/(app)/response-ui-preview" as never); }} disabled={busy} />
             </View>
           </View>
 
