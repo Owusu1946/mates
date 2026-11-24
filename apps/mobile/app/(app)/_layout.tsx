@@ -90,6 +90,8 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         if (now - timestamp >= 2_000) handledResponses.current.delete(key);
       }
 
+      // Remove only the notification the user opened; keep unrelated reminders and alerts.
+      void Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
       const data = response.notification.request.content.data;
       const chatId = data?.chatId;
       if (typeof data?.morningBriefId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.morningBriefId)) {

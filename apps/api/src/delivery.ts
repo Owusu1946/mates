@@ -20,6 +20,20 @@ export function quietInForeground(run: { requestKey: string; createdAt: Date }, 
   return now - run.createdAt.getTime() < WATCHED_REPLY_MS;
 }
 
+/** Keep lock-screen copy brief and plain while retaining the useful result signal. */
+export function findingPushBody(status: string, finding: { summary: string | null } | undefined) {
+  const summary = finding?.summary?.split(/\r?\n/)[0]?.replace(/[*_`#>]/g, "").replace(/\s+/g, " ").trim();
+  const failedPlaceholder = status === "failed" && /^your result is ready(?: to view)?\.?$/i.test(summary ?? "");
+  const excerpt = summary && summary.length > 2 && !failedPlaceholder
+    ? summary.length > 120
+      ? `${summary.slice(0, 117).replace(/\s+\S*$/, "").trimEnd()}…`
+      : summary
+    : null;
+  if (status === "waiting") return excerpt ? `Needs your input: ${excerpt}` : "Needs your input to continue.";
+  if (status === "failed") return excerpt ? `Couldn’t finish: ${excerpt}` : "This task couldn’t be completed.";
+  return excerpt ?? "Your result is ready to view.";
+}
+
 export async function deliverFindings() {
   // Opt-in never sends a backlog; retries are independent from agent execution.
   await getDb().execute(sql`INSERT INTO deliveries(delegation_id,token)
@@ -30,8 +44,13 @@ export async function deliverFindings() {
   for (const delivery of due) {
     const [device] = await getDb().select().from(deviceTokens).where(eq(deviceTokens.token, delivery.token));
     const [run] = await getDb().select().from(delegations).where(eq(delegations.id, delivery.delegationId));
-    if (!device?.enabled || device.clerkUserId !== run?.clerkUserId) {
+    if (!device?.enabled || device.clerkUserId !== run?.clerkUserId || !run) {
       await getDb().update(deliveries).set({ status: "disabled" }).where(eq(deliveries.id, delivery.id));
+      continue;
+    }
+    // A queued result can become irrelevant before the dispatcher sends it.
+    if (delivery.status === "pending" && run.status === "cancelled") {
+      await getDb().update(deliveries).set({ status: "disabled", error: "Run was cancelled before notification delivery" }).where(eq(deliveries.id, delivery.id));
       continue;
     }
     if (delivery.status === "receipt_pending") {
@@ -58,8 +77,9 @@ export async function deliverFindings() {
       // Mates and groups speak under their own name, and a tap opens their chat; everything else
       // comes from the app and opens the result in the feed.
       const [chat] = run.chatId ? await getDb().select({ kind: chats.kind, title: chats.title }).from(chats).where(eq(chats.id, run.chatId)) : [];
+      const [finding] = await getDb().select({ summary: findings.summary }).from(findings).where(eq(findings.delegationId, run.id)).limit(1);
       const title = chat && (chat.kind === "mate" || chat.kind === "group") ? chat.title : "Mates";
-      const result = await expoRequest("send", { to: device.token, title, body: run.status === "waiting" ? "Your attention is needed to continue a task." : "Your task result is ready.", data: { delegationId: run.id, chatId: run.chatId, chatKind: chat?.kind ?? null, url: `mates://feed?runId=${run.id}`, ...(quietInForeground(run) ? { quietInForeground: true } : {}) }, sound: "default" });
+      const result = await expoRequest("send", { to: device.token, title, body: findingPushBody(run.status, finding), data: { delegationId: run.id, chatId: run.chatId, chatKind: chat?.kind ?? null, url: `mates://feed?runId=${run.id}`, ...(quietInForeground(run) ? { quietInForeground: true } : {}) }, sound: "default" });
       const ticket = result.data;
       await getDb().update(deliveries).set({ status: ticket?.status === "ok" && ticket.id ? "receipt_pending" : "failed", receiptId: ticket?.id ?? null, error: ticket?.status === "ok" ? null : "Push request was rejected", nextAttemptAt: new Date(Date.now() + 120_000) }).where(eq(deliveries.id, delivery.id));
       if (ticket?.details?.error === "DeviceNotRegistered") await getDb().update(deviceTokens).set({ enabled: false }).where(eq(deviceTokens.token, device.token));
