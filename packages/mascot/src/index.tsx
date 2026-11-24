@@ -2162,6 +2162,8 @@ export interface PolygonAvatarProps {
   autoBlink?: boolean
   autoExpression?: boolean
   paused?: boolean
+  /** Minimum ms between drawn frames, e.g. 1000 / 30 for small mascots in lists. Unset draws every frame. */
+  frameInterval?: number
   /**
    * Play an ordered sequence of expressions instead of the state's random pool. Overrides
    * the state's own cycling and blink cadence; the state still supplies body motion unless
@@ -2570,13 +2572,18 @@ export function usePolygonEngine(options: PolygonEngineOptions): PolygonAvatarHa
     let drawn = false
     const interval = optionsRef.current.frameInterval ?? 0
     const step = (now: number) => {
-      frame = requestAnimationFrame(step)
       const e = engine.current
       const p = e.props
+      // Paused and already drawn: the loop sleeps instead of waking every frame to do nothing.
+      // Unpausing re-runs this effect, which starts it again.
+      if (p.paused && drawn) {
+        frame = 0
+        return
+      }
+      frame = requestAnimationFrame(step)
       if (drawn && now - e.last < interval) return
       const dt = Math.min((now - e.last) / 1000, 0.1)
       e.last = now
-      if (p.paused && drawn) return
 
       const f = e.springOverride ?? p.spring ?? 7
       e.velocity += (-2 * f * e.velocity - f * f * (e.morph - 1)) * dt
@@ -2604,7 +2611,7 @@ export function usePolygonEngine(options: PolygonEngineOptions): PolygonAvatarHa
     // `uid` is stable for the component's life, so listing it re-runs nothing — it is
     // here because the loop genuinely reads it, and a lie in a dependency array is the
     // kind that bites later.
-  }, [uid, options.frameInterval])
+  }, [uid, options.frameInterval, options.props.paused])
 
   return handle
 }
@@ -2635,6 +2642,7 @@ export const PolygonAvatar = React.forwardRef<PolygonAvatarHandle, PolygonAvatar
       autoBlink = true,
       autoExpression = true,
       paused = false,
+      frameInterval,
       sequence = null,
       sequenceName,
       life = true,
@@ -2696,6 +2704,7 @@ export const PolygonAvatar = React.forwardRef<PolygonAvatarHandle, PolygonAvatar
       props: { state, expression, gaze, turn, lookAround, spring, eyeScale, showMouth, effects, glyphs, autoBlink, autoExpression, paused, sequence, sequenceName, life },
       uid,
       motionStrength,
+      frameInterval,
       paint: () => paintRef.current,
       layers: () => ({
         eye0: eye0.current,
