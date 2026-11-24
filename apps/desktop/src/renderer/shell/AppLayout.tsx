@@ -4,7 +4,14 @@ import type { ChatAction } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { OpenRunContext } from "../chat/openRun.ts";
+import { formatCallTime } from "../call/call.logic.ts";
+import { CallPanel } from "../call/CallPanel.tsx";
+import { useCall } from "../call/useCall.ts";
+import type { SidePanel } from "../chat/ChatHeader.tsx";
 import { useChatFlow } from "../chat/useChatFlow.ts";
+import { initialComputer } from "../computer/computer.logic.ts";
+import { ComputerPanel } from "../computer/ComputerPanel.tsx";
+import { useComputers } from "../computer/useComputers.ts";
 import { useMateMoods } from "../chat/useMateMoods.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
@@ -46,6 +53,11 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [made, setMade] = useState<{ mates: Mate[]; chats: Chat[] }>({ mates: [], chats: [] });
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [creating, setCreating] = useState<"mate" | "group" | null>(null);
+  // Call and Computer: one call for the whole app, so switching chats doesn't drop it, and a
+  // computer for each mate. The panel beside the chat shows one or the other.
+  const [call, callDispatch] = useCall();
+  const [computers, computerDispatch] = useComputers();
+  const [side, setSide] = useState<SidePanel>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {
@@ -133,6 +145,26 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     runDispatch({ type: "create", run: created });
     setCodeDrafts({ ...codeDrafts, [`repo:${repoId}`]: "" });
     select({ kind: "run", id: created.id });
+  };
+
+  const inCall = call !== null && call.phase !== "ended";
+  const openSide = (next: SidePanel, from: Chat) => {
+    // Calling starts one with everyone in the chat, unless a call is already on.
+    if (next === "call" && !inCall) callDispatch({ type: "start", chatId: from.id, memberIds: from.mateIds, at: Date.now() });
+    setSide(next);
+  };
+  // Hanging up leaves the summary in the chat the call started from.
+  const endCall = () => {
+    if (!call || call.phase === "ended") return;
+    const at = Date.now();
+    const lead = call.memberIds[0]!;
+    const duration = call.phase === "live" ? formatCallTime(at - call.startedAt) : "0:00";
+    callDispatch({ type: "end", at });
+    dispatch({ type: "append", chatId: call.chatId, messages: [{ id: `call-${at}`, author: lead, text: `Call · ${duration}. I'll take care of what we talked about and keep you posted here.` }] });
+  };
+  const closeSide = () => {
+    if (call?.phase === "ended") callDispatch({ type: "close" });
+    setSide(null);
   };
 
   /** Opens a chat and puts the cursor in its composer, once the chat view has mounted. */
@@ -277,7 +309,27 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
         <main className="min-w-0 flex-1">
           {chat && (
             <OpenRunContext value={openRun}>
-              <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={chatDispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />
+              <ChatView
+                key={chat.id}
+                chat={chat}
+                mates={liveMates}
+                timelineMates={crewMates}
+                flow={flow}
+                dispatch={chatDispatch}
+                composerRef={composerRef}
+                quiet={activityMode === "quiet"}
+                side={side}
+                inCall={inCall}
+                computerBusy={(computers[chat.leadId]?.power ?? "asleep") === "working"}
+                onSide={(next) => (next ? openSide(next, chat) : closeSide())}
+                sidePanel={
+                  side === "call" && call ? (
+                    <CallPanel call={call} mates={liveMates} you={crew.you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
+                  ) : side === "computer" ? (
+                    <ComputerPanel mate={liveMates[chat.leadId]!} state={computers[chat.leadId] ?? initialComputer()} dispatch={(action) => computerDispatch({ mateId: chat.leadId, action })} />
+                  ) : null
+                }
+              />
             </OpenRunContext>
           )}
           {repo && (
