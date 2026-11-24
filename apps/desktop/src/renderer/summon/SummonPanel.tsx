@@ -6,8 +6,12 @@ import { Button } from "../components/ui/Button.tsx";
 import { Kbd, MOD } from "../components/ui/Kbd.tsx";
 import { crewFor, LEAD_ID, REPLIES, VOICE_LINES } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
+import { Icon } from "../components/ui/Icon.tsx";
+import { joinDictation } from "../voice/dictation.logic.ts";
+import { DictationMeter, DictationText } from "../voice/DictationParts.tsx";
 import { ListeningBar } from "../voice/ListeningBar.tsx";
 import { MicButton } from "../voice/MicButton.tsx";
+import { useDictation } from "../voice/useDictation.ts";
 import { useHoldToTalk } from "../voice/useHoldToTalk.ts";
 import { matchMates, mentionQuery, withoutMention } from "./summonInput.logic.ts";
 
@@ -29,8 +33,8 @@ type SummonPanelProps = {
 
 /**
  * What the summon bar holds, wherever it's shown: the floating pill (SummonBar) or the MacBook
- * notch. Type, `@` a mate, press Enter, or hold Space (or the mic) and speak; the reply streams in
- * underneath, and Open in Mates carries it into the full app.
+ * notch. Type, `@` a mate, press Enter, hold Space and speak, or click the mic to talk hands-free;
+ * the reply streams in underneath, and Open in Mates carries it into the full app.
  */
 export function SummonPanel({ onReset, onHide, onOpenInMates, focusSignal }: SummonPanelProps) {
   const [flow, dispatch] = useChatFlowFrom(() => initialFlow({}, {}));
@@ -62,11 +66,28 @@ export function SummonPanel({ onReset, onHide, onOpenInMates, focusSignal }: Sum
       input.current?.focus();
     },
   });
-  // Clicking away hides the bar; a hold in progress is dropped, not sent.
+  // The mic is hands-free: talk, pause if you like, then send. Nothing goes until you do.
+  const dictation = useDictation(voiceLine);
+  const sendDictation = () => {
+    const text = joinDictation(draft, dictation.stop());
+    if (!text.trim()) return;
+    dispatch({ type: "draft", chatId: CHAT, text });
+    dispatch({ type: "send", chatId: CHAT, mateId, reply: cannedReply(REPLIES, mateId, flow.sent) });
+    input.current?.focus();
+  };
+  const startDictation = () => {
+    dictation.start();
+    input.current?.focus();
+  };
+  // Clicking away hides the bar; a hold or dictation in progress is dropped, not sent.
   useEffect(() => {
-    window.addEventListener("blur", voice.cancel);
-    return () => window.removeEventListener("blur", voice.cancel);
-  }, [voice.cancel]);
+    const drop = () => {
+      voice.cancel();
+      dictation.cancel();
+    };
+    window.addEventListener("blur", drop);
+    return () => window.removeEventListener("blur", drop);
+  }, [voice.cancel, dictation.cancel]);
 
   // Each time the bar opens, the cursor is ready in the field.
   useEffect(() => {
@@ -91,15 +112,21 @@ export function SummonPanel({ onReset, onHide, onOpenInMates, focusSignal }: Sum
   return (
     <>
         <div className="flex h-14 items-center gap-3 px-4">
-          <MateAvatar mate={{ ...mate, status: voice.listening ? "listening" : reply ? (reply.phase === "thinking" ? "thinking" : "working") : "idle" }} size={28} />
+          <MateAvatar mate={{ ...mate, status: voice.listening || dictation.active ? "listening" : reply ? (reply.phase === "thinking" ? "thinking" : "working") : "idle" }} size={28} />
           {voice.listening && voice.startedAt !== null && <ListeningBar startedAt={voice.startedAt} transcript={voiceLine} />}
+          {dictation.clock && (
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              <DictationMeter clock={dictation.clock} />
+              <span className="flex-1 truncate text-sm text-ink-soft">{dictation.paused ? "Paused" : "Listening… Enter to send"}</span>
+            </div>
+          )}
           <input
             ref={input}
             value={draft}
             placeholder={`Ask ${mate.name}…  @ for another mate, hold Space to talk`}
             aria-label={`Ask ${mate.name}`}
             // Kept focused while you speak, so letting go of Space reaches it.
-            className={cn("min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft", voice.listening && "sr-only")}
+            className={cn("min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft", (voice.listening || dictation.active) && "sr-only")}
             onChange={(event) => {
               dispatch({ type: "draft", chatId: CHAT, text: event.target.value });
               setPicked(0);
@@ -111,6 +138,14 @@ export function SummonPanel({ onReset, onHide, onOpenInMates, focusSignal }: Sum
               if (voice.listening) {
                 event.preventDefault();
                 if (event.key === "Escape") voice.cancel();
+                return;
+              }
+              if (dictation.active) {
+                // Hands-free: Enter sends, Escape cancels, Space pauses; typing waits until you stop.
+                event.preventDefault();
+                if (event.key === "Escape") dictation.cancel();
+                else if (event.key === "Enter") sendDictation();
+                else if (event.key === " " && !event.repeat) dictation.togglePause();
                 return;
               }
               if (event.key === " " && !draft && !reply) {
@@ -137,16 +172,30 @@ export function SummonPanel({ onReset, onHide, onOpenInMates, focusSignal }: Sum
               }
             }}
           />
-          {reply ? (
+          {dictation.active ? (
+            <div className="flex shrink-0 items-center gap-1">
+              <Button size="icon-sm" variant="ghost-muted" aria-label="Cancel" title="Cancel (Esc)" onClick={dictation.cancel}>
+                <Icon name="x" />
+              </Button>
+              <Button size="icon-sm" variant="ghost-muted" aria-label={dictation.paused ? "Resume" : "Pause"} title={dictation.paused ? "Resume (Space)" : "Pause (Space)"} onClick={dictation.togglePause}>
+                <Icon name={dictation.paused ? "mic" : "pause"} />
+              </Button>
+              <Button size="icon-sm" aria-label="Send" title="Send (Enter)" onClick={sendDictation}>
+                <Icon name="arrowUp" />
+              </Button>
+            </div>
+          ) : reply ? (
             <Kbd>Esc</Kbd>
-          ) : !draft || voice.listening ? (
-            <MicButton listening={voice.listening} onStart={voice.start} onRelease={voice.release} onCancel={voice.cancel} />
+          ) : voice.listening ? null : !draft ? (
+            <MicButton onStart={startDictation} />
           ) : (
             <Kbd>↵</Kbd>
           )}
         </div>
 
-        {voice.hint && <p className="animate-fade border-t border-line px-5 py-2 text-xs text-ink-soft">Hold Space, or the mic, while you speak. Let go to send.</p>}
+        {voice.hint && <p className="animate-fade border-t border-line px-5 py-2 text-xs text-ink-soft">Hold Space while you speak, and let go to send. Or click the mic to talk hands-free.</p>}
+
+        {dictation.clock && <DictationText clock={dictation.clock} transcript={voiceLine} before={draft} className="max-h-40 overflow-y-auto border-t border-line px-5 py-3 text-[15px] leading-relaxed" />}
 
         {choices.length > 0 && (
           <div role="listbox" aria-label="Mates" className="border-t border-line p-1.5">

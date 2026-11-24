@@ -16,7 +16,7 @@ export function VoiceSettings() {
   return (
     <SettingsPage title="Keyboard & voice" description="Talk to a mate instead of typing, and the keys that get you around.">
       <Group title="Voice">
-        <Row label="Hold Space to talk" hint="In a chat, when you're not typing">
+        <Row label="Hold Space to talk" hint="In the summon bar, with the field empty. Let go to send.">
           <Switch label="Hold Space to talk" on={voice.holdSpace} onChange={(holdSpace) => setPreference("voice", { holdSpace })} />
         </Row>
         <Row label="Captions on calls">
