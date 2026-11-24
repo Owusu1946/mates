@@ -203,6 +203,27 @@
   }
 }
 
+/* Let clipped sidebar rows fade into the footer. The fade disappears at the end of the list. */
+@supports (animation-timeline: scroll()) {
+  @property --sidebar-bottom-fade {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+
+  .sidebar-scroll {
+    mask-image: linear-gradient(to bottom, black calc(100% - var(--sidebar-bottom-fade)), transparent);
+    animation: sidebar-bottom-fade 1ms linear both;
+    animation-timeline: scroll(self);
+    animation-range: calc(100% - 0.75rem) 100%;
+  }
+
+  @keyframes sidebar-bottom-fade {
+    from { --sidebar-bottom-fade: 0.75rem; }
+    to { --sidebar-bottom-fade: 0px; }
+  }
+}
+
 /* Windows and macOS give us the title bar; this is the draggable strip their buttons sit on. */
 .app-drag {
   -webkit-app-region: drag;

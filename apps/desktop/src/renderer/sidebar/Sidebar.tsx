@@ -26,7 +26,7 @@ type SidebarProps = {
   onSignOut: () => void;
 };
 
-/** The crew: new chat and places, then mates, groups and code, and you at the bottom (T3 Code's AppSidebarLayout). */
+/** The crew: chats, mates, groups and code, with your profile at the bottom. */
 export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTargets, showJumpHints, onSelect, onNewChat, onOpenSettings, onSignOut }: SidebarProps) {
   const mateChats = chats.filter((chat) => chat.kind === "mate");
   const groups = chats.filter((chat) => chat.kind === "group");
@@ -37,7 +37,7 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
 
   return (
     <nav data-focus-area="sidebar" aria-label="Crew" className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-rail">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2">
+      <div className="sidebar-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2">
         <SidebarRow leading={<Icon name="edit" />} label="New chat" meta={<span className="font-sans">{MOD} N</span>} onClick={onNewChat} />
 
         {threads.length > 0 && (
@@ -104,7 +104,7 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
 
       </div>
 
-      <div className="border-t border-line p-2">
+      <div className="shrink-0 px-2 pt-1 pb-2">
         <ProfileMenu you={you} onOpenSettings={onOpenSettings} onSignOut={onSignOut} />
       </div>
     </nav>
