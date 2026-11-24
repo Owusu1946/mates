@@ -1,13 +1,16 @@
 import { Icon } from "../components/ui/Icon.tsx";
-import { MOD } from "../components/ui/Kbd.tsx";
+import { Kbd, MOD } from "../components/ui/Kbd.tsx";
+import { Menu, MenuItem } from "../components/ui/Menu.tsx";
 import type { RunStatus } from "../code/runPlayer.logic.ts";
 import { REPOS, type Chat, type Mate } from "../data/sampleCrew.ts";
 import type { Run } from "../data/sampleRuns.ts";
 import { jumpNumber, sameSelection, type Selection } from "./Sidebar.logic.ts";
+import { ChatRow } from "./ChatRow.tsx";
+import { GroupFace } from "./GroupFace.tsx";
 import { MateRow } from "./MateRow.tsx";
+import { SidebarRow } from "./SidebarRow.tsx";
 import { ProfileMenu } from "./ProfileMenu.tsx";
 import { RepoRow } from "./RepoRow.tsx";
-import { SidebarRow } from "./SidebarRow.tsx";
 import { SidebarSection } from "./SidebarSection.tsx";
 
 type SidebarProps = {
@@ -17,20 +20,47 @@ type SidebarProps = {
   unread: Record<string, boolean>;
   /** Each repo's runs, newest first, with how they're doing. */
   runs: { run: Run; status: RunStatus }[];
+  /** Projects and their runs, only for people who code (settings/coding.logic.ts). */
+  showProjects: boolean;
   selection: Selection;
   jumpTargets: Selection[];
   showJumpHints: boolean;
   onSelect: (selection: Selection) => void;
-  onNewChat: () => void;
+  /** The New menu: a mate or a group. Ctrl/⌘ N opens it too. */
+  newMenuOpen: boolean;
+  onNewMenuOpenChange: (open: boolean) => void;
+  onNewMate: () => void;
+  onNewGroup: () => void;
+  /** How many things in each place need you: answers in What mates did, requests in Friends. */
+  placeBadges: { activity: number; friends: number };
   onOpenSettings: () => void;
+  onOpenUsage: () => void;
   onSignOut: () => void;
 };
 
-/** The crew: chats, mates, groups and code, with your profile at the bottom. */
-export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTargets, showJumpHints, onSelect, onNewChat, onOpenSettings, onSignOut }: SidebarProps) {
+/** The crew: New, your mates and groups (and projects, for people who code), with you at the bottom. */
+export function Sidebar({
+  you,
+  chats,
+  mates,
+  unread,
+  runs,
+  showProjects,
+  selection,
+  jumpTargets,
+  showJumpHints,
+  onSelect,
+  newMenuOpen,
+  onNewMenuOpenChange,
+  onNewMate,
+  onNewGroup,
+  placeBadges,
+  onOpenSettings,
+  onOpenUsage,
+  onSignOut,
+}: SidebarProps) {
   const mateChats = chats.filter((chat) => chat.kind === "mate");
   const groups = chats.filter((chat) => chat.kind === "group");
-  const threads = chats.filter((chat) => chat.kind === "thread");
   const repos = REPOS.map((repo) => ({ repo, runs: runs.filter(({ run }) => run.repoId === repo.id) }));
   const isSelected = (row: Selection) => sameSelection(selection, row);
   const jump = (row: Selection) => (showJumpHints ? jumpNumber(jumpTargets, row) : null);
@@ -38,21 +68,48 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
   return (
     <nav data-focus-area="sidebar" aria-label="Crew" className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-rail">
       <div className="sidebar-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2">
-        <SidebarRow leading={<Icon name="edit" />} label="New chat" meta={<span className="font-sans">{MOD} N</span>} onClick={onNewChat} />
+        <Menu
+          open={newMenuOpen}
+          onOpenChange={onNewMenuOpenChange}
+          trigger={
+            <button
+              type="button"
+              className="flex h-8 w-full shrink-0 items-center gap-2 rounded-control px-(--sidebar-row-inset) text-left text-sm font-medium text-ink/80 outline-none transition-colors duration-150 hover:bg-rail-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset data-popup-open:bg-rail-hover [&_svg]:size-4 [&_svg]:text-ink-soft"
+            >
+              <Icon name="plus" />
+              <span className="flex-1">New</span>
+              <Kbd>
+                {MOD} N
+              </Kbd>
+            </button>
+          }
+        >
+          <MenuItem icon="plus" onClick={onNewMate}>
+            New mate
+          </MenuItem>
+          <MenuItem icon="users" onClick={onNewGroup}>
+            New group
+          </MenuItem>
+        </Menu>
 
-        {threads.length > 0 && (
-          <SidebarSection label="Chats">
-            {threads.map((chat) => (
-              <SidebarRow
-                key={chat.id}
-                leading={<Icon name="message" />}
-                label={chat.title}
-                selected={isSelected({ kind: "chat", id: chat.id })}
-                onClick={() => onSelect({ kind: "chat", id: chat.id })}
-              />
-            ))}
-          </SidebarSection>
-        )}
+        <div className="-mt-2 flex flex-col gap-px">
+          {(
+            [
+              { id: "activity", label: "What mates did", icon: "activity", badge: placeBadges.activity },
+              { id: "routines", label: "Routines", icon: "clock", badge: 0 },
+              { id: "friends", label: "Friends", icon: "users", badge: placeBadges.friends },
+            ] as const
+          ).map((place) => (
+            <SidebarRow
+              key={place.id}
+              leading={<Icon name={place.icon} />}
+              label={place.label}
+              meta={place.badge > 0 ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-caution/20 px-1 text-[10px] font-semibold text-caution-ink">{place.badge}</span> : undefined}
+              selected={isSelected({ kind: "place", id: place.id })}
+              onClick={() => onSelect({ kind: "place", id: place.id })}
+            />
+          ))}
+        </div>
 
         {mateChats.length > 0 && (
           <SidebarSection label="Mates">
@@ -73,22 +130,23 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
         {groups.length > 0 && (
           <SidebarSection label="Groups">
             {groups.map((chat) => (
-              <SidebarRow
+              <ChatRow
                 key={chat.id}
-                leading={<Icon name="hash" />}
-                label={chat.title}
-                meta={chat.time}
+                face={<GroupFace mates={chat.mateIds.flatMap((id) => (mates[id] ? [mates[id]] : []))} />}
+                title={chat.title}
+                subtitle={chat.preview}
+                time={chat.time}
                 unread={Boolean(unread[chat.id])}
                 selected={isSelected({ kind: "chat", id: chat.id })}
                 jump={jump({ kind: "chat", id: chat.id })}
-                onClick={() => onSelect({ kind: "chat", id: chat.id })}
+                onSelect={() => onSelect({ kind: "chat", id: chat.id })}
               />
             ))}
           </SidebarSection>
         )}
 
-        {repos.length > 0 && (
-          <SidebarSection label="Code">
+        {showProjects && repos.length > 0 && (
+          <SidebarSection label="Projects">
             {repos.map(({ repo, runs: repoRuns }) => (
               <RepoRow
                 key={repo.id}
@@ -105,7 +163,7 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
       </div>
 
       <div className="shrink-0 px-2 pt-1 pb-2">
-        <ProfileMenu you={you} onOpenSettings={onOpenSettings} onSignOut={onSignOut} />
+        <ProfileMenu you={you} onOpenSettings={onOpenSettings} onOpenUsage={onOpenUsage} onSignOut={onSignOut} />
       </div>
     </nav>
   );

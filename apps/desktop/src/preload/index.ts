@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld("mates", {
     openInMates: (handoff: unknown) => ipcRenderer.send("mates:notch-open", handoff),
     onToggle: (listener: () => void) => subscribe("mates:notch-toggle", listener),
   },
+  setDesktopPrefs: (prefs: unknown) => ipcRenderer.send("mates:desktop-prefs", prefs),
+  appInfo: () => ipcRenderer.invoke("mates:app-info"),
   takeHandoff: () => ipcRenderer.invoke("mates:take-handoff"),
   onHandoff: (listener: () => void) => subscribe("mates:handoff-ready", listener),
 });

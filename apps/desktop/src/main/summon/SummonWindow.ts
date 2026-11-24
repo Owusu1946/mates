@@ -7,6 +7,8 @@ export type Summon = {
   toggle: () => void;
   /** The shortcut it got, or null when every choice was taken by another app. */
   shortcut: string | null;
+  /** Moves to another shortcut, keeping the old one if the new one is taken. Returns the one in use. */
+  setShortcut: (accelerator: string) => string | null;
 };
 
 /**
@@ -70,10 +72,24 @@ export function installSummon(
     if (window.isVisible()) hide();
     else show();
   };
-  const shortcut = summonShortcuts(process.platform).find((accelerator) => Electron.globalShortcut.register(accelerator, toggle)) ?? null;
+  let shortcut = summonShortcuts(process.platform).find((accelerator) => Electron.globalShortcut.register(accelerator, toggle)) ?? null;
   Electron.app.on("will-quit", () => Electron.globalShortcut.unregisterAll());
 
-  return { toggle, shortcut };
+  const setShortcut = (accelerator: string) => {
+    if (accelerator === shortcut) return shortcut;
+    if (!Electron.globalShortcut.register(accelerator, toggle)) return shortcut;
+    if (shortcut) Electron.globalShortcut.unregister(shortcut);
+    shortcut = accelerator;
+    return shortcut;
+  };
+
+  return {
+    toggle,
+    get shortcut() {
+      return shortcut;
+    },
+    setShortcut,
+  };
 }
 
 /**

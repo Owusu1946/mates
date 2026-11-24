@@ -1,10 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Button } from "../components/ui/Button.tsx";
+import { OrDivider } from "../components/ui/OrDivider.tsx";
 import { TextField } from "../components/ui/TextField.tsx";
-import { isEmail } from "./OnboardingFlow.logic.ts";
+import { isEmail, type SocialProvider } from "./OnboardingFlow.logic.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
+import { SocialButtons } from "./SocialButtons.tsx";
 
-export function SignUpScreen({ email: initialEmail, onBack, onEmail, onSignIn }: { email: string; onBack: () => void; onEmail: (email: string) => void; onSignIn: () => void }) {
+/** A new account: Apple, Google or email, as on the phone. */
+export function SignUpScreen({ email: initialEmail, onBack, onEmail, onSocial, onSignIn }: { email: string; onBack: () => void; onEmail: (email: string) => void; onSocial: (provider: SocialProvider) => void; onSignIn: () => void }) {
   const [email, setEmail] = useState(initialEmail);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,12 +21,15 @@ export function SignUpScreen({ email: initialEmail, onBack, onEmail, onSignIn }:
     <OnboardingScreen.Root>
       <OnboardingScreen.Back onClick={onBack} />
       <OnboardingScreen.Title>Create your account</OnboardingScreen.Title>
-      <OnboardingScreen.Body>Use a sample email to set up your crew.</OnboardingScreen.Body>
+      <OnboardingScreen.Body>Free, and it only takes a moment.</OnboardingScreen.Body>
       <OnboardingScreen.Content>
+        <SocialButtons onChoose={onSocial} />
+        <OrDivider />
         <form className="flex flex-col gap-3.5" onSubmit={submit} noValidate>
           <TextField
             label="Email"
             type="email"
+            autoComplete="email"
             placeholder="you@example.com"
             value={email}
             error={error}
@@ -32,7 +38,7 @@ export function SignUpScreen({ email: initialEmail, onBack, onEmail, onSignIn }:
               setError(null);
             }}
           />
-          <Button type="submit" size="xl" className="w-full">
+          <Button type="submit" size="xl" icon="mail" className="w-full">
             Continue with email
           </Button>
         </form>

@@ -18,6 +18,9 @@ interface Window {
       openInMates(handoff: { mateId: string; question: string; answer: string }): void;
       onToggle(listener: () => void): () => void;
     };
+    /** Settings → This computer and Keyboard: open at login, closing, the summon shortcut, the notch. */
+    setDesktopPrefs(prefs: { openAtLogin: boolean; keepRunning: boolean; summonShortcut: string; notch: boolean }): void;
+    appInfo(): Promise<{ version: string; shortcut: string | null; shortcutChoices: string[] }>;
     /** A conversation handed over from the summon bar, if one is waiting. */
     takeHandoff(): Promise<{ mateId: string; question: string; answer: string } | null>;
     onHandoff(listener: () => void): () => void;

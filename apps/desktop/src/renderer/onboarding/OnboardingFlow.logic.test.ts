@@ -4,7 +4,7 @@ import { INITIAL_FLOW, flowReducer, isEmail, newcomerStep } from "./OnboardingFl
 
 test("going forward remembers the email and slides forward", () => {
   const state = flowReducer(INITIAL_FLOW, { type: "go", to: "signUpPassword", email: "ama@example.com" });
-  assert.deepEqual(state, { screen: "signUpPassword", direction: "forward", email: "ama@example.com" });
+  assert.deepEqual(state, { screen: "signUpPassword", direction: "forward", email: "ama@example.com", provider: undefined });
   assert.equal(flowReducer(state, { type: "go", to: "signUpCode" }).email, "ama@example.com");
 });
 
@@ -12,6 +12,14 @@ test("back steps to the screen before, and slides back", () => {
   const code = { screen: "signInCode" as const, direction: "forward" as const, email: "ama@example.com" };
   assert.deepEqual(flowReducer(code, { type: "back" }), { ...code, screen: "signInPassword", direction: "back" });
   assert.equal(flowReducer({ ...code, screen: "signUp" }, { type: "back" }).screen, "choose");
+});
+
+test("Apple or Google waits on the browser, and back returns to the choice", () => {
+  const waiting = flowReducer({ ...INITIAL_FLOW, screen: "signIn" }, { type: "go", to: "signInSocial", provider: "google" });
+  assert.equal(waiting.provider, "google");
+  assert.equal(flowReducer(waiting, { type: "back" }).screen, "signIn");
+  assert.equal(flowReducer({ ...waiting, screen: "signUpSocial" }, { type: "back" }).screen, "signUp");
+  assert.deepEqual(newcomerStep("signUpSocial"), { index: 0, total: 4 });
 });
 
 test("once the account exists, setup can't go back", () => {

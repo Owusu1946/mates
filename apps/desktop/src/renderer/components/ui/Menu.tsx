@@ -7,9 +7,24 @@ import { Icon, type IconName } from "./Icon.tsx";
  * A dropdown menu on Base UI, as T3 Code builds theirs (components/ui/menu.tsx): Base UI owns
  * focus, keyboard and positioning; this owns the look.
  */
-export function Menu({ trigger, children, side = "bottom", align = "start" }: { trigger: ReactElement; children: ReactNode; side?: "top" | "bottom"; align?: "start" | "end" }) {
+export function Menu({
+  trigger,
+  children,
+  side = "bottom",
+  align = "start",
+  open,
+  onOpenChange,
+}: {
+  trigger: ReactElement;
+  children: ReactNode;
+  side?: "top" | "bottom";
+  align?: "start" | "end";
+  /** Open it from elsewhere too, like a keyboard shortcut. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}) {
   return (
-    <BaseMenu.Root>
+    <BaseMenu.Root open={open} onOpenChange={onOpenChange ? (next) => onOpenChange(next) : undefined}>
       <BaseMenu.Trigger render={trigger} />
       <BaseMenu.Portal>
         <BaseMenu.Positioner side={side} align={align} sideOffset={6} className="z-50 outline-none">

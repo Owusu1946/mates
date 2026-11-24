@@ -14,12 +14,14 @@ type RunHeaderProps = {
   terminalOpen: boolean;
   onToggleDiff: () => void;
   onToggleTerminal: () => void;
+  /** The Diff and Terminal switches, only when the coding tools are on. */
+  workbench: boolean;
 };
 
 const STATUS_TEXT: Record<RunStatus, string> = { working: "Working", waiting: "Needs you", done: "Done", ready: "Ready" };
 
 /** The run's title, where it runs, and the Diff and Terminal switches. */
-export function RunHeader({ run, repoName, status, diffOpen, terminalOpen, onToggleDiff, onToggleTerminal }: RunHeaderProps) {
+export function RunHeader({ run, repoName, status, diffOpen, terminalOpen, onToggleDiff, onToggleTerminal, workbench }: RunHeaderProps) {
   return (
     <header className="flex h-13 shrink-0 items-center gap-4 border-b border-line px-6">
       <div className="min-w-0 flex-1">
@@ -46,7 +48,7 @@ export function RunHeader({ run, repoName, status, diffOpen, terminalOpen, onTog
           #{run.pr}
         </span>
       )}
-      <div className="flex shrink-0 items-center gap-1">
+      {workbench && <div className="flex shrink-0 items-center gap-1">
         {run.terminals.length > 0 && (
           <Tooltip side="bottom" content={`Terminal  ${MOD} J`}>
             <Button variant={terminalOpen ? "secondary" : "ghost-muted"} size="icon-sm" icon="terminal" aria-label="Terminal" aria-pressed={terminalOpen} onClick={onToggleTerminal} />
@@ -55,7 +57,7 @@ export function RunHeader({ run, repoName, status, diffOpen, terminalOpen, onTog
         <Tooltip side="bottom" content={`Diff  ${MOD} D`}>
           <Button variant={diffOpen ? "secondary" : "ghost-muted"} size="icon-sm" icon="columns" aria-label="Diff" aria-pressed={diffOpen} onClick={onToggleDiff} />
         </Tooltip>
-      </div>
+      </div>}
     </header>
   );
 }
