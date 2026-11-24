@@ -2,6 +2,7 @@ import { memo } from "react";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import { ApprovalCard } from "./cards/ApprovalCard.tsx";
 import { BriefCard } from "./cards/BriefCard.tsx";
+import { RunCard } from "./cards/RunCard.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 
 type MessageRowProps = {
@@ -42,6 +43,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
           {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
           {message.card?.type === "brief" && <BriefCard card={message.card} />}
           {message.card?.type === "approval" && <ApprovalCard card={message.card} onAnswer={(state) => onAnswer(message.id, state)} />}
+          {message.card?.type === "run" && <RunCard card={message.card} />}
         </div>
       )}
     </>

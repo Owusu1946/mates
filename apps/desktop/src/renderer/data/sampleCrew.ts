@@ -23,7 +23,9 @@ export type BriefRow = { label: string; text: string };
 
 export type Card =
   | { type: "brief"; title: string; rows: BriefRow[] }
-  | { type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped" };
+  | { type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped" }
+  /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
+  | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number };
 
 export type Message = {
   id: string;
@@ -111,7 +113,12 @@ function messagesFor(you: string): Record<string, Message[]> {
     "chat-abena": [{ id: "a1", author: "me", day: "Today", text: "Book a dentist for Thursday morning, near East Legon." }],
     "chat-yaw": [
       { id: "y1", author: "me", day: "Monday", text: "Ship dark mode in muse-clone." },
-      { id: "y2", author: "yaw", text: "Done: PR #142 is up. The theme follows the system, Settings has Light / Dark / System, and all checks pass." },
+      {
+        id: "y2",
+        author: "yaw",
+        text: "Done: PR #142 is up. The theme follows the system, Settings has Light / Dark / System, and all checks pass.",
+        card: { type: "run", runId: "run-dark", title: "Ship dark mode", project: "muse-clone", files: 2, pr: 142 },
+      },
     ],
     "chat-akua": [{ id: "k1", author: "akua", day: "Sunday", text: "Packaging came to GH¢1,840 this month. That leaves GH¢160 in the budget." }],
     "group-shop": [
@@ -148,7 +155,15 @@ export const REPLIES: Record<string, string[]> = {
 
 export type SampleProfile = { bio: string; memories: string[] };
 
-export type Crew = { you: string; mates: Mate[]; chats: Chat[]; messages: Record<string, Message[]>; profile?: SampleProfile };
+export type Crew = {
+  you: string;
+  mates: Mate[];
+  chats: Chat[];
+  messages: Record<string, Message[]>;
+  profile?: SampleProfile;
+  /** Whether this workspace has projects connected (the sample does; someone new doesn't yet). */
+  hasProjects?: boolean;
+};
 
 /** The sample crew, led by the mate made in onboarding when there is one. */
 export function crewFor(you: string, lead?: { name: string; color: MateColor; shape: ShapeName }): Crew {
