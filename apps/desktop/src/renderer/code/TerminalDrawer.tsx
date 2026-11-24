@@ -14,7 +14,7 @@ type TerminalDrawerProps = {
 
 /**
  * The run's terminals in a drawer under the timeline (T3 Code's ThreadTerminalDrawer): a tab
- * each, its top edge drags, at least 180px and at most three quarters of the column. Every
+ * each, its top edge drags, and its height leaves room for the thread header and composer. Every
  * terminal stays mounted so switching tabs keeps its scrollback.
  */
 export function TerminalDrawer({ terminals, output, onClose }: TerminalDrawerProps) {
@@ -28,8 +28,9 @@ export function TerminalDrawer({ terminals, output, onClose }: TerminalDrawerPro
     min: DRAWER.minHeight,
     max: () => drawerMaxHeight(document.querySelector("[data-run-column]")?.clientHeight ?? window.innerHeight),
   });
+  const drawerStyle = { ...hostStyle, "--drawer-thread-min-height": `${DRAWER.threadMinHeight}px` };
   return (
-    <section data-focus-area="terminal" tabIndex={-1} style={hostStyle} aria-label="Terminal" className="relative flex h-(--drawer-height) max-h-[75%] min-h-45 shrink-0 flex-col border-t border-line bg-canvas outline-none">
+    <section data-focus-area="terminal" tabIndex={-1} style={drawerStyle} aria-label="Terminal" className="relative flex h-(--drawer-height) max-h-[min(75%,calc(100%_-_var(--drawer-thread-min-height)))] min-h-45 shrink-0 flex-col border-t border-line bg-canvas outline-none">
       <div {...handleProps} aria-label="Resize the terminal" className="absolute inset-x-0 -top-1 z-10 h-2 cursor-row-resize" />
       <div className="flex h-8 shrink-0 items-center gap-1 px-2" role="tablist">
         {terminals.map((terminal) => (

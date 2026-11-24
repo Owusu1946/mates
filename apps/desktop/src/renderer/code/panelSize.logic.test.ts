@@ -9,8 +9,9 @@ test("the panel takes at most 70% of the window and leaves the chat 360px", () =
   assert.equal(panelMaxWidth(500, 500), PANEL.minWidth);
 });
 
-test("the drawer takes at most three quarters of the column", () => {
+test("the drawer takes at most three quarters of the column and leaves the composer visible", () => {
   assert.equal(drawerMaxHeight(800), 600);
+  assert.equal(drawerMaxHeight(480), 320);
   assert.equal(drawerMaxHeight(100), 180);
 });
 

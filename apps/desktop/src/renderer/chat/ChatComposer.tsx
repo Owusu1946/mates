@@ -25,7 +25,7 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
   const canSend = draft.trim().length > 0 && !busy && !disabled;
   return (
     <div className="mx-auto w-full max-w-(--chat-max-width) px-6 pb-5">
-      <div className="flex items-end gap-2 rounded-2xl border border-line bg-raised/80 p-2 shadow-composer backdrop-blur-md backdrop-saturate-[1.14] transition-colors has-[textarea:focus]:border-brand dark:shadow-none">
+      <div className="pointer-events-auto flex items-end gap-2 rounded-2xl border border-line bg-raised/80 p-2 shadow-composer backdrop-blur-md backdrop-saturate-[1.14] transition-colors has-[textarea:focus]:border-brand dark:shadow-none">
         <textarea
           ref={ref}
           data-focus-area="composer"
@@ -33,7 +33,7 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
           value={draft}
           placeholder={placeholder}
           aria-label={placeholder}
-          className="block max-h-50 min-h-8 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 leading-5 outline-none field-sizing-content placeholder:text-ink-soft/70"
+          className="block max-h-[min(12.5rem,calc(var(--composer-viewport-height,17rem)_-_4.25rem))] min-h-8 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 leading-5 outline-none field-sizing-content placeholder:text-ink-soft/70"
           onChange={(event) => onDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -51,7 +51,7 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
           <Button size="icon" icon="arrowUp" aria-label="Send" disabled={!canSend} onClick={onSend} />
         )}
       </div>
-      {footer && <div className="mt-1.5 px-1">{footer}</div>}
+      {footer && <div className="pointer-events-auto mt-1.5 w-fit max-w-full px-1">{footer}</div>}
     </div>
   );
 });

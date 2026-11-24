@@ -34,15 +34,17 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
         mates={timelineMates}
         group={chat.kind === "group"}
         onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}
-      />
-      <ChatComposer
-        ref={composerRef}
-        draft={flow.drafts[chat.id] ?? ""}
-        placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
-        busy={Boolean(reply)}
-        onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
-        onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
-        onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+        composer={(
+          <ChatComposer
+            ref={composerRef}
+            draft={flow.drafts[chat.id] ?? ""}
+            placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
+            busy={Boolean(reply)}
+            onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
+            onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
+            onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+          />
+        )}
       />
     </div>
   );
