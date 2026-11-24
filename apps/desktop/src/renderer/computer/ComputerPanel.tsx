@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon, type IconName } from "../components/ui/Icon.tsx";
+import { Switch } from "../components/ui/Switch.tsx";
 import type { Mate } from "../data/sampleCrew.ts";
 import { tickTextContent } from "../lib/tickTextContent.ts";
 import { cn } from "../lib/utils.ts";
@@ -23,14 +24,6 @@ const BOOT_STEPS = [
 ];
 
 const WAITING_TITLE = { approval: "Your OK is needed", login: "Sign in to continue", question: "A quick question" } as const;
-
-function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
-  return (
-    <button type="button" role="switch" aria-checked={on} aria-label={label} onClick={() => onChange(!on)} className={cn("relative h-5 w-9 shrink-0 rounded-full transition-colors duration-150", on ? "bg-brand" : "bg-field-line")}>
-      <span className={cn("absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow-xs transition-[translate] duration-150 ease-out-soft", on && "translate-x-4")} />
-    </button>
-  );
-}
 
 /** Starting up: the boot steps, written in place each second so nothing re-renders. */
 function Boot() {
