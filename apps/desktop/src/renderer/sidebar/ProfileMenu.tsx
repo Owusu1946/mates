@@ -1,5 +1,8 @@
 import { Menu, MenuItem, MenuRadioGroup, MenuRadioItem, MenuSegmented, MenuSeparator, MenuSubmenu } from "../components/ui/Menu.tsx";
 import type { ColorScheme, ThemeName } from "../theme/appearance.logic.ts";
+import { USAGE } from "../data/sampleUsage.ts";
+import { PLANS } from "../settings/usage.logic.ts";
+import { UsageBar, usedText } from "../settings/UsageBar.tsx";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance, useAppearance } from "../theme/appearance.ts";
 
@@ -14,10 +17,12 @@ function Swatch({ color }: { color: string }) {
 }
 
 /**
- * You, at the foot of the sidebar. Kept short so more can join it (usage, the plan): the colour
- * scheme is one row of icons, the themes open beside it, then Settings and Sign out.
+ * You, at the foot of the sidebar: your usage at a glance (opening Settings → Usage), the colour
+ * scheme as one row of icons, the themes beside it, then Settings and Sign out.
  */
-export function ProfileMenu({ you, onOpenSettings, onSignOut }: { you: string; onOpenSettings: () => void; onSignOut: () => void }) {
+export function ProfileMenu({ you, onOpenSettings, onOpenUsage, onSignOut }: { you: string; onOpenSettings: () => void; onOpenUsage: () => void; onSignOut: () => void }) {
+  const plan = PLANS.find((candidate) => candidate.id === USAGE.plan)?.label ?? USAGE.plan;
+  const windows = [...(USAGE.plan === "max" ? [] : [{ label: "Session", window: USAGE.session }]), { label: "This week", window: USAGE.week }];
   const { scheme, theme } = useAppearance();
   const current = THEMES.find((option) => option.name === theme) ?? THEMES[0]!;
   return (
@@ -31,11 +36,25 @@ export function ProfileMenu({ you, onOpenSettings, onSignOut }: { you: string; o
           <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-brand text-2xs font-semibold text-brand-ink">{you.charAt(0).toUpperCase()}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{you}</span>
-            <span className="block text-2xs text-ink-soft">Sample workspace</span>
+            <span className="block text-2xs text-ink-soft">{plan} · {usedText(USAGE.week.usedPercent)} this week</span>
           </span>
         </button>
       }
     >
+      <MenuItem onClick={onOpenUsage} className="h-auto flex-col items-stretch gap-1.5 py-2">
+        <span className="flex items-baseline justify-between">
+          <span className="text-sm">Usage</span>
+          <span className="text-2xs text-ink-soft">{plan}</span>
+        </span>
+        {windows.map(({ label, window }) => (
+          <span key={label} className="grid grid-cols-[4.5rem_minmax(0,1fr)_2.25rem] items-center gap-2 text-2xs text-ink-soft">
+            {label}
+            <UsageBar percent={window.usedPercent} className="h-1" />
+            <span className="text-right tabular-nums">{Math.round(window.usedPercent)}%</span>
+          </span>
+        ))}
+      </MenuItem>
+      <MenuSeparator />
       <div className="flex items-center gap-3 py-1 ps-2 pe-1">
         <span className="flex-1 text-sm">Appearance</span>
         <div className="w-28">

@@ -34,6 +34,7 @@ type SidebarProps = {
   /** How many things in each place need you: answers in What mates did, requests in Friends. */
   placeBadges: { activity: number; friends: number };
   onOpenSettings: () => void;
+  onOpenUsage: () => void;
   onSignOut: () => void;
 };
 
@@ -55,6 +56,7 @@ export function Sidebar({
   onNewGroup,
   placeBadges,
   onOpenSettings,
+  onOpenUsage,
   onSignOut,
 }: SidebarProps) {
   const mateChats = chats.filter((chat) => chat.kind === "mate");
@@ -161,7 +163,7 @@ export function Sidebar({
       </div>
 
       <div className="shrink-0 px-2 pt-1 pb-2">
-        <ProfileMenu you={you} onOpenSettings={onOpenSettings} onSignOut={onSignOut} />
+        <ProfileMenu you={you} onOpenSettings={onOpenSettings} onOpenUsage={onOpenUsage} onSignOut={onSignOut} />
       </div>
     </nav>
   );

@@ -65,8 +65,10 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const computerGoal = computer.power === "on" ? liveGoal(computer) : null;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const openSettings = () => {
+  const [settingsSection, setSettingsSection] = useState("activity");
+  const openSettings = (section = "activity") => {
     setPaletteOpen(false);
+    setSettingsSection(section);
     setSettingsOpen(true);
   };
   const [activityMode, setActivityMode] = useState<ChatActivityMode>(() => {
@@ -243,7 +245,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     { id: "place:activity", group: "Go to", label: "What mates did", keywords: ["activity", "feed", "results", "history"], leading: <Icon name="activity" />, run: () => select({ kind: "place", id: "activity" }) },
     { id: "place:routines", group: "Go to", label: "Routines", keywords: ["schedule", "every", "daily", "brief"], leading: <Icon name="clock" />, run: () => select({ kind: "place", id: "routines" }) },
     { id: "place:friends", group: "Go to", label: "Friends", keywords: ["people", "invite", "share"], leading: <Icon name="users" />, run: () => select({ kind: "place", id: "friends" }) },
-    { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: openSettings },
+    { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: () => openSettings() },
+    { id: "usage", group: "Go to", label: "Usage", keywords: ["plan", "limit", "billing", "subscription"], leading: <Icon name="clock" />, run: () => openSettings("usage") },
     ...(codingOn ? runRows : []).map(({ run: runItem, status }): PaletteItem => ({
       id: `run:${runItem.id}`,
       group: "Runs",
@@ -321,7 +324,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
             activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
             friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
           }}
-          onOpenSettings={openSettings}
+          onOpenSettings={() => openSettings()}
+          onOpenUsage={() => openSettings("usage")}
           onSignOut={onSignOut}
         />
         <main className="min-w-0 flex-1">
@@ -386,7 +390,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       </div>
       <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
       <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
     </TooltipProvider>
   );
 }
