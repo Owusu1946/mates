@@ -15,10 +15,11 @@ type ChatViewProps = {
   flow: ChatFlow;
   dispatch: Dispatch<ChatAction>;
   composerRef: Ref<HTMLTextAreaElement>;
+  quiet: boolean;
 };
 
 /** One chat: header, timeline and composer. Keyed by chat, so switching starts fresh and fades in. */
-export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef }: ChatViewProps) {
+export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet }: ChatViewProps) {
   const lead = mates[chat.leadId]!;
   const reply = flow.replies[chat.id];
   return (
@@ -28,6 +29,8 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
         chatId={chat.id}
         messages={flow.messages[chat.id] ?? []}
         reply={reply}
+        quiet={quiet}
+        activity={lead.status === "working" && !reply ? lead.step : undefined}
         mates={timelineMates}
         group={chat.kind === "group"}
         onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}

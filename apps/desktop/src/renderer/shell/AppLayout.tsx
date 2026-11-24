@@ -14,7 +14,7 @@ import { TooltipProvider } from "../components/ui/Tooltip.tsx";
 import { PLACES, REPOS, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
 import { PlaceholderPage } from "../places/PlaceholderPage.tsx";
-import { SettingsPage } from "../places/SettingsPage.tsx";
+import { SettingsPage, type ChatActivityMode } from "../places/SettingsPage.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
@@ -42,6 +42,21 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [flow, dispatch] = useChatFlow(crew);
   const [selection, setSelection] = useState<Selection>({ kind: "chat", id: "chat-lead" });
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [activityMode, setActivityMode] = useState<ChatActivityMode>(() => {
+    try {
+      return localStorage.getItem("mates.chat-activity") === "detailed" ? "detailed" : "quiet";
+    } catch {
+      return "quiet";
+    }
+  });
+  const changeActivityMode = (next: ChatActivityMode) => {
+    setActivityMode(next);
+    try {
+      localStorage.setItem("mates.chat-activity", next);
+    } catch {
+      // The selected mode still applies for this session.
+    }
+  };
   const composerRef = useRef<HTMLTextAreaElement>(null);
   // The Code view: every run's playback, drafts per run or repo, and the panels you keep open.
   const [runs, setRuns] = useState<Run[]>(RUNS);
@@ -179,9 +194,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           onSignOut={onSignOut}
         />
         <main className="min-w-0 flex-1">
-          {chat && <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} />}
+          {chat && <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />}
           {place && <PlaceholderPage key={selection.id} {...place} />}
-          {selection.kind === "place" && selection.id === "settings" && <SettingsPage />}
+          {selection.kind === "place" && selection.id === "settings" && <SettingsPage activityMode={activityMode} onActivityMode={changeActivityMode} />}
           {repo && (
             <RepoPage
               key={repo.id}

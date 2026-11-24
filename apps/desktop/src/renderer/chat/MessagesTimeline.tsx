@@ -10,10 +10,12 @@ type MessagesTimelineProps = {
   reply?: Reply;
   mates: Record<string, Mate>;
   group: boolean;
+  quiet: boolean;
+  activity?: string;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
 };
 
-export function MessagesTimeline({ chatId, messages, reply, mates, group, onAnswer }: MessagesTimelineProps) {
+export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, onAnswer }: MessagesTimelineProps) {
   const streamed = reply?.phase === "streaming" ? shownText(reply) : "";
   const lastAuthor = messages.at(-1)?.author;
   const { scroller, onScroll } = useTimelineScroll(chatId, `${messages.length}:${streamed.length}:${reply?.phase}`, lastAuthor === "me");
@@ -36,7 +38,14 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, onAnsw
             onAnswer={onAnswer}
           />
         ))}
-        {reply?.phase === "thinking" && mates[reply.mateId] && <ActivityLine mate={mates[reply.mateId]!} />}
+        {quiet && activity && (
+          <details className="self-start rounded-md text-xs text-ink-soft">
+            <summary className="cursor-pointer rounded-md px-1 py-1.5 hover:text-ink focus-visible:outline-2 focus-visible:outline-brand">View activity</summary>
+            <p className="mt-1 border-l border-line pl-3">{activity}</p>
+          </details>
+        )}
+        {!quiet && activity && <p className="text-xs text-ink-soft" role="status">{activity}</p>}
+        {!quiet && reply?.phase === "thinking" && mates[reply.mateId] && <ActivityLine mate={mates[reply.mateId]!} />}
         {reply?.phase === "streaming" && (
           <MessageRow message={{ id: "live", author: reply.mateId, text: streamed }} mate={mates[reply.mateId]} showAuthor={group && lastAuthor !== reply.mateId} onAnswer={onAnswer} />
         )}

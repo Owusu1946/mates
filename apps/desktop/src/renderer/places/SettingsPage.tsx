@@ -52,13 +52,41 @@ function Choice({ selected, label, onSelect, children }: { selected: boolean; la
   );
 }
 
-/** Settings, starting with Appearance (T3 Code's Settings → Appearance): colour scheme and theme. */
-export function SettingsPage() {
+export type ChatActivityMode = "quiet" | "detailed";
+
+export function SettingsPage({ activityMode, onActivityMode }: {
+  activityMode: ChatActivityMode;
+  onActivityMode: (mode: ChatActivityMode) => void;
+}) {
   const { scheme, theme } = useAppearance();
   return (
     <div className="h-full animate-fade overflow-y-auto">
       <div className="mx-auto flex max-w-2xl flex-col gap-8 px-6 py-10">
         <h1 className="text-xl font-semibold">Settings</h1>
+        <fieldset className="flex flex-col gap-3">
+          <legend className="font-semibold">Chat activity</legend>
+          <p className="text-ink-soft">Choose how much progress to see while a mate works.</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {([
+              { value: "quiet", label: "Quiet", description: "Open activity when you want a closer look." },
+              { value: "detailed", label: "Detailed", description: "Show routine progress in the conversation." },
+            ] as const).map((option) => (
+              <label key={option.value} className={cn("flex cursor-pointer gap-2 rounded-lg border p-3", activityMode === option.value ? "border-brand bg-raised" : "border-line hover:bg-hover-fill")}>
+                <input
+                  type="radio"
+                  name="chat-activity"
+                  checked={activityMode === option.value}
+                  onChange={() => onActivityMode(option.value)}
+                  className="self-start accent-brand"
+                />
+                <span>
+                  <span className="block text-sm font-medium">{option.label}</span>
+                  <span className="block text-xs text-ink-soft">{option.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="font-semibold">Color scheme</h2>
