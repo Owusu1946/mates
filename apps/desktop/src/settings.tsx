@@ -104,6 +104,10 @@ export function SettingsDialog({ starterMate, showDates, onStarterChange, onDate
           {section === 'Shortcuts' && (
             <dl className="settings-shortcuts">
               <div>
+                <dt>Open commands</dt>
+                <dd><kbd>Ctrl</kbd> or <kbd>Cmd</kbd> + <kbd>K</kbd></dd>
+              </div>
+              <div>
                 <dt>Save a draft</dt>
                 <dd><kbd>Ctrl</kbd> or <kbd>Cmd</kbd> + <kbd>Enter</kbd></dd>
               </div>

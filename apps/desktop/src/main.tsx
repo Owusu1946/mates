@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client'
 import brand from '../../../brand/mates-avatar.png'
 import { loadDrafts, storeDrafts } from './drafts'
 import type { Draft } from './drafts'
+import { CommandPalette } from './command-palette'
 import { Conversation } from './conversation'
 import { EntryFlow } from './entry-flow'
 import { SettingsDialog } from './settings'
@@ -270,6 +271,23 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
   const [filter, setFilter] = useState('')
   const [status, setStatus] = useState('')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [commandsOpen, setCommandsOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const commandButton = useRef<HTMLButtonElement>(null)
+  const commandShortcut = navigator.userAgent.includes('Macintosh') ? '⌘ K' : 'Ctrl K'
+
+  useEffect(() => {
+    function openCommands(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k'
+        && commandButton.current?.getClientRects().length && !document.querySelector('dialog:modal')) {
+        event.preventDefault()
+        setCommandsOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', openCommands)
+    return () => window.removeEventListener('keydown', openCommands)
+  }, [])
   const [showDates, setShowDates] = useState(loadShowDates)
   const [composerText, setComposerText] = useState<Partial<Record<Mate['name'], string>>>({})
   const composer = useRef<HTMLTextAreaElement>(null)
@@ -281,6 +299,11 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
     setSelectedMate(mate)
     setView('Chat')
     setStatus('')
+  }
+
+  function focusComposer() {
+    openConversation(selectedMate)
+    requestAnimationFrame(() => composer.current?.focus())
   }
 
   function updateShowDates(show: boolean) {
@@ -356,12 +379,18 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
           <button
             type="button"
             className="secondary-button new-draft"
-            onClick={() => {
-              openConversation(selectedMate)
-              requestAnimationFrame(() => composer.current?.focus())
-            }}
+            onClick={focusComposer}
           >
             <span aria-hidden="true">+</span> New draft
+          </button>
+          <button
+            ref={commandButton}
+            type="button"
+            className="secondary-button workspace-commands"
+            aria-keyshortcuts="Control+K Meta+K"
+            onClick={() => setCommandsOpen(true)}
+          >
+            Commands <kbd aria-hidden="true">{commandShortcut}</kbd>
           </button>
           <nav className="mates-navigation" aria-label="Mates">
             <h2>Mates</h2>
@@ -408,6 +437,9 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
             key={selectedMate.name}
             mate={selectedMate}
             drafts={mateDrafts}
+            detailsOpen={detailsOpen}
+            onToggleDetails={() => setDetailsOpen((open) => !open)}
+            onViewActivity={() => openActivity(selectedMate.name)}
             text={composerText[selectedMate.name] ?? ''}
             composer={composer}
             onTextChange={(value) => setComposerText((current) => ({ ...current, [selectedMate.name]: value }))}
@@ -483,6 +515,27 @@ function Workspace({ initialMate, onOpenAccount, onStarterChange }: {
         )}
         <div className="save-status" role="status">{status}</div>
       </main>
+      {commandsOpen && (
+        <CommandPalette
+          onClose={() => setCommandsOpen(false)}
+          commands={[
+            { id: 'new', title: 'New draft', run: focusComposer },
+            { id: 'details', title: 'Show mate details', description: selectedMate.name, run: () => {
+              openConversation(selectedMate)
+              setDetailsOpen(true)
+            } },
+            { id: 'activity', title: 'Open Activity', run: () => openActivity() },
+            { id: 'settings', title: 'Open Settings', run: () => setSettingsOpen(true) },
+            { id: 'account', title: 'Open Account', run: onOpenAccount },
+            ...team.map((mate) => ({
+              id: mate.name.toLowerCase(),
+              title: `Open ${mate.name}`,
+              description: mate.role,
+              run: () => openConversation(mate),
+            })),
+          ]}
+        />
+      )}
       {settingsOpen && (
         <SettingsDialog
           starterMate={initialMate}
