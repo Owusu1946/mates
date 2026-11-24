@@ -9,9 +9,9 @@ import { CallPanel } from "../call/CallPanel.tsx";
 import { useCall } from "../call/useCall.ts";
 import type { SidePanel } from "../chat/ChatHeader.tsx";
 import { useChatFlow } from "../chat/useChatFlow.ts";
-import { initialComputer } from "../computer/computer.logic.ts";
+import { liveGoal } from "../computer/computer.logic.ts";
 import { ComputerPanel } from "../computer/ComputerPanel.tsx";
-import { useComputers } from "../computer/useComputers.ts";
+import { useComputer } from "../computer/useComputers.ts";
 import { useMateMoods } from "../chat/useMateMoods.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
@@ -53,11 +53,12 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [made, setMade] = useState<{ mates: Mate[]; chats: Chat[] }>({ mates: [], chats: [] });
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [creating, setCreating] = useState<"mate" | "group" | null>(null);
-  // Call and Computer: one call for the whole app, so switching chats doesn't drop it, and a
-  // computer for each mate. The panel beside the chat shows one or the other.
+  // Call and Computer: one call for the whole app, so switching chats doesn't drop it, and your
+  // one computer, shared by your mates. The panel beside the chat shows one or the other.
   const [call, callDispatch] = useCall();
-  const [computers, computerDispatch] = useComputers();
+  const [computer, computerDispatch] = useComputer();
   const [side, setSide] = useState<SidePanel>(null);
+  const computerGoal = computer.power === "on" ? liveGoal(computer) : null;
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {
@@ -95,7 +96,13 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const liveMates: Record<string, Mate> = Object.fromEntries(
     allMates.map((mate) => {
       const status = moods.moodOf(mate.id);
-      return [mate.id, status ? { ...mate, status } : mate];
+      if (status) return [mate.id, { ...mate, status }];
+      // The mate using the computer shows it: working on its current step, or needing you.
+      if (computerGoal?.mateId === mate.id) {
+        const step = computerGoal.steps[computerGoal.shown - 1]?.label;
+        return [mate.id, { ...mate, status: computerGoal.status === "waiting" && computerGoal.waitingFor !== "user_control" ? "waiting" : "working", step: step ?? "Using your computer" }];
+      }
+      return [mate.id, mate];
     }),
   );
   // The timeline uses the crew as it is, so a streaming reply doesn't re-render every row.
@@ -320,13 +327,13 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
                 quiet={activityMode === "quiet"}
                 side={side}
                 inCall={inCall}
-                computerBusy={(computers[chat.leadId]?.power ?? "asleep") === "working"}
+                computerBusy={computer.power === "on" && liveGoal(computer) !== null}
                 onSide={(next) => (next ? openSide(next, chat) : closeSide())}
                 sidePanel={
                   side === "call" && call ? (
                     <CallPanel call={call} mates={liveMates} you={crew.you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
                   ) : side === "computer" ? (
-                    <ComputerPanel mate={liveMates[chat.leadId]!} state={computers[chat.leadId] ?? initialComputer()} dispatch={(action) => computerDispatch({ mateId: chat.leadId, action })} />
+                    <ComputerPanel state={computer} dispatch={computerDispatch} mates={liveMates} chatMate={liveMates[chat.leadId]!} />
                   ) : null
                 }
               />

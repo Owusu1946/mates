@@ -43,7 +43,7 @@ export function ChatHeader({ chat, lead, mates, side, inCall, computerBusy, onCa
       <Tooltip side="bottom" content={inCall ? "Back to the call" : chat.kind === "group" ? `Call ${chat.title}` : `Call ${lead.name}`}>
         <Button variant={side === "call" ? "secondary" : "ghost-muted"} size="icon-sm" icon="phone" aria-label="Call" aria-pressed={side === "call"} onClick={onCall} className={cn(inCall && "text-ok-ink")} />
       </Tooltip>
-      <Tooltip side="bottom" content={`${lead.name}'s computer`}>
+      <Tooltip side="bottom" content="Your computer">
         <span className="relative">
           <Button variant={side === "computer" ? "secondary" : "ghost-muted"} size="icon-sm" icon="monitor" aria-label="Computer" aria-pressed={side === "computer"} onClick={onComputer} />
           {computerBusy && <span className="status-pulse pointer-events-none absolute top-1 right-1 size-1.5 rounded-full bg-ok" />}
