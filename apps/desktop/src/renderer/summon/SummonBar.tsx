@@ -4,8 +4,11 @@ import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { useChatFlowFrom } from "../chat/useChatFlow.ts";
 import { Button } from "../components/ui/Button.tsx";
 import { Kbd, MOD } from "../components/ui/Kbd.tsx";
-import { crewFor, LEAD_ID, REPLIES } from "../data/sampleCrew.ts";
+import { crewFor, LEAD_ID, REPLIES, VOICE_LINES } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
+import { ListeningBar } from "../voice/ListeningBar.tsx";
+import { MicButton } from "../voice/MicButton.tsx";
+import { useHoldToTalk } from "../voice/useHoldToTalk.ts";
 import { matchMates, mentionQuery, withoutMention } from "./summonInput.logic.ts";
 
 // UI only: the bar asks the sample crew, as the main window does before the API is wired up.
@@ -14,7 +17,8 @@ const CHAT = "summon";
 
 /**
  * The summon bar: Alt+Space (⌥Space on a Mac) from any app opens this pill. Type, `@` a mate, press
- * Enter; the reply streams in under the pill, and Open in Mates carries it into the full app.
+ * Enter, or hold Space (or the mic) and speak; the reply streams in under the pill, and Open in
+ * Mates carries it into the full app.
  * Escape clears the answer, then hides the bar. Each clear starts a fresh conversation.
  */
 export function SummonBar() {
@@ -42,6 +46,22 @@ function Conversation({ onReset }: { onReset: () => void }) {
   const question = askedAt >= 0 ? messages[askedAt]!.text : null;
   const answer = reply?.phase === "streaming" ? shownText(reply) : (messages.slice(askedAt + 1).find((message) => message.author !== "me")?.text ?? "");
   const done = question !== null && !reply;
+
+  // Hold to talk: what you said goes in as your question and is sent when you let go.
+  const voiceLine = VOICE_LINES[mateId] ?? "What's on my calendar today";
+  const voice = useHoldToTalk({
+    transcript: voiceLine,
+    onSend: (text) => {
+      dispatch({ type: "draft", chatId: CHAT, text });
+      dispatch({ type: "send", chatId: CHAT, mateId, reply: cannedReply(REPLIES, mateId, flow.sent) });
+      input.current?.focus();
+    },
+  });
+  // Clicking away hides the bar; a hold in progress is dropped, not sent.
+  useEffect(() => {
+    window.addEventListener("blur", voice.cancel);
+    return () => window.removeEventListener("blur", voice.cancel);
+  }, [voice.cancel]);
 
   // The window is as tall as what's in it.
   useLayoutEffect(() => {
@@ -79,19 +99,33 @@ function Conversation({ onReset }: { onReset: () => void }) {
     <div ref={root} className="px-6 pt-3 pb-8">
       <div className="overflow-hidden rounded-[26px] border border-line bg-raised text-ink shadow-[0_10px_28px_-10px_rgb(0_0_0/0.35),0_2px_6px_-2px_rgb(0_0_0/0.12)] dark:border-white/10 dark:shadow-[0_10px_28px_-10px_rgb(0_0_0/0.8),0_2px_6px_-2px_rgb(0_0_0/0.4)]">
         <div className="flex h-14 items-center gap-3 px-4">
-          <MateAvatar mate={{ ...mate, status: reply ? (reply.phase === "thinking" ? "thinking" : "working") : "idle" }} size={28} />
+          <MateAvatar mate={{ ...mate, status: voice.listening ? "listening" : reply ? (reply.phase === "thinking" ? "thinking" : "working") : "idle" }} size={28} />
+          {voice.listening && voice.startedAt !== null && <ListeningBar startedAt={voice.startedAt} transcript={voiceLine} />}
           <input
             ref={input}
             value={draft}
-            placeholder={`Ask ${mate.name}…  @ for another mate`}
+            placeholder={`Ask ${mate.name}…  @ for another mate, hold Space to talk`}
             aria-label={`Ask ${mate.name}`}
-            className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft"
+            // Kept focused while you speak, so letting go of Space reaches it.
+            className={cn("min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-soft", voice.listening && "sr-only")}
             onChange={(event) => {
               dispatch({ type: "draft", chatId: CHAT, text: event.target.value });
               setPicked(0);
             }}
+            onKeyUp={(event) => {
+              if (event.key === " " && voice.listening) voice.release();
+            }}
             onKeyDown={(event) => {
-              if (choices.length && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+              if (voice.listening) {
+                event.preventDefault();
+                if (event.key === "Escape") voice.cancel();
+                return;
+              }
+              if (event.key === " " && !draft && !reply) {
+                // Space in an empty field holds to talk; there's nothing to type a space after.
+                event.preventDefault();
+                if (!event.repeat) voice.start();
+              } else if (choices.length && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
                 event.preventDefault();
                 setPicked((choice + (event.key === "ArrowDown" ? 1 : choices.length - 1)) % choices.length);
               } else if (choices.length && (event.key === "Enter" || event.key === "Tab")) {
@@ -111,8 +145,16 @@ function Conversation({ onReset }: { onReset: () => void }) {
               }
             }}
           />
-          {reply ? <Kbd>Esc</Kbd> : <Kbd>↵</Kbd>}
+          {reply ? (
+            <Kbd>Esc</Kbd>
+          ) : !draft || voice.listening ? (
+            <MicButton listening={voice.listening} onStart={voice.start} onRelease={voice.release} onCancel={voice.cancel} />
+          ) : (
+            <Kbd>↵</Kbd>
+          )}
         </div>
+
+        {voice.hint && <p className="animate-fade border-t border-line px-5 py-2 text-xs text-ink-soft">Hold Space, or the mic, while you speak. Let go to send.</p>}
 
         {choices.length > 0 && (
           <div role="listbox" aria-label="Mates" className="border-t border-line p-1.5">
