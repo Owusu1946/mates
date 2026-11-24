@@ -94,8 +94,13 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [panels, setPanels] = useState<CodePanels>({ diff: false, terminal: false, diffStyle: "unified", wrap: false, focusPath: null });
   const changePanels = (change: Partial<CodePanels>) => setPanels({ ...panels, ...change });
 
-  const allMates = [...crew.mates, ...made.mates];
-  const chats = [...crew.chats, ...made.chats];
+  // Edits to mates and groups, kept over the crew's own (UI only, until they reach the API).
+  const [edited, setEdited] = useState<{ mates: Record<string, Partial<Mate>>; chats: Record<string, Partial<Chat>> }>({ mates: {}, chats: {} });
+  const [editing, setEditing] = useState<string | null>(null);
+  const allMates = [...crew.mates, ...made.mates].map((mate) => ({ ...mate, ...edited.mates[mate.id] }));
+  const mateNames = Object.fromEntries(allMates.map((mate) => [mate.id, mate.name]));
+  // A mate's chat is called what the mate is.
+  const chats = [...crew.chats, ...made.chats].map((chat) => ({ ...chat, ...edited.chats[chat.id], ...(chat.kind === "mate" ? { title: mateNames[chat.leadId] ?? chat.title } : {}) }));
   // A mate's mood shows everywhere, its sidebar face and the header: listening while you type to
   // it, thinking, working, happy when it's done (chat/mateMood.logic.ts).
   const moods = useMateMoods(flow.replies);
@@ -344,6 +349,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
                 inCall={inCall}
                 computerBusy={computer.power === "on" && liveGoal(computer) !== null}
                 onSide={(next) => (next ? openSide(next, chat) : closeSide())}
+                onEdit={() => setEditing(chat.id)}
                 sidePanel={
                   side === "call" && call ? (
                     <CallPanel call={call} mates={liveMates} you={crew.you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
@@ -388,6 +394,35 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           )}
         </main>
       </div>
+      {(() => {
+        const target = editing ? chats.find((candidate) => candidate.id === editing) : undefined;
+        if (!target) return null;
+        const mate = allMates.find((candidate) => candidate.id === target.leadId);
+        return target.kind === "group" ? (
+          <NewGroupDialog
+            open
+            onOpenChange={(open) => !open && setEditing(null)}
+            mates={allMates}
+            initial={{ title: target.title, mateIds: target.mateIds }}
+            onCreate={({ title, mateIds }) => {
+              // The lead stays if still in the group; otherwise the first mate leads.
+              const leadId = mateIds.includes(target.leadId) ? target.leadId : mateIds[0]!;
+              setEdited({ ...edited, chats: { ...edited.chats, [target.id]: { title, mateIds, leadId } } });
+              setEditing(null);
+            }}
+          />
+        ) : mate ? (
+          <NewMateDialog
+            open
+            onOpenChange={(open) => !open && setEditing(null)}
+            initial={{ name: mate.name, role: mate.role, shape: mate.shape, color: mate.color }}
+            onCreate={(changes) => {
+              setEdited({ ...edited, mates: { ...edited.mates, [mate.id]: changes } });
+              setEditing(null);
+            }}
+          />
+        ) : null;
+      })()}
       <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
       <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} section={settingsSection} />

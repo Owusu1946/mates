@@ -23,13 +23,14 @@ type ChatViewProps = {
   inCall: boolean;
   computerBusy: boolean;
   onSide: (side: SidePanel) => void;
+  onEdit: () => void;
 };
 
 /**
  * One chat: header, timeline and composer, with the Call or Computer panel beside it. Keyed by
  * chat, so switching starts fresh and fades in.
  */
-export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet, side, sidePanel, inCall, computerBusy, onSide }: ChatViewProps) {
+export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet, side, sidePanel, inCall, computerBusy, onSide, onEdit }: ChatViewProps) {
   const lead = mates[chat.leadId]!;
   const reply = flow.replies[chat.id];
   return (
@@ -44,6 +45,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           computerBusy={computerBusy}
           onCall={() => onSide(side === "call" ? null : "call")}
           onComputer={() => onSide(side === "computer" ? null : "computer")}
+          onEdit={onEdit}
         />
         <MessagesTimeline
           chatId={chat.id}

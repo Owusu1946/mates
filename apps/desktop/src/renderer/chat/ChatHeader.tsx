@@ -19,10 +19,12 @@ type ChatHeaderProps = {
   computerBusy: boolean;
   onCall: () => void;
   onComputer: () => void;
+  /** Edit the mate, or the group. */
+  onEdit: () => void;
 };
 
 /** The chat's name and what its mate is up to, with Call and Computer on the right. */
-export function ChatHeader({ chat, lead, mates, side, inCall, computerBusy, onCall, onComputer }: ChatHeaderProps) {
+export function ChatHeader({ chat, lead, mates, side, inCall, computerBusy, onCall, onComputer, onEdit }: ChatHeaderProps) {
   const status = STATUS_TEXT[lead.status] ?? lead.role;
   const subtitle = chat.kind === "group" ? mates.map((mate) => mate.name).join(", ") : chat.kind === "thread" ? `${lead.name} · ${status}` : status;
   return (
@@ -37,7 +39,12 @@ export function ChatHeader({ chat, lead, mates, side, inCall, computerBusy, onCa
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <h2 className="truncate text-sm font-semibold">{chat.title}</h2>
+        <div className="flex min-w-0 items-center gap-1">
+          <h2 className="truncate text-sm font-semibold">{chat.title}</h2>
+          <Tooltip side="bottom" content={chat.kind === "group" ? "Edit group" : `Edit ${lead.name}`}>
+            <Button variant="ghost-muted" size="icon-xs" icon="edit" aria-label={chat.kind === "group" ? "Edit group" : `Edit ${lead.name}`} onClick={onEdit} />
+          </Tooltip>
+        </div>
         <p className="truncate text-2xs text-ink-soft">{subtitle}</p>
       </div>
       <Tooltip side="bottom" content={inCall ? "Back to the call" : chat.kind === "group" ? `Call ${chat.title}` : `Call ${lead.name}`}>
