@@ -15,10 +15,11 @@ type ChatViewProps = {
   flow: ChatFlow;
   dispatch: Dispatch<ChatAction>;
   composerRef: Ref<HTMLTextAreaElement>;
+  quiet: boolean;
 };
 
 /** One chat: header, timeline and composer. Keyed by chat, so switching starts fresh and fades in. */
-export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef }: ChatViewProps) {
+export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet }: ChatViewProps) {
   const lead = mates[chat.leadId]!;
   const reply = flow.replies[chat.id];
   return (
@@ -28,18 +29,22 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
         chatId={chat.id}
         messages={flow.messages[chat.id] ?? []}
         reply={reply}
+        quiet={quiet}
+        activity={lead.status === "working" && !reply ? lead.step : undefined}
         mates={timelineMates}
         group={chat.kind === "group"}
         onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}
-      />
-      <ChatComposer
-        ref={composerRef}
-        draft={flow.drafts[chat.id] ?? ""}
-        placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
-        busy={Boolean(reply)}
-        onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
-        onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
-        onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+        composer={(
+          <ChatComposer
+            ref={composerRef}
+            draft={flow.drafts[chat.id] ?? ""}
+            placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
+            busy={Boolean(reply)}
+            onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
+            onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
+            onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+          />
+        )}
       />
     </div>
   );

@@ -49,7 +49,6 @@ export function BranchToolbar({ where, branch, onWhereChange }: BranchToolbarPro
         <Icon name="branch" />
         <span className="truncate font-mono">{branch}</span>
       </span>
-      {where === "this PC" && <span className={`${chip} opacity-70`}>in its own worktree</span>}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { Collapsible } from "@base-ui/react/collapsible";
 import { memo, useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
@@ -31,14 +32,16 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({ patchIds, onOpe
       );
     const open = !closed.includes(node.path);
     return (
-      <div key={node.path}>
-        <button type="button" aria-expanded={open} className={rowClass} style={indent} onClick={() => setClosed(open ? [...closed, node.path] : closed.filter((path) => path !== node.path))}>
+      <Collapsible.Root key={node.path} open={open} onOpenChange={(next) => setClosed((paths) => next ? paths.filter((path) => path !== node.path) : [...paths, node.path])}>
+        <Collapsible.Trigger className={rowClass} style={indent}>
           <Icon name="folder" size={14} className="shrink-0 text-ink-soft opacity-75" />
           <span className="min-w-0 flex-1 truncate font-mono text-2xs text-ink-soft group-hover:text-ink/90">{node.name}</span>
-          {!open && <DiffStat additions={node.additions} deletions={node.deletions} />}
-        </button>
-        {open && node.children.map((child) => renderNode(child, depth + 1))}
-      </div>
+          {!open && <span className="animate-fade"><DiffStat additions={node.additions} deletions={node.deletions} /></span>}
+        </Collapsible.Trigger>
+        <Collapsible.Panel className="motion-disclosure" inert={!open}>
+          {node.children.map((child) => renderNode(child, depth + 1))}
+        </Collapsible.Panel>
+      </Collapsible.Root>
     );
   };
 

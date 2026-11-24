@@ -21,11 +21,10 @@ export function CommandPalette({ open, onOpenChange, items }: CommandPaletteProp
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
-        <Dialog.Backdrop className="fixed inset-0 z-50 bg-black/20 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 dark:bg-black/50" />
-        <Dialog.Popup className="fixed top-[14vh] left-1/2 z-50 flex max-h-[min(28rem,70vh)] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-raised text-ink shadow-2xl shadow-black/20 outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-[0.98] data-ending-style:opacity-0 data-starting-style:scale-[0.98] data-starting-style:opacity-0">
+        <Dialog.Backdrop className="motion-backdrop fixed inset-0 z-50 bg-black/20 dark:bg-black/50" />
+        <Dialog.Popup className="motion-dialog fixed top-[14vh] left-1/2 z-50 flex max-h-[min(28rem,70vh)] w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 flex-col overflow-hidden rounded-2xl border border-line bg-raised text-ink shadow-2xl shadow-black/20 outline-none">
           <Dialog.Title className="sr-only">Search or jump to</Dialog.Title>
-          {/* Mounted per open, so each time starts with an empty query at the top. */}
-          {open && <PaletteBody items={items} onDone={() => onOpenChange(false)} />}
+          <PaletteBody items={items} onDone={() => onOpenChange(false)} />
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>

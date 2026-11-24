@@ -55,7 +55,7 @@ import * as WebBrowser from "expo-web-browser";
 import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncContext, ChatSyncNotice } from "./chat-sync";
-import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard } from "./workflow-card";
+import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard, useQuietChatActivity } from "./workflow-card";
 import { PulseDot } from "./pulse-dot";
 import { NEEDS_YOU, useComputer } from "../computer/use-computer";
 import { AppResponseCard } from "./app-results";
@@ -82,6 +82,7 @@ import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, visibleMentionText, webSearchDraft } from "./mention-choices";
 import { CodeCard } from "./code-card";
+import { isRoutineActivity } from "./activity-visibility";
 import { ComputerCard } from "./computer-card";
 import { FriendRequestCard } from "./friend-request-card";
 import { PageCard } from "../pages/page-card";
@@ -451,12 +452,18 @@ function MessageActions({ user }: { user: boolean }) {
 }
 
 function ThinkingIndicator() {
+  const quiet = useQuietChatActivity();
   const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
   const colors = useChatColors();
   if (!running) return null;
-  // A tool at work shows its own steps; only the "nothing specific yet" placeholder gives way to the dot.
-  if (parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined))) return null;
+  // Quiet chat uses the dot until there is text or a visible card.
+  if (parts.some((part) => {
+    if (part.type !== "tool-call") return false;
+    const card = part.result as WorkflowCard | undefined;
+    if (!card || isWaitingPlaceholder(card)) return false;
+    return !quiet || !isRoutineActivity(card, running);
+  })) return null;
   // Once the first words arrive the text itself shows progress, so the dot goes, as in ChatGPT.
   if (parts.some((part) => part.type === "text" && part.text.trim().length > 0)) return null;
   return (

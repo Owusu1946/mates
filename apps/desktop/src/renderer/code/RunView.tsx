@@ -58,32 +58,32 @@ export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels
           mate={mate}
           onAnswer={(approvalId, allow) => dispatch({ type: "answer", runId: run.id, approvalId, allow, at: Date.now() })}
           onOpenFile={(path) => onPanels({ diff: true, focusPath: path })}
+          composer={(
+            <ChatComposer
+              ref={composerRef}
+              draft={draft}
+              placeholder={state.waitingOn ? `${mate.name} is waiting on your answer above` : `Ask ${mate.name} for changes`}
+              busy={playing}
+              disabled={Boolean(state.waitingOn)}
+              onDraft={onDraft}
+              onSend={send}
+              onStop={() => dispatch({ type: "stop", runId: run.id, at: Date.now() })}
+              footer={<BranchToolbar where={run.where} branch={run.branch} />}
+            />
+          )}
         />
-        <ChatComposer
-          ref={composerRef}
-          draft={draft}
-          placeholder={state.waitingOn ? `${mate.name} is waiting on your answer above` : `Ask ${mate.name} for changes`}
-          busy={playing}
-          disabled={Boolean(state.waitingOn)}
-          onDraft={onDraft}
-          onSend={send}
-          onStop={() => dispatch({ type: "stop", runId: run.id, at: Date.now() })}
-          footer={<BranchToolbar where={run.where} branch={run.branch} />}
-        />
-        {panels.terminal && hasTerminal && <TerminalDrawer key={run.id} terminals={run.terminals} output={state.terminalOutput} onClose={() => onPanels({ terminal: false })} />}
+        {hasTerminal && <TerminalDrawer key={run.id} open={panels.terminal} terminals={run.terminals} output={state.terminalOutput} onClose={() => onPanels({ terminal: false })} />}
       </div>
-      {panels.diff && (
-        <RightPanel tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
-          <DiffPanel
-            patchIds={state.patchIds}
-            focusPath={panels.focusPath}
-            diffStyle={panels.diffStyle}
-            wrap={panels.wrap}
-            onDiffStyle={(diffStyle) => onPanels({ diffStyle })}
-            onWrap={(wrap) => onPanels({ wrap })}
-          />
-        </RightPanel>
-      )}
+      <RightPanel open={panels.diff} tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
+        <DiffPanel
+          patchIds={state.patchIds}
+          focusPath={panels.focusPath}
+          diffStyle={panels.diffStyle}
+          wrap={panels.wrap}
+          onDiffStyle={(diffStyle) => onPanels({ diffStyle })}
+          onWrap={(wrap) => onPanels({ wrap })}
+        />
+      </RightPanel>
     </div>
   );
 }

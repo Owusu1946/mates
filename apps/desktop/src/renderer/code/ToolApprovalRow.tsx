@@ -21,7 +21,7 @@ export const ToolApprovalRow = memo(function ToolApprovalRow({ approval, mateNam
         <span className="flex size-6 shrink-0 items-center justify-center">
           <Icon name="shield" size={16} className={open ? "text-caution-ink" : "text-ink-soft opacity-80"} />
         </span>
-        <span className={open ? "text-ink" : "text-ink-soft"}>
+        <span key={approval.state} className={open ? "text-ink" : "animate-fade text-ink-soft"}>
           {open ? `${mateName} wants to run` : approval.state === "allowed" ? "You allowed" : "You said no to"}
         </span>
         <code className="min-w-0 truncate font-mono text-xs text-ink/80">{approval.command}</code>

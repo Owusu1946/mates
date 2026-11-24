@@ -14,6 +14,7 @@ const nearBottom = (element: HTMLElement) => element.scrollHeight - element.scro
  */
 export function useTimelineScroll(key: string, content: string, forceFollow: boolean) {
   const scroller = useRef<HTMLDivElement>(null);
+  const composerDock = useRef<HTMLDivElement>(null);
   const following = useRef(true);
 
   useLayoutEffect(() => {
@@ -31,15 +32,21 @@ export function useTimelineScroll(key: string, content: string, forceFollow: boo
     }
   }, [content, forceFollow]);
 
-  // Content that grows in place, like a thought streaming in, keeps the bottom in view too.
+  // Content, composer and window resizes should keep the latest message in view while following.
   useLayoutEffect(() => {
     const element = scroller.current!;
     const content = element.firstElementChild;
-    if (!content) return;
+    const dock = composerDock.current;
+    if (!content || !dock) return;
     const observer = new ResizeObserver(() => {
+      element.style.setProperty("--composer-viewport-height", `${element.clientHeight}px`);
+      // Leave room for the sticky composer when a message control scrolls into view.
+      element.style.scrollPaddingBottom = `${dock.offsetHeight}px`;
       if (following.current) element.scrollTop = element.scrollHeight;
     });
+    observer.observe(element);
     observer.observe(content);
+    observer.observe(dock);
     return () => observer.disconnect();
   }, []);
 
@@ -48,5 +55,5 @@ export function useTimelineScroll(key: string, content: string, forceFollow: boo
     following.current = nearBottom(event.currentTarget);
   };
 
-  return { scroller, onScroll };
+  return { scroller, composerDock, onScroll };
 }

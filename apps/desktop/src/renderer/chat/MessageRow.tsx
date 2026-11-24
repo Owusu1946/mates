@@ -2,7 +2,6 @@ import { memo } from "react";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import { ApprovalCard } from "./cards/ApprovalCard.tsx";
 import { BriefCard } from "./cards/BriefCard.tsx";
-import { TeamCard } from "./cards/TeamCard.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 
 type MessageRowProps = {
@@ -30,7 +29,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
       )}
       {message.author === "me" ? (
         <div className="flex justify-end">
-          <p className="max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 leading-relaxed whitespace-pre-wrap select-text">{message.text}</p>
+          <p className="max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-2">
@@ -40,10 +39,9 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
               {mate.name}
             </div>
           )}
-          {message.text && <p className="leading-relaxed whitespace-pre-wrap select-text">{message.text}</p>}
+          {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
           {message.card?.type === "brief" && <BriefCard card={message.card} />}
           {message.card?.type === "approval" && <ApprovalCard card={message.card} onAnswer={(state) => onAnswer(message.id, state)} />}
-          {message.card?.type === "mission" && <TeamCard card={message.card} />}
         </div>
       )}
     </>
