@@ -6,6 +6,8 @@ import { Pressable, Text, View } from "react-native";
 import { AppLogo } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
+import { isEmailResult } from "./email-preview";
+import { EmailResults } from "./email-results";
 import { ProductResult } from "./product-result";
 import { CardButton } from "./card-button";
 
@@ -23,6 +25,9 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
       runConfig: { custom: { resumeRunId: state.resumeRunId, choice } },
     });
   }, [choice, running, state.resumeRunId, aui]);
+  const items = state.items?.filter(item => !/^(string|null|undefined)$/i.test(item.title.trim())) ?? [];
+  const emails = isEmailResult(state.toolkit, items);
+  const correctedEmailLabel = emails && state.toolkit !== "gmail";
   const foreground = isDark ? "#fafafa" : "#18181b";
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const border = isDark ? "#353538" : "#e9e9ec";
@@ -36,7 +41,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
     <View style={{ width: "100%", gap: 12, marginVertical: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {state.name && (
-          <AppLogo name={state.name} logo={state.logo} size={28} />
+          <AppLogo name={correctedEmailLabel ? "Gmail" : state.name} logo={correctedEmailLabel ? undefined : state.logo} size={28} />
         )}
         <Text
           style={{
@@ -46,10 +51,10 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
             color: foreground,
           }}
         >
-          {state.label}
+          {correctedEmailLabel ? "Emails" : state.label}
         </Text>
       </View>
-      {!!state.detail && <Text style={text}>{state.detail}</Text>}
+      {!!state.detail && state.detail !== "From the records checked for this request." && <Text style={text}>{state.detail}</Text>}
       {state.kind === "choice" ? (
         state.options?.map((option) => (
           <Pressable
@@ -102,7 +107,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
         ))
       ) : (
         <>
-          {!state.items?.length && (
+          {!items.length && (
             <View
               style={{
                 padding: 18,
@@ -126,7 +131,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               </Text>
             </View>
           )}
-          {state.items?.map((item, index) => (
+          {emails ? <EmailResults items={items} /> : items.map((item, index) => (
             item.product ? <ProductResult key={`${item.sourceId}_${index}`} item={item} isDark={isDark} onOpen={() => {
               if (item.url?.startsWith("https://")) void Linking.openURL(item.url).catch(() => setLinkError("Couldn’t open the listing. Please try again."));
             }} /> :

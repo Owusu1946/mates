@@ -22,7 +22,7 @@ const STEP_LINES = 6;
  * steps, each with what the computer did in it. When it ends, the line says how.
  */
 export function CodeCard({ state }: { state: WorkflowCard }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { getToken, userId } = useAuth();
   const client = useQueryClient();
   const initial = state.code;
@@ -73,7 +73,7 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
 
   const lineStyle = { fontFamily: "DMSans_500Medium", fontSize: 14.5, letterSpacing: 0.1 } as const;
   return (
-    <Animated.View style={{ marginVertical: 4, gap: 4 }}>
+    <Animated.View style={{ marginVertical: 8, gap: 10, ...(!running && code.pr ? { padding: 16, borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.surface } : {}) }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <Pressable
           accessibilityRole="button"
@@ -106,7 +106,7 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
             onPress={openPr}
             style={({ pressed }) => ({ height: 30, paddingHorizontal: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.text, opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}
           >
-            <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13 }}>Open</Text>
+            <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13 }}>Review PR</Text>
           </Pressable>
         )}
       </View>
@@ -114,6 +114,20 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
       <Text numberOfLines={1} style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 12.5 }}>
         {code.repo} · {code.branch}
       </Text>
+      {!running && code.pr && (
+        <View style={{ gap: 10 }}>
+          <Text style={{ color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: 17, lineHeight: 23 }}>{code.pr.title}</Text>
+          <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 12 }}>
+            {code.status === "failed" ? "Run failed" : code.status === "cancelled" ? "Run stopped" : code.pr.draft ? "Draft pull request" : code.checks.some(check => !check.passed) ? "Checks need attention" : "Ready for review"}
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {code.pr.files !== undefined && <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{code.pr.files} files changed</Text>}
+            {code.pr.additions !== undefined && <Text accessibilityLabel={`${code.pr.additions} additions`} style={{ color: isDark ? "#6ee7a0" : "#18733c", fontSize: 13, fontVariant: ["tabular-nums"] }}>+{code.pr.additions}</Text>}
+            {code.pr.deletions !== undefined && <Text accessibilityLabel={`${code.pr.deletions} deletions`} style={{ color: isDark ? "#fda4af" : "#b42335", fontSize: 13, fontVariant: ["tabular-nums"] }}>−{code.pr.deletions}</Text>}
+          </View>
+          {!!code.checks.length && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{code.checks.map((check, index) => <Text key={check.command + index} style={{ color: check.passed ? (isDark ? "#6ee7a0" : "#18733c") : colors.error, fontSize: 12 }}>{check.passed ? "✓" : "✕"} {check.name}</Text>)}</View>}
+        </View>
+      )}
       {code.status === "failed" && <Text style={{ color: colors.error, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>{code.error ?? "The run didn’t finish. Nothing was pushed."}</Text>}
 
       {open && (

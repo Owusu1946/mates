@@ -53,6 +53,7 @@ import {
   presentationTool,
   resultSchema,
   collectSources,
+  appSourceGroups,
   groundedItems,
   isEmptyLookup,
   fallbackItems,
@@ -499,10 +500,10 @@ export async function createAgentResponse(
     if (message.role === "tool" && message.content) {
       try {
         const saved = JSON.parse(message.content);
-        if (saved.cooperToolkit)
-          for (const [toolkit, data] of [
-            [saved.cooperToolkit, saved.result],
-          ] as [string, unknown][]) {
+        const groups = Array.isArray(saved.cooperTools)
+          ? appSourceGroups(saved.cooperTools, saved.result)
+          : saved.cooperToolkit ? [{ toolkit: saved.cooperToolkit, result: saved.result }] : [];
+        for (const { toolkit, result: data } of groups) {
             const map = sources.get(toolkit) ?? new Map();
             collectSources(data, map);
             sources.set(toolkit, map);
@@ -1434,28 +1435,34 @@ export async function createAgentResponse(
                     });
                   }
                 }
-                if (!failed && toolkit) {
-                  const map = sources.get(toolkit) ?? new Map();
-                  collectSources(parsed, map);
-                  sources.set(toolkit, map);
-                  if (isEmptyLookup(parsed)) emptyLookups.add(toolkit);
-                }
-                if (!failed && call.function.name.includes("WORKBENCH"))
-                  for (const map of sources.values()) {
-                    collectSources(parsed, map);
-                    const stdout = (parsed as { data?: { stdout?: string } })
-                      .data?.stdout;
-                    if (stdout)
-                      try {
-                        collectSources(JSON.parse(stdout), map);
-                      } catch {}
+                if (!failed) {
+                  for (const group of appSourceGroups(batch.map(tool => tool.tool_slug ?? "").filter(Boolean), parsed)) {
+                    const map = sources.get(group.toolkit) ?? new Map();
+                    collectSources(group.result, map);
+                    sources.set(group.toolkit, map);
+                    if (isEmptyLookup(group.result)) emptyLookups.add(group.toolkit);
                   }
+                }
+                if (!failed && call.function.name.includes("WORKBENCH")) {
+                  const inspected = new Map<string, Record<string, unknown>>();
+                  collectSources(parsed, inspected);
+                  const stdout = (parsed as { data?: { stdout?: string } }).data?.stdout;
+                  if (stdout) {
+                    try { collectSources(JSON.parse(stdout), inspected); } catch {}
+                  }
+                  // Workbench output carries no app provenance. Only enrich known IDs.
+                  for (const map of sources.values()) {
+                    for (const [id, record] of inspected) {
+                      if (map.has(id)) map.set(id, record);
+                    }
+                  }
+                }
                 messages.push({
                   role: "tool",
                   tool_call_id: call.id,
                   content: JSON.stringify({
                     result: parsed,
-                    ...(!failed && toolkit ? { cooperToolkit: toolkit } : {}),
+                    ...(!failed && batch.length ? { cooperTools: batch.map(tool => tool.tool_slug) } : {}),
                   }).slice(0, 100_000),
                 });
               } catch {
