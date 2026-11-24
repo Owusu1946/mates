@@ -1,5 +1,6 @@
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import { ActivityLine } from "./ActivityLine.tsx";
+import { ChatWorkActivity } from "./ChatWorkActivity.tsx";
 import { shownText, type Reply } from "./chatFlow.logic.ts";
 import { MessageRow } from "./MessageRow.tsx";
 import { useTimelineScroll } from "./useTimelineScroll.ts";
@@ -38,13 +39,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
             onAnswer={onAnswer}
           />
         ))}
-        {quiet && activity && (
-          <details className="self-start rounded-md text-xs text-ink-soft">
-            <summary className="cursor-pointer rounded-md px-1 py-1.5 hover:text-ink focus-visible:outline-2 focus-visible:outline-brand">View activity</summary>
-            <p className="mt-1 border-l border-line pl-3">{activity}</p>
-          </details>
-        )}
-        {!quiet && activity && <p className="text-xs text-ink-soft" role="status">{activity}</p>}
+        {activity && <ChatWorkActivity quiet={quiet} steps={[activity]} />}
         {!quiet && reply?.phase === "thinking" && mates[reply.mateId] && <ActivityLine mate={mates[reply.mateId]!} />}
         {reply?.phase === "streaming" && (
           <MessageRow message={{ id: "live", author: reply.mateId, text: streamed }} mate={mates[reply.mateId]} showAuthor={group && lastAuthor !== reply.mateId} onAnswer={onAnswer} />

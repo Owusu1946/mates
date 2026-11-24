@@ -25,7 +25,7 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
   const canSend = draft.trim().length > 0 && !busy && !disabled;
   return (
     <div className="mx-auto w-full max-w-(--chat-max-width) px-6 pb-5">
-      <div className="rounded-2xl border border-line bg-raised/80 shadow-composer backdrop-blur-md backdrop-saturate-[1.14] transition-colors focus-within:border-field-line dark:shadow-none">
+      <div className="flex items-end gap-2 rounded-2xl border border-line bg-raised/80 p-2 shadow-composer backdrop-blur-md backdrop-saturate-[1.14] transition-colors has-[textarea:focus]:border-brand dark:shadow-none">
         <textarea
           ref={ref}
           data-focus-area="composer"
@@ -33,7 +33,7 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
           value={draft}
           placeholder={placeholder}
           aria-label={placeholder}
-          className="block max-h-50 min-h-12 w-full resize-none bg-transparent px-4 pt-3.5 pb-1 leading-relaxed outline-none field-sizing-content placeholder:text-ink-soft/70"
+          className="block max-h-50 min-h-8 min-w-0 flex-1 resize-none bg-transparent px-2 py-1.5 leading-5 outline-none field-sizing-content placeholder:text-ink-soft/70"
           onChange={(event) => onDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -45,16 +45,11 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
             }
           }}
         />
-        <div className="flex items-center gap-1 px-2 pb-2">
-          <Button variant="ghost-muted" size="icon-sm" icon="paperclip" aria-label="Attach a file" />
-          <Button variant="ghost-muted" size="icon-sm" icon="mic" aria-label="Talk" />
-          <div className="flex-1" />
-          {busy ? (
-            <Button variant="secondary" size="icon-sm" icon="square" aria-label="Stop" onClick={onStop} />
-          ) : (
-            <Button size="icon-sm" icon="arrowUp" aria-label="Send" disabled={!canSend} onClick={onSend} />
-          )}
-        </div>
+        {busy ? (
+          <Button variant="secondary" size="icon" icon="square" aria-label="Stop" onClick={onStop} />
+        ) : (
+          <Button size="icon" icon="arrowUp" aria-label="Send" disabled={!canSend} onClick={onSend} />
+        )}
       </div>
       {footer && <div className="mt-1.5 px-1">{footer}</div>}
     </div>

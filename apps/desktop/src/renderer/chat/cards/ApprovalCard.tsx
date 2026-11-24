@@ -13,14 +13,16 @@ export function ApprovalCard({ card, onAnswer }: ApprovalCardProps) {
   const open = card.state === "open";
   return (
     <section className={cn("rounded-xl border bg-raised p-4", open ? "border-caution/40" : "border-line")}>
-      <div className="flex items-center gap-2 text-2xs font-medium text-caution-ink">
-        <span className="size-1.5 rounded-full bg-caution" aria-hidden="true" />
-        Needs your OK
-      </div>
-      <h3 className="mt-2 text-[15px] font-semibold">{card.title}</h3>
+      {open && (
+        <div className="mb-2 flex items-center gap-2 text-2xs font-medium text-caution-ink">
+          <span className="size-1.5 rounded-full bg-caution" aria-hidden="true" />
+          Needs your OK
+        </div>
+      )}
+      <h3 className="text-[15px] font-semibold">{card.title}</h3>
       <p className="mt-1 select-text text-ink-soft">{card.detail}</p>
       <p className="mt-2 text-xs text-ink-soft">{card.meta}</p>
-      <div className="mt-4 flex items-center gap-2">
+      <div className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1.5">
         {open ? (
           <>
             <Button onClick={() => onAnswer("allowed")}>{card.allow}</Button>

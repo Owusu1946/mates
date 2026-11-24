@@ -9,7 +9,7 @@ type PasswordScreenProps = {
   email: string;
   onBack: () => void;
   onDone: () => void;
-  /** Signing in: get a code by email instead of typing the password. */
+  /** Signing in: try the code flow instead. */
   onUseCode?: () => void;
 };
 
@@ -39,10 +39,10 @@ export function PasswordScreen({ mode, email, onBack, onDone, onUseCode }: Passw
           <TextField
             label="Password"
             type="password"
-            autoComplete={signIn ? "current-password" : "new-password"}
+            autoComplete="off"
             autoFocus
             value={password}
-            hint={signIn ? null : `At least ${MIN_PASSWORD} characters. Make it something you haven't used before.`}
+            hint={signIn ? "Use any sample password." : `Use a sample password with at least ${MIN_PASSWORD} characters.`}
             error={error}
             onChange={(event) => {
               setPassword(event.target.value);
@@ -57,11 +57,7 @@ export function PasswordScreen({ mode, email, onBack, onDone, onUseCode }: Passw
       {onUseCode && (
         <OnboardingScreen.Footer>
           <Button variant="link" onClick={onUseCode}>
-            Email me a code instead
-          </Button>
-          <span aria-hidden="true">·</span>
-          <Button variant="link" onClick={onUseCode}>
-            Forgot password?
+            Try a code instead
           </Button>
         </OnboardingScreen.Footer>
       )}

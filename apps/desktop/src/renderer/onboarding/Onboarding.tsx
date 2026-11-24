@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useState } from "react";
+import type { SampleProfile } from "../data/sampleCrew.ts";
 import { AboutScreen } from "./AboutScreen.tsx";
 import { ChooseScreen } from "./ChooseScreen.tsx";
 import { CodeScreen } from "./CodeScreen.tsx";
@@ -11,16 +12,15 @@ import { SignUpScreen } from "./SignUpScreen.tsx";
 import { StepIndicator } from "./StepIndicator.tsx";
 import { cn } from "../lib/utils.ts";
 
-export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: Leader; myName: string };
+export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: Leader; myName: string; profile: SampleProfile };
 
 /**
- * Getting in, from the first screen to the app. UI only for now: nothing signs in or saves yet,
- * and Apple and Google do nothing. The screens and their order are the real ones.
+ * Preview the sign-in and setup flows before opening the sample workspace.
  */
 export function Onboarding({ onFinish }: { onFinish: (result: OnboardingResult) => void }) {
   const [flow, dispatch] = useReducer(flowReducer, INITIAL_FLOW);
   const [leader, setLeader] = useState<Leader | null>(null);
-  const [myName, setMyName] = useState("");
+  const [about, setAbout] = useState({ name: "", bio: "" });
   const step = newcomerStep(flow.screen);
 
   const go = (to: Screen, email?: string) => dispatch({ type: "go", to, email });
@@ -65,15 +65,15 @@ export function Onboarding({ onFinish }: { onFinish: (result: OnboardingResult) 
           leader && (
             <AboutScreen
               leader={leader}
-              onDone={(name) => {
-                setMyName(name);
+              onDone={(name, bio) => {
+                setAbout({ name, bio });
                 go("import");
               }}
             />
           )
         );
       case "import":
-        return leader && <ImportScreen leader={leader} onDone={() => onFinish({ kind: "joined", leader, myName })} />;
+        return leader && <ImportScreen leader={leader} onDone={(memories) => onFinish({ kind: "joined", leader, myName: about.name, profile: { bio: about.bio, memories } })} />;
     }
   }
 

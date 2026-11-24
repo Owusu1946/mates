@@ -5,7 +5,8 @@ import { AppLayout } from "./shell/AppLayout.tsx";
 import { TitleBar } from "./shell/TitleBar.tsx";
 
 /** A new member's crew is led by the mate they just made; someone signing back in gets the sample. */
-const crewAfter = (result: OnboardingResult): Crew => (result.kind === "joined" ? crewFor(result.myName.trim() || "Ama", result.leader) : crewFor("Ama"));
+const crewAfter = (result: OnboardingResult): Crew =>
+  result.kind === "joined" ? { ...crewFor(result.myName.trim() || "Ama", result.leader), profile: result.profile } : crewFor("Ama");
 
 export function App() {
   // UI only: signing in lasts until the window closes.

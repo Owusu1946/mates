@@ -23,7 +23,7 @@ export function RepoPage({ repo, runs, mateName, draft, onDraft, onStart, onOpen
   const [where, setWhere] = useState(repo.where);
   return (
     <div className="flex h-full animate-fade flex-col">
-      <header className="flex h-13 shrink-0 items-center gap-3 border-b border-line px-4">
+      <header className="flex h-13 shrink-0 items-center gap-2.5 border-b border-line px-6">
         <Icon name="branch" size={18} className="text-ink-soft" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold">{repo.name}</h2>
@@ -36,7 +36,7 @@ export function RepoPage({ repo, runs, mateName, draft, onDraft, onStart, onOpen
         </div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex max-w-(--chat-max-width) flex-col gap-8 pt-14 pb-10">
+        <div className="mx-auto flex max-w-(--chat-max-width) flex-col gap-4 py-10">
           <div className="flex flex-col gap-4">
             <h1 className="px-6 text-xl font-semibold">What should {mateName} do in {repo.name}?</h1>
             <ChatComposer

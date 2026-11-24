@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { JUMP_HINT_DELAY_MS, jumpIndexForKey } from "../sidebar/Sidebar.logic.ts";
 
 type Shortcuts = {
+  settingsOpen: boolean;
   onJump: (index: number) => void;
   onSearch: () => void;
   onNewChat: () => void;
@@ -38,6 +39,13 @@ export function useGlobalShortcuts(shortcuts: Shortcuts): { showJumpHints: boole
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isMod(event) && !event.altKey && event.key === ",") {
+        event.preventDefault();
+        if (!event.repeat) latest.current.onSettings();
+        hideHints();
+        return;
+      }
+      if (latest.current.settingsOpen) return;
       if (event.key === MOD_KEY) {
         if (!event.repeat && !hintTimer) hintTimer = setTimeout(() => setShowJumpHints(true), JUMP_HINT_DELAY_MS);
         return;
@@ -53,7 +61,6 @@ export function useGlobalShortcuts(shortcuts: Shortcuts): { showJumpHints: boole
       if (jump !== null) latest.current.onJump(jump);
       else if (key === "k") latest.current.onSearch();
       else if (key === "n") latest.current.onNewChat();
-      else if (key === ",") latest.current.onSettings();
       else if (key === "d") latest.current.onToggleDiff();
       else if (key === "j") latest.current.onToggleTerminal();
       else {

@@ -21,7 +21,7 @@ const PROMPTS = [
  * Tell the new lead mate about yourself. Skippable, since the mates also learn as you chat; the
  * name is the one friends see (sign-up never asks for it).
  */
-export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string) => void }) {
+export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string, bio: string) => void }) {
   const [myName, setMyName] = useState("");
   const [bio, setBio] = useState("");
   const ready = bio.trim().length >= 3;
@@ -37,7 +37,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
       </OnboardingScreen.Hero>
       <OnboardingScreen.Title>Tell {leader.name} about yourself</OnboardingScreen.Title>
       <OnboardingScreen.Body>
-        The more {leader.name} knows, the more {leader.name} can do for you. Your other mates get the parts that matter to them.
+        Add a name and a short introduction for your sample workspace.
       </OnboardingScreen.Body>
       <OnboardingScreen.Content>
         <form
@@ -45,10 +45,10 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (ready) onDone(myName.trim());
+            if (ready) onDone(myName.trim(), bio.trim());
           }}
         >
-          <TextField label="What should friends call you?" placeholder="Your first name" autoComplete="given-name" maxLength={40} value={myName} onChange={(event) => setMyName(event.target.value)} />
+          <TextField label="What should your mates call you?" placeholder="Your first name" maxLength={40} value={myName} onChange={(event) => setMyName(event.target.value)} />
           <TextArea
             label="About you"
             rows={6}
@@ -71,7 +71,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
         </form>
       </OnboardingScreen.Content>
       <OnboardingScreen.Footer>
-        <Button variant="link" onClick={() => onDone(myName.trim())}>
+        <Button variant="link" onClick={() => onDone(myName.trim(), "")}>
           Skip for now
         </Button>
       </OnboardingScreen.Footer>
