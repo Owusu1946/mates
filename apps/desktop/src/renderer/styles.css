@@ -657,6 +657,31 @@ html[data-surface="summon"] body {
   animation: status-pulse 1.6s infinite;
 }
 
+/*
+ * The hold-to-talk level meter: each bar grows and shrinks on its own beat, transform only, in
+ * steps. It runs only while observeVisibleAnimation says it's on screen.
+ */
+@keyframes voice-level {
+  0%,
+  100% {
+    scale: 1 0.25;
+  }
+  30% {
+    scale: 1 0.9;
+  }
+  55% {
+    scale: 1 0.45;
+  }
+  80% {
+    scale: 1 0.7;
+  }
+}
+@utility voice-bar {
+  scale: 1 0.25;
+  animation: voice-level 0.9s steps(12) infinite;
+  animation-play-state: var(--visible-animation-state, paused);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
