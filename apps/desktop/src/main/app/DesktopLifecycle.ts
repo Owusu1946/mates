@@ -1,11 +1,17 @@
 import * as Electron from "electron";
 
+export type AppControls = {
+  /** Brings the main window forward, opening it again if it was closed. */
+  showMain: () => Electron.BrowserWindow;
+};
+
 /**
- * One running copy, and each system's own habits for windows: macOS keeps the app in the Dock
- * with no windows and reopens one on click; Windows and Linux quit when the last window closes.
- * `onReady` runs once Electron is ready and before the first window, so guards and menus cover it.
+ * One running copy, and each system's own habits for windows. With the tray and the hidden
+ * summon bar, closing the main window leaves Mates running, so the bar still opens from any app;
+ * Quit in the tray or the app menu ends it. `onReady` runs once Electron is ready and before the
+ * first window, so guards, menus and the tray cover it.
  */
-export function startLifecycle({ onReady, openWindow }: { onReady: () => void; openWindow: () => Electron.BrowserWindow }) {
+export function startLifecycle({ onReady, openWindow }: { onReady: (controls: AppControls) => void; openWindow: () => Electron.BrowserWindow }) {
   if (!Electron.app.requestSingleInstanceLock()) {
     // Another copy runs; it brings its window forward (second-instance below).
     Electron.app.quit();
@@ -19,24 +25,28 @@ export function startLifecycle({ onReady, openWindow }: { onReady: () => void; o
       if (mainWindow === window) mainWindow = null;
     });
     mainWindow = window;
+    return window;
   };
-
-  // A second launch brings the running window forward instead of opening another app.
-  Electron.app.on("second-instance", () => {
+  const showMain = () => {
     if (!mainWindow) return open();
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.show();
     mainWindow.focus();
-  });
+    return mainWindow;
+  };
+
+  // A second launch brings the running window forward instead of opening another app.
+  Electron.app.on("second-instance", showMain);
+  // The Dock icon on a Mac reopens the window; the hidden summon bar doesn't count as one.
   Electron.app.on("activate", () => {
-    if (Electron.BrowserWindow.getAllWindows().length === 0) open();
+    if (!mainWindow) open();
   });
   Electron.app.on("window-all-closed", () => {
     if (process.platform !== "darwin") Electron.app.quit();
   });
 
   void Electron.app.whenReady().then(() => {
-    onReady();
+    onReady({ showMain });
     open();
   });
 }
