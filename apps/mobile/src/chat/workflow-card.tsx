@@ -1,3 +1,4 @@
+import { useAuth } from "@clerk/expo";
 import { useAui, useAuiState } from "@assistant-ui/react-native";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useEffect, useRef, useState } from "react";
@@ -7,6 +8,7 @@ import { AppLogo, ConnectionButton } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
 import { ActivityLine } from "./activity-line";
+import { isRoutineActivity, quietChatActivity } from "./activity-visibility";
 
 /** Apps connected per waiting run; a plan can wait on several before it may resume. */
 const connectedByRun = new Map<string, Set<string>>();
@@ -23,7 +25,13 @@ export function isWaitingPlaceholder(card: WorkflowCard | undefined) {
   return !!card && card.kind === "step" && card.phase === "running" && !card.activity?.length && !card.stage && !card.logo;
 }
 
+export function useQuietChatActivity() {
+  const { userId } = useAuth();
+  return quietChatActivity(process.env.EXPO_PUBLIC_CHAT_ACTIVITY_MODE, userId);
+}
+
 export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
+  const quiet = useQuietChatActivity() && isRoutineActivity(state);
   const { isDark } = useTheme();
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
@@ -158,8 +166,9 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     );
   // Nothing specific is happening yet: the reply's pulsing dot says it instead of a generic line.
   if (messageRunning && isWaitingPlaceholder(state)) return null;
-  if (state.kind === "step" && state.activity?.length)
-    return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} />;
+  if (state.kind === "step" && state.activity?.length && state.phase !== "waiting")
+    return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} quiet={quiet} />;
+  if (quiet && state.phase === "running" && messageRunning) return null;
   if (state.kind === "call" && state.call) return <CallCard call={state.call} meeting={state.label === "Meeting"} />;
   if (hasAction || state.phase === "done") return null;
   const interrupted = state.phase === "running" && !messageRunning;
@@ -170,7 +179,9 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     ? interrupted
       ? "Request interrupted"
       : state.label
-    : discovery
+    : state.phase === "waiting"
+      ? state.label
+      : discovery
       ? "Finding the right app…"
       : state.stage === "execution"
         ? state.name
@@ -204,7 +215,7 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
           {label}
         </Text>
       </View>
-      {failed && (
+      {(failed || state.phase === "waiting" && state.detail) && (
         <Text
           style={{
             fontFamily: "DMSans_400Regular",

@@ -44,14 +44,14 @@ function duration(startedAt?: string, finishedAt?: string) {
  * Cooper's progress as one quiet line, the way ChatGPT and Grok show it: the current step with
  * pulsing dots while working, then "Worked for 12s", which opens the steps it took.
  */
-export function ActivityLine({ state, messageRunning, isDark }: { state: WorkflowCard; messageRunning: boolean; isDark: boolean }) {
+export function ActivityLine({ state, messageRunning, isDark, quiet = false }: { state: WorkflowCard; messageRunning: boolean; isDark: boolean; quiet?: boolean }) {
   const [open, setOpen] = useState(false);
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const foreground = isDark ? "#fafafa" : "#18181b";
   const steps = state.activity ?? [];
   const working = state.phase === "running" && messageRunning;
 
-  if (working)
+  if (working && !quiet)
     return (
       <View accessibilityLiveRegion="polite" accessibilityLabel={`${state.label}…`} style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 }}>
         <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 15, color: muted }}>{state.label}</Text>
@@ -62,6 +62,11 @@ export function ActivityLine({ state, messageRunning, isDark }: { state: Workflo
     );
 
   const took = duration(state.startedAt, state.finishedAt);
+  const interrupted = state.phase === "running" && !messageRunning;
+  let label = took ? `Worked for ${took}` : "Worked on it";
+  if (interrupted) label = "Stopped";
+  else if (state.phase === "error") label = state.label;
+  else if (quiet) label = "View activity";
   return (
     <View style={{ paddingVertical: 6, gap: 8 }}>
       <Pressable
@@ -72,8 +77,9 @@ export function ActivityLine({ state, messageRunning, isDark }: { state: Workflo
         style={{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" }}
       >
         <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 14, color: muted }}>
-          {state.phase === "running" ? "Stopped" : took ? `Worked for ${took}` : "Worked on it"}
+          {label}
         </Text>
+        {working && <WorkingDots color={muted} />}
         <View style={{ transform: [{ rotate: open ? "90deg" : "0deg" }] }}>
           <ChatIcon name="next" color={muted} size={14} />
         </View>
@@ -82,7 +88,7 @@ export function ActivityLine({ state, messageRunning, isDark }: { state: Workflo
         <View style={{ gap: 6, paddingLeft: 2 }}>
           {steps.map((step, i) => (
             <View key={`${step.label}-${i}`} style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <ChatIcon name="check" color={muted} size={13} />
+              <ChatIcon name={step.state === "done" ? "check" : "clock"} color={muted} size={13} />
               <Text style={{ fontFamily: "DMSans_400Regular", fontSize: 14, color: foreground }}>{step.label}</Text>
             </View>
           ))}
