@@ -31,7 +31,7 @@ export function useQuietChatActivity() {
 }
 
 export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
-  const quiet = useQuietChatActivity() && isRoutineActivity(state);
+  const quiet = useQuietChatActivity();
   const { isDark } = useTheme();
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
@@ -166,9 +166,9 @@ export function ToolWorkflowCard({ state }: { state: WorkflowCard }) {
     );
   // Nothing specific is happening yet: the reply's pulsing dot says it instead of a generic line.
   if (messageRunning && isWaitingPlaceholder(state)) return null;
+  if (quiet && isRoutineActivity(state, messageRunning)) return null;
   if (state.kind === "step" && state.activity?.length && state.phase !== "waiting")
-    return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} quiet={quiet} />;
-  if (quiet && state.phase === "running" && messageRunning) return null;
+    return <ActivityLine state={state} messageRunning={messageRunning} isDark={isDark} />;
   if (state.kind === "call" && state.call) return <CallCard call={state.call} meeting={state.label === "Meeting"} />;
   if (hasAction || state.phase === "done") return null;
   const interrupted = state.phase === "running" && !messageRunning;

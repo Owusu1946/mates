@@ -139,7 +139,7 @@ function ChatActivitySettings({ activityMode, onActivityMode }: ChatActivitySett
         <p className="mt-1 mb-3 text-sm text-ink-soft">Choose how much progress to see while a mate works.</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {([
-            { value: "quiet", label: "Quiet", description: "Keep work steps collapsed." },
+            { value: "quiet", label: "Quiet", description: "Hide routine work steps." },
             { value: "detailed", label: "Detailed", description: "Show work steps inline." },
           ] as const).map((option) => (
             <label key={option.value} className={cn("flex cursor-pointer gap-2 rounded-lg border p-3", activityMode === option.value ? "border-brand bg-raised" : "border-line hover:bg-hover-fill")}>

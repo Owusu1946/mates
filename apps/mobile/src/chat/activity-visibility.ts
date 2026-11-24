@@ -13,9 +13,9 @@ export function quietChatActivity(mode: string | undefined, userId: string | nul
 }
 
 /** User decisions, errors, and completed outcomes stay where the mate put them. */
-export function isRoutineActivity(card: WorkflowCard | undefined): boolean {
+export function isRoutineActivity(card: WorkflowCard | undefined, messageRunning: boolean): boolean {
   return card?.kind === "step"
-    && (card.phase === "running" || card.phase === "done")
+    && (card.phase === "done" || (card.phase === "running" && messageRunning))
     && card.stage !== "summary"
     && !card.approval
     && !card.approvalFields?.length

@@ -457,13 +457,12 @@ function ThinkingIndicator() {
   const parts = useAuiState((state) => state.message.parts);
   const colors = useChatColors();
   if (!running) return null;
-  // Quiet chat uses the dot for routine tools that don't have an activity disclosure.
+  // Quiet chat uses the dot until there is text or a visible card.
   if (parts.some((part) => {
     if (part.type !== "tool-call") return false;
     const card = part.result as WorkflowCard | undefined;
     if (!card || isWaitingPlaceholder(card)) return false;
-    if (!quiet || !isRoutineActivity(card)) return true;
-    return Boolean(card.activity?.length);
+    return !quiet || !isRoutineActivity(card, running);
   })) return null;
   // Once the first words arrive the text itself shows progress, so the dot goes, as in ChatGPT.
   if (parts.some((part) => part.type === "text" && part.text.trim().length > 0)) return null;

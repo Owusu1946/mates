@@ -39,7 +39,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
             onAnswer={onAnswer}
           />
         ))}
-        {activity && <ChatWorkActivity quiet={quiet} steps={[activity]} />}
+        {!quiet && activity && <ChatWorkActivity steps={[activity]} />}
         {!quiet && reply?.phase === "thinking" && mates[reply.mateId] && <ActivityLine mate={mates[reply.mateId]!} />}
         {reply?.phase === "streaming" && (
           <MessageRow message={{ id: "live", author: reply.mateId, text: streamed }} mate={mates[reply.mateId]} showAuthor={group && lastAuthor !== reply.mateId} onAnswer={onAnswer} />

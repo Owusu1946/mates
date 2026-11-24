@@ -25,7 +25,7 @@ function PreviewChat({ quiet, progress }: { quiet: boolean; progress: number }) 
       <h3 className="border-b border-line px-4 py-2.5 text-sm font-medium">{label}</h3>
       <div className="flex flex-col gap-3 p-4 text-sm">
         <MessageRow message={REQUEST} showAuthor={false} onAnswer={(_, state) => setAnswer(state)} />
-        {progress > 0 && <ChatWorkActivity quiet={quiet} steps={STEPS.slice(0, progress)} />}
+        {!quiet && progress > 0 && <ChatWorkActivity steps={STEPS.slice(0, progress)} />}
         {progress > STEPS.length && (
           <MessageRow message={{ ...RESULT, card: { ...PAYMENT, state: answer } }} showAuthor={false} onAnswer={(_, state) => setAnswer(state)} />
         )}
