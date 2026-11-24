@@ -1,12 +1,14 @@
 ---
 import Roles from "../components/Roles.astro";
+import Platforms from "../components/Platforms.astro";
+import Capabilities from "../components/Capabilities.astro";
+import Memory from "../components/Memory.astro";
 import Faq from "../components/Faq.astro";
 import LocalEdge from "../components/LocalEdge.astro";
 import Footer from "../components/Footer.astro";
 import Logo from "../components/Logo.astro";
 import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
-import WaitlistButton from "../components/WaitlistButton.astro";
 import Waitlist from "../components/Waitlist";
 import Team from "../components/Team.astro";
 import Apps from "../components/Apps.astro";
@@ -32,7 +34,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     <nav aria-label="Main">
       {nav.map((item) => <a href={item.href}>{item.label}</a>)}
     </nav>
-    <Waitlist client:load api={api} />
+    <div class="nav-action"><Waitlist client:load api={api} /></div>
     <MobileMenu items={[...nav, { label: "FAQs", href: "#faq" }]} />
   </header>
 
@@ -41,7 +43,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       <div class="hero-copy">
         <h1>Your personal team of AI mates.</h1>
         <p class="lede">Give your lead mate a task. Follow the handoff and review the result in the same chat.</p>
-        <WaitlistButton />
+        <Platforms />
       </div>
       <Team />
     </section>
@@ -58,30 +60,52 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Apps />
 
+    <Capabilities />
+
+    <Memory />
+
     <Pricing />
 
     <Faq />
 
     <section class="launch" id="download" aria-labelledby="launch-title">
-      <h2 id="launch-title">iPhone and Android, soon.</h2>
-      <p>Get an email when Mates launches.</p>
-      <WaitlistButton />
+      <h2 id="launch-title">Meet your next team.</h2>
+      <p>A lead mate. Specialists for the work ahead.</p>
+      <Platforms />
     </section>
   </main>
 
   <Footer />
   <BackToTop client:idle />
+  <script>
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    if (!motion.matches && "IntersectionObserver" in window) {
+      const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          entry.target.classList.add("is-in");
+          observer.unobserve(entry.target);
+        }
+      }, { threshold: 0.01, rootMargin: "0px 0px -48px 0px" });
+      document.querySelectorAll("main > section:not(.hero)").forEach((section) => {
+        section.classList.add("reveal");
+        observer.observe(section);
+      });
+    }
+  </script>
 </Base>
 
 <style>
-  .launch { width: min(640px, calc(100% - 40px)); margin: 112px auto 0; padding: 8px 0 32px; text-align: center; }
+  .launch { width: min(640px, calc(100% - 40px)); margin: 112px auto 0; padding: 56px 24px; border-block: 1px solid var(--line); text-align: center; }
+  .launch :global(.platforms) { justify-content: center; }
   .launch h2 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.045em; line-height: 1.1; }
   .launch p { max-width: 36ch; margin: 14px auto 28px; color: var(--muted); font-size: 17px; line-height: 1.55; }
   .nav {
     position: sticky;
     top: 0;
     z-index: 10;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
     gap: 28px;
     height: 64px;
@@ -90,7 +114,9 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     -webkit-backdrop-filter: saturate(160%) blur(18px);
     backdrop-filter: saturate(160%) blur(18px);
   }
+  .nav-action { justify-self: end; }
   .brand {
+    justify-self: start;
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -138,7 +164,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   }
   @media (max-width: 860px) {
     nav { display: none; }
-    .nav { height: 56px; padding: 0 16px; }
+    .nav { height: 64px; padding: 0 16px; grid-template-columns: 1fr auto auto; gap: 8px; }
     .hero { grid-template-columns: 1fr; max-width: 540px; gap: 36px; margin-block: 40px; }
   }
 </style>

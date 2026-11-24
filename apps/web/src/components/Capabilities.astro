@@ -1,0 +1,59 @@
+---
+const items = [
+  { title: "Pages", body: "Mates write shareable pages — itineraries, comparisons, briefs — you can open on your phone." },
+  { title: "Watches", body: "From Plus: watch a topic or inbox, then act when something changes." },
+  { title: "Share in", body: "Send a link, photo, or file into a chat. The mate picks up from there." },
+  { title: "Routines", body: "Morning brief, inbox sweep, weekly research — on a schedule you set." },
+];
+---
+<section class="caps" id="more" aria-labelledby="caps-title">
+  <h2 id="caps-title">Also in the app.</h2>
+  <div class="grid">
+    {items.map((item) => (
+      <article>
+        <h3>{item.title}</h3>
+        <p>{item.body}</p>
+      </article>
+    ))}
+  </div>
+</section>
+<style>
+  .caps {
+    width: min(1120px, calc(100% - 40px));
+    margin: 104px auto 0;
+  }
+  h2 {
+    margin: 0 0 36px;
+    font-size: clamp(28px, 3.6vw, 44px);
+    font-weight: 500;
+    letter-spacing: -0.045em;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    border-top: 1px solid var(--line);
+  }
+  article {
+    padding: 28px 24px 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 560;
+  }
+  p {
+    margin: 10px 0 0;
+    max-width: 28ch;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 520px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>

@@ -116,7 +116,7 @@ export default function Waitlist({ api }: { api: string }) {
   return (
     <>
       <button ref={trigger} type="button" className="pill-button dark wl-trigger" onClick={() => show(trigger.current)}>
-        Join waitlist
+        Notify me
       </button>
 
       {open &&
@@ -136,8 +136,8 @@ export default function Waitlist({ api }: { api: string }) {
 
             {phase !== "done" ? (
               <form className="wl-body" onSubmit={submit} noValidate>
-                <h2 id="wl-title">Join the waitlist</h2>
-                <p>iPhone and Android. One email when it’s ready.</p>
+                <h2 id="wl-title">Get a launch email</h2>
+                <p>Drop your address. We’ll write once.</p>
                 <div className={`wl-field${error ? " invalid" : ""}`}>
                   <input
                     ref={input}
@@ -181,10 +181,10 @@ export default function Waitlist({ api }: { api: string }) {
                       <i />
                     </span>
                   ) : (
-                    "Join the waitlist"
+                    "Notify me"
                   )}
                 </button>
-                <div className="wl-small">One email when we launch. No spam, ever.</div>
+
               </form>
             ) : (
               <div className="wl-body wl-done" aria-live="polite">

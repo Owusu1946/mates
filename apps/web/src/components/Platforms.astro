@@ -1,0 +1,28 @@
+---
+const platforms = [
+  { name: "App Store", note: "iPhone", path: "M17 12.3c0-2 1.6-3 1.7-3.1-1-1.5-2.6-1.7-3.2-1.7-1.3-.1-2.6.8-3.3.8-.7 0-1.7-.8-2.8-.8-1.5 0-2.9.9-3.6 2.2-1.6 2.7-.4 6.7 1.1 8.9.8 1.1 1.6 2.3 2.8 2.2 1.1 0 1.5-.7 2.9-.7s1.8.7 3 .7c1.2 0 2-1.1 2.8-2.2.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.7-1-2.7-3.7ZM14.8 5.9c.7-.8 1.1-1.9 1-3-.9.1-2 .7-2.7 1.5-.6.7-1.1 1.8-1 2.9 1 .1 2-.5 2.7-1.4Z" },
+  { name: "Google Play", note: "Android", path: "M4 3v18l11-9L4 3Zm1-1 13 7-3 3L5 2Zm10 10 3 3-13 7 10-10Zm4-2 3 2-3 2-2-2 2-2Z" },
+];
+---
+<div class="platforms">
+  <p>Coming soon</p>
+  <div class="options">
+    {platforms.map(platform => <button type="button" data-waitlist aria-label={`Get notified when Mates launches on ${platform.name}`}>
+      <svg width="22" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d={platform.path} fill="currentColor"/></svg>
+      <span><small>{platform.note}</small><b>{platform.name}</b></span>
+    </button>)}
+    <span class="desktop"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 17v4m-5 0h10"/></svg><span><small>Coming soon</small><b>Desktop</b></span></span>
+  </div>
+</div>
+<style>
+  .platforms { margin-top:24px; }
+  .platforms>p { margin:0 0 10px; font-size:12px; color:var(--muted); }
+  .options { display:flex; flex-wrap:wrap; gap:10px; }
+  button,.desktop { display:flex; align-items:center; gap:10px; min-height:58px; padding:10px 16px; border:1px solid var(--line); border-radius:10px; font:inherit; text-align:left; }
+  button { background:var(--text); color:var(--bg); cursor:pointer; transition:transform 160ms ease,background 160ms ease; }
+  button:hover { background:#413e35; } button:active { transform:scale(.97); }
+  span>span { display:grid; } button>span { display:grid; }
+  small { font-size:10px; line-height:1.4; opacity:.7; } b { font-size:14px; font-weight:500; line-height:1.4; }
+  .desktop { color:var(--muted); }
+  @media(max-width:380px) { button,.desktop { padding:10px 12px; } }
+</style>

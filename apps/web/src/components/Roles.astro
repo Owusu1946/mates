@@ -108,7 +108,20 @@ const roles: Role[] = [
       { them: "I’ll check in every morning." },
     ],
   },
-
+  {
+    id: "brief",
+    name: "Daily Brief",
+    gradient: mate("rose"),
+    shape: "squircle",
+    state: "happy",
+    lead: "Your morning in one message.",
+    body: "Calendar, weather, leave-by, and what still needs you — before the day starts running you.",
+    thread: [
+      { stamp: "7:00 AM" },
+      { them: "3 meetings. First at 10:00 — Airport City. Leave by 9:12 if you’re driving." },
+      { them: "Rain after 2pm. One urgent: contract needs your signature today." },
+    ],
+  },
 ];
 
 const icons = {
@@ -133,6 +146,7 @@ const icons = {
             class="chip"
             id={`tab-${role.id}`}
             aria-selected={index === 0 ? "true" : "false"}
+            tabindex={index === 0 ? 0 : -1}
             aria-controls={`phone-${role.id}`}
             data-copy={`copy-${role.id}`}
           >
@@ -151,14 +165,12 @@ const icons = {
       ))
     }
 
-    <button type="button" class="pill-button dark more" data-waitlist>Build your crew <span aria-hidden="true">↗</span></button>
-    <p class="availability">Join the waitlist for iPhone and Android.</p>
   </div>
 
   <div class="stage">
     {
       roles.map((role, index) => (
-        <div class="panel" id={`phone-${role.id}`} role="tabpanel" aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
+        <div class="panel" id={`phone-${role.id}`} role="tabpanel" tabindex="0" aria-describedby={`copy-${role.id}`} aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
           <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, state: role.state, shape: role.shape }]}>
             {role.thread.map((line, i) => {
               const delay = `--d: ${0.1 + i * 0.35}s`;
@@ -182,8 +194,11 @@ const icons = {
 
 <script>
   for (const root of document.querySelectorAll<HTMLElement>("[data-roles]")) {
+    const chips = root.querySelector<HTMLElement>(".chips")!;
     const tabs = [...root.querySelectorAll<HTMLButtonElement>("[role=tab]")];
     const select = (tab: HTMLButtonElement) => {
+      chips.style.setProperty("--selection-y", `${tab.offsetTop}px`);
+      chips.style.setProperty("--selection-height", `${tab.offsetHeight}px`);
       for (const other of tabs) {
         const on = other === tab;
         other.setAttribute("aria-selected", String(on));
@@ -192,14 +207,17 @@ const icons = {
         root.querySelector<HTMLElement>(`#${other.dataset.copy}`)!.hidden = !on;
       }
     };
+    select(tabs[0]!);
+    new ResizeObserver(() => select(tabs.find(tab => tab.getAttribute("aria-selected") === "true")!)).observe(chips);
     tabs.forEach((tab, index) => {
       tab.tabIndex = index === 0 ? 0 : -1;
       tab.addEventListener("click", () => select(tab));
       tab.addEventListener("keydown", (event) => {
-        const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+        const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
         if (!step && event.key !== "Home" && event.key !== "End") return;
         event.preventDefault();
-        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + step + tabs.length) % tabs.length]!;
+        const current = tabs.indexOf(tabs.find((item) => item.getAttribute("aria-selected") === "true")!);
+        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + step + tabs.length) % tabs.length]!;
         next.focus();
         select(next);
       });
@@ -232,49 +250,69 @@ const icons = {
     line-height: 1.1;
   }
   .chips {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    max-width: 520px;
-    margin-top: 36px;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 360px;
+    margin-top: 28px;
+    padding: 4px;
+    border-radius: 16px;
+    background: var(--soft);
+  }
+  .chips::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: var(--selection-y, 4px);
+    height: var(--selection-height, 48px);
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: 0 1px 2px rgba(17, 17, 16, 0.06), 0 8px 20px rgba(17, 17, 16, 0.04);
+    transition: top 0.38s cubic-bezier(0.22, 1, 0.36, 1), height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
   }
   .chip {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 42px;
-    padding: 0 18px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--bg);
+    gap: 10px;
+    min-height: 48px;
+    justify-content: flex-start;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
     color: var(--muted);
     font: inherit;
     font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: color 0.22s ease;
   }
-  .chip:hover {
-    border-color: rgba(0, 0, 0, 0.18);
-  }
+  .chip:hover { color: var(--text); }
   .chip :global(.face) {
-    display: none;
-    margin-left: -10px;
+    opacity: 0.5;
+    transform: scale(0.92);
+    transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .chip[aria-selected="true"] {
-    border-color: var(--text);
-    background: var(--soft);
     color: var(--text);
   }
   .chip[aria-selected="true"] :global(.face) {
-    display: block;
+    opacity: 1;
+    transform: scale(1);
   }
   .chip:focus-visible {
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
   .copy {
+    min-height: 6.5em;
     max-width: 44ch;
-    margin: 40px 0 0;
+    margin: 28px 0 0;
     color: var(--muted);
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.6;
@@ -283,10 +321,6 @@ const icons = {
     color: var(--text);
     font-weight: 500;
   }
-  .more {
-    margin-top: 48px;
-  }
-
   .stage {
     display: flex;
     justify-content: center;
@@ -306,9 +340,6 @@ const icons = {
       padding: 0 8px;
     }
     .copy {
-      margin-top: 28px;
-    }
-    .more {
       margin-top: 28px;
     }
     .stage {

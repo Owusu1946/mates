@@ -1,21 +1,43 @@
 ---
-// The Mates mark, inlined from brand/ so the page and every other use share one file.
-import logo from "../../../../brand/mates-logo.svg?raw";
-
-interface Props {
-  size: number;
-}
-
+// Reuse the exact sampled silhouettes and timing from the mobile splash.
+import { HEXAGON, CIRCLE, TRIANGLE } from "../../../mobile/src/splash/outlines";
+interface Props { size: number }
 const { size } = Astro.props;
-const svg = logo.replace("<svg ", `<svg width="${size}" height="${size}" aria-hidden="true" `).replace(/<title>[^<]*<\/title>/, "");
+const uid = `mark-${crypto.randomUUID()}`;
+const path = (points: number[]) => points.reduce((d, value, i) => d + (i % 2 ? ` ${value}` : `${i ? "L" : "M"}${value}`), "") + "Z";
+const cells = [
+  { x: 100, y: 68.44645, target: HEXAGON, colors: ["#e5c59e", "#d27e41", "#9a3412"] },
+  { x: 63.5651, y: 131.55355, target: CIRCLE, colors: ["#b9c8f5", "#5b7be0", "#26408b"] },
+  { x: 136.4349, y: 131.55355, target: TRIANGLE, colors: ["#cfe3a8", "#7ea33f", "#3f5a1c"] },
+];
 ---
-
-<span class="logo" style={`width: ${size}px; height: ${size}px`} set:html={svg} />
-
-<style>
-  .logo {
-    display: inline-flex;
-    flex: none;
-    color: var(--text);
+<span class="logo" style={`width:${size}px;height:${size}px`} data-splash-mark>
+  <svg width={size} height={size} viewBox="-12 -12 224 224" aria-hidden="true">
+    <defs>{cells.map((cell,i) => <linearGradient id={`${uid}-${i}`} x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color={cell.colors[0]}/><stop offset=".55" stop-color={cell.colors[1]}/><stop offset="1" stop-color={cell.colors[2]}/></linearGradient>)}</defs>
+    {cells.map((cell,i) => <g transform={`translate(${cell.x} ${cell.y}) scale(.405) translate(-100 -100)`}>
+      <path d={path(cell.target)} fill={`url(#${uid}-${i})`}>
+        <animate attributeName="d" values={`${path(HEXAGON)};${path(cell.target)}`} dur="460ms" begin="indefinite" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".22 1 .36 1"/>
+      </path>
+    </g>)}
+  </svg>
+</span>
+<script>
+  for (const mark of document.querySelectorAll<HTMLElement>("[data-splash-mark]")) {
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    const play = () => {
+      if (motion.matches) return;
+      mark.querySelectorAll<SVGAnimateElement>("animate").forEach(animation => animation.beginElement());
+    };
+    const link = mark.closest("a");
+    link?.addEventListener("pointerenter", play);
+    link?.addEventListener("focus", play);
+    play();
+    motion.addEventListener("change", () => {
+      if (motion.matches) mark.querySelectorAll<SVGAnimateElement>("animate").forEach(animation => animation.endElement());
+    });
   }
+</script>
+<style>
+  .logo { display:inline-flex; flex:none; overflow:visible; }
+  svg { display:block; overflow:visible; }
 </style>
