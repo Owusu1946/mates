@@ -8,13 +8,14 @@ import { font, Group } from "../../src/memory/memory-ui";
 import { useTheme } from "../../src/theme/provider";
 
 type Section = "calendar" | "email" | "weather" | "power" | "rides" | "bills" | "tasks" | "deferred";
-type Settings = { enabled: boolean; time: string; timezone: string; weekends: "full" | "light" | "off"; sections: Section[]; mutedSections: Section[]; nextRunAt: string | null };
+type Settings = { enabled: boolean; time: string; timezone: string; weekends: "full" | "light" | "off"; sections: Section[]; mutedSections: Section[]; commuteOrigin: string; nextRunAt: string | null };
 const AVAILABLE: { id: Section; label: string; detail: string }[] = [
   { id: "calendar", label: "Calendar", detail: "Meetings and conflicts" },
   { id: "email", label: "Email", detail: "Messages needing a decision" },
   { id: "tasks", label: "Tasks", detail: "Reminders and work waiting for you" },
+  { id: "rides", label: "Commute", detail: "Ride estimate for your next meeting in Ghana" },
 ];
-const LATER = "Weather, light-off windows, rides, bills and deferred items are coming later.";
+const LATER = "Weather, light-off windows, bills and deferred items are coming later.";
 
 /** The brief is off until the person saves their choices. */
 export default function MorningBriefSettings() {
@@ -42,6 +43,7 @@ export default function MorningBriefSettings() {
   const save = async () => {
     if (!current || saving) return;
     if (!validTime || !selected.length) return setError("Choose a time in HH:mm format and at least one section.");
+    if (selected.includes("rides") && (current.commuteOrigin ?? "").trim().length < 2) return setError("Add your starting place for commute estimates.");
     setSaving(true);
     setError(null);
     try {
@@ -49,6 +51,7 @@ export default function MorningBriefSettings() {
       const response = await client.v1["morning-brief"].settings.$put({ json: {
         enabled: current.enabled, time: current.time, timezone: current.timezone, weekends: current.weekends,
         sections: current.sections,
+        commuteOrigin: (current.commuteOrigin ?? "").trim(),
       } });
       if (!response.ok) throw new Error("Couldn’t save your brief settings. Try again.");
       for (const section of restored) {
@@ -111,6 +114,11 @@ export default function MorningBriefSettings() {
           <View style={{ flex: 1, gap: 3 }}><Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 15 }}>{item.label}</Text><Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>{current.mutedSections.includes(item.id) ? "Hidden after your feedback · turn on to restore" : item.detail}</Text></View>
           <Switch accessibilityLabel={`Include ${item.label}`} value={current.sections.includes(item.id) && !current.mutedSections.includes(item.id)} onValueChange={() => toggle(item.id)} />
         </View>)}
+        {current.sections.includes("rides") ? <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 5 }}>
+          <Text style={{ color: colors.text, fontFamily: font.medium, fontSize: 15 }}>Start from</Text>
+          <TextInput accessibilityLabel="Commute starting place" value={current.commuteOrigin ?? ""} onChangeText={(commuteOrigin) => update({ commuteOrigin })} maxLength={120} placeholder="Place and address, e.g. Osu, Accra" placeholderTextColor={colors.textMuted} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, paddingVertical: 6 }} />
+          <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 12 }}>Mates uses this place and your calendar location to check Sail for a ride estimate.</Text>
+        </View> : null}
         </Group>
       </View>
       <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 19 }}>{LATER} A 07:00 brief may post in chat before its push if your notification quiet hours run until 08:00.</Text>

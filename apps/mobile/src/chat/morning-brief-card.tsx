@@ -6,7 +6,7 @@ import { Linking, Pressable, Text, View } from "react-native";
 import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
 
-type Action = { kind: "calendar"; url: string } | { kind: "email"; threadId: string } | { kind: "run"; runId: string } | { kind: "tasks"; reminderId: string };
+type Action = { kind: "calendar"; url: string } | { kind: "email"; threadId: string } | { kind: "run"; runId: string } | { kind: "tasks"; reminderId: string } | { kind: "rides"; url: string; fallbackUrl?: string };
 type Line = { id: string; section: string; text: string; action: Action };
 export type MorningBrief = { id: string; localDay: string; lines: Line[] };
 
@@ -22,7 +22,9 @@ export function parseMorningBrief(value: unknown): MorningBrief | null {
     return action.kind === "calendar" && typeof action.url === "string" && action.url.startsWith("https://")
       || action.kind === "email" && typeof action.threadId === "string" && action.threadId.length > 0
       || action.kind === "run" && typeof action.runId === "string" && action.runId.length > 0
-      || action.kind === "tasks" && typeof action.reminderId === "string" && action.reminderId.length > 0;
+      || action.kind === "tasks" && typeof action.reminderId === "string" && action.reminderId.length > 0
+      || action.kind === "rides" && typeof action.url === "string" && /^(?:uber:\/\/riderequest(?:\?|$)|https:\/\/(?:yango\.go\.link|bolt\.eu)\/)/.test(action.url)
+        && (action.fallbackUrl === undefined || typeof action.fallbackUrl === "string" && /^https:\/\/(?:m\.uber\.com|yango\.com)\//.test(action.fallbackUrl));
   }).slice(0, 8);
   return { id: brief.id, localDay: brief.localDay, lines };
 }
@@ -50,7 +52,11 @@ export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
       if (action.kind === "calendar") await Linking.openURL(action.url);
       else if (action.kind === "email") await Linking.openURL(`https://mail.google.com/mail/#all/${encodeURIComponent(action.threadId)}`);
       else if (action.kind === "run") router.push({ pathname: "/(app)/feed", params: { runId: action.runId } });
-      else router.push({ pathname: "/tasks", params: { reminderId: action.reminderId, reminderText: line.text } });
+      else if (action.kind === "tasks") router.push({ pathname: "/tasks", params: { reminderId: action.reminderId, reminderText: line.text } });
+      else {
+        try { await Linking.openURL(action.url); }
+        catch { if (!action.fallbackUrl) throw new Error("Provider unavailable"); await Linking.openURL(action.fallbackUrl); }
+      }
     } catch { setError("Couldn’t open that item. Try again."); }
   };
   const notUseful = async (line: Line) => {

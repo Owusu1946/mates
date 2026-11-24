@@ -1,5 +1,6 @@
 import { rideInput, runRideRequest } from "./rides-tool.js";
 import { withSail, type createSailAdapter } from "./sail.js";
+import type { TripPoint } from "./sail.js";
 
 type Sail = ReturnType<typeof createSailAdapter>;
 type RunSail = <T>(run: (sail: Sail) => Promise<T>, signal?: AbortSignal) => Promise<T>;
@@ -75,7 +76,7 @@ export function rideResultReply(result: RideSummary) {
 }
 
 /** This batch supports named places; location consent and explicit place-selection cards come later. */
-export async function executeRideConversation(args: unknown, context: { signal?: AbortSignal; run?: RunSail; onSailCall?: () => void } = {}) {
+export async function executeRideConversation(args: unknown, context: { signal?: AbortSignal; run?: RunSail; onSailCall?: () => void; onResolvedTrip?: (trip: { from: TripPoint; to: TripPoint }) => void } = {}) {
   const parsed = rideInput.safeParse(args);
   if (!parsed.success) return { error: "Please provide a destination and valid trip details." };
   const { from, to, mode } = parsed.data;
@@ -92,6 +93,7 @@ export async function executeRideConversation(args: unknown, context: { signal?:
       const result = await runRideRequest(sail, { from: { kind: "search", query: from }, to: { kind: "search", query: to }, country, mode });
       if (result.kind === "place_not_found") return { needs: result.field, message: "I couldn't find that place. Please provide a more specific name or address." };
       if (result.kind === "place_choice") return { needs: result.field, choices: result.choices.map(({ name, address }) => ({ name: text(name), ...(address ? { address: text(address) } : {}) })), message: "Ask the user which place they mean." };
+      context.onResolvedTrip?.({ from: result.from, to: result.to });
       return { from: text(result.from.name) ?? from, to: text(result.to.name) ?? to, country, fetchedAt: new Date().toISOString(), ...summarize(result.result, mode) };
     }, context.signal);
   } catch {

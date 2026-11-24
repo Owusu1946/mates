@@ -1,7 +1,7 @@
 import { useAui, useAuiState } from "@assistant-ui/react-native";
 import type { WorkflowCard } from "@expojet/api-contract";
 import { useEffect, useRef, useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Alert, Linking, Pressable, Text, View } from "react-native";
 import { useTheme } from "../theme/provider";
 import { CardButton } from "./card-button";
 
@@ -79,6 +79,18 @@ export function RidesCard({ state }: { state: WorkflowCard }) {
     }
   };
 
+  const openRide = async (handoff: NonNullable<NonNullable<typeof data>["handoffs"]>[number]) => {
+    if (!handoff) return;
+    try {
+      await Linking.openURL(handoff.url);
+    } catch {
+      if (handoff.fallbackUrl) {
+        try { await Linking.openURL(handoff.fallbackUrl); return; } catch { /* show the same error below */ }
+      }
+      Alert.alert("Could not open ride provider", "Please try again later.");
+    }
+  };
+
   const noResultMessage = failed
     ? data.mode === "rides"
       ? "Ride quotes couldn't be loaded."
@@ -106,15 +118,20 @@ export function RidesCard({ state }: { state: WorkflowCard }) {
         <>
           {data.mode !== "transit" && (hasRides || rideFailed || data.status === "unavailable") ? (
             <View style={{ gap: 8 }}>
-              {hasRides ? rides.map((option, index) => (
-                <View key={`${option.provider}-${option.name}-${index}`} style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, paddingVertical: 7, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: colors.border }}>
-                  <View style={{ flex: 1, gap: 3 }}>
-                    <Text selectable numberOfLines={1} style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{providerLabel(option.provider)} · {option.name}</Text>
-                    {option.etaMinutes !== undefined ? <Text selectable style={{ color: colors.textMuted, fontSize: 12 }}>{option.etaMinutes} min pickup</Text> : null}
+              {hasRides ? rides.map((option, index) => {
+                const handoff = data.handoffs?.[index];
+                return <View key={`${option.provider}-${option.name}-${index}`} style={{ gap: 3, paddingVertical: 7, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: colors.border }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text selectable numberOfLines={1} style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 14 }}>{providerLabel(option.provider)} · {option.name}</Text>
+                      {option.etaMinutes !== undefined ? <Text selectable style={{ color: colors.textMuted, fontSize: 12 }}>{option.etaMinutes} min pickup</Text> : null}
+                    </View>
+                    <Text selectable style={{ color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: 14, fontVariant: ["tabular-nums"] }}>{price(option.price)}</Text>
                   </View>
-                  <Text selectable style={{ color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: 14, fontVariant: ["tabular-nums"] }}>{price(option.price)}</Text>
-                </View>
-              )) : <Text selectable style={{ color: colors.textMuted, fontSize: 13 }}>Ride quotes unavailable.</Text>}
+                  {handoff ? <CardButton variant="text" label={`Open in ${providerLabel(option.provider)}`} onPress={() => { void openRide(handoff); }} /> : null}
+                  {handoff && !handoff.prefilled ? <Text selectable style={{ color: colors.textMuted, fontSize: 11 }}>Set pickup and destination in {providerLabel(option.provider)}.</Text> : null}
+                </View>;
+              }) : <Text selectable style={{ color: colors.textMuted, fontSize: 13 }}>Ride quotes unavailable.</Text>}
               {hasRides && data.ridesComplete === false ? <Text selectable style={{ color: colors.textMuted, fontSize: 12 }}>Some prices unavailable.</Text> : null}
               {hasRides && rideFailed ? <Text selectable style={{ color: colors.textMuted, fontSize: 12 }}>Some ride quotes unavailable.</Text> : null}
 
@@ -157,7 +174,7 @@ export function RidesCard({ state }: { state: WorkflowCard }) {
       )}
 
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: colors.border }}>
-        <Text selectable style={{ flex: 1, color: colors.textMuted, fontSize: 11 }}>{stale ? "Prices may have changed" : "Estimates · Prices may change"}</Text>
+        <Text selectable style={{ flex: 1, color: colors.textMuted, fontSize: 11 }}>{stale ? "Estimate now · Prices may have changed" : "Estimate now · Prices may change"}</Text>
         {shouldOfferRetry && !noResults ? <RetryAction refreshState={refreshState} label={stale ? "Check again" : "Try again"} onPress={refresh} /> : null}
       </View>
     </View>
