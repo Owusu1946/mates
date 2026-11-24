@@ -1,10 +1,7 @@
-import type { Ref } from "react";
 import { Icon } from "../components/ui/Icon.tsx";
 import { Kbd, MOD } from "../components/ui/Kbd.tsx";
 import { Tooltip } from "../components/ui/Tooltip.tsx";
 import { cn } from "../lib/utils.ts";
-
-type Search = { ref: Ref<HTMLInputElement>; query: string; onQuery: (query: string) => void };
 
 const platform = window.mates.platform;
 
@@ -12,9 +9,10 @@ const platform = window.mates.platform;
  * The top strip. On Windows and macOS we draw the title bar, so it drags the window and leaves room
  * for the system's buttons (caption buttons on the right, traffic lights on the left). Linux keeps
  * its own frame, so there the strip is only a toolbar, and during onboarding it isn't there at all.
- * Signed in, it carries the search box and this computer's status.
+ * Signed in, it carries the button for the command palette and this computer's status.
  */
-export function TitleBar({ search }: { search?: Search }) {
+export function TitleBar({ onSearch }: { onSearch?: () => void }) {
+  const search = Boolean(onSearch);
   if (platform === "linux" && !search) return null;
   const drag = platform !== "linux";
   return (
@@ -25,28 +23,17 @@ export function TitleBar({ search }: { search?: Search }) {
         {search && (
           <>
             <div className="flex-1" />
-            <label className="app-no-drag flex h-7 w-full max-w-md items-center gap-2 rounded-control border border-line bg-soft px-2.5 text-ink-soft transition-colors focus-within:border-field-line focus-within:bg-raised">
+            <button
+              type="button"
+              onClick={onSearch}
+              className="app-no-drag flex h-7 w-full max-w-md items-center gap-2 rounded-control border border-line bg-soft px-2.5 text-xs text-ink-soft outline-none transition-colors hover:border-field-line hover:text-ink focus-visible:ring-2 focus-visible:ring-brand"
+            >
               <Icon name="search" size={14} />
-              <input
-                ref={search.ref}
-                value={search.query}
-                placeholder="Search mates, groups and code"
-                aria-label="Search mates, groups and code"
-                className="min-w-0 flex-1 bg-transparent text-xs text-ink outline-none placeholder:text-ink-soft"
-                onChange={(event) => search.onQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape") {
-                    search.onQuery("");
-                    event.currentTarget.blur();
-                  }
-                }}
-              />
-              {!search.query && (
-                <Kbd>
-                  {MOD} K
-                </Kbd>
-              )}
-            </label>
+              <span className="flex-1 truncate text-left">Search or jump to…</span>
+              <Kbd>
+                {MOD} K
+              </Kbd>
+            </button>
             <div className="flex flex-1 justify-end">
               <Tooltip side="bottom" content="This computer is ready for your mates">
                 <button type="button" aria-label="This computer: ready" className="app-no-drag relative flex size-7 items-center justify-center rounded-control text-ink-soft outline-none hover:bg-hover-fill hover:text-ink focus-visible:ring-2 focus-visible:ring-brand">

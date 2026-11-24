@@ -18,8 +18,6 @@ type SidebarProps = {
   /** Each repo's runs, newest first, with how they're doing. */
   runs: { run: Run; status: RunStatus }[];
   selection: Selection;
-  /** Narrows mates, groups, repos and runs to names containing it. */
-  query: string;
   jumpTargets: Selection[];
   showJumpHints: boolean;
   onSelect: (selection: Selection) => void;
@@ -27,20 +25,11 @@ type SidebarProps = {
   onSignOut: () => void;
 };
 
-const matches = (name: string, query: string) => name.toLowerCase().includes(query.trim().toLowerCase());
-
 /** The crew: new chat and places, then mates, groups and code, and you at the bottom (T3 Code's AppSidebarLayout). */
-export function Sidebar({ you, chats, mates, unread, runs, selection, query, jumpTargets, showJumpHints, onSelect, onNewChat, onSignOut }: SidebarProps) {
-  const shown = chats.filter((chat) => matches(chat.title, query));
-  const mateChats = shown.filter((chat) => chat.kind === "mate");
-  const groups = shown.filter((chat) => chat.kind === "group");
-  // A repo shows when its name matches, with all its runs, or when any of its runs match.
-  const repos = REPOS.flatMap((repo) => {
-    const own = runs.filter(({ run }) => run.repoId === repo.id);
-    if (matches(repo.name, query)) return [{ repo, runs: own }];
-    const found = own.filter(({ run }) => matches(run.title, query));
-    return found.length ? [{ repo, runs: found }] : [];
-  });
+export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTargets, showJumpHints, onSelect, onNewChat, onSignOut }: SidebarProps) {
+  const mateChats = chats.filter((chat) => chat.kind === "mate");
+  const groups = chats.filter((chat) => chat.kind === "group");
+  const repos = REPOS.map((repo) => ({ repo, runs: runs.filter(({ run }) => run.repoId === repo.id) }));
   const isSelected = (row: Selection) => sameSelection(selection, row);
   const jump = (row: Selection) => (showJumpHints ? jumpNumber(jumpTargets, row) : null);
 
@@ -109,7 +98,6 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, query, jum
           </SidebarSection>
         )}
 
-        {query.trim() && !mateChats.length && !groups.length && !repos.length && <p className="px-(--sidebar-row-inset) text-xs text-ink-soft">Nothing called “{query.trim()}”.</p>}
       </div>
 
       <div className="border-t border-line p-2">
