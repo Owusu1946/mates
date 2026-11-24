@@ -66,7 +66,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState("activity");
-  const openSettings = (section = "activity") => {
+  const openSettings = (section = "account") => {
     setPaletteOpen(false);
     setSettingsSection(section);
     setSettingsOpen(true);
@@ -425,7 +425,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       })()}
       <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
       <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} you={crew.you} onSignOut={onSignOut} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
     </TooltipProvider>
   );
 }

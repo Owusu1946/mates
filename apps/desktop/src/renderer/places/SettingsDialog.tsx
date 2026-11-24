@@ -7,8 +7,16 @@ import { buttonVariants } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { SampleProfile } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
+import { AboutSettings } from "../settings/AboutSettings.tsx";
+import { AccountSettings } from "../settings/AccountSettings.tsx";
+import { AppsSettings } from "../settings/AppsSettings.tsx";
 import { CODING_CHOICES } from "../settings/coding.logic.ts";
+import { ComputerSettings } from "../settings/ComputerSettings.tsx";
+import { MatesSettings } from "../settings/MatesSettings.tsx";
+import { NotificationsSettings } from "../settings/NotificationsSettings.tsx";
+import { SettingsPage } from "../settings/SettingsParts.tsx";
 import { UsageSettings } from "../settings/UsageSettings.tsx";
+import { VoiceSettings } from "../settings/VoiceSettings.tsx";
 import { markCodingEngaged, setCodingPreference, useCoding } from "../settings/coding.ts";
 import type { ColorScheme } from "../theme/appearance.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
@@ -66,6 +74,8 @@ type ChatActivitySettingsProps = {
 type SettingsDialogProps = ChatActivitySettingsProps & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  you: string;
+  onSignOut: () => void;
   profile?: SampleProfile;
   /** Whether the coding tools show right now, for the Coding tab's status line. */
   codingShown: boolean;
@@ -73,16 +83,29 @@ type SettingsDialogProps = ChatActivitySettingsProps & {
   section?: string;
 };
 
-const SECTIONS = [
-  { id: "usage", label: "Usage", icon: "clock" },
-  { id: "activity", label: "Chat activity", icon: "activity" },
-  { id: "appearance", label: "Appearance", icon: "sun" },
-  { id: "coding", label: "Coding", icon: "branch" },
-  { id: "about", label: "About you", icon: "users" },
+/** Three short groups, so it's clear where each thing lives: you, your mates, and this app. */
+const SECTION_GROUPS = [
+  [
+    { id: "account", label: "Account", icon: "user" },
+    { id: "usage", label: "Usage", icon: "clock" },
+  ],
+  [
+    { id: "mates", label: "Mates", icon: "users" },
+    { id: "apps", label: "Apps", icon: "grid" },
+    { id: "notifications", label: "Notifications", icon: "bell" },
+  ],
+  [
+    { id: "appearance", label: "Appearance", icon: "sun" },
+    { id: "voice", label: "Keyboard & voice", icon: "keyboard" },
+    { id: "computer", label: "This computer", icon: "monitor" },
+    { id: "coding", label: "Coding", icon: "branch" },
+    { id: "about", label: "About", icon: "info" },
+  ],
 ] as const;
 
-export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMode, profile, codingShown, section = "activity" }: SettingsDialogProps) {
-  const showProfile = profile && (profile.bio.length > 0 || profile.memories.length > 0);
+const PANEL = "motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none";
+
+export function SettingsDialog({ open, onOpenChange, you, onSignOut, activityMode, onActivityMode, profile, codingShown, section = "account" }: SettingsDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -95,46 +118,49 @@ export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMod
             </Dialog.Close>
           </header>
           <Tabs.Root key={open ? section : "closed"} defaultValue={section} orientation="vertical" className="flex min-h-0 flex-1">
-            <Tabs.List aria-label="Settings sections" activateOnFocus className="flex w-36 shrink-0 flex-col gap-1 border-r border-line bg-rail p-2 min-[850px]:w-44">
-              {SECTIONS.filter((section) => section.id !== "about" || showProfile).map((section) => (
-                <Tabs.Tab key={section.id} value={section.id} className="flex h-8 cursor-pointer items-center gap-2 rounded-control px-2 text-left text-sm text-ink-soft outline-none transition-colors duration-150 hover:bg-rail-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset data-active:bg-rail-selected data-active:text-ink">
-                  <Icon name={section.icon} size={16} />
-                  {section.label}
-                </Tabs.Tab>
+            <Tabs.List aria-label="Settings sections" activateOnFocus className="flex w-40 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-line bg-rail p-2 min-[850px]:w-48">
+              {SECTION_GROUPS.map((group, index) => (
+                <div key={group[0].id} className={cn("flex flex-col gap-0.5", index > 0 && "mt-2 border-t border-line pt-2")}>
+                  {group.map((section) => (
+                    <Tabs.Tab key={section.id} value={section.id} className="flex h-8 cursor-pointer items-center gap-2 rounded-control px-2 text-left text-sm text-ink-soft outline-none transition-colors duration-150 hover:bg-rail-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset data-active:bg-rail-selected data-active:text-ink">
+                      <Icon name={section.icon} size={16} />
+                      {section.label}
+                    </Tabs.Tab>
+                  ))}
+                </div>
               ))}
             </Tabs.List>
             <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-1">
-              <Tabs.Panel value="usage" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
+              <Tabs.Panel value="account" className={PANEL}>
+                <AccountSettings you={you} onSignOut={onSignOut} />
+              </Tabs.Panel>
+              <Tabs.Panel value="usage" className={PANEL}>
                 <UsageSettings />
               </Tabs.Panel>
-              <Tabs.Panel value="activity" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
-                <ChatActivitySettings activityMode={activityMode} onActivityMode={onActivityMode} />
+              <Tabs.Panel value="mates" className={PANEL}>
+                <MatesSettings profile={profile} />
               </Tabs.Panel>
-              <Tabs.Panel value="appearance" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
-                <AppearanceSettings />
+              <Tabs.Panel value="apps" className={PANEL}>
+                <AppsSettings />
               </Tabs.Panel>
-              <Tabs.Panel value="coding" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
+              <Tabs.Panel value="notifications" className={PANEL}>
+                <NotificationsSettings />
+              </Tabs.Panel>
+              <Tabs.Panel value="appearance" className={PANEL}>
+                <AppearanceSettings activityMode={activityMode} onActivityMode={onActivityMode} />
+              </Tabs.Panel>
+              <Tabs.Panel value="voice" className={PANEL}>
+                <VoiceSettings />
+              </Tabs.Panel>
+              <Tabs.Panel value="computer" className={PANEL}>
+                <ComputerSettings />
+              </Tabs.Panel>
+              <Tabs.Panel value="coding" className={PANEL}>
                 <CodingSettings shown={codingShown} />
               </Tabs.Panel>
-              {showProfile && (
-                <Tabs.Panel value="about" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
-                  <div className="mx-auto flex max-w-3xl flex-col gap-5 px-5 py-5 min-[850px]:px-7">
-                    <div>
-                      <h2 className="text-base font-semibold">About you</h2>
-                      <p className="mt-1 text-sm text-ink-soft">What you added during setup. It stays in this session.</p>
-                    </div>
-                    {profile.bio && <p className="rounded-xl border border-line bg-canvas p-4 wrap-anywhere whitespace-pre-wrap select-text">{profile.bio}</p>}
-                    {profile.memories.length > 0 && (
-                      <section>
-                        <h3 className="mb-2 font-semibold">Imported memories</h3>
-                        <ul className="divide-y divide-line rounded-xl border border-line bg-canvas">
-                          {profile.memories.map((memory) => <li key={memory} className="px-4 py-2.5 wrap-anywhere select-text">{memory}</li>)}
-                        </ul>
-                      </section>
-                    )}
-                  </div>
-                </Tabs.Panel>
-              )}
+              <Tabs.Panel value="about" className={PANEL}>
+                <AboutSettings />
+              </Tabs.Panel>
             </div>
           </Tabs.Root>
         </Dialog.Popup>
@@ -145,10 +171,10 @@ export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMod
 
 function ChatActivitySettings({ activityMode, onActivityMode }: ChatActivitySettingsProps) {
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-5 min-[850px]:px-7">
+    <section className="flex flex-col gap-3">
       <fieldset>
-        <legend className="text-base font-semibold">Chat activity</legend>
-        <p className="mt-1 mb-3 text-sm text-ink-soft">Choose how much progress to see while a mate works.</p>
+        <legend className="text-sm font-medium">Chat activity</legend>
+        <p className="mb-3 text-xs text-ink-soft">How much progress to see while a mate works.</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {ACTIVITY_MODES.map((option) => (
             <label key={option.value} className="grid cursor-pointer grid-cols-[1rem_minmax(0,1fr)] content-start items-center gap-x-2.5 gap-y-0.5 rounded-lg border border-line px-3 py-2.5 transition-colors duration-150 hover:bg-hover-fill has-checked:border-brand has-checked:bg-soft has-focus-visible:ring-2 has-focus-visible:ring-brand/35">
@@ -166,7 +192,7 @@ function ChatActivitySettings({ activityMode, onActivityMode }: ChatActivitySett
         </div>
       </fieldset>
       <ChatActivityPreview />
-    </div>
+    </section>
   );
 }
 
@@ -177,10 +203,10 @@ function ChatActivitySettings({ activityMode, onActivityMode }: ChatActivitySett
 function CodingSettings({ shown }: { shown: boolean }) {
   const { preference, engaged } = useCoding();
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-5 min-[850px]:px-7">
+    <SettingsPage title="Coding" description="Your mates can code and build websites either way. This is about the tools you see.">
       <fieldset>
-        <legend className="text-base font-semibold">Coding tools</legend>
-        <p className="mt-1 mb-3 text-sm text-ink-soft">Projects in the sidebar, coding runs, the Diff panel and the terminal. Your mates can code and build websites either way.</p>
+        <legend className="text-sm font-medium">Coding tools</legend>
+        <p className="mb-3 text-xs text-ink-soft">Projects in the sidebar, coding runs, the Diff panel and the terminal.</p>
         <div className="grid gap-2 sm:grid-cols-3">
           {CODING_CHOICES.map((option) => (
             <label key={option.value} className="grid cursor-pointer grid-cols-[1rem_minmax(0,1fr)] content-start items-center gap-x-2.5 gap-y-0.5 rounded-lg border border-line px-3 py-2.5 transition-colors duration-150 hover:bg-hover-fill has-checked:border-brand has-checked:bg-soft has-focus-visible:ring-2 has-focus-visible:ring-brand/35">
@@ -207,18 +233,18 @@ function CodingSettings({ shown }: { shown: boolean }) {
           {engaged ? "Connected" : "Connect GitHub"}
         </button>
       </section>
-    </div>
+    </SettingsPage>
   );
 }
 
-function AppearanceSettings() {
+function AppearanceSettings(activity: ChatActivitySettingsProps) {
   const { scheme, theme } = useAppearance();
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-5 min-[850px]:px-7">
+    <SettingsPage title="Appearance" description="How Mates looks, and how much you see while a mate works.">
       <section className="flex flex-col gap-3">
         <div>
-          <h2 className="font-semibold">Color scheme</h2>
-          <p className="text-ink-soft">System follows your computer.</p>
+          <h3 className="text-sm font-medium">Color scheme</h3>
+          <p className="text-xs text-ink-soft">System follows your computer.</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {SCHEMES.map((option) => (
@@ -231,8 +257,8 @@ function AppearanceSettings() {
       </section>
       <section className="flex flex-col gap-3">
         <div>
-          <h2 className="font-semibold">Theme</h2>
-          <p className="text-ink-soft">{THEMES.find((option) => option.name === theme)?.blurb}</p>
+          <h3 className="text-sm font-medium">Theme</h3>
+          <p className="text-xs text-ink-soft">{THEMES.find((option) => option.name === theme)?.blurb}</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {THEMES.map((option) => (
@@ -245,6 +271,7 @@ function AppearanceSettings() {
           ))}
         </div>
       </section>
-    </div>
+      <ChatActivitySettings {...activity} />
+    </SettingsPage>
   );
 }
