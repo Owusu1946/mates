@@ -14,7 +14,10 @@ export type Summon = {
  * from any app, even with the main window closed. It hides when you click away or press Escape,
  * and "Open in Mates" carries the conversation into the full app.
  */
-export function installSummon(sources: SummonSources, { openInMates }: { openInMates: (handoff: SummonHandoff) => void }): Summon {
+export function installSummon(
+  sources: SummonSources,
+  { openInMates, intercept }: { openInMates: (handoff: SummonHandoff) => void; /** Takes the shortcut first, like the notch on its screen. */ intercept?: () => boolean },
+): Summon {
   const window = new Electron.BrowserWindow(summonOptions(sources.preload));
   if (process.platform === "darwin") {
     // Over full-screen apps and on every Space, like Spotlight.
@@ -62,7 +65,11 @@ export function installSummon(sources: SummonSources, { openInMates }: { openInM
     openInMates(handoff);
   });
 
-  const toggle = () => (window.isVisible() ? hide() : show());
+  const toggle = () => {
+    if (!window.isVisible() && intercept?.()) return;
+    if (window.isVisible()) hide();
+    else show();
+  };
   const shortcut = summonShortcuts(process.platform).find((accelerator) => Electron.globalShortcut.register(accelerator, toggle)) ?? null;
   Electron.app.on("will-quit", () => Electron.globalShortcut.unregisterAll());
 

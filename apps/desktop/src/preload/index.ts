@@ -21,6 +21,13 @@ contextBridge.exposeInMainWorld("mates", {
     openInMates: (handoff: unknown) => ipcRenderer.send("mates:summon-open", handoff),
     onShown: (listener: () => void) => subscribe("mates:summon-shown", listener),
   },
+  notch: {
+    setInteractive: (interactive: boolean) => ipcRenderer.send("mates:notch-interactive", interactive),
+    focus: () => ipcRenderer.send("mates:notch-focus"),
+    blur: () => ipcRenderer.send("mates:notch-blur"),
+    openInMates: (handoff: unknown) => ipcRenderer.send("mates:notch-open", handoff),
+    onToggle: (listener: () => void) => subscribe("mates:notch-toggle", listener),
+  },
   takeHandoff: () => ipcRenderer.invoke("mates:take-handoff"),
   onHandoff: (listener: () => void) => subscribe("mates:handoff-ready", listener),
 });

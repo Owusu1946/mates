@@ -41,8 +41,8 @@ export default defineConfig({
     plugins: [react({ compiler: true }), tailwindcss(), contentSecurityPolicy()],
     build: {
       outDir: "dist/renderer",
-      // Two pages: the app's window, and the summon bar that floats over other apps.
-      rolldownOptions: { input: { index: page("index"), summon: page("summon") } },
+      // Three pages: the app's window, the summon bar that floats over other apps, and the notch.
+      rolldownOptions: { input: { index: page("index"), summon: page("summon"), notch: page("notch") } },
     },
   },
 });
