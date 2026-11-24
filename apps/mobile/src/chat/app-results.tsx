@@ -11,9 +11,12 @@ import { EmailResults } from "./email-results";
 import { ProductResult } from "./product-result";
 import { CardButton } from "./card-button";
 import { appResultSubtitle } from "./app-result-format";
+import { MateAvatar } from "../mates/mate-avatar";
+import { useMates } from "../mates/data";
 
 export function AppResponseCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
+  const mates = useMates();
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
   const [choice, setChoice] = useState<string | null>(null);
@@ -166,21 +169,15 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               )}
               {!!item.metrics?.length && (
                 <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
-                  {item.metrics.map((metric) => (
-                    <Text key={metric} style={{
-                      fontFamily: "DMSans_500Medium",
-                      fontSize: 11,
-                      lineHeight: 16,
-                      color: muted,
-                      backgroundColor: isDark ? "#29292d" : "#f1f1f3",
-                      overflow: "hidden",
-                      borderRadius: 10,
-                      paddingHorizontal: 8,
-                      paddingVertical: 3,
-                    }}>
-                      {metric}
-                    </Text>
-                  ))}
+                  {item.metrics.map((metric) => {
+                    const mate = mates.data?.mates.find((candidate) => candidate.name.trim().toLowerCase() === metric.trim().toLowerCase());
+                    return (
+                      <View key={metric} style={{ flexDirection: "row", alignItems: "center", gap: mate ? 4 : 0, backgroundColor: isDark ? "#29292d" : "#f1f1f3", borderRadius: 10, paddingHorizontal: mate ? 5 : 8, paddingVertical: 3 }}>
+                        {mate && <MateAvatar gradient={mate.gradient} shape={mate.shape} size={14} still />}
+                        <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 11, lineHeight: 16, color: muted }}>{metric}</Text>
+                      </View>
+                    );
+                  })}
                 </View>
               )}
               {item.url && (

@@ -6,6 +6,8 @@ import * as WebBrowser from "expo-web-browser";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, Image, Text, View } from "react-native";
 import { SvgUri } from "react-native-svg";
+import { Calendar01Icon, GoogleDocIcon, GoogleDriveIcon, GoogleSheetIcon, Mail01Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react-native";
 import { createApiClient } from "../data/api";
 import { useTheme } from "../theme/provider";
 import type { AppConnection } from "@expojet/api-contract";
@@ -29,6 +31,18 @@ export function AppLogo({
     setSvgFailed(false);
   }, [logo]);
   const { isDark } = useTheme();
+  const appName = name.toLowerCase();
+  const fallback = /^(?:gmail|google mail|email)$/.test(appName)
+    ? { icon: Mail01Icon, color: "#EA4335" }
+    : appName.includes("calendar")
+      ? { icon: Calendar01Icon, color: "#4285F4" }
+      : /^(?:google )?drive$/.test(appName)
+        ? { icon: GoogleDriveIcon, color: "#34A853" }
+        : /^(?:google )?docs$/.test(appName)
+          ? { icon: GoogleDocIcon, color: "#4285F4" }
+          : /^(?:google )?sheets$/.test(appName)
+            ? { icon: GoogleSheetIcon, color: "#34A853" }
+            : null;
   return (
     <View
       style={{
@@ -57,6 +71,8 @@ export function AppLogo({
           style={{ width: size * 0.68, height: size * 0.68 }}
           resizeMode="contain"
         />
+      ) : fallback ? (
+        <HugeiconsIcon icon={fallback.icon} size={size * 0.56} color={fallback.color} />
       ) : (
         <Text
           style={{

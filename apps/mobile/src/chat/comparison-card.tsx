@@ -1,16 +1,22 @@
 import type { WorkflowCard } from "@expojet/api-contract";
 import { Text, View } from "react-native";
+import { MateAvatar } from "../mates/mate-avatar";
+import { useMates } from "../mates/data";
 import { useTheme } from "../theme/provider";
 
 /** The lead mate's decision summary, after the individual replies in the chat. */
 export function ComparisonCard({ state }: { state: WorkflowCard }) {
   const { colors } = useTheme();
+  const mates = useMates();
   const comparison = state.comparison;
   if (!comparison) return null;
 
   const { perMate, disagreements, failedMates, lead, suggestion } = comparison;
   const agreement = perMate.length > 1 && disagreements.length === 0;
-  const failedNames = failedMates.map((mate) => mate.name).join(" and ");
+  const avatar = (mateId: string, size: number) => {
+    const owner = mates.data?.mates.find((candidate) => candidate.id === mateId);
+    return owner ? <MateAvatar gradient={owner.gradient} shape={owner.shape} size={size} still /> : null;
+  };
 
   return (
     <View
@@ -23,7 +29,8 @@ export function ComparisonCard({ state }: { state: WorkflowCard }) {
 
       {perMate.map(({ mate, recommendation, basis }, index) => (
         <View key={mate.id} style={{ gap: 4, paddingTop: index ? 12 : 0, borderTopWidth: index ? 1 : 0, borderTopColor: colors.border }}>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", gap: 5 }}>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 7 }}>
+            {avatar(mate.id, 20)}
             <Text selectable style={{ color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: 14.5 }}>{mate.name}</Text>
             <Text selectable style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 12.5 }}>· {mate.role}</Text>
           </View>
@@ -48,15 +55,24 @@ export function ComparisonCard({ state }: { state: WorkflowCard }) {
       ) : null}
 
       {failedMates.length > 0 ? (
-        <Text selectable style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 13, lineHeight: 19 }}>
-          {failedNames} couldn't answer.
-        </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
+          {failedMates.map((mate) => (
+            <View key={mate.id} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+              {avatar(mate.id, 16)}
+              <Text selectable style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 13 }}>{mate.name}</Text>
+            </View>
+          ))}
+          <Text selectable style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 13 }}>couldn’t answer.</Text>
+        </View>
       ) : null}
 
       <View style={{ gap: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-        <Text style={{ color: colors.textMuted, fontFamily: "DMSans_600SemiBold", fontSize: 12 }}>
-          {perMate.length ? `${lead.name}'s suggestion` : "What to do next"}
-        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+          {perMate.length > 0 && avatar(lead.id, 18)}
+          <Text style={{ color: colors.textMuted, fontFamily: "DMSans_600SemiBold", fontSize: 12 }}>
+            {perMate.length ? `${lead.name}'s suggestion` : "What to do next"}
+          </Text>
+        </View>
         <Text selectable style={{ color: colors.text, fontFamily: "DMSans_500Medium", fontSize: 14, lineHeight: 20 }}>{suggestion}</Text>
       </View>
     </View>

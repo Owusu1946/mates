@@ -179,7 +179,7 @@ export default function FeedScreen() {
           ) : run ? (
             <>
               {runText ? (
-                <RichText colors={{ text: colors.text, muted: colors.textMuted, surface: colors.surface, border: colors.border }}>{runText}</RichText>
+                <RichText colors={{ text: colors.text, muted: colors.textMuted, surface: colors.surface, border: colors.border, codeSurface: colors.surfaceElevated }}>{runText}</RichText>
               ) : (
                 <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 15 }}>{ACTIVE.includes(run.status) ? "Working on it. You can leave the app; the result is saved." : "No written result for this one."}</Text>
               )}

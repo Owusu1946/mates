@@ -4,7 +4,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import Markdown, { renderRules, type ASTNode, type RenderRules } from "react-native-markdown-display";
 import { prepareMarkdown } from "./markdown-text";
 
-export type RichTextColors = { text: string; muted: string; surface: string; border: string };
+export type RichTextColors = { text: string; muted: string; surface: string; border: string; codeSurface?: string };
 
 const SIZES = { chat: { font: 17, line: 25 }, compact: { font: 15, line: 22 } } as const;
 const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
@@ -15,6 +15,19 @@ const MONO = Platform.select({ ios: "Menlo", default: "monospace" });
  */
 const widths = new WeakMap<ASTNode, number[]>();
 const textOf = (node: ASTNode): string => node.content || node.children.map(textOf).join("");
+const CODE_TOKENS = /("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`|\b(?:const|let|var|function|return|type|interface|async|await|export|import|from|new|class)\b|\b(?:true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b)/g;
+const TS_KEYWORDS = new Set(["const", "let", "var", "function", "return", "type", "interface", "async", "await", "export", "import", "from", "new", "class"]);
+function highlightedCode(content: string, language: string | null) {
+  if (!language || !/^(?:TS|TSX|JS|JSX|TYPESCRIPT|JAVASCRIPT)$/.test(language)) return content;
+  return content.split(CODE_TOKENS).map((token, index) => {
+    if (!token) return null;
+    const color = TS_KEYWORDS.has(token) ? "#60a5fa"
+      : /^(?:true|false|null|undefined)$/.test(token) ? "#4ade80"
+        : /^(?:\d+(?:\.\d+)?|["'`])/.test(token) ? "#fbbf24"
+          : null;
+    return color ? <Text key={index} style={{ color }}>{token}</Text> : token;
+  });
+}
 function columnWidths(table: ASTNode) {
   const known = widths.get(table);
   if (known) return known;
@@ -56,8 +69,12 @@ const RULES: RenderRules = {
     const language = sourceInfo && /^[a-z\d_+#.-]{1,20}$/i.test(sourceInfo) ? sourceInfo.toUpperCase() : null;
     return (
       <View key={node.key} style={styles._VIEW_SAFE_fence_container}>
-        {language && <Text style={styles._VIEW_SAFE_fence_label}>{language}</Text>}
-        <Text selectable style={[inherited, styles._VIEW_SAFE_fence_code]}>{content}</Text>
+        {language && (
+          <View style={{ alignSelf: "flex-start", backgroundColor: "rgba(59, 130, 246, 0.14)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+            <Text style={[styles._VIEW_SAFE_fence_label, { color: "#60a5fa" }]}>{language}</Text>
+          </View>
+        )}
+        <Text selectable style={[inherited, styles._VIEW_SAFE_fence_code]}>{highlightedCode(content, language)}</Text>
       </View>
     );
   },
@@ -80,6 +97,7 @@ const RULES: RenderRules = {
 function createStyles(colors: RichTextColors, size: { font: number; line: number }) {
   const heading = (font: number, line: number, top: number) => ({ flexDirection: "column" as const, color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: font, lineHeight: line, letterSpacing: -0.35, marginTop: top, marginBottom: 8 });
   const code = { color: colors.text, fontFamily: MONO, fontSize: size.font - 3, lineHeight: size.line - 5 };
+  const codeSurface = colors.codeSurface ?? colors.surface;
   return {
     body: { color: colors.text, fontFamily: "DMSans_400Regular", fontSize: size.font, lineHeight: size.line, letterSpacing: -0.2 },
     paragraph: { marginTop: 0, marginBottom: 13 },
@@ -98,10 +116,10 @@ function createStyles(colors: RichTextColors, size: { font: number; line: number
     bullet_list_icon: { marginLeft: 2, marginRight: 8, fontFamily: "DMSans_700Bold" },
     ordered_list_icon: { marginLeft: 2, marginRight: 6 },
     task_item: { flex: 1, marginLeft: 2 },
-    code_inline: { ...code, backgroundColor: colors.surface, borderRadius: 4, paddingHorizontal: 3 },
-    code_block: { ...code, backgroundColor: colors.surface, borderRadius: 10, padding: 10, marginVertical: 6 },
-    fence_container: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, marginVertical: 8, gap: 8 },
-    fence_label: { color: colors.muted, fontFamily: "DMSans_600SemiBold", fontSize: 10, letterSpacing: 0.8 },
+    code_inline: { ...code, backgroundColor: codeSurface, borderRadius: 4, paddingHorizontal: 3 },
+    code_block: { ...code, backgroundColor: codeSurface, borderRadius: 10, padding: 10, marginVertical: 6 },
+    fence_container: { backgroundColor: codeSurface, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, marginVertical: 8, gap: 8 },
+    fence_label: { color: "#60a5fa", fontFamily: "DMSans_600SemiBold", fontSize: 10, letterSpacing: 0.8 },
     fence_code: { ...code, backgroundColor: "transparent" as const, padding: 0 },
     blockquote: { backgroundColor: colors.surface, borderColor: colors.border, borderLeftWidth: 3, marginLeft: 0, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, marginVertical: 6 },
     table_scroll: { marginTop: 4, marginBottom: 12 },

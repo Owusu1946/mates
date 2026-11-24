@@ -5,10 +5,11 @@ import { Redirect } from "expo-router";
 import { AppResponseCard } from "../../src/chat/app-results";
 import { CodeCard } from "../../src/chat/code-card";
 import { ComputerCard } from "../../src/chat/computer-card";
+import { ActionApproval } from "../../src/chat/action-approval";
 import { ThinkingStatus } from "../../src/chat/thinking-status";
-import { WaitingPromptChip } from "../../src/chat/waiting-prompt-chip";
 import { RichText } from "../../src/components/rich-text/rich-text";
 import { useTheme } from "../../src/theme/provider";
+import { useMates } from "../../src/mates/data";
 import type { ColorTokens } from "../../src/theme/tokens";
 
 const emailCard: WorkflowCard = {
@@ -51,6 +52,19 @@ const appCard: WorkflowCard = {
   ],
 };
 
+const approvalCard: WorkflowCard = {
+  kind: "approval",
+  phase: "waiting",
+  name: "Gmail",
+  label: "Send a reply to Ama",
+  approval: { mate: "Kwame", category: "send", targets: ["Ama"], canAlways: false, unattended: false },
+  approvalFields: [
+    { label: "To", value: "Ama Mensah <ama@example.com>" },
+    { label: "Subject", value: "Re: Friday’s project review" },
+    { label: "Message", value: "I’ll share the updated launch plan before our call." },
+  ],
+};
+
 const codeCard: WorkflowCard = {
   kind: "code",
   phase: "done",
@@ -87,8 +101,10 @@ const computerCards: WorkflowCard[] = [
 ];
 
 export default function ResponseUiPreviewScreen() {
-  const { colors } = useTheme();
-  const richColors = { text: colors.text, muted: colors.textSecondary, surface: colors.surfaceElevated, border: colors.border };
+  const { colors, isDark } = useTheme();
+  const ownedMates = useMates().data?.mates ?? [];
+  const previewMate = ownedMates.find((mate) => mate.isDefault) ?? ownedMates[0];
+  const richColors = { text: colors.text, muted: colors.textSecondary, surface: colors.surfaceElevated, border: colors.border, codeSurface: isDark ? "#303036" : "#f1f5f9" };
 
   if (!__DEV__) return <Redirect href="/(app)" />;
 
@@ -99,11 +115,11 @@ export default function ResponseUiPreviewScreen() {
       </Text>
 
       <Section title="Thinking" colors={colors}>
-        <ThinkingStatus mateName="Kwame" color={colors.primary} mutedColor={colors.textSecondary} />
+        <ThinkingStatus mateName={previewMate?.name ?? "Kwame"} gradient={previewMate?.gradient ?? ["#b9c8f5", "#5b7be0", "#26408b"]} shape={previewMate?.shape ?? "circle"} mutedColor={colors.textSecondary} />
       </Section>
 
-      <Section title="Waiting for you" colors={colors}>
-        <WaitingPromptChip label="Approve or decline an action" onPress={() => {}} />
+      <Section title="Approval in the conversation" colors={colors}>
+        <ActionApproval state={approvalCard} preview />
       </Section>
 
       <Section title="Email results" colors={colors}>
@@ -111,7 +127,7 @@ export default function ResponseUiPreviewScreen() {
       </Section>
 
       <Section title="Calendar results" colors={colors}>
-        <AppResponseCard state={calendarCard} />
+        <AppResponseCard state={{ ...calendarCard, items: calendarCard.items?.map((item) => item.sourceId === "event-1" ? { ...item, metrics: [previewMate?.name ?? "Kwame", "Meet"] } : item) }} />
       </Section>
 
       <Section title="Other app results" colors={colors}>

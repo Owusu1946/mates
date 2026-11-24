@@ -112,8 +112,6 @@ import { useUsage } from "../usage/use-usage";
 import { WatchCard } from "./watch-card";
 import { MeetingPrepCard } from "./meeting-prep-card";
 import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
-import { findWaitingPrompt } from "./waiting-prompt";
-import { WaitingPromptChip } from "./waiting-prompt-chip";
 import { ThinkingStatus } from "./thinking-status";
 import { delegationMessageIndex } from "./run-message-target";
 
@@ -458,7 +456,22 @@ function ThinkingIndicator() {
   const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
   const messageId = useAuiState((state) => state.message.id);
-  const mateName = useMateName();
+  const fallbackName = useMateName();
+  const chat = useCurrentChat();
+  const mates = useMates();
+  const mentionedMateId = useAuiState((state) => {
+    const latestUser = [...state.thread.messages].reverse().find((message) => message.role === "user");
+    const text = latestUser?.content.filter((part) => part.type === "text").map((part) => part.text).join("\n") ?? "";
+    return text.match(/@[^\n{}]{1,80}?\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}/i)?.[1] ?? null;
+  });
+  const mentionedMate = mentionedMateId ? mates.data?.mates.find((mate) => mate.id === mentionedMateId) : undefined;
+  const currentMate = chat?.kind === "mate"
+    ? chat.mate ?? undefined
+    : chat?.kind === "group"
+      ? chat.members.find((mate) => mate.id === chat.leaderMateId) ?? mates.data?.mates.find((mate) => mate.isDefault)
+      : chat?.mate ?? mates.data?.mates.find((mate) => mate.isDefault);
+  const mate = mentionedMate ?? currentMate;
+  const mateName = mate?.name ?? fallbackName;
   const colors = useChatColors();
   const hasVisibleWork = parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined));
   const hasText = parts.some((part) => part.type === "text" && part.text.trim().length > 0);
@@ -473,7 +486,7 @@ function ThinkingIndicator() {
     return () => clearTimeout(timer);
   }, [messageId, shouldShow]);
   if (!shouldShow || shownFor !== messageId) return null;
-  return <ThinkingStatus mateName={mateName} color={colors.foreground} mutedColor={colors.mutedForeground} />;
+  return <ThinkingStatus mateName={mateName} gradient={mate?.gradient} shape={mate?.shape} mutedColor={colors.mutedForeground} />;
 }
 
 function MessageEditComposer() {
@@ -741,7 +754,7 @@ function ChatMessage() {
   const limit = limitError(useAuiState((state) => state.message.status));
   const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
   const colors = useChatColors();
-  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
+  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border, codeSurface: colors.muted }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
   const onTextLayout = useCallback(() => {
     if (user || !runId) return;
@@ -1115,12 +1128,6 @@ function useEarlierMessages() {
 function EarlierLoading() {
   const colors = useChatColors();
   return <ActivityIndicator accessibilityLabel="Loading earlier messages" color={colors.mutedForeground} style={{ paddingBottom: 16 }} />;
-}
-
-function WaitingPrompt({ onPress }: { onPress: () => void }) {
-  const label = useAuiState((state) => findWaitingPrompt(state.thread.messages, state.thread.isRunning)?.label ?? null);
-  if (!label) return null;
-  return <WaitingPromptChip label={label} onPress={onPress} />;
 }
 
 /**
@@ -2665,7 +2672,6 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
             <BottomFade />
             <ScrollToBottom visible={away} onPress={scrollToBottom} />
             <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
-              <WaitingPrompt onPress={() => { Keyboard.dismiss(); scrollToBottom(); }} />
               <UsageLine colors={colors} />
               <ChatComposer />
             </View>

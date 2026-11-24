@@ -15,7 +15,7 @@ export default function MissionNotesScreen() {
   const mission = useMission(chatId);
   const [open, setOpen] = useState<string | null>(null);
   const data = mission.data;
-  const richColors = { text: colors.text, muted: colors.textMuted, surface: colors.surface, border: colors.border };
+  const richColors = { text: colors.text, muted: colors.textMuted, surface: colors.surface, border: colors.border, codeSurface: colors.surfaceElevated };
 
   if (!data)
     return (
