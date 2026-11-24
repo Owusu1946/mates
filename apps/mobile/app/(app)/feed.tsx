@@ -99,12 +99,12 @@ export default function FeedScreen() {
   const pull = usePullToRefresh(() => Promise.all([feed.refetch(), id ? result.refetch() : null]));
   useFocusEffect(useCallback(() => void feed.refetch(), [feed.refetch]));
 
-  const openChat = async (chatId: string) => {
+  const openChat = async (chatId: string, runId?: string) => {
     setError(null);
     try {
       await aui.threads.reload();
       aui.threads.switchToThread(chatId);
-      router.push("/(app)");
+      router.push({ pathname: "/(app)", params: { notificationChatId: chatId, ...(runId ? { notificationRunId: runId } : {}) } });
     } catch {
       setError("Couldn’t open this chat. Please try again.");
     }
@@ -185,7 +185,7 @@ export default function FeedScreen() {
               )}
               {run.error && <Text style={{ color: colors.error, fontFamily: font.regular, fontSize: 14 }}>{run.error}</Text>}
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {run.chatId && <Pill label={run.status === "waiting" ? "Continue in chat" : "Open in chat"} strong onPress={() => void openChat(run.chatId!)} />}
+                {run.chatId && <Pill label={run.status === "waiting" ? "Continue in chat" : "Open result in chat"} strong onPress={() => void openChat(run.chatId!, id ?? undefined)} />}
                 {ACTIVE.includes(run.status) && (
                   <Pill
                     label="Stop"
@@ -228,7 +228,7 @@ export default function FeedScreen() {
       {attentionItems.length > 0 && <View style={{ gap: 5 }}>
         <Text style={{ marginHorizontal: 22, color: colors.textMuted, fontFamily: font.semibold, fontSize: 11, letterSpacing: 1 }}>NEEDS ATTENTION · {attentionItems.length}</Text>
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => setAttentionPage(Math.round(event.nativeEvent.contentOffset.x / screenWidth))}>
-          {attentionItems.map((item) => <View key={item.id} style={{ width: screenWidth - 44, marginLeft: 22, marginRight: 22, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "FAILED" : "NEEDS YOUR INPUT"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 5 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable><Pressable onPress={() => item.status === "failed" ? open(item) : item.chatId ? void openChat(item.chatId) : open(item)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.semibold, fontSize: 12, marginTop: 10 }}>{item.status === "failed" ? "View details ↗" : item.chatId ? "Reply in chat ↗" : "View request ↗"}</Text></Pressable></View>)}
+        {attentionItems.map((item) => <View key={item.id} style={{ width: screenWidth - 44, marginLeft: 22, marginRight: 22, padding: 16, borderRadius: 18, borderCurve: "continuous", backgroundColor: colors.surface }}><Pressable onPress={() => open(item)}><Text style={{ color: item.status === "failed" ? colors.error : colors.primary, fontFamily: font.semibold, fontSize: 10, letterSpacing: 0.8 }}>{item.status === "failed" ? "FAILED" : "NEEDS YOUR INPUT"}</Text><Text numberOfLines={1} style={{ color: colors.text, fontFamily: font.medium, fontSize: 15, marginTop: 5 }}>{item.title}</Text><Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13, lineHeight: 18, marginTop: 3 }}>{plainPreview(item.summary)}</Text></Pressable><Pressable onPress={() => item.status === "failed" ? open(item) : item.chatId ? void openChat(item.chatId, item.id) : open(item)} hitSlop={6}><Text style={{ color: colors.primary, fontFamily: font.semibold, fontSize: 12, marginTop: 10 }}>{item.status === "failed" ? "View details ↗" : item.chatId ? "Open result in chat ↗" : "View request ↗"}</Text></Pressable></View>)}
         </ScrollView>
         {attentionItems.length > 1 && <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, marginTop: 2 }}>{Array.from({ length: attentionDots }, (_, index) => <View key={index} style={{ width: index === activeAttentionDot ? 14 : 5, height: 5, borderRadius: 3, backgroundColor: index === activeAttentionDot ? colors.textMuted : colors.border }} />)}</View>}
       </View>}

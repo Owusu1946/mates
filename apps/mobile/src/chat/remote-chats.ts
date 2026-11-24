@@ -31,7 +31,7 @@ export type ChatHistory = ThreadHistoryAdapter & {
   loadEarlier(oldestId: string): Promise<HistoryPage>;
 };
 /** Whether a chat has older messages to load, and whether they're loading. */
-export type ChatPaging = { hasMore: boolean; loading: boolean };
+export type ChatPaging = { hasMore: boolean; loading: boolean; known: boolean };
 
 /** Cache key for the chat list the runtime opens chats from. */
 const THREADS = "threads";
@@ -231,12 +231,12 @@ export function createRemoteChats(
   const parents = new Map<string, Map<string, string | null>>();
   const paging = new Map<string, ChatPaging>();
   const pagingListeners = new Set<() => void>();
-  const NO_PAGING: ChatPaging = { hasMore: false, loading: false };
+  const NO_PAGING: ChatPaging = { hasMore: false, loading: false, known: false };
   const earlier = new Map<string, () => Promise<void>>();
   function setPaging(id: string, value: Partial<ChatPaging>) {
     const current = paging.get(id) ?? NO_PAGING;
     const next = { ...current, ...value };
-    if (next.hasMore === current.hasMore && next.loading === current.loading) return;
+    if (next.hasMore === current.hasMore && next.loading === current.loading && next.known === current.known) return;
     paging.set(id, next);
     pagingListeners.forEach((listener) => listener());
   }
@@ -259,7 +259,7 @@ export function createRemoteChats(
   }
   async function revalidate(id: string) {
     const { items, page } = await fetchPage(id, PAGE);
-    setPaging(id, { hasMore: page.hasMore });
+    setPaging(id, { hasMore: page.hasMore, known: true });
     if (writeHistoryCache(id, recentBranch(items))) freshListeners.forEach((listener) => listener(id, page));
   }
 
@@ -336,7 +336,7 @@ export function createRemoteChats(
           return toRepository(cached);
         }
         const { items, page } = await fetchPage(id, PAGE);
-        setPaging(id, { hasMore: page.hasMore });
+        setPaging(id, { hasMore: page.hasMore, known: true });
         writeHistoryCache(id, recentBranch(items));
         return toRepository(rootPage(items));
       },
@@ -351,7 +351,7 @@ export function createRemoteChats(
         setPaging(id, { loading: true });
         try {
           const { page } = await fetchPage(id, PAGE, oldestId);
-          setPaging(id, { hasMore: page.hasMore, loading: false });
+          setPaging(id, { hasMore: page.hasMore, loading: false, known: true });
           return page;
         } catch (cause) {
           setPaging(id, { loading: false });

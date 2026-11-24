@@ -88,3 +88,12 @@ For the latest assistant reply, a mate-named “is thinking…” line appears a
 - Workspace `pnpm typecheck`, `pnpm test`, and `git diff --check` passed.
 - Mobile release only; no API deployment or migration required.
 - Validate the transition on a slower network and on Android before rollout.
+
+## Task outcome refinement — slice 6
+
+Feed results now open the matching assistant message in the chat. The run ID is carried with the chat route, and chat history pages backward until it finds the message. If the run is outside retained history, chat opens at the newest message. Existing notification routes remain unchanged.
+
+- Regression checks cover assistant-message matching, unrelated runs, user messages and missing IDs.
+- Workspace `pnpm typecheck`, `pnpm test`, and `git diff --check` passed.
+- Mobile release only; no API deployment or migration required.
+- Verify a recent and older feed result on iOS and Android, including one chat that needs history pagination.

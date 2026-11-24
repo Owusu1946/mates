@@ -115,6 +115,7 @@ import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
 import { findWaitingPrompt } from "./waiting-prompt";
 import { WaitingPromptChip } from "./waiting-prompt-chip";
 import { ThinkingStatus } from "./thinking-status";
+import { delegationMessageIndex } from "./run-message-target";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -1088,7 +1089,7 @@ const AWAY_FROM_BOTTOM = 280;
  */
 const MESSAGE_GAP = 18;
 const KEEP_POSITION = { minIndexForVisible: 0 };
-const NO_PAGING = { hasMore: false, loading: false };
+const NO_PAGING = { hasMore: false, loading: false, known: false };
 const noSubscribe = () => () => {};
 
 /**
@@ -1108,7 +1109,7 @@ function useEarlierMessages() {
     () => (sync && scrolled && (paging.hasMore || paging.loading) ? { hasMore: paging.hasMore, isLoadingMore: paging.loading, loadMore: () => sync.paging.loadMore(threadId) } : undefined),
     [sync, scrolled, paging, threadId],
   );
-  return { history, loading: paging.loading, onUserScroll };
+  return { history, loading: paging.loading, hasMore: paging.hasMore, known: paging.known, onUserScroll };
 }
 
 function EarlierLoading() {
@@ -1117,9 +1118,9 @@ function EarlierLoading() {
 }
 
 function WaitingPrompt({ onPress }: { onPress: () => void }) {
-  const prompt = useAuiState((state) => findWaitingPrompt(state.thread.messages, state.thread.isRunning));
-  if (!prompt) return null;
-  return <WaitingPromptChip label={prompt.label} onPress={onPress} />;
+  const label = useAuiState((state) => findWaitingPrompt(state.thread.messages, state.thread.isRunning)?.label ?? null);
+  if (!label) return null;
+  return <WaitingPromptChip label={label} onPress={onPress} />;
 }
 
 /**
@@ -1150,6 +1151,11 @@ function ChatBody({
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
+  const params = useLocalSearchParams<{ notificationRunId?: string }>();
+  const router = useRouter();
+  const targetRunId = typeof params.notificationRunId === "string" ? params.notificationRunId : undefined;
+  const targetMessageIndex = useAuiState((state) => delegationMessageIndex(state.thread.messages, targetRunId));
+  const messageCount = useAuiState((state) => state.thread.messages.length);
   const onScroll = useCallback(
     ({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }: NativeSyntheticEvent<NativeScrollEvent>) =>
       onAway(contentSize.height - (contentOffset.y + layoutMeasurement.height) > AWAY_FROM_BOTTOM),
@@ -1168,6 +1174,39 @@ function ChatBody({
     [],
   );
   const earlier = useEarlierMessages();
+  const lastTargetPage = useRef<{ runId: string; messageCount: number } | null>(null);
+  useEffect(() => {
+    if (!targetRunId || isLoading || earlier.loading || !earlier.known) return;
+    if (lastTargetPage.current?.runId !== targetRunId) lastTargetPage.current = null;
+    if (targetMessageIndex !== null) {
+      const timer = setTimeout(() => {
+        listRef.current?.scrollToIndex({ index: targetMessageIndex, animated: true, viewPosition: 0.2 });
+        router.setParams({ notificationRunId: undefined });
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+    if (earlier.hasMore) {
+      if (!earlier.history) {
+        earlier.onUserScroll();
+        return;
+      }
+      if (lastTargetPage.current?.messageCount === messageCount) {
+        const timer = setTimeout(() => {
+          router.setParams({ notificationRunId: undefined });
+          listRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+        return () => clearTimeout(timer);
+        return;
+      }
+      lastTargetPage.current = { runId: targetRunId, messageCount };
+      earlier.onUserScroll();
+      earlier.history?.loadMore();
+      return;
+    }
+    // The run may predate this chat's retained history. Keep the chat usable at its newest point.
+    router.setParams({ notificationRunId: undefined });
+    listRef.current?.scrollToEnd({ animated: true });
+  }, [earlier.hasMore, earlier.history, earlier.known, earlier.loading, earlier.onUserScroll, isLoading, messageCount, router, targetMessageIndex, targetRunId]);
   const onDrag = useCallback(() => {
     earlier.onUserScroll();
     onScrollBeginDrag();
@@ -1195,6 +1234,10 @@ function ChatBody({
           ref={listRef}
           onScroll={onScroll}
           onContentSizeChange={onContentSizeChange}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: true });
+            setTimeout(() => listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 250);
+          }}
           onScrollBeginDrag={onDrag}
           history={earlier.history}
           ListHeaderComponent={earlier.loading ? EarlierLoading : undefined}
