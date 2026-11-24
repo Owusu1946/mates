@@ -1,0 +1,52 @@
+# Installers for Windows, macOS and Linux. The app is fully bundled by electron-vite into dist/,
+# so nothing from node_modules ships (every package is a devDependency).
+appId: app.askorin.mates.desktop # must match APP_ID in src/main/index.ts
+productName: Mates
+copyright: Copyright © 2026 Mates
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**
+  - package.json
+
+asar: true
+
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+
+# One click, per user, no admin prompt: how Windows desktop apps like Slack and Discord install.
+nsis:
+  artifactName: ${productName}-Setup-${version}-${arch}.${ext}
+  shortcutName: Mates
+  uninstallDisplayName: Mates
+
+mac:
+  icon: build/icon.png
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: universal
+    - target: zip
+      arch: universal
+
+dmg:
+  artifactName: ${productName}-${version}-mac.${ext}
+
+linux:
+  icon: build/icon.png
+  category: Office
+  synopsis: Your crew of AI mates
+  description: Mates for desktop. Your crew of AI mates on your computer.
+  maintainer: Mates
+  target:
+    - AppImage
+    - deb
+
+appImage:
+  artifactName: ${productName}-${version}-${arch}.${ext}
