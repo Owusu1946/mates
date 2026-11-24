@@ -9,18 +9,21 @@ import { cn } from "../lib/utils.ts";
 
 export type NewGroup = { title: string; mateIds: string[] };
 
-/** A group of mates working on something together: a name, and at least two mates. */
-export function NewGroupDialog({ open, onOpenChange, mates, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; mates: Mate[]; onCreate: (group: NewGroup) => void }) {
+/**
+ * A group of mates working on something together: a name, and at least two mates. With `initial`,
+ * it edits that group: rename it, or add and remove mates.
+ */
+export function NewGroupDialog({ open, onOpenChange, mates, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; mates: Mate[]; onCreate: (group: NewGroup) => void; initial?: NewGroup }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="New group" description="Mates who work on something together, in one chat.">
-      {open && <NewGroupForm mates={mates} onCreate={onCreate} />}
+    <Dialog open={open} onOpenChange={onOpenChange} title={initial ? `Edit ${initial.title}` : "New group"} description={initial ? "Its name and who's in it. The conversation stays." : "Mates who work on something together, in one chat."}>
+      {open && <NewGroupForm mates={mates} onCreate={onCreate} initial={initial} />}
     </Dialog>
   );
 }
 
-function NewGroupForm({ mates, onCreate }: { mates: Mate[]; onCreate: (group: NewGroup) => void }) {
-  const [title, setTitle] = useState("");
-  const [picked, setPicked] = useState<string[]>([]);
+function NewGroupForm({ mates, onCreate, initial }: { mates: Mate[]; onCreate: (group: NewGroup) => void; initial?: NewGroup }) {
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [picked, setPicked] = useState<string[]>(initial?.mateIds ?? []);
   const valid = title.trim().length > 0 && picked.length >= 2;
   const toggle = (id: string) => setPicked(picked.includes(id) ? picked.filter((candidate) => candidate !== id) : [...picked, id]);
 
@@ -62,7 +65,7 @@ function NewGroupForm({ mates, onCreate }: { mates: Mate[]; onCreate: (group: Ne
         </div>
       </fieldset>
       <Button type="submit" size="lg" className="w-full" disabled={!valid}>
-        {picked.length < 2 ? "Choose at least two mates" : `Create ${title.trim() || "group"}`}
+        {picked.length < 2 ? "Choose at least two mates" : initial ? "Save" : `Create ${title.trim() || "group"}`}
       </Button>
     </form>
   );

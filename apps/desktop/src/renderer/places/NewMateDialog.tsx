@@ -14,23 +14,23 @@ export type NewMate = { name: string; role: string; shape: ShapeName; color: Mat
 const ROLE_IDEAS = ["Research", "Planning", "Money", "Health", "Shopping", "Builder"];
 
 /**
- * A new mate: a name, what it helps with, a shape and a colour, with its face reacting as you
- * choose. It joins the sidebar and says hello in its own chat.
+ * A mate's name, what it helps with, a shape and a colour, with its face reacting as you choose.
+ * New, it joins the sidebar and says hello in its own chat; with `initial`, it edits that mate.
  */
-export function NewMateDialog({ open, onOpenChange, onCreate }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (mate: NewMate) => void }) {
+export function NewMateDialog({ open, onOpenChange, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (mate: NewMate) => void; initial?: NewMate }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} title="New mate" description="Someone new for your crew, with their own job.">
+    <Dialog open={open} onOpenChange={onOpenChange} title={initial ? `Edit ${initial.name}` : "New mate"} description={initial ? "Their name, job and look. Their chats and memories stay." : "Someone new for your crew, with their own job."}>
       {/* Mounted per open, so each one starts fresh. */}
-      {open && <NewMateForm onCreate={onCreate} />}
+      {open && <NewMateForm onCreate={onCreate} initial={initial} />}
     </Dialog>
   );
 }
 
-function NewMateForm({ onCreate }: { onCreate: (mate: NewMate) => void }) {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");
-  const [shape, setShape] = useState<ShapeName>("circle");
-  const [color, setColor] = useState<MateColor>("teal");
+function NewMateForm({ onCreate, initial }: { onCreate: (mate: NewMate) => void; initial?: NewMate }) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [role, setRole] = useState(initial?.role ?? "");
+  const [shape, setShape] = useState<ShapeName>(initial?.shape ?? "circle");
+  const [color, setColor] = useState<MateColor>(initial?.color ?? "teal");
   const [beat, setBeat] = useState(0);
   const [happy, setHappy] = useState(false);
   const hint = nameHint(name);
@@ -86,7 +86,7 @@ function NewMateForm({ onCreate }: { onCreate: (mate: NewMate) => void }) {
         }}
       />
       <Button type="submit" size="lg" className="w-full" disabled={!valid}>
-        Create {name.trim() || "mate"}
+        {initial ? "Save" : `Create ${name.trim() || "mate"}`}
       </Button>
     </form>
   );
