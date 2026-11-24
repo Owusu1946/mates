@@ -5,7 +5,9 @@ import { Icon, type IconName } from "../components/ui/Icon.tsx";
 import { Switch } from "../components/ui/Switch.tsx";
 import type { Mate } from "../data/sampleCrew.ts";
 import { tickTextContent } from "../lib/tickTextContent.ts";
+import { USAGE } from "../data/sampleUsage.ts";
 import { cn } from "../lib/utils.ts";
+import { UsageBar, usedText } from "../settings/UsageBar.tsx";
 import { goalOf, liveGoal, queuedGoals, type ComputerAction, type ComputerPlace, type ComputerState, type Goal } from "./computer.logic.ts";
 import { ComputerScreen } from "./ComputerScreen.tsx";
 import { taskFor } from "./useComputers.ts";
@@ -117,12 +119,10 @@ function PlaceSettings({ place, onPlace }: { place: ComputerPlace; onPlace: (pla
           <p className="text-sm text-ink-soft">A desktop of your own in the cloud, with Chrome, documents and files. Your mates use it for you, and you can too. It keeps your sign-ins and files, and turns off after 5 minutes with nothing to do.</p>
           <div>
             <div className="mb-1 flex justify-between text-xs">
-              <span>This month · Pro</span>
-              <span className="text-ink-soft tabular-nums">1h 50m of 3h left</span>
+              <span>Uses your plan's usage, by the minute</span>
+              <span className="text-ink-soft tabular-nums">This week · {usedText(USAGE.week.usedPercent)}</span>
             </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-hover-fill">
-              <div className="h-full w-[39%] rounded-full bg-brand" />
-            </div>
+            <UsageBar percent={USAGE.week.usedPercent} />
           </div>
         </div>
       ) : (
