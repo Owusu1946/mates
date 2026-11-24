@@ -1,6 +1,7 @@
-import { SHAPES, type PolygonState, type ShapeName } from "@muse-clone/mascot";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { MATE_COLORS, gradientOf, type MateColor } from "../theme/matePalette.ts";
+import type { PolygonState, ShapeName } from "@muse-clone/mascot";
+import { useEffect, useRef, useState } from "react";
+import { gradientOf, type MateColor } from "../theme/matePalette.ts";
+import { ColorPicker, ShapePicker } from "../components/MatePickers.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import { Mascot } from "../components/ui/Mascot.tsx";
@@ -9,8 +10,6 @@ import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import { cn } from "../lib/utils.ts";
 
 export type Leader = { name: string; shape: ShapeName; color: MateColor };
-
-const SHAPE_NAMES = Object.keys(SHAPES) as ShapeName[];
 
 /**
  * Right after sign-up, as on the phone: name the lead mate (today's day name to start, a
@@ -78,42 +77,21 @@ export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => void }) {
             {hint.text}
           </p>
 
-          <div className="flex flex-wrap justify-center gap-1.5" role="radiogroup" aria-label="Shape">
-            {SHAPE_NAMES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={option === shape}
-                aria-label={option}
-                className="flex size-11.5 items-center justify-center rounded-full transition-colors hover:bg-hover-fill aria-checked:bg-hover-fill aria-checked:ring-1 aria-checked:ring-line"
-                onClick={() => {
-                  setShape(option);
-                  react();
-                }}
-              >
-                <Mascot size={34} gradient={gradientOf(color)} shape={option} still />
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-1.5" role="radiogroup" aria-label="Colour">
-            {MATE_COLORS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                role="radio"
-                aria-checked={option === color}
-                aria-label={option}
-                className="size-8.5 rounded-full border-2 border-transparent bg-[radial-gradient(circle,var(--swatch)_0_11px,transparent_12px)] transition-colors aria-checked:border-ink"
-                style={{ "--swatch": gradientOf(option)[1] } as CSSProperties}
-                onClick={() => {
-                  setColor(option);
-                  react();
-                }}
-              />
-            ))}
-          </div>
+          <ShapePicker
+            shape={shape}
+            color={color}
+            onChange={(option) => {
+              setShape(option);
+              react();
+            }}
+          />
+          <ColorPicker
+            color={color}
+            onChange={(option) => {
+              setColor(option);
+              react();
+            }}
+          />
 
           <Button type="submit" size="xl" className="w-full" disabled={!valid}>
             Create
