@@ -63,13 +63,14 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
               placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
               busy={Boolean(reply)}
               onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
-              onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
+              onSend={(files) => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent), files })}
+              attachments
               onStop={() => dispatch({ type: "stop", chatId: chat.id })}
               voice={{
                 line: VOICE_LINES[chat.leadId] ?? "What's on my calendar today",
-                onSend: (text) => {
+                onSend: (text, files) => {
                   dispatch({ type: "draft", chatId: chat.id, text });
-                  dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) });
+                  dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent), files });
                 },
               }}
             />
