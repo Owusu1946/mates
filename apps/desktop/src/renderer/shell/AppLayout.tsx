@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatActivityMode } from "../chat/activityModes.ts";
-import { replyStatus } from "../chat/chatFlow.logic.ts";
+import type { ChatAction } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { OpenRunContext } from "../chat/openRun.ts";
 import { useChatFlow } from "../chat/useChatFlow.ts";
+import { useMateMoods } from "../chat/useMateMoods.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
 import { RunStatusDot } from "../code/RunStatusDot.tsx";
@@ -15,6 +16,8 @@ import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
 import { REPOS, type Chat, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
+import { NewGroupDialog, type NewGroup } from "../places/NewGroupDialog.tsx";
+import { NewMateDialog, type NewMate } from "../places/NewMateDialog.tsx";
 import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
@@ -39,7 +42,10 @@ function focusArea(area: FocusArea) {
 export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => void }) {
   const [flow, dispatch] = useChatFlow(crew);
   const [selection, setSelection] = useState<Selection>({ kind: "chat", id: "chat-lead" });
-  const [threads, setThreads] = useState<Chat[]>([]);
+  // Mates and groups you make here join the crew's.
+  const [made, setMade] = useState<{ mates: Mate[]; chats: Chat[] }>({ mates: [], chats: [] });
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [creating, setCreating] = useState<"mate" | "group" | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const openSettings = () => {
@@ -69,23 +75,29 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [panels, setPanels] = useState<CodePanels>({ diff: false, terminal: false, diffStyle: "unified", wrap: false, focusPath: null });
   const changePanels = (change: Partial<CodePanels>) => setPanels({ ...panels, ...change });
 
-  // A mate answering shows it everywhere: its sidebar face, the header.
+  const allMates = [...crew.mates, ...made.mates];
+  const chats = [...crew.chats, ...made.chats];
+  // A mate's mood shows everywhere, its sidebar face and the header: listening while you type to
+  // it, thinking, working, happy when it's done (chat/mateMood.logic.ts).
+  const moods = useMateMoods(flow.replies);
   const liveMates: Record<string, Mate> = Object.fromEntries(
-    crew.mates.map((mate) => {
-      const status = replyStatus(flow.replies, mate.id);
+    allMates.map((mate) => {
+      const status = moods.moodOf(mate.id);
       return [mate.id, status ? { ...mate, status } : mate];
     }),
   );
   // The timeline uses the crew as it is, so a streaming reply doesn't re-render every row.
-  const crewMates: Record<string, Mate> = Object.fromEntries(crew.mates.map((mate) => [mate.id, mate]));
+  const crewMates: Record<string, Mate> = Object.fromEntries(allMates.map((mate) => [mate.id, mate]));
   const targets = jumpTargets(
-    crew.chats.filter((chat) => chat.kind === "mate").map((chat) => chat.id),
-    crew.chats.filter((chat) => chat.kind === "group").map((chat) => chat.id),
+    chats.filter((chat) => chat.kind === "mate").map((chat) => chat.id),
+    chats.filter((chat) => chat.kind === "group").map((chat) => chat.id),
   );
-  const chats = [...crew.chats, ...threads.map((thread) => {
-    const firstMessage = flow.messages[thread.id]?.[0]?.text;
-    return firstMessage ? { ...thread, title: firstMessage.split("\n", 1)[0] ?? firstMessage, preview: firstMessage } : thread;
-  })];
+  // Typing to a mate makes it listen; groups listen through their lead.
+  const chatDispatch = (action: ChatAction) => {
+    if (action.type === "draft") moods.noteTyping(action.text.trim() ? (chats.find((candidate) => candidate.id === action.chatId)?.leadId ?? null) : null);
+    if (action.type === "send") moods.noteTyping(null);
+    dispatch(action);
+  };
   const chat = selection.kind === "chat" ? chats.find((candidate) => candidate.id === selection.id) : undefined;
   const run = selection.kind === "run" ? runs.find((candidate) => candidate.id === selection.id) : undefined;
   const coder = crewMates[MATE_ID]!;
@@ -123,14 +135,32 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     select({ kind: "run", id: created.id });
   };
 
-  const newChat = () => {
-    const lead = crew.chats.find((candidate) => candidate.id === "chat-lead")!;
-    const existing = threads.find((thread) => !flow.messages[thread.id]?.length && !flow.drafts[thread.id]);
-    const thread: Chat = existing ?? { ...lead, id: crypto.randomUUID(), kind: "thread", title: "New chat", time: "", preview: "" };
-    if (!existing) setThreads((current) => [thread, ...current]);
-    select({ kind: "chat", id: thread.id });
-    // The chat view mounts on this render; focus once it's there.
+  /** Opens a chat and puts the cursor in its composer, once the chat view has mounted. */
+  const openChat = (chatId: string) => {
+    select({ kind: "chat", id: chatId });
     requestAnimationFrame(() => composerRef.current?.focus());
+  };
+
+  // A new mate joins the sidebar with its own chat and says hello.
+  const createMate = ({ name, role, shape, color }: NewMate) => {
+    const id = `mate-${crypto.randomUUID()}`;
+    const mate: Mate = { id, name, role, shape, color, status: "idle" };
+    const chat: Chat = { id: `chat-${id}`, kind: "mate", title: name, mateIds: [id], leadId: id, preview: "Say hello", time: "now" };
+    setMade({ mates: [...made.mates, mate], chats: [...made.chats, chat] });
+    dispatch({ type: "append", chatId: chat.id, messages: [{ id: `${id}-hello`, author: id, day: "Today", text: `Hi, I'm ${name}. What would you like me to take care of?` }] });
+    setCreating(null);
+    openChat(chat.id);
+  };
+
+  // A new group: the first mate chosen leads it and opens the conversation.
+  const createGroup = ({ title, mateIds }: NewGroup) => {
+    const id = `group-${crypto.randomUUID()}`;
+    const lead = crewMates[mateIds[0]!]!;
+    const chat: Chat = { id, kind: "group", title, mateIds, leadId: lead.id, preview: `${lead.name}: What are we working on?`, time: "now" };
+    setMade({ ...made, chats: [...made.chats, chat] });
+    dispatch({ type: "append", chatId: id, messages: [{ id: `${id}-hello`, author: lead.id, day: "Today", text: "Everyone's here. What are we working on?" }] });
+    setCreating(null);
+    openChat(id);
   };
 
   // A conversation carried over from the summon bar opens in its mate's chat, as if it had been here.
@@ -177,7 +207,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       leading: <RunStatusDot status={status} />,
       run: () => select({ kind: "run", id: runItem.id }),
     })),
-    { id: "new-chat", group: "Actions", label: "New chat", hint: `${MOD} N`, keywords: ["message", "ask"], leading: <Icon name="edit" />, run: newChat },
+    { id: "new-mate", group: "Actions", label: "New mate", hint: `${MOD} N`, keywords: ["create", "add", "assistant"], leading: <Icon name="plus" />, run: () => setCreating("mate") },
+    { id: "new-group", group: "Actions", label: "New group", keywords: ["create", "team", "together"], leading: <Icon name="users" />, run: () => setCreating("group") },
     { id: "ask-to-build", group: "Actions", label: `Ask ${coder.name} to build something`, keywords: ["code", "website", "app", "fix", "build"], leading: <MateAvatar mate={coder} size={18} />, run: askToBuild },
     ...(run && codingOn
       ? [
@@ -201,7 +232,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       if (target) select(target);
     },
     onSearch: () => setPaletteOpen(!paletteOpen),
-    onNewChat: newChat,
+    onNewChat: () => setNewMenuOpen(!newMenuOpen),
     onSettings: () => settingsOpen ? setSettingsOpen(false) : openSettings(),
     onCycleFocus: (backwards) => {
       const current = document.activeElement?.closest<HTMLElement>("[data-focus-area]")?.dataset.focusArea as FocusArea | undefined;
@@ -236,14 +267,17 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           jumpTargets={targets}
           showJumpHints={showJumpHints}
           onSelect={select}
-          onNewChat={newChat}
+          newMenuOpen={newMenuOpen}
+          onNewMenuOpenChange={setNewMenuOpen}
+          onNewMate={() => setCreating("mate")}
+          onNewGroup={() => setCreating("group")}
           onOpenSettings={openSettings}
           onSignOut={onSignOut}
         />
         <main className="min-w-0 flex-1">
           {chat && (
             <OpenRunContext value={openRun}>
-              <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />
+              <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={chatDispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />
             </OpenRunContext>
           )}
           {repo && (
@@ -277,6 +311,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           )}
         </main>
       </div>
+      <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
+      <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} />
     </TooltipProvider>
   );
