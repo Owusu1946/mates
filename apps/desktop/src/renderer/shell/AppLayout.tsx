@@ -252,6 +252,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     { id: "place:friends", group: "Go to", label: "Friends", keywords: ["people", "invite", "share"], leading: <Icon name="users" />, run: () => select({ kind: "place", id: "friends" }) },
     { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: () => openSettings() },
     { id: "usage", group: "Go to", label: "Usage", keywords: ["plan", "limit", "billing", "subscription"], leading: <Icon name="clock" />, run: () => openSettings("usage") },
+    { id: "memory", group: "Go to", label: "Memory", keywords: ["remember", "forget", "memories", "export"], leading: <Icon name="brain" />, run: () => openSettings("memory") },
     ...(codingOn ? runRows : []).map(({ run: runItem, status }): PaletteItem => ({
       id: `run:${runItem.id}`,
       group: "Runs",
@@ -425,7 +426,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       })()}
       <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
       <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} you={crew.you} onSignOut={onSignOut} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} you={crew.you} onSignOut={onSignOut} mates={Object.values(liveMates)} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
     </TooltipProvider>
   );
 }

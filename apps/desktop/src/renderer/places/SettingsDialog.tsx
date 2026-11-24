@@ -5,7 +5,7 @@ import { ACTIVITY_MODES, type ChatActivityMode } from "../chat/activityModes.ts"
 import { ChatActivityPreview } from "../chat/ChatActivityPreview.tsx";
 import { buttonVariants } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
-import type { SampleProfile } from "../data/sampleCrew.ts";
+import type { Mate, SampleProfile } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
 import { AboutSettings } from "../settings/AboutSettings.tsx";
 import { AccountSettings } from "../settings/AccountSettings.tsx";
@@ -13,6 +13,7 @@ import { AppsSettings } from "../settings/AppsSettings.tsx";
 import { CODING_CHOICES } from "../settings/coding.logic.ts";
 import { ComputerSettings } from "../settings/ComputerSettings.tsx";
 import { MatesSettings } from "../settings/MatesSettings.tsx";
+import { MemorySettings } from "../settings/MemorySettings.tsx";
 import { NotificationsSettings } from "../settings/NotificationsSettings.tsx";
 import { SettingsPage } from "../settings/SettingsParts.tsx";
 import { UsageSettings } from "../settings/UsageSettings.tsx";
@@ -76,6 +77,8 @@ type SettingsDialogProps = ChatActivitySettingsProps & {
   onOpenChange: (open: boolean) => void;
   you: string;
   onSignOut: () => void;
+  /** The crew, lead first, for each mate's own memories. */
+  mates: Mate[];
   profile?: SampleProfile;
   /** Whether the coding tools show right now, for the Coding tab's status line. */
   codingShown: boolean;
@@ -91,6 +94,7 @@ const SECTION_GROUPS = [
   ],
   [
     { id: "mates", label: "Mates", icon: "users" },
+    { id: "memory", label: "Memory", icon: "brain" },
     { id: "apps", label: "Apps", icon: "grid" },
     { id: "notifications", label: "Notifications", icon: "bell" },
   ],
@@ -105,7 +109,7 @@ const SECTION_GROUPS = [
 
 const PANEL = "motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none";
 
-export function SettingsDialog({ open, onOpenChange, you, onSignOut, activityMode, onActivityMode, profile, codingShown, section = "account" }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, you, onSignOut, mates, activityMode, onActivityMode, profile, codingShown, section = "account" }: SettingsDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -138,7 +142,10 @@ export function SettingsDialog({ open, onOpenChange, you, onSignOut, activityMod
                 <UsageSettings />
               </Tabs.Panel>
               <Tabs.Panel value="mates" className={PANEL}>
-                <MatesSettings profile={profile} />
+                <MatesSettings />
+              </Tabs.Panel>
+              <Tabs.Panel value="memory" className={PANEL}>
+                <MemorySettings mates={mates} profile={profile} />
               </Tabs.Panel>
               <Tabs.Panel value="apps" className={PANEL}>
                 <AppsSettings />
