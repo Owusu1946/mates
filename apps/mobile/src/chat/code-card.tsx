@@ -22,7 +22,7 @@ const STEP_LINES = 6;
  * doing right now, in a brushed-metal shimmer (like ChatGPT's "Thinking"), and unfolds into the
  * steps, each with what the computer did in it. When it ends, the line says how.
  */
-export function CodeCard({ state }: { state: WorkflowCard }) {
+export function CodeCard({ state, preview = false }: { state: WorkflowCard; preview?: boolean }) {
   const { colors, isDark } = useTheme();
   const { getToken, userId } = useAuth();
   const client = useQueryClient();
@@ -31,7 +31,7 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
   const [stopping, setStopping] = useState(false);
   const live = useQuery({
     queryKey: ["code-run", userId, initial?.runId],
-    enabled: !!initial,
+    enabled: !preview && !!initial,
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `code-runs/${initial!.runId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.code?.status ?? "done") ? 2_000 : false),
@@ -101,14 +101,20 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
           </Pressable>
         )}
         {!running && code.pr && (
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel={`Open pull request #${code.pr.number}`}
-            onPress={openPr}
-            style={({ pressed }) => ({ height: 30, paddingHorizontal: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.text, opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}
-          >
-            <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13 }}>Review PR</Text>
-          </Pressable>
+          preview ? (
+            <View style={{ height: 30, paddingHorizontal: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.text }}>
+              <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13 }}>Review PR</Text>
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`Open pull request #${code.pr.number}`}
+              onPress={openPr}
+              style={({ pressed }) => ({ height: 30, paddingHorizontal: 13, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.text, opacity: pressed ? 0.75 : 1, transform: [{ scale: pressed ? 0.97 : 1 }] })}
+            >
+              <Text style={{ color: colors.background, fontFamily: "DMSans_600SemiBold", fontSize: 13 }}>Review PR</Text>
+            </Pressable>
+          )
         )}
       </View>
 
@@ -149,11 +155,17 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
             <StepRow key={step.id} step={step} checks={step.id === "checks" ? code.checks : []} />
           ))}
           {code.pr && !running && (
-            <Pressable accessibilityRole="link" onPress={openPr} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+            preview ? (
               <Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>
                 PR #{code.pr.number}: {code.pr.title}
               </Text>
-            </Pressable>
+            ) : (
+              <Pressable accessibilityRole="link" onPress={openPr} style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}>
+                <Text numberOfLines={2} style={{ color: colors.textSecondary, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>
+                  PR #{code.pr.number}: {code.pr.title}
+                </Text>
+              </Pressable>
+            )
           )}
           {/* Already failing before the change, diff warnings, a failed install or running out of time. */}
           {code.notes?.filter((note) => note.kind !== "still_failing").map((note) => (

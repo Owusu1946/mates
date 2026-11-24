@@ -22,7 +22,7 @@ const ACTIVE = ["queued", "running", "waiting"];
  * runs, a small live view shows the desktop with Take over and Stop. When it needs you (an OK, a
  * sign-in, a question) the card asks right here. When it ends, it shows the receipt and evidence.
  */
-export function ComputerCard({ state }: { state: WorkflowCard }) {
+export function ComputerCard({ state, preview = false }: { state: WorkflowCard; preview?: boolean }) {
   const { colors } = useTheme();
   const { getToken, userId } = useAuth();
   const client = useQueryClient();
@@ -33,12 +33,12 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
   const focused = useIsFocused();
   const initial = state.computer;
   const cached = client.getQueryData<ComputerStatus>(["computer", userId]);
-  const computer = useComputer({ watching: focused && !!cached?.available && cached.goal?.id === initial?.goalId });
+  const computer = useComputer({ enabled: !preview, watching: !preview && focused && !!cached?.available && cached.goal?.id === initial?.goalId });
   const [busy, setBusy] = useState(false);
   const [reply, setReply] = useState("");
   const live = useQuery({
     queryKey: ["computer-goal", userId, initial?.goalId],
-    enabled: !!initial,
+    enabled: !preview && !!initial,
     initialData: state,
     queryFn: async () => (await runRequest<{ card: WorkflowCard }>(getToken, `computer/goals/${initial!.goalId}`)).card,
     refetchInterval: (query) => (ACTIVE.includes(query.state.data?.computer?.status ?? "done") ? 2_000 : false),
