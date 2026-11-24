@@ -1,3 +1,4 @@
+import { Collapsible } from "@base-ui/react/collapsible";
 import { memo, useState } from "react";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Step } from "../data/sampleRuns.ts";
@@ -28,10 +29,8 @@ export const WorkGroup = memo(function WorkGroup({ steps, durationMs }: { steps:
   const [open, setOpen] = useState(false);
   const summary = groupSummary(steps);
   return (
-    <section aria-label="Work">
-      <WorkLogButton
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
+    <Collapsible.Root open={open} onOpenChange={setOpen} render={<section aria-label="Work" />}>
+      <Collapsible.Trigger render={<WorkLogButton
         icon={<Icon name={groupIcon(steps)} size={16} className="text-ink-soft opacity-80" />}
         label={
           <>
@@ -40,9 +39,11 @@ export const WorkGroup = memo(function WorkGroup({ steps, durationMs }: { steps:
           </>
         }
         trailing={<Icon name="chevronDown" size={14} className={cn("me-1 shrink-0 text-ink-soft transition-[rotate] duration-150", !open && "-rotate-90")} />}
-      />
-      {open && <StepList steps={steps} />}
-    </section>
+      />} />
+      <Collapsible.Panel className="motion-disclosure" inert={!open}>
+        <StepList steps={steps} />
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 });
 
@@ -56,13 +57,10 @@ export function LiveWorkGroup({ group }: { group: LiveGroup }) {
   const [open, setOpen] = useState(true);
   const { startedAt, steps, current } = group;
   return (
-    <section aria-label="Working" className="flex flex-col">
-      <button
-        type="button"
-        aria-expanded={open}
+    <Collapsible.Root open={open} onOpenChange={setOpen} render={<section aria-label="Working" />} className="flex flex-col">
+      <Collapsible.Trigger
         disabled={!steps.length}
-        onClick={() => setOpen(!open)}
-        className="flex h-6 w-fit items-center gap-1.5 rounded-md px-1 text-sm text-ink-soft tabular-nums outline-none hover:not-disabled:text-ink focus-visible:ring-2 focus-visible:ring-brand/70"
+        className="flex h-6 w-fit items-center gap-1.5 rounded-md px-1 text-sm text-ink-soft tabular-nums outline-none transition-colors hover:not-disabled:text-ink focus-visible:ring-2 focus-visible:ring-brand/70"
       >
         <span>
           Working for <span ref={tickTextContent((now) => formatElapsed(now - startedAt), true)} />
@@ -73,11 +71,15 @@ export function LiveWorkGroup({ group }: { group: LiveGroup }) {
             <Icon name="chevronDown" size={14} className={cn("transition-[rotate] duration-150", !open && "-rotate-90")} />
           </>
         )}
-      </button>
-      {open && <StepList steps={steps} />}
+      </Collapsible.Trigger>
+      {steps.length > 0 && (
+        <Collapsible.Panel className="motion-disclosure" inert={!open}>
+          <StepList steps={steps} />
+        </Collapsible.Panel>
+      )}
       {current?.thought && <LiveThought key={current.id} thought={current.thought} ms={current.ms} />}
       {current && !current.thought && (
-        <div className="flex min-h-6 min-w-0 animate-fade items-center gap-1.5 px-0.5 text-sm leading-relaxed" role="status">
+        <div key={current.id} className="flex min-h-6 min-w-0 animate-fade items-center gap-1.5 px-0.5 text-sm leading-relaxed" role="status">
           <span className="flex size-6 shrink-0 items-center justify-center">
             <StepIcon step={current} highlighted />
           </span>
@@ -86,6 +88,6 @@ export function LiveWorkGroup({ group }: { group: LiveGroup }) {
           </span>
         </div>
       )}
-    </section>
+    </Collapsible.Root>
   );
 }

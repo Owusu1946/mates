@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import type { ChatActivityMode } from "../chat/activityModes.ts";
 import { replyStatus } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
@@ -13,7 +14,7 @@ import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
 import { REPOS, type Chat, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
-import { SettingsDialog, type ChatActivityMode } from "../places/SettingsDialog.tsx";
+import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";

@@ -8,7 +8,7 @@ import { Icon, type IconName } from "./Icon.tsx";
  * size. `className` is for layout only (width, margin), never colour or shape.
  */
 export const buttonVariants = cva(
-  "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-control border font-medium outline-none transition-[background-color,box-shadow,scale,opacity] duration-150 active:not-disabled:scale-[0.97] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-64 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4",
+  "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-control border font-medium outline-none transition-[background-color,border-color,color,box-shadow,scale,opacity] duration-150 ease-out-soft active:not-disabled:scale-[0.97] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand disabled:pointer-events-none disabled:opacity-64 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4",
   {
     variants: {
       variant: {

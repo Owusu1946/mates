@@ -72,20 +72,18 @@ export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels
             />
           )}
         />
-        {panels.terminal && hasTerminal && <TerminalDrawer key={run.id} terminals={run.terminals} output={state.terminalOutput} onClose={() => onPanels({ terminal: false })} />}
+        {hasTerminal && <TerminalDrawer key={run.id} open={panels.terminal} terminals={run.terminals} output={state.terminalOutput} onClose={() => onPanels({ terminal: false })} />}
       </div>
-      {panels.diff && (
-        <RightPanel tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
-          <DiffPanel
-            patchIds={state.patchIds}
-            focusPath={panels.focusPath}
-            diffStyle={panels.diffStyle}
-            wrap={panels.wrap}
-            onDiffStyle={(diffStyle) => onPanels({ diffStyle })}
-            onWrap={(wrap) => onPanels({ wrap })}
-          />
-        </RightPanel>
-      )}
+      <RightPanel open={panels.diff} tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
+        <DiffPanel
+          patchIds={state.patchIds}
+          focusPath={panels.focusPath}
+          diffStyle={panels.diffStyle}
+          wrap={panels.wrap}
+          onDiffStyle={(diffStyle) => onPanels({ diffStyle })}
+          onWrap={(wrap) => onPanels({ wrap })}
+        />
+      </RightPanel>
     </div>
   );
 }

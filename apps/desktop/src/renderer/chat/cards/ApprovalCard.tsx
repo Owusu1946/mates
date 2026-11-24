@@ -12,7 +12,7 @@ type ApprovalCardProps = {
 export function ApprovalCard({ card, onAnswer }: ApprovalCardProps) {
   const open = card.state === "open";
   return (
-    <section className={cn("rounded-xl border bg-raised p-4", open ? "border-caution/40" : "border-line")}>
+    <section className={cn("rounded-xl border bg-raised p-4 transition-colors duration-150", open ? "border-caution/40" : "border-line")}>
       {open && (
         <div className="mb-2 flex items-center gap-2 text-2xs font-medium text-caution-ink">
           <span className="size-1.5 rounded-full bg-caution" aria-hidden="true" />

@@ -13,7 +13,7 @@ export function Menu({ trigger, children, side = "bottom", align = "start" }: { 
       <BaseMenu.Trigger render={trigger} />
       <BaseMenu.Portal>
         <BaseMenu.Positioner side={side} align={align} sideOffset={6} className="z-50 outline-none">
-          <BaseMenu.Popup className="min-w-52 origin-(--transform-origin) rounded-xl border border-line bg-raised p-1 text-sm text-ink shadow-lg shadow-black/10 outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:shadow-black/50">
+          <BaseMenu.Popup className="motion-popover min-w-52 origin-(--transform-origin) rounded-xl border border-line bg-raised p-1 text-sm text-ink shadow-lg shadow-black/10 outline-none dark:shadow-black/50">
             {children}
           </BaseMenu.Popup>
         </BaseMenu.Positioner>
@@ -25,7 +25,7 @@ export function Menu({ trigger, children, side = "bottom", align = "start" }: { 
 export function MenuItem({ icon, children, className, ...rest }: ComponentProps<typeof BaseMenu.Item> & { icon?: IconName; children: ReactNode }) {
   return (
     <BaseMenu.Item
-      className={cn("flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft", className)}
+      className={cn("flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none transition-colors duration-100 select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft", className)}
       {...rest}
     >
       {icon && <Icon name={icon} />}
@@ -48,7 +48,7 @@ export function MenuRadioItem({ value, icon, children }: { value: string; icon?:
     <BaseMenu.RadioItem
       value={value}
       closeOnClick={false}
-      className="flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft"
+      className="flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none transition-colors duration-100 select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft"
     >
       {icon && <Icon name={icon} />}
       <span className="flex-1">{children}</span>

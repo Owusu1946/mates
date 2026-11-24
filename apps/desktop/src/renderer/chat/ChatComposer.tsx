@@ -1,5 +1,7 @@
 import { memo, type ReactNode, type Ref } from "react";
 import { Button } from "../components/ui/Button.tsx";
+import { Icon } from "../components/ui/Icon.tsx";
+import { cn } from "../lib/utils.ts";
 
 type ChatComposerProps = {
   ref?: Ref<HTMLTextAreaElement>;
@@ -45,11 +47,12 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
             }
           }}
         />
-        {busy ? (
-          <Button variant="secondary" size="icon" icon="square" aria-label="Stop" onClick={onStop} />
-        ) : (
-          <Button size="icon" icon="arrowUp" aria-label="Send" disabled={!canSend} onClick={onSend} />
-        )}
+        <Button variant={busy ? "secondary" : "default"} size="icon" aria-label={busy ? "Stop" : "Send"} disabled={!busy && !canSend} onClick={busy ? onStop : onSend}>
+          <span className="grid size-4 place-items-center">
+            <Icon name="arrowUp" className={cn("motion-action-icon", !busy && "is-visible")} />
+            <Icon name="square" className={cn("motion-action-icon", busy && "is-visible")} />
+          </span>
+        </Button>
       </div>
       {footer && <div className="pointer-events-auto mt-1.5 w-fit max-w-full px-1">{footer}</div>}
     </div>

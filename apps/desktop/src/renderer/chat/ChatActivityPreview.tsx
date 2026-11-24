@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
 import type { Card, Message } from "../data/sampleCrew.ts";
+import { ACTIVITY_MODES } from "./activityModes.ts";
 import { ChatWorkActivity } from "./ChatWorkActivity.tsx";
 import { MessageRow } from "./MessageRow.tsx";
 
@@ -16,16 +17,16 @@ const PAYMENT: Extract<Card, { type: "approval" }> = {
 };
 const RESULT: Message = { id: "payment", author: "mate", text: "The bill is GH¢280, same as last month.", card: PAYMENT };
 
-function PreviewChat({ quiet, progress }: { quiet: boolean; progress: number }) {
+function PreviewChat({ mode, progress }: { mode: (typeof ACTIVITY_MODES)[number]; progress: number }) {
   const [answer, setAnswer] = useState(PAYMENT.state);
-  const label = quiet ? "Quiet" : "Detailed";
+  const { label, value } = mode;
 
   return (
     <div role="group" aria-label={`${label} sample`} className="min-w-0 rounded-xl border border-line bg-canvas">
       <h3 className="border-b border-line px-4 py-2.5 text-sm font-medium">{label}</h3>
       <div className="flex flex-col gap-3 p-4 text-sm">
         <MessageRow message={REQUEST} showAuthor={false} onAnswer={(_, state) => setAnswer(state)} />
-        {!quiet && progress > 0 && <ChatWorkActivity steps={STEPS.slice(0, progress)} />}
+        {value === "detailed" && progress > 0 && <ChatWorkActivity steps={STEPS.slice(0, progress)} />}
         {progress > STEPS.length && (
           <MessageRow message={{ ...RESULT, card: { ...PAYMENT, state: answer } }} showAuthor={false} onAnswer={(_, state) => setAnswer(state)} />
         )}
@@ -58,9 +59,8 @@ export function ChatActivityPreview() {
           Replay sample
         </Button>
       </div>
-      <div key={replay} className="grid items-start gap-3 min-[700px]:grid-cols-2">
-        <PreviewChat quiet progress={progress} />
-        <PreviewChat quiet={false} progress={progress} />
+      <div key={replay} className="grid animate-fade items-start gap-3 min-[700px]:grid-cols-2">
+        {ACTIVITY_MODES.map((mode) => <PreviewChat key={mode.value} mode={mode} progress={progress} />)}
       </div>
     </section>
   );

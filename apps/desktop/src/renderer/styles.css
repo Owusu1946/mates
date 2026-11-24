@@ -139,8 +139,8 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --animate-rise: rise 420ms var(--ease-out-soft) both;
-  --animate-enter: enter 320ms var(--ease-out-soft) both;
-  --animate-enter-back: enter-back 320ms var(--ease-out-soft) both;
+  --animate-enter: enter 250ms var(--ease-out-soft) both;
+  --animate-enter-back: enter-back 250ms var(--ease-out-soft) both;
   --animate-fade: fade 180ms ease-out both;
 
   @keyframes rise {
@@ -152,13 +152,13 @@
   @keyframes enter {
     from {
       opacity: 0;
-      transform: translateX(12px);
+      translate: 8px 0;
     }
   }
   @keyframes enter-back {
     from {
       opacity: 0;
-      transform: translateX(-12px);
+      translate: -8px 0;
     }
   }
   @keyframes fade {
@@ -173,6 +173,113 @@
   --sidebar-width: 16rem;
   --sidebar-row-inset: 0.625rem;
   --chat-max-width: 46rem;
+  --motion-open: 250ms;
+  --motion-close: 150ms;
+}
+
+@layer components {
+  .motion-dialog,
+  .motion-popover,
+  .motion-tooltip {
+    transition: opacity var(--motion-open) var(--ease-out-soft), scale var(--motion-open) var(--ease-out-soft);
+
+    &[data-starting-style] {
+      opacity: 0;
+      scale: var(--popup-start-scale, 0.97);
+    }
+
+    &[data-ending-style] {
+      opacity: 0;
+      scale: 0.99;
+      transition-duration: var(--motion-close);
+    }
+  }
+
+  .motion-dialog { --popup-start-scale: 0.96; }
+
+  .motion-tooltip {
+    --motion-open: 150ms;
+    --motion-close: 100ms;
+    --popup-start-scale: 0.98;
+
+    &[data-instant] { transition-duration: 0ms; }
+  }
+
+  .motion-backdrop,
+  .motion-swap {
+    transition: opacity var(--motion-open) var(--ease-out-soft);
+
+    &:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+    &[data-ending-style] { transition-duration: var(--motion-close); }
+  }
+
+  .motion-swap { --motion-open: 150ms; }
+
+  .motion-action-icon {
+    grid-area: 1 / 1;
+    opacity: 0;
+    scale: 0.85;
+    transition: opacity var(--motion-close) ease-out, scale var(--motion-close) var(--ease-out-soft);
+    &.is-visible { opacity: 1; scale: 1; }
+  }
+
+  .motion-disclosure {
+    height: var(--collapsible-panel-height);
+    overflow: clip;
+    transition: height 200ms var(--ease-out-soft), opacity var(--motion-close) ease-out;
+
+    &:is([data-starting-style], [data-ending-style]) { height: 0; opacity: 0; }
+    &[data-open][data-ending-style] { height: var(--collapsible-panel-height); opacity: 1; }
+  }
+
+  .motion-side-panel,
+  .motion-drawer {
+    overflow: clip;
+    transition: width var(--motion-open) var(--ease-out-soft), height var(--motion-open) var(--ease-out-soft), opacity var(--motion-close) ease-out;
+
+    &:is([data-starting-style], [data-ending-style]) { opacity: 0; }
+    &[data-ending-style] { transition-duration: var(--motion-close); }
+    &[data-dragging] { transition: none; }
+  }
+
+  .motion-side-panel {
+    width: max(360px, min(var(--panel-width), 70vw, calc(100% - 360px)));
+    &:is([data-starting-style], [data-ending-style]) { width: 0; }
+  }
+
+  .motion-drawer {
+    height: min(var(--drawer-height), 75%, calc(100% - var(--drawer-thread-min-height)));
+    &:is([data-starting-style], [data-ending-style]) { height: 0; }
+  }
+
+  .activity-radio {
+    appearance: none;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--ink-soft);
+    border-radius: 50%;
+    outline: none;
+    transition: border-color var(--motion-close) ease-out;
+
+    &::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--brand);
+      scale: 0.65;
+      opacity: 0;
+      transition: scale var(--motion-close) var(--ease-out-soft), opacity var(--motion-close) ease-out;
+    }
+
+    &:checked { border-color: var(--brand); }
+    &:checked::before { scale: 1; opacity: 1; }
+  }
+}
+
+@media (forced-colors: active) {
+  .activity-radio { appearance: auto; outline: revert; }
+  .activity-radio::before { display: none; }
 }
 
 @layer base {

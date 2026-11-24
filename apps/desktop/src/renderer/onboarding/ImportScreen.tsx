@@ -19,7 +19,7 @@ export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: (memo
   if (source) return <ImportFlow leader={leader} source={source} onBack={() => setSource(null)} onDone={onDone} />;
 
   return (
-    <OnboardingScreen.Root>
+    <OnboardingScreen.Root key="sources">
       <OnboardingScreen.Hero className="gap-3.5 text-ink-soft">
         <span className="flex [&>*]:-ml-2 [&>*]:ring-2 [&>*]:ring-canvas [&>*:first-child]:ml-0">
           {SOURCES.slice(0, 4).map((item) => (
@@ -72,7 +72,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
 
   if (imported !== null)
     return (
-      <OnboardingScreen.Root>
+      <OnboardingScreen.Root key="imported">
         <OnboardingScreen.Hero className="mb-4 gap-3.5 text-ink-soft">
           <span className="flex size-14 flex-none items-center justify-center rounded-full bg-raised text-ink shadow-xs/5 dark:bg-hover-fill">
             <AssistantLogo source={source.id} size={26} />
@@ -95,7 +95,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
   if (items) {
     const selected = items.filter((item) => item.on).map((item) => item.text);
     return (
-      <OnboardingScreen.Root>
+      <OnboardingScreen.Root key="review">
         <OnboardingScreen.Back onClick={() => setItems(null)} />
         <OnboardingScreen.Title>Choose what comes over</OnboardingScreen.Title>
         <OnboardingScreen.Body>
@@ -127,7 +127,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
 
   const preview = previewMemories(answer);
   return (
-    <OnboardingScreen.Root>
+    <OnboardingScreen.Root key="paste">
       <OnboardingScreen.Back onClick={onBack} label="All assistants" />
       <OnboardingScreen.Title>Bring what {label} knows</OnboardingScreen.Title>
       <OnboardingScreen.Body>Two steps: ask {label} with our prompt, then paste its answer here.</OnboardingScreen.Body>
