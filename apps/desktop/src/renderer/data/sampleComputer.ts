@@ -2,9 +2,9 @@ import type { ScreenStep } from "../computer/computer.logic.ts";
 import { LEAD_ID } from "./sampleCrew.ts";
 
 /**
- * What the sample crew does on its computers and says on calls, until the panels reach the desktop
- * service and LiveKit. Kofi books a ride (with a payment to approve), Esi researches hostels, and
- * anyone else checks something simple.
+ * What the sample crew does on your computer and says on calls, until the panels reach the API and
+ * LiveKit. Kofi books a ride (with a payment to approve), Esi researches hostels (with a sign-in
+ * you do yourself), and anyone else checks something simple.
  */
 
 export const COMPUTER_TASKS: Record<string, { title: string; steps: ScreenStep[] }> = {
@@ -21,7 +21,7 @@ export const COMPUTER_TASKS: Record<string, { title: string; steps: ScreenStep[]
         label: "Waiting for your OK to pay",
         screen: "bolt-pay",
         cursor: { x: 50, y: 70 },
-        approval: { title: "Pay GH¢38 to Bolt?", detail: "MTN MoMo · 024 ••• 4417. You'll approve it with your PIN on your phone." },
+        needs: { kind: "approval", title: "Pay GH¢38 to Bolt?", detail: "MTN MoMo · 024 ••• 4417. You'll approve it with your PIN on your phone." },
       },
       { id: "k7", label: "Booked: Kwame is 4 minutes away", screen: "bolt-done", cursor: { x: 50, y: 56 } },
     ],
@@ -31,7 +31,14 @@ export const COMPUTER_TASKS: Record<string, { title: string; steps: ScreenStep[]
     steps: [
       { id: "e1", label: "Searching hostels near KNUST", screen: "search", cursor: { x: 40, y: 20 } },
       { id: "e2", label: "Opening Bomso Heights", screen: "search", cursor: { x: 34, y: 42 } },
-      { id: "e3", label: "Reading reviews", screen: "listing", cursor: { x: 60, y: 62 } },
+      {
+        id: "e3",
+        label: "Waiting for you to sign in to Booking.com",
+        screen: "login",
+        cursor: { x: 50, y: 48 },
+        needs: { kind: "login", title: "Sign in to Booking.com", detail: "To see this year's prices. Take over and sign in; Esi never sees what you type." },
+      },
+      { id: "e3b", label: "Reading reviews", screen: "listing", cursor: { x: 60, y: 62 } },
       { id: "e4", label: "Checking the walk to campus", screen: "listing", cursor: { x: 72, y: 34 } },
       { id: "e5", label: "Saving 3 options to a page", screen: "search", cursor: { x: 80, y: 18 } },
     ],

@@ -1,12 +1,17 @@
 /**
- * A mate's computer, as the panel shows it: where it works (a private cloud computer, this PC, or
- * none), whether it's asleep, starting, working or paused, and the steps it takes on screen. You can
- * take over at any time, and a step that spends money waits for your OK. UI only: the steps come
- * from a sample task until the panel reaches the desktop service.
+ * Your computer, as the app has it (apps/api/src/computers.ts): one desktop of your own, shared by
+ * all your mates. It turns on for work and off when idle, keeping logins and files. One mouse, so
+ * one job at a time: a mate's goal runs while the others wait in line, and you can take over
+ * whenever you like. A goal can stop for you: your OK for a payment, a sign-in, or a question.
+ * On desktop it can work in the cloud (the app's computer) or on this PC (lending, from the
+ * desktop plan). UI only: goals play sample steps until the panel reaches the API.
  */
 
-export type ComputerPlace = "cloud" | "thisPC" | "off";
-export type ComputerPower = "asleep" | "starting" | "working" | "paused" | "done";
+export type ComputerPlace = "cloud" | "thisPC";
+export type ComputerPower = "off" | "starting" | "on" | "stopping";
+export type GoalStatus = "queued" | "running" | "waiting" | "done" | "cancelled";
+/** What a goal waits for, as the API names it. */
+export type WaitingFor = "approval" | "login" | "question" | "user_control";
 
 export type ScreenStep = {
   id: string;
@@ -16,66 +21,111 @@ export type ScreenStep = {
   screen: string;
   /** Where its cursor goes on that page, in percent. */
   cursor: { x: number; y: number };
-  /** A step that waits for your OK, like a payment. */
-  approval?: { title: string; detail: string };
+  /** A step that stops for you before it carries on. */
+  needs?: { kind: Exclude<WaitingFor, "user_control">; title: string; detail: string };
+};
+
+export type Goal = {
+  id: string;
+  mateId: string;
+  title: string;
+  steps: ScreenStep[];
+  status: GoalStatus;
+  /** Steps done so far; the last is what's on screen. */
+  shown: number;
+  waitingFor: WaitingFor | null;
 };
 
 export type ComputerState = {
   place: ComputerPlace;
   power: ComputerPower;
-  /** Steps done so far; the last is what's on screen. */
-  shown: number;
-  /** The approval waiting on you, by step id. */
-  waitingOn: string | null;
-  /** You're driving: the mate waits until you hand back. */
-  takenOver: boolean;
+  /** Who has the mouse: a mate, or you after Take over. */
+  controller: "mate" | "user";
+  goals: Goal[];
 };
 
 export type ComputerAction =
-  | { type: "wake" }
-  | { type: "started" }
-  | { type: "advance"; steps: ScreenStep[] }
+  | { type: "turnOn" }
+  | { type: "booted" }
+  | { type: "turnOff" }
+  | { type: "stopped" }
+  | { type: "ask"; goal: Omit<Goal, "status" | "shown" | "waitingFor"> }
+  | { type: "advance" }
   | { type: "answer"; allow: boolean }
-  | { type: "pause" }
-  | { type: "resume" }
   | { type: "takeOver" }
   | { type: "handBack" }
-  | { type: "stop" }
+  | { type: "cancel"; goalId: string }
   | { type: "place"; place: ComputerPlace };
 
-export const initialComputer = (place: ComputerPlace = "cloud"): ComputerState => ({ place, power: "asleep", shown: 0, waitingOn: null, takenOver: false });
+export const initialComputer = (place: ComputerPlace = "cloud"): ComputerState => ({ place, power: "off", controller: "mate", goals: [] });
 
-/** Whether the next step should play now. */
-export const isRunning = (state: ComputerState) => state.power === "working" && !state.waitingOn && !state.takenOver;
+const isLive = (goal: Goal) => goal.status === "running" || goal.status === "waiting";
+/** The goal using the computer now: one at a time, like the API's lease. */
+export const liveGoal = (state: ComputerState) => state.goals.find(isLive) ?? null;
+export const queuedGoals = (state: ComputerState) => state.goals.filter((goal) => goal.status === "queued");
+/** A mate's goal still in play: running, waiting or in line. */
+export const goalOf = (state: ComputerState, mateId: string) => state.goals.find((goal) => goal.mateId === mateId && (isLive(goal) || goal.status === "queued")) ?? null;
+
+/** Whether something should happen on the next tick: a step, or the next goal in line starting. */
+export function hasWork(state: ComputerState): boolean {
+  if (state.power !== "on") return false;
+  const live = liveGoal(state);
+  return live ? live.status === "running" : queuedGoals(state).length > 0;
+}
+
+const replaceGoal = (state: ComputerState, goal: Goal): ComputerState => ({ ...state, goals: state.goals.map((candidate) => (candidate.id === goal.id ? goal : candidate)) });
 
 export function computerReducer(state: ComputerState, action: ComputerAction): ComputerState {
   switch (action.type) {
-    case "wake":
-      return state.place !== "off" && (state.power === "asleep" || state.power === "done") ? { ...state, power: "starting", shown: 0, waitingOn: null, takenOver: false } : state;
-    case "started":
-      return state.power === "starting" ? { ...state, power: "working" } : state;
-    case "advance": {
-      if (!isRunning(state)) return state;
-      if (state.shown >= action.steps.length) return { ...state, power: "done" };
-      const step = action.steps[state.shown]!;
-      return { ...state, shown: state.shown + 1, waitingOn: step.approval ? step.id : null };
+    case "turnOn":
+      return state.power === "off" ? { ...state, power: "starting" } : state;
+    case "booted":
+      return state.power === "starting" ? { ...state, power: "on" } : state;
+    case "turnOff":
+      // Turning off ends the job in hand; anything in line waits for next time.
+      if (state.power !== "on" && state.power !== "starting") return state;
+      return { ...state, power: "stopping", controller: "mate", goals: state.goals.map((goal) => (isLive(goal) ? { ...goal, status: "cancelled", waitingFor: null } : goal)) };
+    case "stopped":
+      return state.power === "stopping" ? { ...state, power: "off" } : state;
+    case "ask": {
+      // Asking turns the computer on; the goal waits its turn behind whatever's running.
+      if (goalOf(state, action.goal.mateId)) return state;
+      const goal: Goal = { ...action.goal, status: "queued", shown: 0, waitingFor: null };
+      return { ...state, power: state.power === "off" ? "starting" : state.power, goals: [...state.goals, goal] };
     }
-    case "answer":
-      if (!state.waitingOn) return state;
-      // Not now: the mate stops there and says so in the chat; nothing is paid.
-      return action.allow ? { ...state, waitingOn: null } : { ...state, waitingOn: null, power: "done" };
-    case "pause":
-      return state.power === "working" ? { ...state, power: "paused" } : state;
-    case "resume":
-      return state.power === "paused" ? { ...state, power: "working" } : state;
-    case "takeOver":
-      return state.power === "working" || state.power === "paused" ? { ...state, takenOver: true, power: "working" } : state;
-    case "handBack":
-      return state.takenOver ? { ...state, takenOver: false } : state;
-    case "stop":
-      return { ...state, power: "asleep", shown: 0, waitingOn: null, takenOver: false };
+    case "advance": {
+      if (!hasWork(state)) return state;
+      const live = liveGoal(state);
+      if (!live) {
+        const next = queuedGoals(state)[0]!;
+        return replaceGoal(state, { ...next, status: "running" });
+      }
+      if (live.shown >= live.steps.length) return replaceGoal(state, { ...live, status: "done" });
+      const step = live.steps[live.shown]!;
+      return replaceGoal(state, { ...live, shown: live.shown + 1, status: step.needs ? "waiting" : "running", waitingFor: step.needs?.kind ?? null });
+    }
+    case "answer": {
+      const live = liveGoal(state);
+      if (!live || live.status !== "waiting" || live.waitingFor === "user_control") return state;
+      // Not now: the mate stops there and says so in its chat; nothing is paid.
+      return replaceGoal(state, action.allow ? { ...live, status: "running", waitingFor: null } : { ...live, status: "cancelled", waitingFor: null });
+    }
+    case "takeOver": {
+      if (state.power !== "on" || state.controller === "user") return state;
+      const live = liveGoal(state);
+      // The mate's goal waits while you have the mouse; a sign-in you do yourself counts as done.
+      return { ...(live ? replaceGoal(state, { ...live, status: "waiting", waitingFor: live.waitingFor === "login" ? "login" : "user_control" }) : state), controller: "user" };
+    }
+    case "handBack": {
+      if (state.controller !== "user") return state;
+      const live = liveGoal(state);
+      const resumed = live ? replaceGoal(state, { ...live, status: "running", waitingFor: null }) : state;
+      return { ...resumed, controller: "mate" };
+    }
+    case "cancel":
+      return { ...state, controller: "mate", goals: state.goals.map((goal) => (goal.id === action.goalId && (isLive(goal) || goal.status === "queued") ? { ...goal, status: "cancelled", waitingFor: null } : goal)) };
     case "place":
-      // Moving somewhere else ends what it was doing there.
-      return state.place === action.place ? state : { ...initialComputer(action.place) };
+      // Moving to the other computer starts over there.
+      return state.place === action.place ? state : initialComputer(action.place);
   }
 }

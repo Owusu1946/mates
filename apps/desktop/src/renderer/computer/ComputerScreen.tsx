@@ -12,6 +12,7 @@ const ADDRESS: Record<string, string> = {
   "bolt-done": "bolt.com/ride/trip",
   search: "google.com/search",
   listing: "bomsoheights.com",
+  login: "account.booking.com/sign-in",
 };
 
 const Field = ({ label, value }: { label: string; value?: string }) => (
@@ -73,6 +74,17 @@ function Page({ screen }: { screen: string }): ReactNode {
           <div className="text-xs font-semibold text-ok-ink">Driver on the way</div>
           <div className="text-[10px]">Kwame · Toyota Vitz · GT 4521-22</div>
           <div className="text-[10px] text-ink-soft">Arriving in 4 minutes</div>
+        </div>
+      );
+    case "login":
+      return (
+        <div className="flex h-full items-center justify-center p-3">
+          <div className="flex w-1/2 flex-col gap-1.5 rounded-lg border border-line bg-raised p-3">
+            <div className="text-xs font-semibold">Sign in</div>
+            <Field label="Email" />
+            <Field label="Password" />
+            <div className="mt-1 h-5 rounded-md bg-brand/80" />
+          </div>
         </div>
       );
     case "listing":
