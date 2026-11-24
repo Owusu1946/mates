@@ -12,7 +12,7 @@ import { SignUpScreen } from "./SignUpScreen.tsx";
 import { StepIndicator } from "./StepIndicator.tsx";
 import { cn } from "../lib/utils.ts";
 
-export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: Leader; myName: string; profile: SampleProfile };
+export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: Leader; myName: string; profile: SampleProfile; codes: boolean };
 
 /**
  * Preview the sign-in and setup flows before opening the sample workspace.
@@ -20,7 +20,7 @@ export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: 
 export function Onboarding({ onFinish }: { onFinish: (result: OnboardingResult) => void }) {
   const [flow, dispatch] = useReducer(flowReducer, INITIAL_FLOW);
   const [leader, setLeader] = useState<Leader | null>(null);
-  const [about, setAbout] = useState({ name: "", bio: "" });
+  const [about, setAbout] = useState({ name: "", bio: "", codes: false });
   const step = newcomerStep(flow.screen);
 
   const go = (to: Screen, email?: string) => dispatch({ type: "go", to, email });
@@ -65,15 +65,15 @@ export function Onboarding({ onFinish }: { onFinish: (result: OnboardingResult) 
           leader && (
             <AboutScreen
               leader={leader}
-              onDone={(name, bio) => {
-                setAbout({ name, bio });
+              onDone={(name, bio, codes) => {
+                setAbout({ name, bio, codes });
                 go("import");
               }}
             />
           )
         );
       case "import":
-        return leader && <ImportScreen leader={leader} onDone={(memories) => onFinish({ kind: "joined", leader, myName: about.name, profile: { bio: about.bio, memories } })} />;
+        return leader && <ImportScreen leader={leader} onDone={(memories) => onFinish({ kind: "joined", leader, myName: about.name, profile: { bio: about.bio, memories }, codes: about.codes })} />;
     }
   }
 

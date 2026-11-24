@@ -20,11 +20,13 @@ const PROMPTS = [
 
 /**
  * Tell the new lead mate about yourself. Skippable, since the mates also learn as you chat; the
- * name is the one friends see (sign-up never asks for it).
+ * name is the one friends see (sign-up never asks for it). One question decides whether Mates
+ * shows its coding tools from the start; a no still lets them appear once you start coding.
  */
-export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string, bio: string) => void }) {
+export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string, bio: string, codes: boolean) => void }) {
   const [myName, setMyName] = useState("");
   const [bio, setBio] = useState("");
+  const [codes, setCodes] = useState(false);
   const ready = bio.trim().length >= 3;
 
   function addLine(line: string) {
@@ -46,7 +48,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (ready) onDone(myName.trim(), bio.trim());
+            if (ready) onDone(myName.trim(), bio.trim(), codes);
           }}
         >
           <TextField label="What should your mates call you?" placeholder="Your first name" maxLength={40} value={myName} onChange={(event) => setMyName(event.target.value)} />
@@ -66,13 +68,33 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
               </button>
             ))}
           </div>
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-2.5">
+            <span className="text-sm">Do you write code or build websites?</span>
+            <div role="radiogroup" aria-label="Do you write code or build websites?" className="flex gap-0.5 rounded-lg bg-soft p-0.5">
+              {[
+                { value: true, label: "Yes" },
+                { value: false, label: "Not really" },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={codes === option.value}
+                  onClick={() => setCodes(option.value)}
+                  className="h-7 rounded-md px-3 text-xs text-ink-soft transition-colors aria-checked:bg-raised aria-checked:text-ink aria-checked:shadow-xs"
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Button type="submit" size="xl" className="w-full" disabled={!ready}>
             Continue
           </Button>
         </form>
       </OnboardingScreen.Content>
       <OnboardingScreen.Footer className="mt-3">
-        <Button variant="ghost-muted" size="sm" onClick={() => onDone(myName.trim(), "")}>
+        <Button variant="ghost-muted" size="sm" onClick={() => onDone(myName.trim(), "", codes)}>
           Skip for now
           <Icon name="arrowRight" />
         </Button>
