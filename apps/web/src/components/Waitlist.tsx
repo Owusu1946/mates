@@ -29,7 +29,11 @@ export default function Waitlist({ api }: { api: string }) {
   const returnTo = useRef<HTMLElement | null>(null);
 
   const show = useCallback((from?: HTMLElement | null) => {
-    returnTo.current = from ?? (document.activeElement as HTMLElement | null);
+    // The menu is hidden when its waitlist link opens this dialog.
+    const source = from ?? (document.activeElement as HTMLElement | null);
+    returnTo.current = source?.closest("#mobile-menu")
+      ? document.querySelector<HTMLElement>("[data-menu-open]")
+      : source;
     setOpen(true);
   }, []);
   const close = useCallback(() => {
@@ -59,11 +63,14 @@ export default function Waitlist({ api }: { api: string }) {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") return close();
       if (event.key !== "Tab" || !card.current) return;
-      const items = Array.prototype.slice.call(card.current.querySelectorAll("button, input:not([tabindex='-1']), a[href]")) as HTMLElement[];
+      const items = Array.prototype.slice.call(card.current.querySelectorAll("button:not(:disabled), input:not(:disabled):not([tabindex='-1']), a[href]")) as HTMLElement[];
       if (!items.length) return;
       const first = items[0]!;
       const last = items[items.length - 1]!;
-      if (event.shiftKey && document.activeElement === first) {
+      if (!card.current.contains(document.activeElement)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -109,7 +116,7 @@ export default function Waitlist({ api }: { api: string }) {
   return (
     <>
       <button ref={trigger} type="button" className="pill-button dark wl-trigger" onClick={() => show(trigger.current)}>
-        Join waitlist
+        Notify me
       </button>
 
       {open &&
@@ -129,8 +136,8 @@ export default function Waitlist({ api }: { api: string }) {
 
             {phase !== "done" ? (
               <form className="wl-body" onSubmit={submit} noValidate>
-                <h2 id="wl-title">Get early access</h2>
-                <p>Mates is coming to iPhone and Android. Join the waitlist and we’ll tell you the moment it’s ready.</p>
+                <h2 id="wl-title">Get a launch email</h2>
+                <p>Drop your address. We’ll write once.</p>
                 <div className={`wl-field${error ? " invalid" : ""}`}>
                   <input
                     ref={input}
@@ -174,10 +181,10 @@ export default function Waitlist({ api }: { api: string }) {
                       <i />
                     </span>
                   ) : (
-                    "Join the waitlist"
+                    "Notify me"
                   )}
                 </button>
-                <div className="wl-small">One email when we launch. No spam, ever.</div>
+
               </form>
             ) : (
               <div className="wl-body wl-done" aria-live="polite">

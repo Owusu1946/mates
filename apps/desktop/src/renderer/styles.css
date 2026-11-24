@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+/*
+ * The design system, after T3 Code's (apps/web/src/index.css): the same values, our own names.
+ *
+ *   canvas      the window          (T3: background)      ink         text            (foreground)
+ *   raised      cards, popovers     (card, popover)       ink-soft    secondary text  (muted-foreground)
+ *   soft        quiet fills         (secondary, muted)    hover-fill  hovered rows    (accent)
+ *   line        hairlines           (border)              field-line  inputs          (input)
+ *   brand       the one accent      (primary)             bubble      your messages   (message-surface)
+ *   rail        the sidebar         (sidebar) and its rail-hover, rail-active, rail-selected rows
+ *
+ * Themes set these variables; components only ever use the Tailwind names (bg-canvas, text-ink…).
+ * Nightly is the default; Harmattan is the Mates look. Each comes in light and dark, and the
+ * colour scheme (System, Light, Dark) picks which: `.dark` on <html> (theme/appearance.ts).
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Nightly, light: T3 Code's zinc canvas, white surfaces and blue accent. */
+:root,
+:root[data-theme="nightly"] {
+  color-scheme: light;
+  --canvas: oklch(99.2% 0 0);
+  --ink: var(--color-zinc-900);
+  --raised: var(--color-white);
+  --soft: var(--color-zinc-50);
+  --ink-soft: var(--color-zinc-500);
+  --hover-fill: var(--color-zinc-100);
+  --line: var(--color-zinc-200);
+  --field-line: var(--color-zinc-300);
+  --brand: oklch(0.488 0.217 264);
+  --brand-ink: var(--color-white);
+  --bubble: color-mix(in srgb, var(--color-zinc-200) 55%, var(--color-zinc-100));
+  --rail: var(--color-zinc-50);
+  --rail-hover: oklch(99.2% 0 0);
+  --rail-active: var(--color-white);
+  --rail-selected: var(--color-white);
+  --danger: var(--color-red-500);
+  --danger-ink: var(--color-red-700);
+  --ok: var(--color-emerald-500);
+  --ok-ink: var(--color-emerald-700);
+  --caution: var(--color-amber-500);
+  --caution-ink: var(--color-amber-700);
+  --caution-surface: color-mix(in srgb, var(--color-amber-500) 8%, transparent);
+}
+
+/* Nightly, dark: a true-black canvas; raised surfaces and borders give the separation. */
+:root.dark,
+:root[data-theme="nightly"].dark {
+  color-scheme: dark;
+  --canvas: #000;
+  --ink: var(--color-neutral-100);
+  --raised: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
+  --soft: rgb(255 255 255 / 3%);
+  --ink-soft: var(--color-neutral-400);
+  --hover-fill: rgb(255 255 255 / 4%);
+  --line: rgb(255 255 255 / 8%);
+  --field-line: rgb(255 255 255 / 11%);
+  --brand: oklch(0.571 0.21 264);
+  --bubble: color-mix(in srgb, var(--color-neutral-950) 92%, var(--color-white));
+  --rail: #000;
+  --rail-hover: rgb(241 243 247 / 8%);
+  --rail-active: rgb(241 243 247 / 11%);
+  --rail-selected: rgb(241 243 247 / 7%);
+  --danger: color-mix(in srgb, var(--color-red-500) 90%, var(--color-white));
+  --danger-ink: var(--color-red-400);
+  --ok-ink: var(--color-emerald-400);
+  --caution-ink: var(--color-amber-400);
+  --caution-surface: color-mix(in srgb, var(--color-amber-500) 16%, transparent);
+}
+
+/* Harmattan: the Mates look (apps/mobile/src/theme/auth.ts), with the mascot's amber as the accent. */
+:root[data-theme="harmattan"] {
+  --canvas: #f8f7f4;
+  --ink: #222522;
+  --raised: #ffffff;
+  --soft: #f0efeb;
+  --ink-soft: #676c66;
+  --hover-fill: rgb(34 37 34 / 6%);
+  --line: #dedfd8;
+  --field-line: #cfd1c8;
+  --brand: #d27e41;
+  --brand-ink: #151714;
+  --bubble: #ebe9e3;
+  --rail: #f0efeb;
+  --rail-hover: rgb(34 37 34 / 4%);
+  --rail-active: #ffffff;
+  --rail-selected: #ffffff;
+}
+:root[data-theme="harmattan"].dark {
+  --canvas: #151714;
+  --ink: #f3f2ec;
+  --raised: #242821;
+  --soft: rgb(243 242 236 / 3%);
+  --ink-soft: #b5b9af;
+  --hover-fill: rgb(243 242 236 / 5%);
+  --line: rgb(243 242 236 / 9%);
+  --field-line: rgb(243 242 236 / 13%);
+  --bubble: #2a2e26;
+  --rail: #151714;
+  --rail-hover: rgb(243 242 236 / 7%);
+  --rail-active: rgb(243 242 236 / 10%);
+  --rail-selected: rgb(243 242 236 / 7%);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-raised: var(--raised);
+  --color-soft: var(--soft);
+  --color-ink-soft: var(--ink-soft);
+  --color-hover-fill: var(--hover-fill);
+  --color-line: var(--line);
+  --color-field-line: var(--field-line);
+  --color-brand: var(--brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-bubble: var(--bubble);
+  --color-rail: var(--rail);
+  --color-rail-hover: var(--rail-hover);
+  --color-rail-active: var(--rail-active);
+  --color-rail-selected: var(--rail-selected);
+  --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-ok: var(--ok);
+  --color-ok-ink: var(--ok-ink);
+  --color-caution: var(--caution);
+  --color-caution-ink: var(--caution-ink);
+  --color-caution-surface: var(--caution-surface);
+}
+
+@theme {
+  /* T3 Code's geometry: compact controls, kept semantic so they can't drift apart. */
+  --radius-control: 0.5rem;
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: calc(1 / 0.6875);
+  --shadow-composer: 0 1px 2px rgb(0 0 0 / 5%);
+  --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --animate-rise: rise 420ms var(--ease-out-soft) both;
+  --animate-enter: enter 320ms var(--ease-out-soft) both;
+  --animate-enter-back: enter-back 320ms var(--ease-out-soft) both;
+  --animate-fade: fade 180ms ease-out both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+  }
+  @keyframes enter {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+  }
+  @keyframes enter-back {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+:root {
+  --title-bar: 40px;
+  --sidebar-width: 16rem;
+  --sidebar-row-inset: 0.625rem;
+  --chat-max-width: 46rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-canvas font-sans text-sm text-ink antialiased;
+    /* A desktop app doesn't select its own chrome like a web page; fields and messages opt back in. */
+    user-select: none;
+    cursor: default;
+    overflow: hidden;
+  }
+  input,
+  textarea {
+    user-select: text;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  /* Thin scrollbars that only show what's needed, as T3 Code does. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line) transparent;
+  }
+}
+
+/* Windows and macOS give us the title bar; this is the draggable strip their buttons sit on. */
+.app-drag {
+  -webkit-app-region: drag;
+}
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Each part of an onboarding screen settles a beat after the one above it. */
+.stagger > * {
+  animation: var(--animate-rise);
+}
+.stagger > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.stagger > :nth-child(n + 5) {
+  animation-delay: 160ms;
+}
+
+/* The "thinking" line: a soft light passing over the text. */
+.shimmer {
+  background: linear-gradient(90deg, var(--ink-soft) 0%, var(--ink) 50%, var(--ink-soft) 100%) 0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.6s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/*
+ * A live step's label: a light passing over the text, after T3 Code's live-tool-shine. It runs only
+ * while observeVisibleAnimation says the row is on screen, and in 30 steps rather than every frame.
+ */
+@keyframes live-shine {
+  from {
+    background-position:
+      -4.5rem 0,
+      0 0;
+  }
+  to {
+    background-position:
+      calc(100% + 4.5rem) 0,
+      0 0;
+  }
+}
+@utility live-shine {
+  @media (prefers-reduced-motion: no-preference) and (forced-colors: none) {
+    color: transparent;
+    background-image:
+      linear-gradient(to right, transparent, var(--ink), transparent),
+      linear-gradient(var(--ink-soft), var(--ink-soft));
+    background-size:
+      4.5rem 100%,
+      100% 100%;
+    background-repeat: no-repeat;
+    background-clip: text;
+    animation: live-shine 2.2s steps(30) infinite;
+    animation-play-state: var(--visible-animation-state, paused);
+  }
+}
+
+/* A working run's dot: six steps of fading, not a frame-by-frame pulse (T3 Code's status-pulse). */
+@keyframes status-pulse {
+  0%,
+  40% {
+    opacity: 1;
+    animation-timing-function: steps(6);
+  }
+  50%,
+  90% {
+    opacity: 0.4;
+    animation-timing-function: steps(6);
+  }
+}
+@utility status-pulse {
+  animation: status-pulse 1.6s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

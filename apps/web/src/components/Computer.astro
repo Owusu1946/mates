@@ -4,6 +4,7 @@
 // above it, beside the pull request it is building. Without script (or with reduced motion) it
 // shows the finished run.
 import { mate } from "../palette";
+import Team from "./Team.astro";
 import Mascot from "./Mascot";
 
 const nova = mate("blue");
@@ -26,32 +27,17 @@ const lines = [
 ];
 /** Steps in view at once; older ones drop off the top. */
 const VISIBLE = 6;
-const points = [
-  { title: "Its own computer", body: "A fresh, private sandbox for every run. Your laptop stays yours." },
-  { title: "Runs your checks", body: "Typecheck, lint and tests, with fix-ups until they pass." },
-  { title: "Opens a PR, never merges", body: "It works on its own branch. You review, you merge." },
-  { title: "Watch it live", body: "Every file it reads and every command it runs, on your phone." },
-];
+
 ---
 
 <section class="computer" id="computer">
   <div class="copy">
-    <div class="eyebrow">Mates’ computer · Pro and Max</div>
-    <h2>Ship code while you sleep.</h2>
+    <div class="eyebrow">Mates’ computer <a href="#pricing" class="plan-label">Pro &amp; Max ↗</a></div>
+    <h2>From task to pull request.</h2>
     <p class="lede">
-      Connect GitHub and ask. A mate clones the repo on its own computer, writes the change, runs your checks, and opens a
-      pull request for you to review.
+      Connect GitHub. Your mate writes the change, runs checks, and opens a pull request.
     </p>
-    <div class="facts">
-      {
-        points.map((point) => (
-          <div class="fact">
-            <b>{point.title}</b>
-            <span>{point.body}</span>
-          </div>
-        ))
-      }
-    </div>
+
   </div>
 
   <div class="visual" aria-hidden="true" data-run data-visible={VISIBLE}>
@@ -90,6 +76,7 @@ const points = [
       </div>
     </div>
   </div>
+  <Team />
 </section>
 
 <script>
@@ -126,14 +113,21 @@ const points = [
 </script>
 
 <style>
+  .plan-label { display:inline-flex; margin-left:8px; padding:5px 9px; border:1px solid var(--line); border-radius:6px; color:#57544d; background:var(--bg); font-size:11px; letter-spacing:0; text-transform:none; }
+  .fact summary { cursor:pointer; display:flex; justify-content:space-between; gap:12px; font-weight:500; font-size:14px; list-style:none; }
+  .fact summary::-webkit-details-marker { display:none; }
+  .fact summary span { color:var(--muted); transition:rotate 180ms ease; }
+  .fact[open] summary span { rotate:45deg; }
+  .fact p { margin:10px 0 0; color:var(--muted); font-size:14px; line-height:1.5; }
+
   .computer {
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 56px;
     align-items: center;
-    width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
+    width: min(1120px, calc(100% - 40px));
+    margin: clamp(72px, 9vw, 120px) auto 0;
     padding: 72px 56px;
     border-radius: 32px;
     background: var(--panel);
@@ -149,7 +143,7 @@ const points = [
   h2 {
     margin: 14px 0 0;
     font-size: clamp(30px, 3.6vw, 48px);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: -0.04em;
     line-height: 1.08;
   }

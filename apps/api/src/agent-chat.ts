@@ -878,10 +878,11 @@ export async function createAgentResponse(
                 continue;
               }
               activity(activityLabel("cooper_rides"));
-              const result = await executeRideConversation(args, { signal, onSailCall: () => {
+              let resolvedTrip: Parameters<typeof rideCard>[3];
+              const result = await executeRideConversation(args, { signal, onResolvedTrip: (trip) => { resolvedTrip = trip; }, onSailCall: () => {
                 void recordUsage({ userId, source: "rides", provider: "sail", costMicros: 0, ref: execution?.runId, key: `rides:${runId}:${call.id}` });
               } });
-              const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "");
+              const state = rideCard(args, result, turns[lastUserIndex]?.content ?? "", resolvedTrip);
               if (state) card(call.id, state);
               if (state?.kind === "rides" && "provider" in result) {
                 directRideReply = rideResultReply(result);

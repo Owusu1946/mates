@@ -12,6 +12,7 @@
     "dev:api": "pnpm --filter @expojet/api dev",
     "dev:mobile": "pnpm --filter @muse-clone/mobile dev",
     "dev:web": "pnpm --filter @muse-clone/web dev",
+    "dev:desktop": "pnpm --filter @muse-clone/desktop dev",
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
@@ -24,6 +25,9 @@
     "typescript": "~6.0.3"
   },
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
     "packageExtensions": {
       "@sentry/react-native": {
         "dependencies": {

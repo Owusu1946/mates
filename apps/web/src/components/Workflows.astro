@@ -1,0 +1,65 @@
+---
+const workflows = [
+  { title: "Decide", prompt: "Compare these options. Show the trade-offs and sources.", href: "#roles" },
+  { title: "Ship together", prompt: "Prep the release: code, notes, and a draft announcement.", href: "#team" },
+  { title: "Run the day", prompt: "Brief me at 7, quote Circle to the airport, prep my 3pm.", href: "#local" },
+];
+---
+<section class="workflows" id="features" aria-labelledby="workflows-title">
+  <h2 id="workflows-title">One message. A team on it.</h2>
+  <div class="examples">
+    {workflows.map((item) => (
+      <a class="item" href={item.href}>
+        <h3>{item.title}</h3>
+        <p>{item.prompt}</p>
+      </a>
+    ))}
+  </div>
+</section>
+<style>
+  .workflows {
+    width: min(920px, calc(100% - 40px));
+    margin: 72px auto 0;
+  }
+  h2 {
+    margin: 0 0 36px;
+    font-family: var(--display);
+    font-size: clamp(28px, 3.6vw, 44px);
+    line-height: 1.1;
+    letter-spacing: -0.045em;
+    font-weight: 560;
+  }
+  .examples {
+    display: grid;
+    gap: 0;
+  }
+  .item {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 24px;
+    align-items: baseline;
+    padding: 22px 8px;
+    border-top: 1px solid var(--line);
+    transition: background 0.25s ease, padding-left 0.25s ease;
+  }
+  .item:last-child { border-bottom: 1px solid var(--line); }
+  .item:hover,
+  .item:focus-visible {
+    background: var(--soft);
+    padding-left: 16px;
+  }
+  h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 560;
+  }
+  p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.45;
+  }
+  @media (max-width: 640px) {
+    .item { grid-template-columns: 1fr; gap: 8px; }
+  }
+</style>

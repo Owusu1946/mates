@@ -27,6 +27,8 @@ function matchPlace(places: SearchPlace[], query: string): SearchPlace[] {
   if (places.length <= 1) return places;
   const normalize = (value: string) => value.replace(/[–—-]/g, " ").replace(/[()]/g, " ").replace(/\s+/g, " ").trim().toLocaleLowerCase();
   const requested = normalize(query.replace(/(?:,\s*|\s+)(?:Ghana|Great Britain|United Kingdom|UK|GB)$/i, ""));
+  const fullName = places.filter((place) => place.address && normalize(`${place.name}, ${place.address}`) === requested);
+  if (fullName.length === 1) return fullName;
   // Sail can return several results with the same city name. An exact address
   // identifies the city-level result; prefer it over neighborhood addresses.
   const exactAddress = places.filter((place) => place.address && normalize(place.address) === requested);

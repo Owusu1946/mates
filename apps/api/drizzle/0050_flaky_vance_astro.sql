@@ -1,0 +1,1 @@
+ALTER TABLE "morning_brief_settings" ADD COLUMN "commute_origin" text;

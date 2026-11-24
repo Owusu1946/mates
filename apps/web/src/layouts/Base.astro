@@ -11,15 +11,17 @@ interface Props {
   imageAlt?: string;
   /** Keep a page out of search results (utility pages like the share-card source). */
   noindex?: boolean;
+  skipToContent?: boolean;
 }
 
 const NAME = "Mates";
 const {
-  title = "Mates: AI teammates in your pocket",
-  description = "Give your AI mates real work. They plan it, hand it off to each other, use your apps the way you do, and come back with it finished.",
+  title = "Mates: your AI team in your pocket",
+  description = "AI teammates for real days: morning briefs, ride quotes in GHS, meeting notes, missions, and GitHub pull requests.",
   image = "/og.png",
-  imageAlt = "Meet your Mate Bots: three phones showing Mates at work",
+  imageAlt = "Mates: three phones illustrating AI teammates working together",
   noindex = false,
+  skipToContent = false,
 } = Astro.props;
 
 const canonical = new URL(Astro.url.pathname, Astro.site).href;
@@ -34,7 +36,7 @@ const structuredData = {
   image: imageUrl,
   applicationCategory: "ProductivityApplication",
   operatingSystem: "iOS, Android",
-  offers: { "@type": "Offer", price: "15.00", priceCurrency: "USD" },
+  offers: { "@type": "Offer", price: "8.00", priceCurrency: "USD" },
 };
 ---
 
@@ -43,6 +45,9 @@ const structuredData = {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet" />
     <meta name="theme-color" content="#ffffff" />
     <title>{title}</title>
     <meta name="description" content={description} />
@@ -75,6 +80,7 @@ const structuredData = {
     {!noindex && <script type="application/ld+json" set:html={JSON.stringify(structuredData)} />}
   </head>
   <body>
+    {skipToContent && <a class="skip-link" href="#main-content">Skip to content</a>}
     <slot />
     {
       !noindex && (

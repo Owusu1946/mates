@@ -41,6 +41,9 @@ import { takePendingInvite } from "../../src/friends/pending-invite";
 
 function AuthenticatedStack({ userId }: { userId: string }) {
   const router = useRouter();
+  const { getToken } = useAuth();
+  const tokenRef = useRef(getToken);
+  tokenRef.current = getToken;
   const segments = useSegments();
   const segmentsRef = useRef(segments);
   segmentsRef.current = segments;
@@ -87,8 +90,13 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         if (now - timestamp >= 2_000) handledResponses.current.delete(key);
       }
 
+      // Remove only the notification the user opened; keep unrelated reminders and alerts.
+      void Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
       const data = response.notification.request.content.data;
       const chatId = data?.chatId;
+      if (typeof data?.morningBriefId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.morningBriefId)) {
+        void runRequest(() => tokenRef.current(), `morning-brief/${data.morningBriefId}/view`, {}).catch(() => undefined);
+      }
       if (typeof data?.reminderId === "string") {
         if (typeof data.url === "string" && data.url.startsWith("https://")) void Linking.openURL(data.url);
         else if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
@@ -123,9 +131,6 @@ function AuthenticatedStack({ userId }: { userId: string }) {
   useEffect(() => {
     void takePendingInvite().then((code) => { if (code) router.push({ pathname: "/connect", params: { c: code } }); });
   }, [router]);
-  const { getToken } = useAuth();
-  const tokenRef = useRef(getToken);
-  tokenRef.current = getToken;
   useEffect(() => {
     const refresh = () => {
       void refreshNotificationRegistration(() => tokenRef.current(), userId).catch(() => {
@@ -249,6 +254,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
           {/* A modal sheet (swipe down to close), as for New mate: a formSheet gives its content no height, so it renders blank. */}
           <Stack.Screen name="routine" options={{ headerShown: false, presentation: "modal" }} />
           <Stack.Screen name="settings" options={{ title: "Settings" }} />
+          <Stack.Screen name="morning-brief" options={{ title: "Morning brief", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="connections" options={{ title: "Apps", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="slack-link" options={{ title: "Slack" }} />
           <Stack.Screen name="memory" options={{ title: "Memory", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />

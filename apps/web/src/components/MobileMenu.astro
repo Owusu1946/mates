@@ -36,8 +36,7 @@ const { items } = Astro.props;
     }
   </nav>
   <div class="menu-foot" style={`--i: ${items.length}`}>
-    <a href="#download" class="pill-button dark menu-cta" data-waitlist data-menu-link>Join the waitlist</a>
-    <p>Coming soon to iPhone and Android.</p>
+    <a href="#download" class="pill-button dark menu-cta" data-waitlist data-menu-link>Notify me</a>
   </div>
 </div>
 
@@ -50,24 +49,28 @@ const { items } = Astro.props;
     document.body.appendChild(sheet);
     const wide = window.matchMedia("(min-width: 861px)");
     let previousOverflow = "";
+    let isOpen = false;
 
     const focusables = () => Array.prototype.slice.call(sheet.querySelectorAll("a[href], button")) as HTMLElement[];
 
     const open = () => {
+      if (isOpen) return;
+      isOpen = true;
       sheet.hidden = false;
       // Next frame, so the entrance transition runs from the hidden state.
-      window.requestAnimationFrame(() => sheet.classList.add("open"));
+      window.requestAnimationFrame(() => { if (isOpen) sheet.classList.add("open"); });
       opener.setAttribute("aria-expanded", "true");
       previousOverflow = document.documentElement.style.overflow;
       document.documentElement.style.overflow = "hidden";
-      window.setTimeout(() => sheet.querySelector<HTMLElement>("[data-menu-link]")?.focus(), 80);
+      sheet.querySelector<HTMLElement>("[data-menu-link]")?.focus();
     };
     const close = (restoreFocus = true) => {
-      if (sheet.hidden) return;
+      if (!isOpen) return;
+      isOpen = false;
       sheet.classList.remove("open");
       opener.setAttribute("aria-expanded", "false");
       document.documentElement.style.overflow = previousOverflow;
-      window.setTimeout(() => (sheet.hidden = true), 220);
+      sheet.hidden = true;
       if (restoreFocus) opener.focus();
     };
 
@@ -76,7 +79,7 @@ const { items } = Astro.props;
     // A link closes the sheet, then the browser scrolls to its section (or the waitlist opens).
     sheet.querySelectorAll("[data-menu-link]").forEach((link) => link.addEventListener("click", () => close(false)));
     document.addEventListener("keydown", (event) => {
-      if (sheet.hidden) return;
+      if (!isOpen) return;
       if (event.key === "Escape") return close();
       if (event.key !== "Tab") return;
       const items = focusables();
@@ -140,6 +143,8 @@ const { items } = Astro.props;
     bottom: 0;
     left: 0;
     z-index: 90;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     display: flex;
     flex-direction: column;
     padding: 0 16px calc(24px + env(safe-area-inset-bottom, 0px));
@@ -166,7 +171,8 @@ const { items } = Astro.props;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 60px;
+    min-height: 60px;
+    flex-shrink: 0;
     padding-top: env(safe-area-inset-top, 0px);
   }
   :global(.menu-brand) {

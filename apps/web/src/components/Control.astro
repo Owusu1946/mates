@@ -1,0 +1,32 @@
+---
+const controls = [
+  { title: "Connections you choose", body: "Connect the accounts you want to use. Disconnect them from Settings when you’re done." },
+  { title: "Memory you can edit", body: "See what your mates remember. Correct a detail or delete a memory from the app." },
+  { title: "Work you can review", body: "Inspect results and action requests in the conversation. Scheduled routines follow the instructions you set; coding changes return as pull requests for review." },
+];
+---
+<section class="control" id="control" aria-labelledby="control-title">
+  <div class="heading">
+    <p class="eyebrow">Your team. Your say.</p>
+    <h2 id="control-title">Know what you’re handing over.</h2>
+    <p>Useful assistance starts with clear boundaries: the accounts you connect, the context you keep, and the instructions you give.</p>
+  </div>
+  <div class="controls">
+    {controls.map((item, index) => <article><span class="index" aria-hidden="true">0{index + 1}</span><h3>{item.title}</h3><p>{item.body}</p></article>)}
+  </div>
+  <a href="/privacy">Read our privacy policy <span aria-hidden="true">↗</span></a>
+</section>
+<style>
+  .control { width: min(1240px, calc(100% - 32px)); margin: 120px auto 0; padding: 56px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .heading { max-width: 68ch; }
+  .eyebrow { color: var(--accent-deep); font-size: 13px; font-weight: 600; margin: 0 0 14px; }
+  h2 { margin: 0; font-size: clamp(30px, 3.6vw, 46px); line-height: 1.1; letter-spacing: -0.035em; font-weight: 600; }
+  .heading > p:last-child { color: var(--muted); font-size: 18px; line-height: 1.6; margin: 20px 0 0; }
+  .controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 36px; margin: 40px 0 28px; }
+  .index { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  h3 { font-size: 18px; font-weight: 600; margin: 12px 0; }
+  article p { color: var(--muted); line-height: 1.65; font-size: 15px; margin: 0; }
+  a { display: inline-block; padding-block: 8px; font-size: 14px; font-weight: 600; text-underline-offset: 4px; }
+  a:hover { text-decoration: underline; }
+  @media (max-width: 760px) { .control { margin-top: 80px; padding: 36px 8px; } .controls { grid-template-columns: 1fr; gap: 28px; margin-top: 32px; } }
+</style>

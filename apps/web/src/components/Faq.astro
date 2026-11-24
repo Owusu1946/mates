@@ -3,38 +3,30 @@
 // makes them an exclusive group: opening one closes the rest.
 const faqs = [
   {
-    q: "How are Mates different from other AI assistants?",
-    a: "Mates are a team, not a single chatbot. They hand work to each other, sign in to your apps, have their own computer for writing code, and keep going after you close the app.",
+    q: "How is this different from a chatbot?",
+    a: "You give mates roles and put them on a job together. They hand work off, use the apps you connect, and keep going after you close the app.",
   },
   {
-    q: "What can my mates do?",
-    a: "Research with sources, sort your inbox and draft replies, plan trips, brief you each morning, run routines on a schedule, and ship code to your GitHub repos as pull requests.",
+    q: "Can I try Mates today?",
+    a: "Not yet. Leave your email and we’ll write when iOS and Android open.",
   },
   {
-    q: "Do they keep working when I close the app?",
-    a: "Yes. The work runs on our servers, not your phone. You get a notification when something is done or needs you.",
+    q: "Can a mate change my code?",
+    a: "Pro and Max get the mates’ computer. Changes come back as a GitHub pull request for you to review.",
   },
   {
-    q: "Where do I talk to my mates?",
-    a: "In the Mates app on iPhone and Android. Message one mate, or put a few in a group and give them a mission.",
-  },
-  {
-    q: "Do mates share one computer?",
-    a: "No. Every coding run gets a fresh, private computer that is wiped when the run ends. Code always comes back as a pull request for you to review and merge.",
-  },
-  {
-    q: "Who controls what my mates can access?",
-    a: "You do. You choose which apps to connect and can disconnect any of them, or delete your account and everything in it, from Settings.",
+    q: "How do I disconnect an app?",
+    a: "Open Apps in Mates and choose the connection you want to remove.",
   },
 ];
 ---
 
 <section class="faq" id="faq">
-  <h2>FAQs</h2>
+  <div class="intro"><h2>A few<br />good questions.</h2></div>
   <div class="list">
     {
-      faqs.map((item, index) => (
-        <details name="faq" open={index === 0}>
+      faqs.map((item) => (
+        <details name="faq">
           <summary>
             {item.q}
             <span class="sign" aria-hidden="true" />
@@ -51,16 +43,19 @@ const faqs = [
     display: grid;
     grid-template-columns: 1fr 1.25fr;
     gap: 48px;
-    width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
-    padding: 0 56px;
+    width: min(1120px, calc(100% - 40px));
+    margin: clamp(72px, 9vw, 120px) auto 0;
+    padding: 40px 0 0;
   }
   h2 {
     margin: 0;
-    font-size: clamp(32px, 3.6vw, 48px);
-    font-weight: 600;
+    font-size: clamp(38px, 4vw, 56px);
+    line-height: 1.05;
+    font-weight: 500;
     letter-spacing: -0.04em;
   }
+  .intro a { display: inline-flex; gap: 12px; margin-top: 24px; padding-block: 8px; font-size: 14px; }
+  .intro a:hover { text-decoration: underline; text-underline-offset: 4px; }
   details {
     border-bottom: 1px solid var(--line);
   }
@@ -84,13 +79,13 @@ const faqs = [
     outline-offset: 4px;
     border-radius: 4px;
   }
-  /* A plus that turns into a cross when open. */
+  /* The open question uses a minus. */
   .sign {
     position: relative;
     width: 18px;
     height: 18px;
     flex: none;
-    transition: transform 0.25s ease;
+    transition: transform 180ms ease;
   }
   .sign::before,
   .sign::after {
@@ -105,10 +100,14 @@ const faqs = [
   }
   .sign::after {
     transform: rotate(90deg);
+    transition: transform 180ms ease;
   }
   details[open] .sign {
-    transform: rotate(45deg);
+    transform: rotate(180deg);
   }
+  details[open] .sign::after { transform: rotate(0); }
+  details[open] p { animation: answer-in 180ms ease-out; }
+  @keyframes answer-in { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   p {
     max-width: 54ch;
     margin: 0;

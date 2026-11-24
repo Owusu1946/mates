@@ -32,7 +32,7 @@ const roles: Role[] = [
     gradient: mate("blue"),
     shape: "triangle",
     state: "working",
-    lead: "Ship features while you sleep.",
+    lead: "A change you can review.",
     body: "Works in your GitHub repos on its own computer: writes the change, runs your checks, and opens a pull request for you to review.",
     thread: [
       { stamp: "Tuesday 7:38 PM" },
@@ -49,8 +49,8 @@ const roles: Role[] = [
     gradient: mate("green"),
     shape: "circle",
     state: "curious",
-    lead: "Inbox zero, every morning.",
-    body: "Sorts your mail, drafts replies to what matters in your voice, clears the noise, and never sends a thing without you.",
+    lead: "Start with the mail that needs you.",
+    body: "Finds the messages that need a reply and prepares drafts for you to review.",
     thread: [
       { stamp: "Monday 10:12 PM" },
       { me: "every morning: sort my inbox, draft replies to anything urgent, archive newsletters." },
@@ -67,14 +67,14 @@ const roles: Role[] = [
     shape: "cloud",
     state: "excited",
     lead: "Plan the whole trip.",
-    body: "Flights, stays, a day-by-day plan and places to eat, built around your budget and how you like to travel.",
+    body: "Flights, stays, a daily plan and places to eat, built around your budget and how you like to travel.",
     thread: [
       { stamp: "Sunday 4:20 PM" },
-      { me: "4 days in Lisbon in May, under $1,500. I like food and walking everywhere." },
+      { me: "3 nights in Cape Coast in July. History, beach, good food. under $600." },
       { stamp: "4:31 PM" },
-      { them: "flights from $412, a flat in Príncipe Real, and a walking plan with 6 places to eat." },
-      { event: "Wrote a note", value: "Lisbon, May", icon: "note" },
-      { them: "nothing booked until you say go." },
+      { them: "2 stays near the castle, a daily plan, and 5 food spots locals rate." },
+      { event: "Wrote a note", value: "Cape Coast, July", icon: "note" },
+      { them: "The itinerary is ready to review." },
     ],
   },
   {
@@ -84,7 +84,7 @@ const roles: Role[] = [
     shape: "pebble",
     state: "searching",
     lead: "Answers you can check.",
-    body: "Reads the web so you don’t have to, compares the options side by side, and shows every source it used.",
+    body: "Reads the web so you don’t have to, compares the options together, and shows every source it used.",
     thread: [
       { stamp: "Thursday 11:05 AM" },
       { me: "compare the top 3 CRMs for a 5 person team: pricing and what people complain about." },
@@ -115,14 +115,11 @@ const roles: Role[] = [
     shape: "squircle",
     state: "happy",
     lead: "Your morning in one message.",
-    body: "Your calendar, the weather and anything urgent, waiting for you before you’ve had coffee.",
+    body: "Calendar, weather, leave-by, and what still needs you. before the day starts running you.",
     thread: [
-      { stamp: "Yesterday 9:40 PM" },
-      { me: "every day at 7, brief me: calendar, weather, anything urgent." },
-      { event: "Created routine", value: "Morning brief · 7:00", icon: "clock" },
       { stamp: "7:00 AM" },
-      { them: "3 meetings, the first at 10. 18° with rain after 4, take a jacket." },
-      { them: "one urgent: the contract needs your signature today." },
+      { them: "3 meetings. First at 10:00. Airport City. Leave by 9:12 if you’re driving." },
+      { them: "Rain after 2pm. One urgent: contract needs your signature today." },
     ],
   },
 ];
@@ -137,7 +134,8 @@ const icons = {
 
 <section class="roles" id="roles" data-roles>
   <div class="side">
-    <h2>Give each mate a job</h2>
+    <h2>Give each mate a job.</h2>
+    <p class="section-note">Pick a role. See what comes back.</p>
 
     <div class="chips" role="tablist" aria-label="Mate roles">
       {
@@ -148,6 +146,7 @@ const icons = {
             class="chip"
             id={`tab-${role.id}`}
             aria-selected={index === 0 ? "true" : "false"}
+            tabindex={index === 0 ? 0 : -1}
             aria-controls={`phone-${role.id}`}
             data-copy={`copy-${role.id}`}
           >
@@ -166,13 +165,12 @@ const icons = {
       ))
     }
 
-    <a href="#download" class="pill-button light more">Get the app</a>
   </div>
 
   <div class="stage">
     {
       roles.map((role, index) => (
-        <div class="panel" id={`phone-${role.id}`} role="tabpanel" aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
+        <div class="panel" id={`phone-${role.id}`} role="tabpanel" tabindex="0" aria-describedby={`copy-${role.id}`} aria-labelledby={`tab-${role.id}`} hidden={index !== 0}>
           <Device title={role.name} header="pill" faces={[{ gradient: role.gradient, state: role.state, shape: role.shape }]}>
             {role.thread.map((line, i) => {
               const delay = `--d: ${0.1 + i * 0.35}s`;
@@ -196,8 +194,11 @@ const icons = {
 
 <script>
   for (const root of document.querySelectorAll<HTMLElement>("[data-roles]")) {
+    const chips = root.querySelector<HTMLElement>(".chips")!;
     const tabs = [...root.querySelectorAll<HTMLButtonElement>("[role=tab]")];
     const select = (tab: HTMLButtonElement) => {
+      chips.style.setProperty("--selection-y", `${tab.offsetTop}px`);
+      chips.style.setProperty("--selection-height", `${tab.offsetHeight}px`);
       for (const other of tabs) {
         const on = other === tab;
         other.setAttribute("aria-selected", String(on));
@@ -206,13 +207,17 @@ const icons = {
         root.querySelector<HTMLElement>(`#${other.dataset.copy}`)!.hidden = !on;
       }
     };
+    select(tabs[0]!);
+    new ResizeObserver(() => select(tabs.find(tab => tab.getAttribute("aria-selected") === "true")!)).observe(chips);
     tabs.forEach((tab, index) => {
       tab.tabIndex = index === 0 ? 0 : -1;
       tab.addEventListener("click", () => select(tab));
       tab.addEventListener("keydown", (event) => {
-        const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-        if (!step) return;
-        const next = tabs[(index + step + tabs.length) % tabs.length]!;
+        const step = event.key === "ArrowRight" || event.key === "ArrowDown" ? 1 : event.key === "ArrowLeft" || event.key === "ArrowUp" ? -1 : 0;
+        if (!step && event.key !== "Home" && event.key !== "End") return;
+        event.preventDefault();
+        const current = tabs.indexOf(tabs.find((item) => item.getAttribute("aria-selected") === "true")!);
+        const next = tabs[event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (current + step + tabs.length) % tabs.length]!;
         next.focus();
         select(next);
       });
@@ -221,68 +226,93 @@ const icons = {
 </script>
 
 <style>
+  .section-note, .availability { color: var(--muted); line-height: 1.5; }
+  .section-note { margin: 16px 0 0; font-size: 17px; }
+  .availability { margin: 12px 0 0; font-size: 13px; }
+  button.more { border: 0; font-family: inherit; cursor: pointer; }
+
   .roles {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 48px;
     align-items: start;
-    width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
+    width: min(1120px, calc(100% - 40px));
+    margin: clamp(72px, 9vw, 120px) auto 0;
   }
   .side {
-    padding: 40px 0 0 56px;
+    padding: 32px 0 0;
   }
   h2 {
     margin: 0;
     font-size: clamp(28px, 3.2vw, 42px);
-    font-weight: 600;
-    letter-spacing: -0.035em;
+    font-weight: 500;
+    letter-spacing: -0.045em;
     line-height: 1.1;
   }
   .chips {
+    position: relative;
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    max-width: 520px;
-    margin-top: 36px;
+    flex-direction: column;
+    gap: 4px;
+    max-width: 360px;
+    margin-top: 28px;
+    padding: 4px;
+    border-radius: 16px;
+    background: var(--soft);
+  }
+  .chips::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    right: 4px;
+    top: var(--selection-y, 4px);
+    height: var(--selection-height, 48px);
+    border-radius: 12px;
+    background: var(--bg);
+    box-shadow: 0 1px 2px rgba(17, 17, 16, 0.06), 0 8px 20px rgba(17, 17, 16, 0.04);
+    transition: top 0.38s cubic-bezier(0.22, 1, 0.36, 1), height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
   }
   .chip {
+    position: relative;
+    z-index: 1;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    height: 42px;
-    padding: 0 18px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: var(--bg);
+    gap: 10px;
+    min-height: 48px;
+    justify-content: flex-start;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
     color: var(--muted);
     font: inherit;
     font-size: 15px;
+    font-weight: 500;
     cursor: pointer;
-    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    transition: color 0.22s ease;
   }
-  .chip:hover {
-    border-color: rgba(0, 0, 0, 0.18);
-  }
+  .chip:hover { color: var(--text); }
   .chip :global(.face) {
-    display: none;
-    margin-left: -10px;
+    opacity: 0.5;
+    transform: scale(0.92);
+    transition: opacity 0.25s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
   }
   .chip[aria-selected="true"] {
-    border-color: var(--text);
-    background: var(--soft);
     color: var(--text);
   }
   .chip[aria-selected="true"] :global(.face) {
-    display: block;
+    opacity: 1;
+    transform: scale(1);
   }
   .chip:focus-visible {
     outline: 2px solid var(--text);
     outline-offset: 2px;
   }
   .copy {
+    min-height: 6.5em;
     max-width: 44ch;
-    margin: 40px 0 0;
+    margin: 28px 0 0;
     color: var(--muted);
     font-size: clamp(16px, 1.4vw, 18px);
     line-height: 1.6;
@@ -291,10 +321,6 @@ const icons = {
     color: var(--text);
     font-weight: 500;
   }
-  .more {
-    margin-top: 48px;
-  }
-
   .stage {
     display: flex;
     justify-content: center;
@@ -314,9 +340,6 @@ const icons = {
       padding: 0 8px;
     }
     .copy {
-      margin-top: 28px;
-    }
-    .more {
       margin-top: 28px;
     }
     .stage {

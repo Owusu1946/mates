@@ -18,7 +18,7 @@ import Svg, { Defs, LinearGradient, Path, Stop } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
 import { PolygonAvatar } from "../components/polygon-avatar/polygon-avatar";
 import { CIRCLE as CIRCLE_SHAPE, SHAPE, TRIANGLE as TRIANGLE_SHAPE, type PolygonShape } from "../components/polygon-avatar/polygon-avatar-core";
-import { CIRCLE, HEXAGON, OUTLINE_POINTS, TRIANGLE } from "./outlines";
+import { CIRCLE, HEXAGON, OUTLINE_POINTS, TRIANGLE } from "@muse-clone/mascot/outlines";
 
 /**
  * The hand-off from the native splash. It starts on the same honeycomb in the same spot; the
