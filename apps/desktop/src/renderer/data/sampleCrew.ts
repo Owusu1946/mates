@@ -6,7 +6,7 @@ import type { MateColor } from "../theme/matePalette.ts";
  * mate from onboarding replaces Kofi (see `crewFor`). Nothing here leaves the device.
  */
 
-export type MateStatus = "idle" | "listening" | "thinking" | "working" | "waiting";
+export type MateStatus = "idle" | "listening" | "thinking" | "working" | "happy" | "waiting";
 
 export type Mate = {
   id: string;

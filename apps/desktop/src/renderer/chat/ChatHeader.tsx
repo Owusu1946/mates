@@ -1,7 +1,7 @@
 import type { Chat, Mate } from "../data/sampleCrew.ts";
 import { MateAvatar } from "./MateAvatar.tsx";
 
-const STATUS_TEXT = { idle: null, listening: "Listening…", thinking: "Thinking…", working: "Working", waiting: "Waiting on you" } as const;
+const STATUS_TEXT = { idle: null, listening: "Listening…", thinking: "Thinking…", working: "Working", happy: null, waiting: "Waiting on you" } as const;
 
 /** The chat's name and what its mate is up to. */
 export function ChatHeader({ chat, lead, mates }: { chat: Chat; lead: Mate; mates: Mate[] }) {
@@ -10,7 +10,7 @@ export function ChatHeader({ chat, lead, mates }: { chat: Chat; lead: Mate; mate
   return (
     <header className="flex h-13 shrink-0 items-center gap-2.5 border-b border-line px-6">
       {chat.kind !== "group" ? (
-        <MateAvatar mate={lead} size={26} />
+        <MateAvatar mate={lead} size={32} />
       ) : (
         <div className="flex -space-x-1.5">
           {mates.slice(0, 3).map((mate) => (
