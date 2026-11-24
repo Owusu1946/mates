@@ -11,6 +11,7 @@ import Logo from "../components/Logo.astro";
 import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
 import Waitlist from "../components/Waitlist";
+import HeroMascot from "../components/HeroMascot";
 import HeroStage from "../components/HeroStage.astro";
 import Apps from "../components/Apps.astro";
 import BackToTop from "../components/BackToTop";
@@ -42,9 +43,9 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
   <main id="main-content" tabindex="-1">
     <section class="hero" id="features">
       <div class="hero-copy">
-        <h1>Your personal team of AI mates.</h1>
+        <h1>Your personal team of <span class="hero-mate">AI mates<span class="headline-mascot" aria-hidden="true"><HeroMascot client:idle size={88} /></span></span>.</h1>
         <p class="lede">Give your lead mate a task. Follow the handoff and review the result in the same chat.</p>
-        <Platforms />
+        <div id="download"><Platforms /></div>
       </div>
       <div class="hero-phones"><HeroStage /></div>
     </section>
@@ -71,11 +72,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 
     <Faq />
 
-    <section class="launch" id="download" aria-labelledby="launch-title">
-      <h2 id="launch-title">Meet your next team.</h2>
-      <p>A lead mate. Specialists for the work ahead.</p>
-      <Platforms />
-    </section>
+
   </main>
 
   <Footer />
@@ -99,10 +96,6 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
 </Base>
 
 <style>
-  .launch { width: min(640px, calc(100% - 40px)); margin: 112px auto 0; padding: 56px 24px; border-block: 1px solid var(--line); text-align: center; }
-  .launch :global(.platforms) { justify-content: center; }
-  .launch h2 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.045em; line-height: 1.1; }
-  .launch p { max-width: 36ch; margin: 14px auto 28px; color: var(--muted); font-size: 17px; line-height: 1.55; }
   .nav {
     position: sticky;
     top: 0;
@@ -141,6 +134,10 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     color: var(--text);
   }
 
+  .hero-mate { white-space:nowrap; }
+  .headline-mascot { display:inline-flex; width:.9em; height:.9em; margin-left:.12em; vertical-align:-.08em; }
+  .headline-mascot :global(span) { width:100% !important; height:100% !important; }
+  .headline-mascot :global(svg) { width:100%; height:100%; }
   .hero-copy { text-align:center; margin-inline:auto; }
   .hero-copy :global(.options) { justify-content:center; }
   .hero-copy .lede { margin-inline:auto; }

@@ -84,7 +84,7 @@ const facts = [
   }
   .facts {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 32px;
     margin-top: 40px;
     padding: 0 8px;
@@ -94,7 +94,7 @@ const facts = [
     gap: 6px;
     align-content: start;
     padding-top: 16px;
-    border-top: 1px solid var(--line);
+
   }
   .fact b {
     font-size: 15.5px;
@@ -106,6 +106,7 @@ const facts = [
     line-height: 1.5;
   }
 
+  @media (min-width: 621px) and (max-width: 860px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 860px) {
     .meet {
       margin-top: 96px;
@@ -120,4 +121,5 @@ const facts = [
       gap: 20px;
     }
   }
+  @media(max-width:620px) { .facts { grid-template-columns:1fr; } }
 </style>
