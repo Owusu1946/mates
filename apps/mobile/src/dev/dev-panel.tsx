@@ -88,7 +88,7 @@ export function DevPanel() {
             <View>
               <Text style={styles.title}>Dev Tools</Text>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close notification tools" onPress={() => setOpen(false)} style={styles.close}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close dev tools" onPress={() => setOpen(false)} style={styles.close}>
               <Text style={styles.closeText}>×</Text>
             </Pressable>
           </View>
@@ -118,7 +118,7 @@ export function DevPanel() {
       {!open && (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open dev notification tools"
+          accessibilityLabel="Open dev tools"
           onPress={() => setOpen(true)}
           style={[styles.fab, { bottom, right: 16 }]}
         >

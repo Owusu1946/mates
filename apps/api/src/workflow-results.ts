@@ -65,6 +65,22 @@ export const choiceTool = {
   },
 };
 
+/** Keep each app's evidence separate when Composio executes a mixed-app batch. */
+export function appSourceGroups(slugs: string[], value: unknown): { toolkit: string; result: unknown }[] {
+  const toolkits = [...new Set(slugs.map(slug => slug.split("_")[0]!.toLowerCase()))];
+  if (!slugs.length) return [];
+  if (toolkits.length === 1) return [{ toolkit: toolkits[0]!, result: value }];
+  const results = (value as { data?: { results?: unknown[] } } | null)?.data?.results;
+  if (!Array.isArray(results)) return [];
+  return results.flatMap((result, index) => {
+    const explicitSlug = (result as { tool_slug?: unknown } | null)?.tool_slug;
+    const slug = typeof explicitSlug === "string" && slugs.includes(explicitSlug)
+      ? explicitSlug
+      : results.length === slugs.length ? slugs[index] : undefined;
+    return slug ? [{ toolkit: slug.split("_")[0]!.toLowerCase(), result }] : [];
+  });
+}
+
 export function collectSources(
   value: unknown,
   sources: Map<string, Record<string, unknown>>,
@@ -112,7 +128,7 @@ export function groundedItems(
   data: z.infer<typeof resultSchema>,
   sources: Map<string, Record<string, unknown>>,
 ): NonNullable<WorkflowCard["items"]> {
-  return data.items.map((item) => {
+  return data.items.filter(item => !/^(string|null|undefined)$/i.test(item.title.trim())).map((item) => {
     const source = sources.get(item.sourceId);
     if (!source)
       throw new Error(
@@ -136,7 +152,7 @@ export function groundedItems(
       data.toolkit === "gmail" &&
       /^[a-f0-9]{10,30}$/i.test(item.sourceId)
     )
-      url = `https://mail.google.com/mail/u/0/#all/${item.sourceId}`;
+      url = `https://mail.google.com/mail/#all/${item.sourceId}`;
     if (
       !url &&
       ["twitter", "x"].includes(data.toolkit) &&
@@ -150,6 +166,7 @@ export function groundedItems(
       : undefined;
     return {
       ...item,
+      preview: data.toolkit === "gmail" ? emailText(item.preview) : item.preview,
       url,
       product,
       title: product && typeof source.title === "string" ? source.title : item.title,
@@ -164,6 +181,20 @@ export function groundedItems(
     };
   });
 }
+/** Extract text before truncating fallback email bodies. The client also handles historic cards. */
+function emailText(value: string | undefined) {
+  return value
+    ?.replace(/<!--[\s\S]*?(?:-->|$)/g, " ")
+    .replace(/<(head|style|script)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/https?:\/\/[^\s<>]+/gi, " ")
+    .replace(/\S{100,}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function fallbackItems(
   toolkit: string,
   sources: Map<string, Record<string, unknown>>,
@@ -182,7 +213,7 @@ export function fallbackItems(
       string(record.name);
     if (toolkit === "gmail" && !string(record.subject)) continue;
     if (["twitter", "x"].includes(toolkit) && !string(record.text)) continue;
-    if (!title) continue;
+    if (!title || /^(string|null|undefined)$/i.test(title.trim())) continue;
     const preview =
       string(record.snippet) ??
       string(record.preview) ??
@@ -210,7 +241,7 @@ export function fallbackItems(
     items.push({
       sourceId,
       title: title.slice(0, 200),
-      preview: preview?.slice(0, 700),
+      preview: (toolkit === "gmail" ? emailText(preview) : preview)?.slice(0, 700),
       subtitle,
       metrics,
       url: string(record.url) ?? string(record.html_url),

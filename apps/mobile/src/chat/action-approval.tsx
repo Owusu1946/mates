@@ -19,7 +19,7 @@ const ANSWER: Record<Choice, string> = { allow: "approve", always: "always", dec
  * does anything that reaches other people. Allow runs it once, Always allow remembers it for that
  * app and person (never for money), Not now leaves it. The card keeps your answer afterwards.
  */
-export function ActionApproval({ state }: { state: WorkflowCard }) {
+export function ActionApproval({ state, preview = false }: { state: WorkflowCard; preview?: boolean }) {
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
   const { colors } = useTheme();
@@ -32,6 +32,7 @@ export function ActionApproval({ state }: { state: WorkflowCard }) {
   const who = approval?.targets[0];
 
   const answer = (value: Choice) => {
+    if (preview) return;
     if (value === "decline") haptic.selection();
     else haptic.success();
     setPicked(value);
@@ -111,10 +112,10 @@ export function ActionApproval({ state }: { state: WorkflowCard }) {
       ) : (
         <View style={{ gap: 8 }}>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <Pill label="Allow" strong disabled={running} onPress={() => answer("allow")} />
-            {approval?.canAlways !== false && <Pill label="Always allow" disabled={running} onPress={() => answer("always")} />}
+            <Pill label="Allow" strong disabled={preview || running} onPress={() => answer("allow")} />
+            {approval?.canAlways !== false && <Pill label="Always allow" disabled={preview || running} onPress={() => answer("always")} />}
             <View style={{ flex: 1 }} />
-            <Pressable accessibilityRole="button" disabled={running} hitSlop={8} onPress={() => answer("decline")} style={({ pressed }) => ({ paddingHorizontal: 4, opacity: running ? 0.4 : pressed ? 0.5 : 1 })}>
+            <Pressable accessibilityRole="button" disabled={preview || running} hitSlop={8} onPress={() => answer("decline")} style={({ pressed }) => ({ paddingHorizontal: 4, opacity: preview || running ? 0.4 : pressed ? 0.5 : 1 })}>
               <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 13.5 }}>Not now</Text>
             </Pressable>
           </View>

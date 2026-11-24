@@ -31,8 +31,8 @@ export function CallCard({ call, meeting = false }: { call: CallInfo; meeting?: 
   const { isDark } = useTheme();
   const [open, setOpen] = useState(false);
   const colors: RichTextColors = isDark
-    ? { text: "#fafafa", muted: "#a1a1aa", surface: "#232326", border: "#353538" }
-    : { text: "#18181b", muted: "#71717a", surface: "#f4f4f5", border: "#e9e9ec" };
+    ? { text: "#fafafa", muted: "#a1a1aa", surface: "#232326", border: "#353538", codeSurface: "#303036" }
+    : { text: "#18181b", muted: "#71717a", surface: "#f4f4f5", border: "#e9e9ec", codeSurface: "#f1f5f9" };
   const names = call.mates.map((m) => m.name).join(", ");
   return (
     <View style={{ width: "100%", alignSelf: "stretch", marginVertical: 10, gap: 12 }}>

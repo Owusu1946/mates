@@ -113,6 +113,8 @@ import { useUsage } from "../usage/use-usage";
 import { WatchCard } from "./watch-card";
 import { MeetingPrepCard } from "./meeting-prep-card";
 import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
+import { ThinkingStatus } from "./thinking-status";
+import { delegationMessageIndex } from "./run-message-target";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -455,22 +457,38 @@ function ThinkingIndicator() {
   const quiet = useQuietChatActivity();
   const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
+  const messageId = useAuiState((state) => state.message.id);
+  const fallbackName = useMateName();
+  const chat = useCurrentChat();
+  const mates = useMates();
+  const mentionedMateId = useAuiState((state) => {
+    const latestUser = [...state.thread.messages].reverse().find((message) => message.role === "user");
+    const text = latestUser?.content.filter((part) => part.type === "text").map((part) => part.text).join("\n") ?? "";
+    return text.match(/@[^\n{}]{1,80}?\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}/i)?.[1] ?? null;
+  });
+  const mentionedMate = mentionedMateId ? mates.data?.mates.find((mate) => mate.id === mentionedMateId) : undefined;
+  const currentMate = chat?.kind === "mate"
+    ? chat.mate ?? undefined
+    : chat?.kind === "group"
+      ? chat.members.find((mate) => mate.id === chat.leaderMateId) ?? mates.data?.mates.find((mate) => mate.isDefault)
+      : chat?.mate ?? mates.data?.mates.find((mate) => mate.isDefault);
+  const mate = mentionedMate ?? currentMate;
+  const mateName = mate?.name ?? fallbackName;
   const colors = useChatColors();
-  if (!running) return null;
-  // Quiet chat uses the dot until there is text or a visible card.
-  if (parts.some((part) => {
-    if (part.type !== "tool-call") return false;
-    const card = part.result as WorkflowCard | undefined;
-    if (!card || isWaitingPlaceholder(card)) return false;
-    return !quiet || !isRoutineActivity(card, running);
-  })) return null;
-  // Once the first words arrive the text itself shows progress, so the dot goes, as in ChatGPT.
-  if (parts.some((part) => part.type === "text" && part.text.trim().length > 0)) return null;
-  return (
-    <View style={{ paddingTop: 6, paddingBottom: 8 }}>
-      <PulseDot color={colors.foreground} />
-    </View>
-  );
+  const hasVisibleWork = parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined));
+  const hasText = parts.some((part) => part.type === "text" && part.text.trim().length > 0);
+  const shouldShow = running && !hasVisibleWork && !hasText;
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!shouldShow) {
+      setShownFor(null);
+      return;
+    }
+    const timer = setTimeout(() => setShownFor(messageId), 300);
+    return () => clearTimeout(timer);
+  }, [messageId, shouldShow]);
+  if (!shouldShow || shownFor !== messageId) return null;
+  return <ThinkingStatus mateName={mateName} gradient={mate?.gradient} shape={mate?.shape} mutedColor={colors.mutedForeground} />;
 }
 
 function MessageEditComposer() {
@@ -738,7 +756,7 @@ function ChatMessage() {
   const limit = limitError(useAuiState((state) => state.message.status));
   const cancelled = useAuiState((state) => state.message.status?.type === "incomplete" && state.message.status.reason === "cancelled");
   const colors = useChatColors();
-  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border }), [colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
+  const richColors = useMemo(() => ({ text: colors.foreground, muted: colors.mutedForeground, surface: colors.muted, border: colors.border, codeSurface: colors.background === "#18181b" ? "#48484f" : "#f1f1f3" }), [colors.background, colors.foreground, colors.mutedForeground, colors.muted, colors.border]);
   const user = role === "user";
   const onTextLayout = useCallback(() => {
     if (user || !runId) return;
@@ -1086,7 +1104,7 @@ const AWAY_FROM_BOTTOM = 280;
  */
 const MESSAGE_GAP = 18;
 const KEEP_POSITION = { minIndexForVisible: 0 };
-const NO_PAGING = { hasMore: false, loading: false };
+const NO_PAGING = { hasMore: false, loading: false, known: false };
 const noSubscribe = () => () => {};
 
 /**
@@ -1106,7 +1124,7 @@ function useEarlierMessages() {
     () => (sync && scrolled && (paging.hasMore || paging.loading) ? { hasMore: paging.hasMore, isLoadingMore: paging.loading, loadMore: () => sync.paging.loadMore(threadId) } : undefined),
     [sync, scrolled, paging, threadId],
   );
-  return { history, loading: paging.loading, onUserScroll };
+  return { history, loading: paging.loading, hasMore: paging.hasMore, known: paging.known, onUserScroll };
 }
 
 function EarlierLoading() {
@@ -1142,6 +1160,11 @@ function ChatBody({
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
+  const params = useLocalSearchParams<{ notificationRunId?: string }>();
+  const router = useRouter();
+  const targetRunId = typeof params.notificationRunId === "string" ? params.notificationRunId : undefined;
+  const targetMessageIndex = useAuiState((state) => delegationMessageIndex(state.thread.messages, targetRunId));
+  const messageCount = useAuiState((state) => state.thread.messages.length);
   const onScroll = useCallback(
     ({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }: NativeSyntheticEvent<NativeScrollEvent>) =>
       onAway(contentSize.height - (contentOffset.y + layoutMeasurement.height) > AWAY_FROM_BOTTOM),
@@ -1160,6 +1183,39 @@ function ChatBody({
     [],
   );
   const earlier = useEarlierMessages();
+  const lastTargetPage = useRef<{ runId: string; messageCount: number } | null>(null);
+  useEffect(() => {
+    if (!targetRunId || isLoading || earlier.loading || !earlier.known) return;
+    if (lastTargetPage.current?.runId !== targetRunId) lastTargetPage.current = null;
+    if (targetMessageIndex !== null) {
+      const timer = setTimeout(() => {
+        listRef.current?.scrollToIndex({ index: targetMessageIndex, animated: true, viewPosition: 0.2 });
+        router.setParams({ notificationRunId: undefined });
+      }, 80);
+      return () => clearTimeout(timer);
+    }
+    if (earlier.hasMore) {
+      if (!earlier.history) {
+        earlier.onUserScroll();
+        return;
+      }
+      if (lastTargetPage.current?.messageCount === messageCount) {
+        const timer = setTimeout(() => {
+          router.setParams({ notificationRunId: undefined });
+          listRef.current?.scrollToEnd({ animated: true });
+        }, 300);
+        return () => clearTimeout(timer);
+        return;
+      }
+      lastTargetPage.current = { runId: targetRunId, messageCount };
+      earlier.onUserScroll();
+      earlier.history?.loadMore();
+      return;
+    }
+    // The run may predate this chat's retained history. Keep the chat usable at its newest point.
+    router.setParams({ notificationRunId: undefined });
+    listRef.current?.scrollToEnd({ animated: true });
+  }, [earlier.hasMore, earlier.history, earlier.known, earlier.loading, earlier.onUserScroll, isLoading, messageCount, router, targetMessageIndex, targetRunId]);
   const onDrag = useCallback(() => {
     earlier.onUserScroll();
     onScrollBeginDrag();
@@ -1187,6 +1243,10 @@ function ChatBody({
           ref={listRef}
           onScroll={onScroll}
           onContentSizeChange={onContentSizeChange}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            listRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: true });
+            setTimeout(() => listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.2 }), 250);
+          }}
           onScrollBeginDrag={onDrag}
           history={earlier.history}
           ListHeaderComponent={earlier.loading ? EarlierLoading : undefined}

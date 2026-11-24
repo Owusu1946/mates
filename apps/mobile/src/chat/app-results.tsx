@@ -6,11 +6,17 @@ import { Pressable, Text, View } from "react-native";
 import { AppLogo } from "../connections/app-connection";
 import { useTheme } from "../theme/provider";
 import { ChatIcon } from "./chat-icon";
+import { isEmailResult } from "./email-preview";
+import { EmailResults } from "./email-results";
 import { ProductResult } from "./product-result";
 import { CardButton } from "./card-button";
+import { appResultSubtitle } from "./app-result-format";
+import { MateAvatar } from "../mates/mate-avatar";
+import { useMates } from "../mates/data";
 
 export function AppResponseCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
+  const mates = useMates();
   const aui = useAui();
   const running = useAuiState((s) => s.thread.isRunning);
   const [choice, setChoice] = useState<string | null>(null);
@@ -23,6 +29,9 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
       runConfig: { custom: { resumeRunId: state.resumeRunId, choice } },
     });
   }, [choice, running, state.resumeRunId, aui]);
+  const items = state.items?.filter(item => !/^(string|null|undefined)$/i.test(item.title.trim())) ?? [];
+  const emails = isEmailResult(state.toolkit, items);
+  const correctedEmailLabel = emails && state.toolkit !== "gmail";
   const foreground = isDark ? "#fafafa" : "#18181b";
   const muted = isDark ? "#a1a1aa" : "#71717a";
   const border = isDark ? "#353538" : "#e9e9ec";
@@ -36,7 +45,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
     <View style={{ width: "100%", gap: 12, marginVertical: 10 }}>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         {state.name && (
-          <AppLogo name={state.name} logo={state.logo} size={28} />
+          <AppLogo name={correctedEmailLabel ? "Gmail" : state.name} logo={correctedEmailLabel ? undefined : state.logo} size={28} />
         )}
         <Text
           style={{
@@ -46,10 +55,10 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
             color: foreground,
           }}
         >
-          {state.label}
+          {correctedEmailLabel ? "Emails" : state.label}
         </Text>
       </View>
-      {!!state.detail && <Text style={text}>{state.detail}</Text>}
+      {!!state.detail && state.detail !== "From the records checked for this request." && <Text style={text}>{state.detail}</Text>}
       {state.kind === "choice" ? (
         state.options?.map((option) => (
           <Pressable
@@ -76,7 +85,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               opacity: choice && choice !== option.id ? 0.5 : 1,
             })}
           >
-            <AppLogo name={option.label} logo={option.logo} size={36} />
+            <AppLogo name={option.toolkit} logo={option.logo} size={36} />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text
                 style={{
@@ -102,7 +111,7 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
         ))
       ) : (
         <>
-          {!state.items?.length && (
+          {!items.length && (
             <View
               style={{
                 padding: 18,
@@ -126,57 +135,65 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
               </Text>
             </View>
           )}
-          {state.items?.map((item, index) => (
+          {emails ? <EmailResults items={items} /> : items.map((item, index) => (
             item.product ? <ProductResult key={`${item.sourceId}_${index}`} item={item} isDark={isDark} onOpen={() => {
               if (item.url?.startsWith("https://")) void Linking.openURL(item.url).catch(() => setLinkError("Couldn’t open the listing. Please try again."));
             }} /> :
             <View
               key={`${item.sourceId}_${index}`}
               style={{
-                padding: 16,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: border,
-                backgroundColor: isDark ? "#232326" : "#fafafa",
-                gap: 8,
+                paddingVertical: 12,
+                borderBottomWidth: index === items.length - 1 ? 0 : 1,
+                borderColor: isDark ? "#353538" : "#e9e9ec",
+                gap: 5,
               }}
             >
               {!!item.subtitle && (
-                <Text style={{ ...text, fontSize: 12 }}>{item.subtitle}</Text>
+                <Text style={{ ...text, fontSize: 12 }}>{appResultSubtitle(item.subtitle)}</Text>
               )}
               <Text
                 selectable
                 style={{
                   fontFamily: "DMSans_600SemiBold",
-                  fontSize: 16,
-                  lineHeight: 22,
+                  fontSize: 15,
+                  lineHeight: 21,
                   color: foreground,
                 }}
               >
                 {item.title}
               </Text>
               {!!item.preview && (
-                <Text selectable style={{ ...text, color: foreground }}>
+                <Text selectable numberOfLines={3} style={{ ...text, color: muted }}>
                   {item.preview}
                 </Text>
               )}
               {!!item.metrics?.length && (
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
-                >
-                  {item.metrics.map((metric) => (
-                    <Text key={metric} style={{ ...text, fontSize: 12 }}>
-                      {metric}
-                    </Text>
-                  ))}
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
+                  {item.metrics.map((metric, metricIndex) => {
+                    const mate = mates.data?.mates.find((candidate) => candidate.name.trim().toLowerCase() === metric.trim().toLowerCase());
+                    return (
+                      <View
+                        key={`${metric}-${metricIndex}`}
+                        accessibilityRole={mate ? "image" : undefined}
+                        accessibilityLabel={mate ? metric : undefined}
+                        style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: mate ? 0 : undefined, backgroundColor: isDark ? "#29292d" : "#f1f1f3", borderRadius: 10, paddingHorizontal: mate ? 5 : 8, paddingVertical: 3 }}
+                      >
+                        {mate ? (
+                          <MateAvatar gradient={mate.gradient} shape={mate.shape} size={14} still />
+                        ) : (
+                          <Text style={{ fontFamily: "DMSans_500Medium", fontSize: 11, lineHeight: 16, color: muted }}>{metric}</Text>
+                        )}
+                      </View>
+                    );
+                  })}
                 </View>
               )}
               {item.url && (
-                <View style={{ marginLeft: -8 }}>
+                <View style={{ marginLeft: -8, marginTop: 1 }}>
                   <CardButton
                     variant="text"
                     label={
-                      state.toolkit === "gmail"
+                      emails
                         ? "Open email"
                         : ["twitter", "x"].includes(state.toolkit ?? "")
                           ? "View post"
