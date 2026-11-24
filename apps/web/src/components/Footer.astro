@@ -21,6 +21,7 @@ const links = [
 <style>
   .footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 28px;
     width: min(1120px, calc(100% - 40px));
@@ -51,7 +52,7 @@ const links = [
   nav a:hover {
     color: var(--text);
   }
-  .credit { display:inline-flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); white-space:nowrap; }
+  .credit { order: 4; flex-basis: 100%; text-align: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
   .meta {
     margin: 0;
     color: var(--muted);

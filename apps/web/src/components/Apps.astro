@@ -49,14 +49,14 @@ const idOf = (name: string) => `logo-${name.toLowerCase().replace(/[^a-z]/g, "")
 
 <style>
   .apps {
-    width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
+    width: min(1120px, calc(100% - 40px));
+    margin: clamp(72px, 9vw, 120px) auto 0;
     text-align: center;
   }
   h2 {
     margin: 0;
     font-size: clamp(28px, 3.6vw, 48px);
-    font-weight: 600;
+    font-weight: 500;
     letter-spacing: -0.04em;
     line-height: 1.1;
   }

@@ -21,7 +21,7 @@ import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
-  { label: "How it works", href: "#features" },
+  { label: "How it works", href: "#team" },
   { label: "Pricing", href: "#pricing" },
 ];
 const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
@@ -44,7 +44,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     <section class="hero" id="features">
       <div class="hero-copy">
         <h1>Your personal team of <span class="hero-mate">AI mates<span class="headline-mascot" aria-hidden="true"><HeroMascot client:idle size={88} /></span></span>.</h1>
-        <p class="lede">Give your lead mate a task. Follow the handoff and review the result in the same chat.</p>
+        <p class="lede">One task. The right mates. Work you can review.</p>
         <div id="download"><Platforms /></div>
       </div>
       <div class="hero-phones"><HeroStage /></div>
@@ -83,6 +83,7 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
       const observer = new IntersectionObserver((entries) => {
         for (const entry of entries) {
           if (!entry.isIntersecting) continue;
+          if (motion.matches) { observer.unobserve(entry.target); continue; }
           entry.target.classList.add("is-in");
           observer.unobserve(entry.target);
         }
@@ -147,16 +148,16 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     display: grid;
     grid-template-columns: 1fr;
     align-items: center;
-    gap: clamp(40px, 6vw, 96px);
+    gap: clamp(32px, 4vw, 56px);
     width: min(1120px, calc(100% - 48px));
     margin: clamp(56px, 8vw, 112px) auto;
   }
   h1 {
     max-width: 13ch;
     margin: 0;
-    font-size: clamp(54px, 6vw, 86px);
+    font-size: clamp(42px, 6vw, 86px);
     font-weight: 475;
-    letter-spacing: -0.064em;
+    letter-spacing: -0.05em;
     line-height: 1.01;
     text-wrap: balance;
   }
