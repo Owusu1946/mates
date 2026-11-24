@@ -25,7 +25,7 @@ function highlightedCode(content: string, language: string | null, isDark: boole
   return content.split(CODE_TOKENS).map((token, index) => {
     if (!token) return null;
     const color = TS_KEYWORDS.has(token) ? (isDark ? "#7db4ff" : "#2563eb")
-      : /^(?:true|false|null|undefined)$/.test(token) ? (isDark ? (isDark ? "#7ee787" : "#15803d") : "#15803d")
+      : /^(?:true|false|null|undefined)$/.test(token) ? (isDark ? "#7ee787" : "#15803d")
         : /^(?:\d+(?:\.\d+)?|["'`])/.test(token) ? (isDark ? "#7ee787" : "#15803d")
           : null;
     return color ? <Text key={index} style={{ color }}>{token}</Text> : token;
@@ -218,8 +218,8 @@ const openLink = (url: string) => {
  * (which open in the in-app browser). `compact` is for notes and results outside the chat.
  */
 export const RichText = memo(function RichText({ children, colors, size = "chat" }: { children: string; colors: RichTextColors; size?: keyof typeof SIZES }) {
-  const { text, muted, surface, border } = colors;
-  const styles = useMemo(() => createStyles({ text, muted, surface, border }, SIZES[size]), [text, muted, surface, border, size]);
+  const { text, muted, surface, border, codeSurface } = colors;
+  const styles = useMemo(() => createStyles({ text, muted, surface, border, codeSurface }, SIZES[size]), [text, muted, surface, border, codeSurface, size]);
   const markdown = useMemo(() => prepareMarkdown(children), [children]);
   return (
     <Markdown style={styles} rules={RULES} onLinkPress={openLink}>
