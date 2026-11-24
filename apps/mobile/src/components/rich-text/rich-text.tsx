@@ -1,6 +1,6 @@
 import * as WebBrowser from "expo-web-browser";
 import { memo, useMemo } from "react";
-import { Platform, ScrollView, StyleSheet, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import Markdown, { renderRules, type ASTNode, type RenderRules } from "react-native-markdown-display";
 import { prepareMarkdown } from "./markdown-text";
 
@@ -50,6 +50,17 @@ const RULES: RenderRules = {
       <View style={styles._VIEW_SAFE_table}>{children}</View>
     </ScrollView>
   ),
+  fence: (node, _children, _parents, styles, inherited) => {
+    const content = node.content.endsWith("\n") ? node.content.slice(0, -1) : node.content;
+    const sourceInfo = (node as ASTNode & { sourceInfo?: string }).sourceInfo?.trim().split(/\s+/, 1)[0];
+    const language = sourceInfo && /^[a-z\d_+#.-]{1,20}$/i.test(sourceInfo) ? sourceInfo.toUpperCase() : null;
+    return (
+      <View key={node.key} style={styles._VIEW_SAFE_fence_container}>
+        {language && <Text style={styles._VIEW_SAFE_fence_label}>{language}</Text>}
+        <Text selectable style={[inherited, styles._VIEW_SAFE_fence_code]}>{content}</Text>
+      </View>
+    );
+  },
   th: (node, children, parents, styles) => (
     <View key={node.key} style={[styles._VIEW_SAFE_cell, { width: cellWidth(node, parents) }]}>
       {children}
@@ -67,29 +78,31 @@ const RULES: RenderRules = {
  * to headings, table cells and code, so a 25pt line under a larger heading made lines overlap.
  */
 function createStyles(colors: RichTextColors, size: { font: number; line: number }) {
-  const heading = (font: number, line: number, top: number) => ({ flexDirection: "column" as const, color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: font, lineHeight: line, letterSpacing: -0.3, marginTop: top, marginBottom: 6 });
-  const code = { color: colors.text, backgroundColor: colors.surface, borderWidth: 0, fontFamily: MONO, fontSize: size.font - 3, lineHeight: size.line - 5 };
+  const heading = (font: number, line: number, top: number) => ({ flexDirection: "column" as const, color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: font, lineHeight: line, letterSpacing: -0.35, marginTop: top, marginBottom: 8 });
+  const code = { color: colors.text, fontFamily: MONO, fontSize: size.font - 3, lineHeight: size.line - 5 };
   return {
     body: { color: colors.text, fontFamily: "DMSans_400Regular", fontSize: size.font, lineHeight: size.line, letterSpacing: -0.2 },
-    paragraph: { marginTop: 0, marginBottom: 10 },
-    heading1: heading(size.font + 5, size.line + 5, 14),
-    heading2: heading(size.font + 3, size.line + 3, 14),
-    heading3: heading(size.font + 1, size.line + 1, 12),
+    paragraph: { marginTop: 0, marginBottom: 13 },
+    heading1: heading(size.font + 5, size.line + 6, 20),
+    heading2: heading(size.font + 3, size.line + 4, 18),
+    heading3: heading(size.font + 1, size.line + 2, 15),
     heading4: heading(size.font, size.line, 10),
     heading5: heading(size.font, size.line, 10),
     heading6: heading(size.font, size.line, 10),
     // The bold face is its own font file; a bold weight on top would thicken it twice on Android.
     strong: { fontFamily: "DMSans_700Bold", fontWeight: "normal" as const },
-    link: { color: colors.muted, fontFamily: "DMSans_500Medium", fontSize: size.font - 3, textDecorationLine: "none" as const },
+    link: { color: colors.text, fontFamily: "DMSans_500Medium", fontSize: size.font - 1, textDecorationLine: "underline" as const },
     hr: { backgroundColor: colors.border, height: StyleSheet.hairlineWidth, marginVertical: 14 },
     bullet_list: { marginBottom: 6 },
     ordered_list: { marginBottom: 6 },
     bullet_list_icon: { marginLeft: 2, marginRight: 8, fontFamily: "DMSans_700Bold" },
     ordered_list_icon: { marginLeft: 2, marginRight: 6 },
     task_item: { flex: 1, marginLeft: 2 },
-    code_inline: { ...code, padding: 0 },
-    code_block: { ...code, borderRadius: 14, padding: 12, marginVertical: 6 },
-    fence: { ...code, borderRadius: 14, padding: 12, marginVertical: 6 },
+    code_inline: { ...code, backgroundColor: colors.surface, borderRadius: 4, paddingHorizontal: 3 },
+    code_block: { ...code, backgroundColor: colors.surface, borderRadius: 10, padding: 10, marginVertical: 6 },
+    fence_container: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 14, padding: 12, marginVertical: 8, gap: 8 },
+    fence_label: { color: colors.muted, fontFamily: "DMSans_600SemiBold", fontSize: 10, letterSpacing: 0.8 },
+    fence_code: { ...code, backgroundColor: "transparent" as const, padding: 0 },
     blockquote: { backgroundColor: colors.surface, borderColor: colors.border, borderLeftWidth: 3, marginLeft: 0, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6, marginVertical: 6 },
     table_scroll: { marginTop: 4, marginBottom: 12 },
     table: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, overflow: "hidden" as const },

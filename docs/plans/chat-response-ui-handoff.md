@@ -60,3 +60,12 @@ Calendar and general app results now use compact grouped rows instead of repeate
 - Workspace `pnpm typecheck` and `pnpm test` passed.
 - Mobile release only; no API deployment or migration required.
 - Physical-device, Android, large-text and light-theme checks remain rollout work.
+
+## Task outcome refinement — slice 3
+
+Long assistant replies have clearer spacing between paragraphs and sections. Links now read as links in the chat. Fenced code renders in a contained panel with a language label when present; code remains selectable. Existing markdown normalization, tables, lists and quote rendering remain in place. No renderer or dependency changed.
+
+- Argent inspected the production RichText component on the iPhone 16 Pro simulator with headings, paragraphs, a list, inline and fenced code, and a quote. The temporary preview route was removed after inspection.
+- Workspace `pnpm typecheck` and `pnpm test` passed.
+- Mobile release only; no API deployment or migration required.
+- Verify light mode, Android, large text and long unbroken code on devices before broad rollout.
