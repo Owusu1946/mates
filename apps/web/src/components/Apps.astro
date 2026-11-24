@@ -9,10 +9,7 @@ const idOf = (name: string) => `logo-${name.toLowerCase().replace(/[^a-z]/g, "")
 
 <section class="apps" id="apps">
   <h2>Works with the apps you already use.</h2>
-  <p>
-    Choose the accounts you want to connect for email, calendars, documents and code.
-    Available actions depend on the connection and the permissions you grant.
-  </p>
+  <p>Connect your email, calendar, documents and code.</p>
 
   {/* Each mark is drawn once and reused by both copies of its row. */}
   <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -25,7 +22,7 @@ const idOf = (name: string) => `logo-${name.toLowerCase().replace(/[^a-z]/g, "")
     }
   </svg>
 
-  <div class="rows" aria-label={`Connects to ${LOGOS.map((logo) => logo.name).join(", ")} and hundreds more`}>
+  <div class="rows" aria-label={`Connects to ${LOGOS.map((logo) => logo.name).join(", ")} and many more`}>
     {
       rows.map((row, index) => (
         <div class:list={["row", { reverse: index % 2 === 1 }]} aria-hidden="true">
@@ -47,7 +44,7 @@ const idOf = (name: string) => `logo-${name.toLowerCase().replace(/[^a-z]/g, "")
     }
   </div>
 
-  <div class="more">and hundreds more</div>
+  <div class="more">and many more</div>
 </section>
 
 <style>

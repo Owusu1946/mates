@@ -14,10 +14,10 @@ const sun = mate("sunset");
   <div class="back left">
     <Device title="Daily Brief" header="pill" faces={[{ gradient: sky, state: "happy" }]}>
       <div class="stamp">Illustrative · 7:00 AM</div>
-      <div class="them">3 meetings today. First at 10:00 — Airport City.</div>
-      <div class="them">Leave by 9:12 if you’re driving. Rain after 2pm.</div>
+      <div class="them">3 meetings today. First at 10:00. Airport City.</div>
+      <div class="them">One reminder before lunch: send the revised agenda.</div>
       <div class="event">Created routine <b>Morning brief · weekdays</b></div>
-      <div class="me">move the 10am — it clashes with stand-up</div>
+      <div class="me">move the 10am. it clashes with stand-up</div>
       <div class="them">I can propose 1:30. You approve before I update the invite.</div>
     </Device>
   </div>
@@ -29,7 +29,7 @@ const sun = mate("sunset");
       <div class="them">Yango Comfort <b>₵52</b> · ~7 min pickup.</div>
       <div class="them">Trotro via Kaneshie <b>₵5</b> + short ride <b>₵18</b> · ~35 min.</div>
       <div class="event">Ride options <b>ready to review</b></div>
-      <div class="them">Nothing books until you tap go.</div>
+      <div class="them">Open a ride app to continue.</div>
     </Device>
   </div>
 
@@ -44,6 +44,8 @@ const sun = mate("sunset");
     display: flex;
     justify-content: center;
     width: 100%;
+    transform: scale(.82);
+    transform-origin: top center;
   }
   .front {
     position: relative;

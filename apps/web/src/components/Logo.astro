@@ -8,13 +8,14 @@ const path = (points: number[]) => points.reduce((d, value, i) => d + (i % 2 ? `
 const cells = [
   { x: 100, y: 68.44645, target: HEXAGON, colors: ["#e5c59e", "#d27e41", "#9a3412"] },
   { x: 63.5651, y: 131.55355, target: CIRCLE, colors: ["#b9c8f5", "#5b7be0", "#26408b"] },
-  { x: 136.4349, y: 131.55355, target: TRIANGLE, colors: ["#cfe3a8", "#7ea33f", "#3f5a1c"] },
+  { x: 132.4349, y: 126.55355, target: TRIANGLE, colors: ["#cfe3a8", "#7ea33f", "#3f5a1c"] },
 ];
 ---
 <span class="logo" style={`width:${size}px;height:${size}px`} data-splash-mark>
-  <svg width={size} height={size} viewBox="-12 -12 224 224" aria-hidden="true">
+  <svg width={size} height={size} viewBox="-8 -8 216 216" aria-hidden="true">
     <defs>{cells.map((cell,i) => <linearGradient id={`${uid}-${i}`} x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color={cell.colors[0]}/><stop offset=".55" stop-color={cell.colors[1]}/><stop offset="1" stop-color={cell.colors[2]}/></linearGradient>)}</defs>
     {cells.map((cell,i) => <g transform={`translate(${cell.x} ${cell.y}) scale(.405) translate(-100 -100)`}>
+      <animateTransform attributeName="transform" type="translate" additive="sum" values={`0 0;${(cell.x - 100) * .3} ${(cell.y - 100) * .3};0 0`} dur="1100ms" begin="indefinite" fill="freeze" keyTimes="0;.5;1" calcMode="spline" keySplines=".22 1 .36 1;.22 1 .36 1"/>
       <path d={path(cell.target)} fill={`url(#${uid}-${i})`}>
         <animate attributeName="d" values={`${path(HEXAGON)};${path(cell.target)}`} dur="460ms" begin="indefinite" fill="freeze" calcMode="spline" keyTimes="0;1" keySplines=".22 1 .36 1"/>
       </path>
@@ -26,14 +27,14 @@ const cells = [
     const motion = matchMedia("(prefers-reduced-motion: reduce)");
     const play = () => {
       if (motion.matches) return;
-      mark.querySelectorAll<SVGAnimateElement>("animate").forEach(animation => animation.beginElement());
+      mark.querySelectorAll<SVGAnimationElement>("animate, animateTransform").forEach(animation => animation.beginElement());
     };
     const link = mark.closest("a");
     link?.addEventListener("pointerenter", play);
     link?.addEventListener("focus", play);
     play();
     motion.addEventListener("change", () => {
-      if (motion.matches) mark.querySelectorAll<SVGAnimateElement>("animate").forEach(animation => animation.endElement());
+      if (motion.matches) mark.querySelectorAll<SVGAnimationElement>("animate, animateTransform").forEach(animation => animation.endElement());
     });
   }
 </script>
