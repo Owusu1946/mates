@@ -1,4 +1,5 @@
 import { memo } from "react";
+import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import { ApprovalCard } from "./cards/ApprovalCard.tsx";
 import { BriefCard } from "./cards/BriefCard.tsx";
@@ -29,8 +30,18 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
         </div>
       )}
       {message.author === "me" ? (
-        <div className="flex justify-end">
-          <p className="max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>
+        <div className="flex flex-col items-end gap-1.5">
+          {message.files && (
+            <ul className="flex max-w-[80%] flex-wrap justify-end gap-1.5" aria-label="Files">
+              {message.files.map((file, index) => (
+                <li key={`${file.name}-${index}`} className="flex h-8 max-w-56 items-center gap-1.5 rounded-lg border border-line bg-raised px-2 text-xs">
+                  <Icon name="file" size={14} className={file.kind === "pdf" ? "text-danger-ink" : "text-ink-soft"} />
+                  <span className="truncate">{file.name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {message.text && <p className="max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
         </div>
       ) : (
         <div className="flex flex-col gap-2">

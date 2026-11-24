@@ -1,3 +1,4 @@
+import type { SentFile } from "./attachments.logic.ts";
 import type { Card, Message } from "../data/sampleCrew.ts";
 
 /**
@@ -19,7 +20,7 @@ export type ChatFlow = {
 
 export type ChatAction =
   | { type: "draft"; chatId: string; text: string }
-  | { type: "send"; chatId: string; mateId: string; reply: string }
+  | { type: "send"; chatId: string; mateId: string; reply: string; files?: SentFile[] }
   | { type: "stream"; chatId: string }
   | { type: "tick"; chatId: string; words: number }
   | { type: "stop"; chatId: string }
@@ -60,8 +61,9 @@ export function chatFlowReducer(state: ChatFlow, action: ChatAction): ChatFlow {
       return { ...state, drafts: { ...state.drafts, [action.chatId]: action.text } };
     case "send": {
       const text = (state.drafts[action.chatId] ?? "").trim();
-      if (!text || state.replies[action.chatId]) return state;
-      const message: Message = { id: `u${state.sent}`, author: "me", text };
+      const files = action.files?.length ? action.files : undefined;
+      if ((!text && !files) || state.replies[action.chatId]) return state;
+      const message: Message = { id: `u${state.sent}`, author: "me", text, files };
       return {
         ...state,
         sent: state.sent + 1,

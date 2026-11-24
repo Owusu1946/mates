@@ -1,3 +1,4 @@
+import type { SentFile } from "../chat/attachments.logic.ts";
 import type { ShapeName } from "@muse-clone/mascot";
 import type { MateColor } from "../theme/matePalette.ts";
 
@@ -33,6 +34,8 @@ export type Message = {
   author: string;
   text: string;
   card?: Card;
+  /** Files you sent with it. */
+  files?: SentFile[];
   /** Shown as a divider above the message. */
   day?: string;
 };
