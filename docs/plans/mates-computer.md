@@ -1,5 +1,7 @@
 # Mates' computer: ship code to GitHub as a bot
 
+> **Coming (23 November 2026):** code runs move to a full coding environment. Runs can happen on the user's own machine through the desktop app, still with the mate as the coder on the user's Mates plan. Both places show every tool call, command and diff (`code_run_items`, replacing the capped `activity` lines). The PR flow and `mates[bot]` stay. See [desktop-app.md](../desktop/desktop-app.md), section 4D.
+
 ## Context
 The user wants their mates to have a personal computer: connect GitHub, say "ship dark mode in muse-clone", and a mate clones the repo, writes the code, runs the checks, pushes a branch and opens a pull request authored by a bot (`mates[bot]`). No approval prompts (standing preference), but the bot **never merges and never pushes to the default branch**: a PR is always the hand-off. Decisions:
 - **Computer:** Modal Sandboxes (JS SDK `modal`, $30 free credit every month, no session cap, full network).

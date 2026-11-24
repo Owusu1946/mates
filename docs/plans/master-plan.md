@@ -243,7 +243,7 @@ Replacing "WhatsApp first".
 | D6 | **The mate's own email** (roadmap 04) | `kwabena.k7x2@mates.askorin.app`: forward receipts, bills and travel; CC it to schedule | Cloudflare Email Routing to start (free), SES later | M | L+30 |
 | D7 | **Telegram** | Chat with your mates in Telegram | Telegram allows AI bots. Cheap; small audience in Ghana, so a low priority | S | L+90 |
 | D8 | **Microsoft Teams** (roadmap 10) | Mention a mate in a Teams channel or chat, like Slack | Azure Bot + Microsoft 365 Agents SDK on our API; reuse the Slack design | M | Later |
-| D9 | **Desktop link** (roadmap 14) | Connect your own Mac: allowed folders, your browser, Messages, Mail, Notes | Tauri app with an outbound socket to the API and scoped local tools | L | Later |
+| D9 | **Desktop link** (roadmap 14) | Connect your own Mac: allowed folders, your browser, Messages, Mail, Notes | Tauri app with an outbound socket to the API and scoped local tools. **Superseded by [desktop-app.md](../desktop/desktop-app.md)** (23 Nov): an Electron app for Windows, macOS and Linux, with a coding environment | L | Later |
 
 ### E. The crew
 What nobody else has: double down on it.
