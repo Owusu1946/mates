@@ -8,10 +8,11 @@ Status: ready for preview review on this branch.
 
 ## Current homepage
 
-- The hero pairs the waitlist with an example from an Accra meetup. Open Ivy’s draft with a tap or the keyboard.
+- The hero uses the three-phone composition with an inline animated mascot. The team handoff scene appears within the computer section. Platform icons open the waitlist; desktop is labelled as upcoming.
 - Ghana examples, calls, Google Meet and the code demo follow the hero. Example fares illustrate the interaction.
-- Pricing shows the four default monthly USD prices from the API. The comparison expands in place. Mobile obtains local and yearly offers from the store.
-- At 390px and 1280px, headless Chrome checks covered horizontal fit, keyboard opening of the draft, pricing and FAQ, reduced-motion draft styling and the waitlist dialog. The phone-width pass also exercised the mobile menu.
+- Navigation includes How it works, Apps and Pricing. How it works targets the team handoff scene.
+- Pricing switches between monthly USD 8/15/40/80 and yearly USD 80/150/400/800, with 2 months free. Annual amounts match the mobile purchase documentation. Mobile obtains localized offers from RevenueCat. Ken should verify production offers.
+- Earlier browser passes covered horizontal fit at 320px, 390px and 1280px plus FAQ, platform-to-waitlist actions and pricing disclosure. The final yearly toggle and latest logo adjustments still require a browser smoke test before merge.
 - API, worker and database deployments are unnecessary for this web change.
 
 ## Local preview
@@ -26,7 +27,7 @@ Open the URL Astro prints (normally http://127.0.0.1:4321). Root `pnpm dev` star
 
 ## Validation
 
-- Website production build passed after slice 3; rerun after any subsequent review edits.
+- Workspace typecheck, tests, production build and whitespace checks passed after the final yearly pricing copy change.
 - Workspace `pnpm typecheck && pnpm test` passed, with cached task results. Web has no dedicated typecheck/test script; these workspace checks do not validate all Astro interactions.
 - Diff whitespace checks passed.
 - Build warning: roughly 520 KB minified LiveKit chunk; output references found in meeting utility assets, not landing HTML. This is not a measured landing-page transfer or speed regression.
@@ -39,8 +40,8 @@ Open the URL Astro prints (normally http://127.0.0.1:4321). Root `pnpm dev` star
 - [ ] Verify prices, yearly billing, feature entitlements and deployment availability against actual billing config. Metadata starts at USD 8; confirm this remains the correct advertised monthly offer.
 - [ ] Check the visible Calls, Google Meet, Computer and Ghana examples against capabilities enabled for launch.
 - [ ] Confirm the approval language reflects standing routine instructions as well as one-off requests. No blanket promise that every external action requires a fresh approval.
-- [ ] Preview desktop widths 1024/1440 and mobile 320/375/390, plus short landscape and 200% zoom. Check header fit, the hero draft, meeting tiles, pricing disclosure and footer.
-- [ ] Keyboard: skip to main, all section links, pricing disclosure, open/close mobile menu, Escape, rapid repeat taps and breakpoint changes.
+- [ ] Preview desktop widths 1024/1440 and mobile 320/375/390, plus short landscape and 200% zoom. Check header fit, the hero draft, meeting tiles, pricing toggle, pricing disclosure and footer.
+- [ ] Keyboard: skip to main, all section links, monthly/yearly toggle, pricing disclosure, open/close mobile menu, Escape, rapid repeat taps and breakpoint changes.
 - [ ] Mobile menu to waitlist: only one visible active dialog; Tab stays in waitlist; disabled submit/input do not break cycling; closing returns to visible menu button; page scrolling unlocks.
 - [ ] Check form success/failure/retry against staging; no duplicate submissions or unwanted real signups. Verify main CTA still works after dialog close/reopen.
 - [ ] Reduced motion: reload and change system setting while open; mascot becomes static and existing demos settle appropriately.

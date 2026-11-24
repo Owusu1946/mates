@@ -1,5 +1,6 @@
 ---
-// Monthly USD defaults in apps/api/src/usage/plans.ts. Mobile displays store-localized offers.
+// USD monthly defaults match usage/plans.ts. Annual pricing matches docs/plans/in-app-purchase-progress.md.
+// Mobile displays localized RevenueCat product prices.
 const plans = [
   { name: "Starter", price: 8, benefit: "Up to 5 mates and 3 routines.", limits: "1 active mission. Standard weekly usage." },
   { name: "Plus", price: 15, benefit: "Watch for changes across the week.", limits: "10 mates, 2 active missions and 5 watches. Twice Starter’s weekly usage." },
@@ -9,11 +10,27 @@ const plans = [
 ---
 <section id="pricing" class="pricing">
   <h2>Pricing</h2>
-  <p>Monthly prices in USD. See local prices and yearly options in the app.</p>
-  <div class="plans">{plans.map(plan => <article><h3>{plan.name}</h3><strong>${plan.price}</strong><span> / month</span><p>{plan.benefit}</p></article>)}</div>
+  <p>Prices in USD. Local prices are shown in the app.</p>
+  <input class="billing" type="radio" name="billing" id="billing-monthly" aria-label="Monthly billing" checked />
+  <input class="billing" type="radio" name="billing" id="billing-yearly" aria-label="Yearly billing" />
+  <div class="switch"><label for="billing-monthly">Monthly</label><label for="billing-yearly">Yearly <span class="saving">2 months free</span></label></div>
+  <div class="plans">{plans.map(plan => <article><h3>{plan.name}</h3><div class="monthly"><strong>${plan.price}</strong><span> / month</span><small>Billed monthly</small></div><div class="yearly"><strong>${plan.price * 10}</strong><span> / year</span></div><p>{plan.benefit}</p></article>)}</div>
   <details><summary>Compare plan limits</summary><dl>{plans.map(plan => <div><dt>{plan.name}</dt><dd>{plan.limits}</dd></div>)}</dl></details>
 </section>
 <style>
+  .billing { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+  .switch { display:inline-flex; align-items:center; padding:4px; border-radius:999px; background:var(--soft); gap:4px; margin-top:12px; }
+  .switch label { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; cursor:pointer; font-size:14px; }
+  .saving { color:var(--accent-deep); font-size:11px; }
+  #billing-monthly:checked ~ .switch label[for="billing-monthly"],
+  #billing-yearly:checked ~ .switch label[for="billing-yearly"] { background:var(--bg); box-shadow:0 1px 4px #26251f14; }
+  #billing-monthly:focus-visible ~ .switch label[for="billing-monthly"],
+  #billing-yearly:focus-visible ~ .switch label[for="billing-yearly"] { outline:2px solid var(--accent-deep); outline-offset:2px; }
+  .yearly { display:none; }
+  #billing-yearly:checked ~ .plans .yearly { display:block; }
+  #billing-yearly:checked ~ .plans .monthly { display:none; }
+  small { display:block; color:var(--muted); margin-top:10px; font-size:12px; }
+
   .pricing { width: min(1120px, calc(100% - 40px)); margin: clamp(80px, 10vw, 144px) auto 0; }
   h2 { margin: 0; font-size: clamp(36px, 4vw, 56px); line-height: 1.08; letter-spacing: -0.045em; }
   p, span, dd { color: var(--muted); line-height: 1.55; }
