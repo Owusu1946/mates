@@ -11,7 +11,16 @@ export type AppControls = {
  * Quit in the tray or the app menu ends it. `onReady` runs once Electron is ready and before the
  * first window, so guards, menus and the tray cover it.
  */
-export function startLifecycle({ onReady, openWindow }: { onReady: (controls: AppControls) => void; openWindow: () => Electron.BrowserWindow }) {
+export function startLifecycle({
+  onReady,
+  openWindow,
+  quitOnClose = () => false,
+}: {
+  onReady: (controls: AppControls) => void;
+  openWindow: () => Electron.BrowserWindow;
+  /** Settings → This computer: closing the window quits, instead of leaving Mates in the tray. */
+  quitOnClose?: () => boolean;
+}) {
   if (!Electron.app.requestSingleInstanceLock()) {
     // Another copy runs; it brings its window forward (second-instance below).
     Electron.app.quit();
@@ -23,6 +32,8 @@ export function startLifecycle({ onReady, openWindow }: { onReady: (controls: Ap
     const window = openWindow();
     window.on("closed", () => {
       if (mainWindow === window) mainWindow = null;
+      // A Mac keeps apps open without windows, as people expect there.
+      if (quitOnClose() && process.platform !== "darwin") Electron.app.quit();
     });
     mainWindow = window;
     return window;

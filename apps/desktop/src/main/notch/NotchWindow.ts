@@ -7,6 +7,8 @@ export type NotchSources = { preload: string; url: string | null; file: string }
 export type NotchControl = {
   /** Opens or closes the notch when the pointer is on the notched screen; false when there's none there. */
   toggle: () => boolean;
+  /** Settings → This computer: off, the notch hides and the shortcut opens the pill instead. */
+  setEnabled: (enabled: boolean) => void;
 };
 
 /** Screen changes come in bursts (lid, wake, a monitor plugged in); lay out once they settle. */
@@ -23,6 +25,7 @@ export function installNotch(sources: NotchSources, { openInMates }: { openInMat
   let window: Electron.BrowserWindow | null = null;
   let current: { displayId: number; notch: Notch } | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let enabled = true;
 
   const find = () => {
     const displays = env.force ? [Electron.screen.getPrimaryDisplay()] : Electron.screen.getAllDisplays();
@@ -52,7 +55,7 @@ export function installNotch(sources: NotchSources, { openInMates }: { openInMat
   };
 
   const layout = () => {
-    const found = find();
+    const found = enabled ? find() : null;
     if (!found) {
       window?.hide();
       current = null;
@@ -94,8 +97,13 @@ export function installNotch(sources: NotchSources, { openInMates }: { openInMat
   Electron.powerMonitor.on("resume", relayout);
 
   return {
+    setEnabled(next) {
+      if (next === enabled) return;
+      enabled = next;
+      layout();
+    },
     toggle() {
-      if (!window || !current || !window.isVisible()) return false;
+      if (!enabled || !window || !current || !window.isVisible()) return false;
       const pointer = Electron.screen.getDisplayNearestPoint(Electron.screen.getCursorScreenPoint());
       if (!env.force && pointer.id !== current.displayId) return false;
       window.webContents.send("mates:notch-toggle");

@@ -2,6 +2,7 @@ import * as Electron from "electron";
 import * as NodeURL from "node:url";
 import { applyAppIdentity } from "./app/DesktopAppIdentity.ts";
 import { startLifecycle } from "./app/DesktopLifecycle.ts";
+import { installDesktopPrefs } from "./app/DesktopPrefs.ts";
 import { installTray } from "./app/DesktopTray.ts";
 import { installWebLinkGuards } from "./app/DesktopWebLinks.ts";
 import { shortcutLabel } from "./summon/SummonWindow.logic.ts";
@@ -22,6 +23,9 @@ const icon = !Electron.app.isPackaged && process.platform === "linux" ? NodeURL.
 
 applyAppIdentity();
 
+// Settings' choices about the app itself, applied once everything they touch exists.
+let prefs: ReturnType<typeof installDesktopPrefs> | null = null;
+
 startLifecycle({
   onReady: ({ showMain }) => {
     installWebLinkGuards(url ?? NodeURL.pathToFileURL(file).href);
@@ -33,6 +37,8 @@ startLifecycle({
     const notch = installNotch({ preload, url, file: notchFile }, { openInMates });
     const summon = installSummon({ preload, url, file: summonFile }, { openInMates, intercept: notch.toggle });
     installTray({ showMain, summon: summon.toggle, summonLabel: summon.shortcut && shortcutLabel(summon.shortcut, process.platform) });
+    prefs = installDesktopPrefs({ summon, notch });
   },
+  quitOnClose: () => prefs?.quitOnClose() ?? false,
   openWindow: () => createMainWindow({ preload, url, file, icon }),
 });
