@@ -73,8 +73,11 @@ function Conversation({ onReset }: { onReset: () => void }) {
   };
 
   return (
-    <div ref={root} className="p-3">
-      <div className="overflow-hidden rounded-[26px] border border-line bg-raised/95 text-ink shadow-2xl shadow-black/25 backdrop-blur-xl dark:shadow-black/60">
+    // The padding holds the whole shadow: the window is square and see-through, so a shadow that
+    // spilled past it would be cut off at the window's edge. No blur either: a see-through window
+    // can't blur the apps behind it, so the pill is solid.
+    <div ref={root} className="px-6 pt-3 pb-8">
+      <div className="overflow-hidden rounded-[26px] border border-line bg-raised text-ink shadow-[0_10px_28px_-10px_rgb(0_0_0/0.35),0_2px_6px_-2px_rgb(0_0_0/0.12)] dark:border-white/10 dark:shadow-[0_10px_28px_-10px_rgb(0_0_0/0.8),0_2px_6px_-2px_rgb(0_0_0/0.4)]">
         <div className="flex h-14 items-center gap-3 px-4">
           <MateAvatar mate={{ ...mate, status: reply ? (reply.phase === "thinking" ? "thinking" : "working") : "idle" }} size={28} />
           <input
