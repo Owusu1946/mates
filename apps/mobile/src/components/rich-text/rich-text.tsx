@@ -187,7 +187,7 @@ function createStyles(colors: RichTextColors, size: { font: number; line: number
     bullet_list_icon: { marginLeft: 2, marginRight: 8, fontFamily: "DMSans_700Bold" },
     ordered_list_icon: { marginLeft: 2, marginRight: 6 },
     task_item: { flex: 1, marginLeft: 2 },
-    code_inline: { ...code, backgroundColor: codeSurface, borderRadius: 4, paddingHorizontal: 3 },
+    code_inline: { ...code, fontSize: size.font - 1, lineHeight: size.line, backgroundColor: codeSurface, borderRadius: 4, paddingHorizontal: 3 },
     code_block: { ...code, backgroundColor: codeSurface, borderRadius: 10, padding: 10, marginVertical: 6 },
     fence_container: { backgroundColor: codeSurface, borderColor: colors.border, borderWidth: StyleSheet.hairlineWidth, borderRadius: 13, overflow: "hidden" as const, marginVertical: 8 },
     fence_header: { minHeight: 36, paddingHorizontal: 12, flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "space-between" as const, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: colors.border },
