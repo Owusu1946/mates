@@ -56,7 +56,7 @@ export function PasswordScreen({ mode, email, onBack, onDone, onUseCode }: Passw
       </OnboardingScreen.Content>
       {onUseCode && (
         <OnboardingScreen.Footer>
-          <Button variant="link" onClick={onUseCode}>
+          <Button variant="outline" size="sm" icon="hash" onClick={onUseCode}>
             Try a code instead
           </Button>
         </OnboardingScreen.Footer>

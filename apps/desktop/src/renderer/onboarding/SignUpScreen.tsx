@@ -39,7 +39,7 @@ export function SignUpScreen({ email: initialEmail, onBack, onEmail, onSignIn }:
       </OnboardingScreen.Content>
       <OnboardingScreen.Footer>
         Already have an account?{" "}
-        <Button variant="link" onClick={onSignIn}>
+        <Button variant="link" size="xs" onClick={onSignIn}>
           Sign in
         </Button>
       </OnboardingScreen.Footer>

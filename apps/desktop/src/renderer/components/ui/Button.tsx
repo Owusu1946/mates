@@ -19,7 +19,7 @@ export const buttonVariants = cva(
         secondary: "border-transparent bg-soft text-ink hover:bg-hover-fill",
         ghost: "border-transparent text-ink hover:bg-hover-fill [&_svg]:text-ink-soft",
         "ghost-muted": "border-transparent text-ink-soft hover:bg-hover-fill hover:text-ink",
-        link: "h-auto border-transparent p-0 font-semibold text-ink underline decoration-line underline-offset-4 hover:decoration-current",
+        link: "border-transparent p-0 text-ink underline decoration-ink-soft/55 underline-offset-2 hover:decoration-current",
       },
       size: {
         xs: "h-6 gap-1 px-[7px] text-xs",

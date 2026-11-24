@@ -37,7 +37,7 @@ export function SignInScreen({ email: initialEmail, onBack, onEmail, onCreateAcc
       </OnboardingScreen.Content>
       <OnboardingScreen.Footer>
         New to Mates?{" "}
-        <Button variant="link" onClick={onCreateAccount}>Create an account</Button>
+        <Button variant="link" size="xs" onClick={onCreateAccount}>Create an account</Button>
       </OnboardingScreen.Footer>
     </OnboardingScreen.Root>
   );

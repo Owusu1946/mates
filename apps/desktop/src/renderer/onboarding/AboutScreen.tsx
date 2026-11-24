@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
+import { Icon } from "../components/ui/Icon.tsx";
 import { Mascot } from "../components/ui/Mascot.tsx";
 import { TextArea, TextField } from "../components/ui/TextField.tsx";
 import { gradientOf } from "../theme/matePalette.ts";
@@ -70,9 +71,10 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
           </Button>
         </form>
       </OnboardingScreen.Content>
-      <OnboardingScreen.Footer>
-        <Button variant="link" onClick={() => onDone(myName.trim(), "")}>
+      <OnboardingScreen.Footer className="mt-3">
+        <Button variant="ghost-muted" size="sm" onClick={() => onDone(myName.trim(), "")}>
           Skip for now
+          <Icon name="arrowRight" />
         </Button>
       </OnboardingScreen.Footer>
     </OnboardingScreen.Root>

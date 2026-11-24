@@ -45,11 +45,11 @@ export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: (memo
           </button>
         ))}
       </OnboardingScreen.Content>
-      <OnboardingScreen.Footer>
-        <Button variant="link" onClick={() => onDone([])}>
-          Skip for now
+      <OnboardingScreen.Actions className="mt-5">
+        <Button variant="outline" size="xl" className="w-full" onClick={() => onDone([])}>
+          Continue without importing
         </Button>
-      </OnboardingScreen.Footer>
+      </OnboardingScreen.Actions>
     </OnboardingScreen.Root>
   );
 }
