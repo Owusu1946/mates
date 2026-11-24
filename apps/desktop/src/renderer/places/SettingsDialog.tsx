@@ -7,7 +7,7 @@ import { buttonVariants } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { SampleProfile } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
-import type { ColorScheme, ThemeName } from "../theme/appearance.logic.ts";
+import type { ColorScheme } from "../theme/appearance.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance, useAppearance } from "../theme/appearance.ts";
 
@@ -18,10 +18,6 @@ import { setAppearance, useAppearance } from "../theme/appearance.ts";
 const SCHEME_PREVIEW = {
   light: { canvas: "#fcfcfc", raised: "#ffffff", line: "#e4e4e7", ink: "#d4d4d8" },
   dark: { canvas: "#000000", raised: "#0f0f0f", line: "#262626", ink: "#404040" },
-};
-const THEME_BRAND: Record<ThemeName, { brand: string; canvas: string }> = {
-  nightly: { brand: "oklch(0.488 0.217 264)", canvas: "#fcfcfc" },
-  harmattan: { brand: "#d27e41", canvas: "#f8f7f4" },
 };
 
 const SCHEMES: { value: ColorScheme; label: string }[] = [
@@ -180,14 +176,14 @@ function AppearanceSettings() {
       <section className="flex flex-col gap-3">
         <div>
           <h2 className="font-semibold">Theme</h2>
-          <p className="text-ink-soft">Nightly is crisp and neutral. Harmattan is warm, in the Mates colours.</p>
+          <p className="text-ink-soft">{THEMES.find((option) => option.name === theme)?.blurb}</p>
         </div>
         <div className="grid grid-cols-3 gap-3">
           {THEMES.map((option) => (
             <Choice key={option.name} selected={theme === option.name} label={option.label} onSelect={() => setAppearance({ theme: option.name })}>
-              <div className="flex flex-1 items-end gap-1.5 p-2" style={{ background: THEME_BRAND[option.name].canvas }}>
-                <div className="h-3 flex-1 rounded-sm bg-black/8" />
-                <div className="size-5 rounded-full" style={{ background: THEME_BRAND[option.name].brand }} />
+              <div className="flex flex-1 items-end gap-1.5 p-2" style={{ background: option.swatch.canvas }}>
+                <div className="h-3 flex-1 rounded-sm opacity-10" style={{ background: option.swatch.ink }} />
+                <div className="size-5 rounded-full" style={{ background: option.swatch.brand }} />
               </div>
             </Choice>
           ))}
