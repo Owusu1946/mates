@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* The wordmark's face: Bricolage Grotesque (SIL OFL 1.1, assets/fonts), shipped with the app because
+ * the page only loads fonts it carries. Only "mates" in the title bar uses it. */
+@font-face {
+  font-family: "Mates Display";
+  src: url("./assets/fonts/bricolage-grotesque-latin.woff2") format("woff2-variations");
+  font-weight: 200 800;
+  font-display: block;
+}
+
 /*
  * The design system, after T3 Code's (apps/web/src/index.css): the same values, our own names.
  *
@@ -369,6 +378,7 @@
   --shadow-composer: 0 1px 2px rgb(0 0 0 / 5%);
   --ease-out-soft: cubic-bezier(0.2, 0.8, 0.2, 1);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Mates Display", var(--font-sans);
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --animate-rise: rise 420ms var(--ease-out-soft) both;
   --animate-enter: enter 250ms var(--ease-out-soft) both;

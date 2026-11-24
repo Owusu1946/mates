@@ -18,7 +18,7 @@ export function TitleBar({ onSearch }: { onSearch?: () => void }) {
   return (
     <header className={cn("flex h-(--title-bar) shrink-0", drag && "app-drag", search && "border-b border-line")}>
       {search && (
-        <div className={cn("flex w-(--sidebar-width) shrink-0 items-center border-r border-line bg-rail px-4", platform === "darwin" && "pl-20")}>
+        <div className={cn("flex w-(--sidebar-width) shrink-0 items-center border-r border-line bg-rail px-4", platform === "darwin" && "pl-21")}>
           <MatesWordmark />
         </div>
       )}
