@@ -2,11 +2,12 @@
 
 Mates is a mobile app for building a team of AI "mates". Each mate has a role, a personality and a mascot. They chat with you, call you, work in your connected apps (Gmail, Notion, Calendar and more), search the web, and write code that ships as GitHub pull requests while you're away.
 
-This repository is a **pnpm + Turborepo monorepo** with everything in one place: the mobile app, the API, the background worker and the landing page.
+This repository is a **pnpm + Turborepo monorepo** with everything in one place: the mobile app, the desktop app, the API, the background worker and the landing page.
 
 | Path | What it is | Stack |
 | --- | --- | --- |
 | `apps/mobile` | The iOS/Android app | Expo SDK 57, Expo Router, assistant-ui, Clerk |
+| `apps/desktop` | The Windows/macOS/Linux app (early: a native shell for now). See [Desktop app](#desktop-app) | Electron 44, electron-vite, React 19 |
 | `apps/api` | HTTP API and background worker | Hono, Drizzle ORM + Neon Postgres, Trigger.dev, OpenRouter |
 | `apps/web` | Landing page at agents.askorin.app | Astro with React islands |
 | `packages/api-contract` | Typed API contract shared by app and server | TypeScript |
@@ -79,9 +80,80 @@ This starts the API and Metro together. Scan the QR code with Expo Go (iOS: the 
 | `pnpm dev:clear` | Same, with Metro's cache cleared. **Run this after changing `apps/mobile/.env`** |
 | `pnpm dev:api` / `pnpm dev:mobile` | Each one in its own terminal |
 | `pnpm dev:web` | Landing page at http://localhost:4321 |
+| `pnpm dev:desktop` | Desktop app in a window, with hot reload. See [Desktop app](#desktop-app) |
 | `pnpm --filter @expojet/api worker:dev` | Trigger.dev worker locally (background runs, routines, code runs) |
 
 Run all commands from the **repository root**. `pnpm --filter <package>` targets one workspace.
+
+---
+
+## Desktop app
+
+`apps/desktop` is the Mates app for Windows, macOS and Linux, built with Electron. Today it's a native shell: one window with the mascot and "Hello there." It doesn't sign in or talk to the API yet, so it needs no `.env`. The plan is in [docs/desktop/desktop-app.md](docs/desktop/desktop-app.md) and the stack in [docs/desktop/stack.md](docs/desktop/stack.md).
+
+It's built to feel native on each system:
+
+| | Windows | macOS | Linux |
+| --- | --- | --- | --- |
+| Window | Our title bar with Windows' own caption buttons; Mica on Windows 11 22H2 and later | Inset traffic lights over vibrancy | The desktop's own frame (GNOME, KDE…) |
+| Menu | Hidden; shortcuts still work | Full menu bar | Shows on Alt |
+| Font | Segoe UI | SF Pro | Your desktop's font |
+
+On all three it follows the system's light or dark mode, remembers its size and position, and runs as a single instance (opening it again brings the window forward).
+
+### Run it
+
+Same on every system, from the repository root after `pnpm install`:
+
+```sh
+pnpm dev:desktop
+```
+
+The first run downloads Electron's binary for your system (about 100 MB), so it takes longer. Later runs start in a few seconds. The window reloads as you edit the renderer (`src/renderer`), and the app restarts when you edit the main process or preload.
+
+**System requirements for running:**
+
+- **Windows:** Windows 10 or 11, x64 or arm64.
+- **macOS:** macOS 12 or newer, Apple silicon or Intel.
+- **Linux:** a desktop session (X11 or Wayland) on a 64-bit distribution. Ubuntu, Fedora and Debian desktop installs already have the libraries Electron needs. It won't open a window inside WSL or over plain SSH.
+
+### Check it
+
+```sh
+pnpm --filter @muse-clone/desktop typecheck
+pnpm --filter @muse-clone/desktop test     # node --test, no Electron needed
+pnpm --filter @muse-clone/desktop build    # bundles main, preload and renderer into apps/desktop/dist
+```
+
+The root `pnpm typecheck && pnpm test` covers the desktop app too.
+
+### Build an installer
+
+Each system builds its own installer: you can't build a macOS app on Windows, for example. Installers land in `apps/desktop/release/`.
+
+| System | Command (from the repository root) | What you get |
+| --- | --- | --- |
+| Windows | `pnpm --filter @muse-clone/desktop dist:win` | `Mates-Setup-<version>-x64.exe` and `-arm64.exe`: one-click, per-user install, no admin prompt |
+| macOS | `pnpm --filter @muse-clone/desktop dist:mac` | `Mates-<version>-mac.dmg` and a `.zip`, universal (Apple silicon and Intel) |
+| Linux | `pnpm --filter @muse-clone/desktop dist:linux` | `Mates-<version>-x86_64.AppImage` and a `.deb` |
+
+The builds aren't code-signed yet, so each system warns the first time you open one:
+
+- **Windows:** SmartScreen says "Windows protected your PC". Choose **More info → Run anyway**.
+- **macOS:** right-click the app in Applications and choose **Open**, then **Open** again. Or go to **System Settings → Privacy & Security** and choose **Open Anyway**.
+- **Linux:** make the AppImage executable with `chmod +x Mates-*.AppImage`, then run it. On Ubuntu 22.04 and later, AppImages need `sudo apt install libfuse2`. Install the `.deb` with `sudo apt install ./Mates-*.deb`.
+
+### Where things are
+
+| Path | What it does |
+| --- | --- |
+| `src/main/index.ts` | Puts the app together; each module below owns one concern |
+| `src/main/app/` | App identity (Windows taskbar id), lifecycle (single instance, Dock, quit), web-link guards |
+| `src/main/window/` | The window (per-system options, light/dark, remembered bounds) and the menus |
+| `*.logic.ts` | The pure part of a module, tested in `*.logic.test.ts` without Electron |
+| `src/preload/index.ts` | The only bridge to the page: the platform and window material, nothing else |
+| `src/renderer/` | The React app |
+| `electron-builder.yml` | Installer settings for all three systems |
 
 ---
 
@@ -183,6 +255,7 @@ Commit the generated SQL together with the schema change. Never edit a migration
 | Voice agent | LiveKit Cloud (`voice-agent/Dockerfile`) | `lk agent deploy voice-agent`. Setup and testing: [docs/voice-calls.md](docs/voice-calls.md) |
 | Landing page | Vercel (root `apps/web`) | Deploys on merge to `main` |
 | Mobile app | EAS Build | Point `EXPO_PUBLIC_API_URL` at the production API first |
+| Desktop app | Built by hand on each system for now | `dist:win`, `dist:mac`, `dist:linux` (see [Build an installer](#build-an-installer)). Signing, auto-update and CI builds come later |
 
 ---
 
@@ -200,3 +273,6 @@ Commit the generated SQL together with the schema change. Never edit a migration
 - **A changed `.env` has no effect.** Restart with `pnpm dev:clear`, because Metro caches env values.
 - **Background runs never start.** Run the worker (`worker:dev` locally) and set `COOPER_BACKGROUND_ENABLED=true`.
 - **A feature says "isn't set up on this server".** Its API key is missing from `apps/api/.env`.
+- **The desktop app says "Electron failed to install correctly", or `pnpm dev:desktop` seems stuck on its first run.** Electron downloads its binary the first time it's used. Download it yourself with `pnpm --filter @muse-clone/desktop exec install-electron`. Behind a proxy or slow connection, set `ELECTRON_MIRROR` to a mirror first.
+- **The desktop window doesn't follow a light/dark change on Linux.** A known Electron issue (electron/electron#48736): it reads the Linux colour scheme once at start. Restart the app; a fix is planned.
+- **The desktop app opens off screen after unplugging a monitor.** It shouldn't (saved positions are checked against the connected screens), but you can reset it by deleting `window-state.json` from the app's data folder: `%APPDATA%\Mates` on Windows, `~/Library/Application Support/Mates` on macOS, `~/.config/Mates` on Linux.
