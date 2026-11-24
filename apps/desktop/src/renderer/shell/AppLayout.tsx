@@ -3,6 +3,7 @@ import type { ChatActivityMode } from "../chat/activityModes.ts";
 import { replyStatus } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
+import { OpenRunContext } from "../chat/openRun.ts";
 import { useChatFlow } from "../chat/useChatFlow.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
@@ -18,6 +19,8 @@ import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
 import { useStableCallback } from "../hooks/useStableCallback.ts";
+import { showsCoding } from "../settings/coding.logic.ts";
+import { markCodingEngaged, useCoding } from "../settings/coding.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance } from "../theme/appearance.ts";
 import { CommandPalette, type PaletteItem } from "./CommandPalette.tsx";
@@ -86,6 +89,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const chat = selection.kind === "chat" ? chats.find((candidate) => candidate.id === selection.id) : undefined;
   const run = selection.kind === "run" ? runs.find((candidate) => candidate.id === selection.id) : undefined;
   const coder = crewMates[MATE_ID]!;
+  // Coding is a side of Mates, not the centre: its tools show only for people who code.
+  const coding = useCoding();
+  const codingOn = showsCoding(coding.preference, { engaged: coding.engaged, hasProjects: crew.hasProjects !== false });
   const runRows = runs.flatMap((candidate) => (runStates[candidate.id] ? [{ run: candidate, status: runStatus(runStates[candidate.id]!) }] : []));
 
   const select = (next: Selection) => {
@@ -93,6 +99,17 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     if (next.kind === "chat") dispatch({ type: "open", chatId: next.id });
     // A run plays the first time you open it.
     if (next.kind === "run") runDispatch({ type: "start", runId: next.id, at: Date.now() });
+  };
+
+  // Seeing a mate's code work counts as starting to code: in Automatic, Projects appears from here.
+  const openRun = (runId: string) => {
+    markCodingEngaged();
+    select({ kind: "run", id: runId });
+  };
+
+  const askToBuild = () => {
+    select({ kind: "chat", id: "chat-yaw" });
+    requestAnimationFrame(() => composerRef.current?.focus());
   };
 
   const startRun = (repoId: string, where: Run["where"]) => {
@@ -149,9 +166,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
         run: () => select({ kind: "chat", id: candidate.id }),
       };
     }),
-    ...REPOS.map((repoItem): PaletteItem => ({ id: `repo:${repoItem.id}`, group: "Go to", label: repoItem.name, hint: repoItem.where, keywords: ["code", "repo"], leading: <Icon name="branch" />, run: () => select({ kind: "repo", id: repoItem.id }) })),
+    ...(codingOn ? REPOS : []).map((repoItem): PaletteItem => ({ id: `repo:${repoItem.id}`, group: "Go to", label: repoItem.name, hint: repoItem.where, keywords: ["code", "repo"], leading: <Icon name="branch" />, run: () => select({ kind: "repo", id: repoItem.id }) })),
     { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: openSettings },
-    ...runRows.map(({ run: runItem, status }): PaletteItem => ({
+    ...(codingOn ? runRows : []).map(({ run: runItem, status }): PaletteItem => ({
       id: `run:${runItem.id}`,
       group: "Runs",
       label: runItem.title,
@@ -161,7 +178,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       run: () => select({ kind: "run", id: runItem.id }),
     })),
     { id: "new-chat", group: "Actions", label: "New chat", hint: `${MOD} N`, keywords: ["message", "ask"], leading: <Icon name="edit" />, run: newChat },
-    ...(run
+    { id: "ask-to-build", group: "Actions", label: `Ask ${coder.name} to build something`, keywords: ["code", "website", "app", "fix", "build"], leading: <MateAvatar mate={coder} size={18} />, run: askToBuild },
+    ...(run && codingOn
       ? [
           { id: "toggle-diff", group: "Actions", label: panels.diff ? "Hide the Diff panel" : "Show the Diff panel", hint: `${MOD} D`, keywords: ["changes"], leading: <Icon name="columns" />, run: () => changePanels({ diff: !panels.diff }) } satisfies PaletteItem,
           ...(run.terminals.length
@@ -193,14 +211,14 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       if (next) focusArea(next);
     },
     onToggleDiff: () => {
-      if (run) changePanels({ diff: !panels.diff });
+      if (run && codingOn) changePanels({ diff: !panels.diff });
     },
     onToggleTerminal: () => {
-      if (run) changePanels({ terminal: !panels.terminal });
+      if (run && codingOn) changePanels({ terminal: !panels.terminal });
     },
   });
 
-  const repo = selection.kind === "repo" ? REPOS.find((candidate) => candidate.id === selection.id) : undefined;
+  const repo = codingOn && selection.kind === "repo" ? REPOS.find((candidate) => candidate.id === selection.id) : undefined;
 
   return (
     <TooltipProvider>
@@ -213,6 +231,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           mates={liveMates}
           unread={flow.unread}
           runs={runRows}
+          showProjects={codingOn}
           selection={selection}
           jumpTargets={targets}
           showJumpHints={showJumpHints}
@@ -222,7 +241,11 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           onSignOut={onSignOut}
         />
         <main className="min-w-0 flex-1">
-          {chat && <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />}
+          {chat && (
+            <OpenRunContext value={openRun}>
+              <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />
+            </OpenRunContext>
+          )}
           {repo && (
             <RepoPage
               key={repo.id}
@@ -232,7 +255,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
               draft={codeDrafts[`repo:${repo.id}`] ?? ""}
               onDraft={(text) => setCodeDrafts({ ...codeDrafts, [`repo:${repo.id}`]: text })}
               onStart={(where) => startRun(repo.id, where)}
-              onOpenRun={(id) => select({ kind: "run", id })}
+              onOpenRun={openRun}
               composerRef={composerRef}
             />
           )}
@@ -246,6 +269,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
               dispatch={runDispatch}
               panels={panels}
               onPanels={changePanels}
+              workbench={codingOn}
               draft={codeDrafts[run.id] ?? ""}
               onDraft={(text) => setCodeDrafts({ ...codeDrafts, [run.id]: text })}
               composerRef={composerRef}
@@ -253,7 +277,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           )}
         </main>
       </div>
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} codingShown={codingOn} />
     </TooltipProvider>
   );
 }

@@ -17,6 +17,8 @@ type SidebarProps = {
   unread: Record<string, boolean>;
   /** Each repo's runs, newest first, with how they're doing. */
   runs: { run: Run; status: RunStatus }[];
+  /** Projects and their runs, only for people who code (settings/coding.logic.ts). */
+  showProjects: boolean;
   selection: Selection;
   jumpTargets: Selection[];
   showJumpHints: boolean;
@@ -27,7 +29,7 @@ type SidebarProps = {
 };
 
 /** The crew: chats, mates, groups and code, with your profile at the bottom. */
-export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTargets, showJumpHints, onSelect, onNewChat, onOpenSettings, onSignOut }: SidebarProps) {
+export function Sidebar({ you, chats, mates, unread, runs, showProjects, selection, jumpTargets, showJumpHints, onSelect, onNewChat, onOpenSettings, onSignOut }: SidebarProps) {
   const mateChats = chats.filter((chat) => chat.kind === "mate");
   const groups = chats.filter((chat) => chat.kind === "group");
   const threads = chats.filter((chat) => chat.kind === "thread");
@@ -87,8 +89,8 @@ export function Sidebar({ you, chats, mates, unread, runs, selection, jumpTarget
           </SidebarSection>
         )}
 
-        {repos.length > 0 && (
-          <SidebarSection label="Code">
+        {showProjects && repos.length > 0 && (
+          <SidebarSection label="Projects">
             {repos.map(({ repo, runs: repoRuns }) => (
               <RepoRow
                 key={repo.id}
