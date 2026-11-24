@@ -7,6 +7,8 @@ import { buttonVariants } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { SampleProfile } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
+import { CODING_CHOICES } from "../settings/coding.logic.ts";
+import { markCodingEngaged, setCodingPreference, useCoding } from "../settings/coding.ts";
 import type { ColorScheme } from "../theme/appearance.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance, useAppearance } from "../theme/appearance.ts";
@@ -64,15 +66,18 @@ type SettingsDialogProps = ChatActivitySettingsProps & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   profile?: SampleProfile;
+  /** Whether the coding tools show right now, for the Coding tab's status line. */
+  codingShown: boolean;
 };
 
 const SECTIONS = [
   { id: "activity", label: "Chat activity", icon: "activity" },
   { id: "appearance", label: "Appearance", icon: "sun" },
+  { id: "coding", label: "Coding", icon: "branch" },
   { id: "about", label: "About you", icon: "users" },
 ] as const;
 
-export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMode, profile }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMode, profile, codingShown }: SettingsDialogProps) {
   const showProfile = profile && (profile.bio.length > 0 || profile.memories.length > 0);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -100,6 +105,9 @@ export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMod
               </Tabs.Panel>
               <Tabs.Panel value="appearance" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
                 <AppearanceSettings />
+              </Tabs.Panel>
+              <Tabs.Panel value="coding" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
+                <CodingSettings shown={codingShown} />
               </Tabs.Panel>
               {showProfile && (
                 <Tabs.Panel value="about" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
@@ -151,6 +159,47 @@ function ChatActivitySettings({ activityMode, onActivityMode }: ChatActivitySett
         </div>
       </fieldset>
       <ChatActivityPreview />
+    </div>
+  );
+}
+
+/**
+ * Whether Mates shows its coding tools. Mates is a personal assistant first, so by default they
+ * appear only once you start coding; until then, code a mate does shows as a card in its chat.
+ */
+function CodingSettings({ shown }: { shown: boolean }) {
+  const { preference, engaged } = useCoding();
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-5 min-[850px]:px-7">
+      <fieldset>
+        <legend className="text-base font-semibold">Coding tools</legend>
+        <p className="mt-1 mb-3 text-sm text-ink-soft">Projects in the sidebar, coding runs, the Diff panel and the terminal. Your mates can code and build websites either way.</p>
+        <div className="grid gap-2 sm:grid-cols-3">
+          {CODING_CHOICES.map((option) => (
+            <label key={option.value} className="grid cursor-pointer grid-cols-[1rem_minmax(0,1fr)] content-start items-center gap-x-2.5 gap-y-0.5 rounded-lg border border-line px-3 py-2.5 transition-colors duration-150 hover:bg-hover-fill has-checked:border-brand has-checked:bg-soft has-focus-visible:ring-2 has-focus-visible:ring-brand/35">
+              <input type="radio" name="coding" checked={preference === option.value} onChange={() => setCodingPreference(option.value)} className="activity-radio m-0 size-4" />
+              <span className="text-sm leading-5 font-medium">{option.label}</span>
+              <span className="col-start-2 text-xs leading-4 text-ink-soft">{option.detail}</span>
+            </label>
+          ))}
+        </div>
+        <p className="mt-3 flex items-center gap-2 text-xs text-ink-soft">
+          <span className={cn("size-1.5 rounded-full", shown ? "bg-ok" : "bg-ink-soft")} />
+          {shown ? "Showing now." : "Hidden now. Code your mates do shows as cards in their chats."}
+        </p>
+      </fieldset>
+      <section className="flex items-center gap-4 rounded-xl border border-line bg-canvas p-4">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-soft text-ink-soft">
+          <Icon name="branch" size={18} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="font-semibold">GitHub</h3>
+          <p className="text-sm text-ink-soft">{engaged ? "Connected as ama-mensah (sample)." : "Connect it so your mates can work in your projects and open pull requests."}</p>
+        </div>
+        <button type="button" disabled={engaged} onClick={markCodingEngaged} className={buttonVariants({ variant: engaged ? "secondary" : "outline", size: "sm" })}>
+          {engaged ? "Connected" : "Connect GitHub"}
+        </button>
+      </section>
     </div>
   );
 }
