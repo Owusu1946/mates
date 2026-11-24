@@ -50,3 +50,13 @@ Reviewable mobile-only follow-up for code and computer cards.
 - API deployment and migrations are unnecessary for this slice. Include it in the mobile release.
 
 Next reviewable slice is response hierarchy for calendar and other app results. Sammy commits and pushes manually after review.
+
+## Task outcome refinement — slice 2
+
+Calendar and general app results now use compact grouped rows instead of repeated filled cards. ISO timestamps in result metadata are shown in the user's local date and time. Metrics render as quiet chips, and long previews are capped to three lines. Product and email results keep their dedicated presentations; existing URLs and follow-up actions are unchanged.
+
+- Added regression checks for local timestamp formatting, ordinary metadata, malformed values and empty subtitles.
+- Argent verified the production AppResponseCard in a temporary calendar fixture on the iPhone 16 Pro simulator. Dates displayed locally and the list remained readable. The route was removed after inspection.
+- Workspace `pnpm typecheck` and `pnpm test` passed.
+- Mobile release only; no API deployment or migration required.
+- Physical-device, Android, large-text and light-theme checks remain rollout work.

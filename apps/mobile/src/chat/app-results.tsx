@@ -10,6 +10,7 @@ import { isEmailResult } from "./email-preview";
 import { EmailResults } from "./email-results";
 import { ProductResult } from "./product-result";
 import { CardButton } from "./card-button";
+import { appResultSubtitle } from "./app-result-format";
 
 export function AppResponseCard({ state }: { state: WorkflowCard }) {
   const { isDark } = useTheme();
@@ -138,50 +139,56 @@ export function AppResponseCard({ state }: { state: WorkflowCard }) {
             <View
               key={`${item.sourceId}_${index}`}
               style={{
-                padding: 16,
-                borderRadius: 18,
-                borderWidth: 1,
-                borderColor: border,
-                backgroundColor: isDark ? "#232326" : "#fafafa",
-                gap: 8,
+                paddingVertical: 12,
+                borderBottomWidth: index === items.length - 1 ? 0 : 1,
+                borderColor: isDark ? "#353538" : "#e9e9ec",
+                gap: 5,
               }}
             >
               {!!item.subtitle && (
-                <Text style={{ ...text, fontSize: 12 }}>{item.subtitle}</Text>
+                <Text style={{ ...text, fontSize: 12 }}>{appResultSubtitle(item.subtitle)}</Text>
               )}
               <Text
                 selectable
                 style={{
                   fontFamily: "DMSans_600SemiBold",
-                  fontSize: 16,
-                  lineHeight: 22,
+                  fontSize: 15,
+                  lineHeight: 21,
                   color: foreground,
                 }}
               >
                 {item.title}
               </Text>
               {!!item.preview && (
-                <Text selectable style={{ ...text, color: foreground }}>
+                <Text selectable numberOfLines={3} style={{ ...text, color: muted }}>
                   {item.preview}
                 </Text>
               )}
               {!!item.metrics?.length && (
-                <View
-                  style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}
-                >
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 3 }}>
                   {item.metrics.map((metric) => (
-                    <Text key={metric} style={{ ...text, fontSize: 12 }}>
+                    <Text key={metric} style={{
+                      fontFamily: "DMSans_500Medium",
+                      fontSize: 11,
+                      lineHeight: 16,
+                      color: muted,
+                      backgroundColor: isDark ? "#29292d" : "#f1f1f3",
+                      overflow: "hidden",
+                      borderRadius: 10,
+                      paddingHorizontal: 8,
+                      paddingVertical: 3,
+                    }}>
                       {metric}
                     </Text>
                   ))}
                 </View>
               )}
               {item.url && (
-                <View style={{ marginLeft: -8 }}>
+                <View style={{ marginLeft: -8, marginTop: 1 }}>
                   <CardButton
                     variant="text"
                     label={
-                      state.toolkit === "gmail"
+                      emails
                         ? "Open email"
                         : ["twitter", "x"].includes(state.toolkit ?? "")
                           ? "View post"
