@@ -1,0 +1,105 @@
+import * as Electron from "electron";
+import { parseHandoff, type SummonHandoff } from "../summon/SummonWindow.logic.ts";
+import { detectNotch, notchCanvasBounds, notchOptions, type Notch } from "./NotchWindow.logic.ts";
+
+export type NotchSources = { preload: string; url: string | null; file: string };
+
+export type NotchControl = {
+  /** Opens or closes the notch when the pointer is on the notched screen; false when there's none there. */
+  toggle: () => boolean;
+};
+
+/** Screen changes come in bursts (lid, wake, a monitor plugged in); lay out once they settle. */
+const RELAYOUT_MS = 150;
+
+/**
+ * The notch window: a fixed, see-through canvas over the top of the notched screen. Only the
+ * black shape inside it takes the pointer (the page says when it's over it), so the menu bar
+ * either side keeps working. It shows without taking focus, takes it only while open so you can
+ * type, and lays itself out again when screens change, sleep or wake.
+ */
+export function installNotch(sources: NotchSources, { openInMates }: { openInMates: (handoff: SummonHandoff) => void }): NotchControl {
+  const env = { force: process.env.MATES_NOTCH === "force", width: process.env.MATES_NOTCH_WIDTH };
+  let window: Electron.BrowserWindow | null = null;
+  let current: { displayId: number; notch: Notch } | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const find = () => {
+    const displays = env.force ? [Electron.screen.getPrimaryDisplay()] : Electron.screen.getAllDisplays();
+    for (const display of displays) {
+      const notch = detectNotch(display, process.platform, env);
+      if (notch) return { display, notch };
+    }
+    return null;
+  };
+
+  const load = (target: Electron.BrowserWindow, notch: Notch) => {
+    const query = { w: String(notch.width), h: String(notch.height) };
+    if (sources.url) void target.loadURL(`${sources.url}/notch.html?${new URLSearchParams(query)}`);
+    else void target.loadFile(sources.file, { query });
+  };
+
+  const create = () => {
+    const created = new Electron.BrowserWindow(notchOptions(sources.preload, process.platform));
+    created.setAlwaysOnTop(true, "screen-saver");
+    created.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    created.setIgnoreMouseEvents(true, { forward: true });
+    created.once("ready-to-show", () => created.showInactive());
+    created.on("closed", () => {
+      if (window === created) window = null;
+    });
+    return created;
+  };
+
+  const layout = () => {
+    const found = find();
+    if (!found) {
+      window?.hide();
+      current = null;
+      return;
+    }
+    const changed = !current || current.notch.width !== found.notch.width || current.notch.height !== found.notch.height;
+    window ??= create();
+    window.setBounds(notchCanvasBounds(found.display));
+    if (changed) load(window, found.notch);
+    else if (!window.isVisible()) window.showInactive();
+    current = { displayId: found.display.id, notch: found.notch };
+  };
+
+  const relayout = () => {
+    clearTimeout(timer);
+    timer = setTimeout(layout, RELAYOUT_MS);
+  };
+
+  const fromNotch = (event: Electron.IpcMainEvent) => window !== null && event.sender === window.webContents;
+  Electron.ipcMain.on("mates:notch-interactive", (event, interactive: unknown) => {
+    if (fromNotch(event)) window!.setIgnoreMouseEvents(interactive !== true, { forward: true });
+  });
+  // Open, the notch takes the keyboard so you can type; closed, it hands it straight back.
+  Electron.ipcMain.on("mates:notch-focus", (event) => {
+    if (fromNotch(event)) window!.focus();
+  });
+  Electron.ipcMain.on("mates:notch-blur", (event) => {
+    if (fromNotch(event)) window!.blur();
+  });
+  Electron.ipcMain.on("mates:notch-open", (event, value: unknown) => {
+    const handoff = fromNotch(event) ? parseHandoff(value) : null;
+    if (handoff) openInMates(handoff);
+  });
+
+  layout();
+  Electron.screen.on("display-added", relayout);
+  Electron.screen.on("display-removed", relayout);
+  Electron.screen.on("display-metrics-changed", relayout);
+  Electron.powerMonitor.on("resume", relayout);
+
+  return {
+    toggle() {
+      if (!window || !current || !window.isVisible()) return false;
+      const pointer = Electron.screen.getDisplayNearestPoint(Electron.screen.getCursorScreenPoint());
+      if (!env.force && pointer.id !== current.displayId) return false;
+      window.webContents.send("mates:notch-toggle");
+      return true;
+    },
+  };
+}
