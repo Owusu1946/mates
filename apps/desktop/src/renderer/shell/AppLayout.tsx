@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChatActivityMode } from "../chat/activityModes.ts";
 import { replyStatus } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
@@ -17,6 +17,7 @@ import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
 import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
+import { useStableCallback } from "../hooks/useStableCallback.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance } from "../theme/appearance.ts";
 import { CommandPalette, type PaletteItem } from "./CommandPalette.tsx";
@@ -114,6 +115,25 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     // The chat view mounts on this render; focus once it's there.
     requestAnimationFrame(() => composerRef.current?.focus());
   };
+
+  // A conversation carried over from the summon bar opens in its mate's chat, as if it had been here.
+  const receiveHandoff = useStableCallback((handoff: { mateId: string; question: string; answer: string }) => {
+    const target = crew.chats.find((candidate) => candidate.kind === "mate" && candidate.leadId === handoff.mateId);
+    if (!target) return;
+    const at = Date.now();
+    dispatch({
+      type: "append",
+      chatId: target.id,
+      messages: [{ id: `summon-q-${at}`, author: "me", text: handoff.question }, ...(handoff.answer ? [{ id: `summon-a-${at}`, author: handoff.mateId, text: handoff.answer }] : [])],
+    });
+    select({ kind: "chat", id: target.id });
+  });
+  useEffect(() => {
+    const take = () => void window.mates.takeHandoff().then((handoff) => handoff && receiveHandoff(handoff));
+    // One may be waiting from before this window opened, and more can arrive while it's open.
+    take();
+    return window.mates.onHandoff(take);
+  }, [receiveHandoff]);
 
   // Everything Ctrl/⌘ K can reach: where to go, the runs, and what to do.
   const paletteItems: PaletteItem[] = [
