@@ -1,18 +1,25 @@
 import { useRef, useState } from "react";
 import { replyStatus } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
+import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { useChatFlow } from "../chat/useChatFlow.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
+import { RunStatusDot } from "../code/RunStatusDot.tsx";
 import { RunView, type CodePanels } from "../code/RunView.tsx";
 import { useRunPlayer } from "../code/useRunPlayer.ts";
+import { Icon } from "../components/ui/Icon.tsx";
+import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
-import { REPOS, type Crew, type Mate } from "../data/sampleCrew.ts";
+import { PLACES, REPOS, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
 import { PlaceholderPage } from "../places/PlaceholderPage.tsx";
 import { SettingsPage } from "../places/SettingsPage.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
+import { THEMES } from "../theme/appearance.logic.ts";
+import { setAppearance } from "../theme/appearance.ts";
+import { CommandPalette, type PaletteItem } from "./CommandPalette.tsx";
 import { FOCUS_ORDER, nextFocusArea, type FocusArea } from "./focusAreas.logic.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useGlobalShortcuts } from "./useGlobalShortcuts.ts";
@@ -34,8 +41,7 @@ function focusArea(area: FocusArea) {
 export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => void }) {
   const [flow, dispatch] = useChatFlow(crew);
   const [selection, setSelection] = useState<Selection>({ kind: "chat", id: "chat-lead" });
-  const [query, setQuery] = useState("");
-  const searchRef = useRef<HTMLInputElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   // The Code view: every run's playback, drafts per run or repo, and the panels you keep open.
   const [runs, setRuns] = useState<Run[]>(RUNS);
@@ -86,12 +92,54 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     requestAnimationFrame(() => composerRef.current?.focus());
   };
 
+  // Everything Ctrl/⌘ K can reach: where to go, the runs, and what to do.
+  const paletteItems: PaletteItem[] = [
+    ...crew.chats.map((candidate): PaletteItem => {
+      const lead = liveMates[candidate.leadId]!;
+      return {
+        id: `chat:${candidate.id}`,
+        group: "Go to",
+        label: candidate.title,
+        hint: candidate.kind === "group" ? "Group" : lead.role,
+        keywords: candidate.kind === "group" ? candidate.mateIds.map((id) => crewMates[id]!.name) : [lead.role],
+        leading: candidate.kind === "mate" ? <MateAvatar mate={lead} size={18} /> : <Icon name="hash" />,
+        run: () => select({ kind: "chat", id: candidate.id }),
+      };
+    }),
+    ...PLACES.map((placeItem): PaletteItem => ({ id: `place:${placeItem.id}`, group: "Go to", label: placeItem.label, leading: <Icon name={placeItem.icon} />, run: () => select({ kind: "place", id: placeItem.id }) })),
+    ...REPOS.map((repoItem): PaletteItem => ({ id: `repo:${repoItem.id}`, group: "Go to", label: repoItem.name, hint: repoItem.where, keywords: ["code", "repo"], leading: <Icon name="branch" />, run: () => select({ kind: "repo", id: repoItem.id }) })),
+    { id: "place:settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance"], leading: <Icon name="settings" />, run: () => select({ kind: "place", id: "settings" }) },
+    ...runRows.map(({ run: runItem, status }): PaletteItem => ({
+      id: `run:${runItem.id}`,
+      group: "Runs",
+      label: runItem.title,
+      hint: REPOS.find((candidate) => candidate.id === runItem.repoId)?.name,
+      keywords: [runItem.branch, status === "waiting" ? "needs you" : status],
+      leading: <RunStatusDot status={status} />,
+      run: () => select({ kind: "run", id: runItem.id }),
+    })),
+    { id: "new-chat", group: "Actions", label: "New chat", hint: `${MOD} N`, keywords: ["message", "ask"], leading: <Icon name="edit" />, run: newChat },
+    ...(run
+      ? [
+          { id: "toggle-diff", group: "Actions", label: panels.diff ? "Hide the Diff panel" : "Show the Diff panel", hint: `${MOD} D`, keywords: ["changes"], leading: <Icon name="columns" />, run: () => changePanels({ diff: !panels.diff }) } satisfies PaletteItem,
+          ...(run.terminals.length
+            ? [{ id: "toggle-terminal", group: "Actions", label: panels.terminal ? "Hide the terminal" : "Show the terminal", hint: `${MOD} J`, keywords: ["shell", "output"], leading: <Icon name="terminal" />, run: () => changePanels({ terminal: !panels.terminal }) } satisfies PaletteItem]
+            : []),
+        ]
+      : []),
+    { id: "scheme:system", group: "Actions", label: "Match the system", keywords: ["appearance", "theme", "auto"], leading: <Icon name="monitor" />, run: () => setAppearance({ scheme: "system" }) },
+    { id: "scheme:light", group: "Actions", label: "Light mode", keywords: ["appearance", "theme"], leading: <Icon name="sun" />, run: () => setAppearance({ scheme: "light" }) },
+    { id: "scheme:dark", group: "Actions", label: "Dark mode", keywords: ["appearance", "theme", "night"], leading: <Icon name="moon" />, run: () => setAppearance({ scheme: "dark" }) },
+    ...THEMES.map((theme): PaletteItem => ({ id: `theme:${theme.name}`, group: "Actions", label: `${theme.label} theme`, keywords: ["appearance", "colours", "colors"], leading: <Icon name="sun" />, run: () => setAppearance({ theme: theme.name }) })),
+    { id: "sign-out", group: "Actions", label: "Sign out", keywords: ["log out"], leading: <Icon name="logout" />, run: onSignOut },
+  ];
+
   const { showJumpHints } = useGlobalShortcuts({
     onJump: (index) => {
       const target = targets[index];
       if (target) select(target);
     },
-    onSearch: () => searchRef.current?.focus(),
+    onSearch: () => setPaletteOpen(!paletteOpen),
     onNewChat: newChat,
     onSettings: () => select({ kind: "place", id: "settings" }),
     onCycleFocus: (backwards) => {
@@ -114,7 +162,8 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
 
   return (
     <TooltipProvider>
-      <TitleBar search={{ ref: searchRef, query, onQuery: setQuery }} />
+      <TitleBar onSearch={() => setPaletteOpen(true)} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={paletteItems} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
           you={crew.you}
@@ -123,7 +172,6 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           unread={flow.unread}
           runs={runRows}
           selection={selection}
-          query={query}
           jumpTargets={targets}
           showJumpHints={showJumpHints}
           onSelect={select}
