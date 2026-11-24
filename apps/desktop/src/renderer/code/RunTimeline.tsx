@@ -14,7 +14,7 @@ type RunTimelineProps = {
   mate: Mate;
   composer: ReactNode;
   onAnswer: (approvalId: string, allow: boolean) => void;
-  onOpenFile: (path: string) => void;
+  onOpenFile?: (path: string) => void;
 };
 
 /** Settled turns skip layout and paint while off screen; the live end never does. */

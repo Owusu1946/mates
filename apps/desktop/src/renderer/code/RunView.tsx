@@ -24,16 +24,19 @@ type RunViewProps = {
   draft: string;
   onDraft: (text: string) => void;
   composerRef: Ref<HTMLTextAreaElement>;
+  /** The coding tools: Diff panel, terminal, branch toolbar. Off, a run is the readable timeline. */
+  workbench: boolean;
 };
 
 /**
  * A coding run: the timeline and composer in a column with the terminal drawer under them, and
- * the Diff panel beside (T3 Code's ChatView for a project thread). Keyed by run.
+ * the Diff panel beside (T3 Code's ChatView for a project thread). Without the coding tools it's
+ * only the timeline: what the mate thought, did and changed. Keyed by run.
  */
-export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels, draft, onDraft, composerRef }: RunViewProps) {
+export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels, draft, onDraft, composerRef, workbench }: RunViewProps) {
   const status = runStatus(state);
   const playing = isPlaying(state);
-  const hasTerminal = run.terminals.length > 0;
+  const hasTerminal = workbench && run.terminals.length > 0;
 
   const send = () => {
     dispatch({ type: "followUp", runId: run.id, text: draft, script: followUpScript(draft, state.turns), at: Date.now() });
@@ -51,13 +54,14 @@ export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels
           terminalOpen={panels.terminal && hasTerminal}
           onToggleDiff={() => onPanels({ diff: !panels.diff })}
           onToggleTerminal={() => onPanels({ terminal: !panels.terminal })}
+          workbench={workbench}
         />
         <RunTimeline
           runId={run.id}
           state={state}
           mate={mate}
           onAnswer={(approvalId, allow) => dispatch({ type: "answer", runId: run.id, approvalId, allow, at: Date.now() })}
-          onOpenFile={(path) => onPanels({ diff: true, focusPath: path })}
+          onOpenFile={workbench ? (path) => onPanels({ diff: true, focusPath: path }) : undefined}
           composer={(
             <ChatComposer
               ref={composerRef}
@@ -68,13 +72,13 @@ export function RunView({ run, repoName, state, mate, dispatch, panels, onPanels
               onDraft={onDraft}
               onSend={send}
               onStop={() => dispatch({ type: "stop", runId: run.id, at: Date.now() })}
-              footer={<BranchToolbar where={run.where} branch={run.branch} />}
+              footer={workbench ? <BranchToolbar where={run.where} branch={run.branch} /> : undefined}
             />
           )}
         />
         {hasTerminal && <TerminalDrawer key={run.id} open={panels.terminal} terminals={run.terminals} output={state.terminalOutput} onClose={() => onPanels({ terminal: false })} />}
       </div>
-      <RightPanel open={panels.diff} tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
+      <RightPanel open={workbench && panels.diff} tabs={[{ id: "diff", label: "Diff", icon: "columns" }]} active="diff" onClose={() => onPanels({ diff: false })}>
         <DiffPanel
           patchIds={state.patchIds}
           focusPath={panels.focusPath}

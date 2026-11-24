@@ -8,7 +8,8 @@ import { fileTree, patchStat, totalStat, type TreeNode } from "./diffStat.logic.
 
 type ChangedFilesCardProps = {
   patchIds: string[];
-  onOpenFile: (path: string) => void;
+  /** Opens a file in the Diff panel; without it (coding tools off) the list is just a summary. */
+  onOpenFile?: (path: string) => void;
 };
 
 const rowClass =
@@ -24,7 +25,7 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({ patchIds, onOpe
     const indent = { paddingInlineStart: `${0.5 + depth * 0.875}rem` };
     if (node.kind === "file")
       return (
-        <button key={node.path} type="button" className={rowClass} style={indent} onClick={() => onOpenFile(node.path)}>
+        <button key={node.path} type="button" disabled={!onOpenFile} className={rowClass} style={indent} onClick={() => onOpenFile?.(node.path)}>
           <Icon name="file" size={14} className="shrink-0 text-ink-soft opacity-75" />
           <span className="min-w-0 flex-1 truncate font-mono text-2xs text-ink/90">{node.name}</span>
           <DiffStat additions={node.additions} deletions={node.deletions} />
@@ -52,9 +53,11 @@ export const ChangedFilesCard = memo(function ChangedFilesCard({ patchIds, onOpe
           {files.length === 1 ? "1 file changed" : `${files.length} files changed`}
           <DiffStat additions={total.additions} deletions={total.deletions} />
         </div>
-        <Button variant="outline" size="xs" icon="columns" onClick={() => onOpenFile(files[0]?.path ?? "")}>
-          View diff
-        </Button>
+        {onOpenFile && (
+          <Button variant="outline" size="xs" icon="columns" onClick={() => onOpenFile(files[0]?.path ?? "")}>
+            View diff
+          </Button>
+        )}
       </header>
       <div className="px-1 pb-1.5">{fileTree(files).map((node) => renderNode(node, 0))}</div>
     </section>
