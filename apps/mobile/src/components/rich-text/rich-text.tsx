@@ -167,7 +167,7 @@ const RULES: RenderRules = {
  */
 function createStyles(colors: RichTextColors, size: { font: number; line: number }) {
   const heading = (font: number, line: number, top: number) => ({ flexDirection: "column" as const, color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: font, lineHeight: line, letterSpacing: -0.35, marginTop: top, marginBottom: 8 });
-  const code = { color: colors.text, fontFamily: MONO, fontSize: size.font >= 17 ? 11 : 10, lineHeight: size.font >= 17 ? 16 : 14 };
+  const code = { color: colors.text, fontFamily: MONO, fontSize: 11, lineHeight: 16 };
   const codeSurface = colors.codeSurface ?? colors.surface;
   return {
     body: { color: colors.text, fontFamily: "DMSans_400Regular", fontSize: size.font, lineHeight: size.line, letterSpacing: -0.2 },
