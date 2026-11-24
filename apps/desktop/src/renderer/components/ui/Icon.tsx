@@ -1,0 +1,72 @@
+/**
+ * The app's icons, drawn inline at a 1.6 stroke so they follow the text colour (T3 Code's icons
+ * are Lucide outlines). Brand marks (Apple, Google) are single-colour.
+ */
+
+const PATHS = {
+  arrowLeft: "M15 6l-6 6 6 6",
+  arrowRight: "M9 6l6 6-6 6",
+  arrowUp: "M12 19V5M6 11l6-6 6 6",
+  mail: "M3.5 6.5h17v11h-17zM3.5 7l8.5 6 8.5-6",
+  shuffle: "M4 7h3.5c4 0 5 10 9 10H20M17 14l3 3-3 3M4 17h3.5c1.5 0 2.5-1.5 3.3-3.2M13.2 9.2C14 7.6 15 7 16.5 7H20M17 4l3 3-3 3",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  copy: "M8 8h11v12H8zM5 16V4h11",
+  external: "M14 4h6v6M20 4l-9 9M18 14v6H4V6h6",
+  search: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4.2-4.2",
+  plus: "M12 5v14M5 12h14",
+  edit: "M12 20h8M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
+  activity: "M4 6h16M4 12h16M4 18h10",
+  clock: "M12 7v5l3 2M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z",
+  users: "M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM3 19c0-3 3-5 6-5s6 2 6 5M17 11a2.5 2.5 0 1 0 0-5M21 18c0-2-1.5-3.5-3.5-4",
+  hash: "M5 9h14M5 15h14M10 4L8 20M16 4l-2 16",
+  branch: "M6 4v10M6 14a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM18 5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM18 10c0 4-6 3-11.5 5",
+  monitor: "M3 4.5h18v11H3zM8 20h8M12 15.5V20",
+  phone: "M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z",
+  panel: "M3.5 4.5h17v15h-17zM15 4.5v15",
+  sidebar: "M3.5 4.5h17v15h-17zM9 4.5v15",
+  paperclip: "M20 11.5l-8.2 8.2a5 5 0 0 1-7-7L13 4.5a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.3-2.3L15 7.3",
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3",
+  square: "M7 7h10v10H7z",
+  more: "M5 12h.01M12 12h.01M19 12h.01",
+  settings: "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z",
+  eye: "M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12zM12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+  pen: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
+  terminal: "M4 5h16v14H4zM8 10l2.5 2L8 14M13 14h3",
+  brain: "M9.5 4.5a2.5 2.5 0 0 0-2.5 2.5 2.5 2.5 0 0 0-2 4.2 2.8 2.8 0 0 0 1.5 4.8 2.5 2.5 0 0 0 5 1V6.5a2 2 0 0 0-2-2zM14.5 4.5A2.5 2.5 0 0 1 17 7a2.5 2.5 0 0 1 2 4.2 2.8 2.8 0 0 1-1.5 4.8 2.5 2.5 0 0 1-5 1",
+  shield: "M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6z",
+  folder: "M3.5 6.5h6l2 2h9v10h-17z",
+  file: "M6 3.5h8l4 4v13H6zM14 3.5v4h4",
+  pr: "M6 3.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 16.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 16.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM6 7.5v9M18 16.5V9.5a3 3 0 0 0-3-3h-4M13 4.5l-2 2 2 2",
+  chevronDown: "M6 9l6 6 6-6",
+  columns: "M3.5 4.5h17v15h-17zM12 4.5v15",
+  rows: "M3.5 4.5h17v15h-17zM3.5 12h17",
+  wrap: "M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h5",
+  x: "M6 6l12 12M18 6L6 18",
+  wrench: "M14.7 6.3a4 4 0 0 0 5 5l-8.2 8.2a2.1 2.1 0 0 1-3-3l8.2-8.2a4 4 0 0 0-2-2zM14.7 6.3a4 4 0 0 1 4-2.3l-2.5 2.5.4 2.6 2.6.4 2.5-2.5a4 4 0 0 1-2.3 4",
+  cloud: "M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.5 1.5A3.3 3.3 0 0 0 7 18z",
+  logout: "M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11",
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+  moon: "M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z",
+} as const;
+
+export type IconName = keyof typeof PATHS | "apple" | "google";
+
+export function Icon({ name, size, className }: { name: IconName; size?: number; className?: string }) {
+  if (name === "apple")
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" className={className}>
+        <path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9s-2-.9-3.4-.9c-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8s2 .8 3.4.8 2.2-1.3 3.1-2.5c1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 5c.7-.9 1.2-2 1-3.2-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.1 1.2.1 2.3-.6 3.1-1.5z" />
+      </svg>
+    );
+  if (name === "google")
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="currentColor" className={className}>
+        <path d="M21.6 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.3 3-7.3zM12 22c2.7 0 5-.9 6.6-2.4l-3.2-2.5c-.9.6-2 1-3.4 1-2.6 0-4.8-1.8-5.6-4.1H3.1v2.6A10 10 0 0 0 12 22zM6.4 14a6 6 0 0 1 0-3.9V7.5H3.1a10 10 0 0 0 0 9zM12 6c1.5 0 2.8.5 3.8 1.5l2.9-2.9A10 10 0 0 0 3.1 7.5l3.3 2.6C7.2 7.8 9.4 6 12 6z" />
+      </svg>
+    );
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}
