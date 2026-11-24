@@ -69,3 +69,22 @@ Long assistant replies have clearer spacing between paragraphs and sections. Lin
 - Workspace `pnpm typecheck` and `pnpm test` passed.
 - Mobile release only; no API deployment or migration required.
 - Verify light mode, Android, large text and long unbroken code on devices before broad rollout.
+
+## Task outcome refinement — slice 4
+
+When the latest assistant reply is waiting for user input, a compact prompt appears above the composer. It identifies the next action for approval, plan review, app connection, app choice, routine confirmation, browser handoff, or computer task. Tapping it dismisses the keyboard and returns to the waiting reply. The prompt disappears while a run is active or after the latest reply no longer contains an unresolved action.
+
+- Unit checks cover supported waiting actions, resolved and historical cards, active runs and multiple waiting cards.
+- Argent verified the prompt and accessibility label on the iPhone 16 Pro simulator; tapping it cleared the fixture prompt. The temporary route was removed.
+- Workspace `pnpm typecheck`, `pnpm test`, and `git diff --check` passed.
+- Mobile release only; no API deployment or migration required.
+- Verify a real approval, app connection, browser and computer wait on iOS and Android before rollout.
+
+## Task outcome refinement — slice 5
+
+For the latest assistant reply, a mate-named “is thinking…” line appears after 300 ms only while the run has no visible tool activity or text. It disappears as soon as the existing ActivityLine or streamed answer takes over, avoiding duplicate progress indicators and short-lived flashes.
+
+- Argent inspected the production status component in a temporary iPhone 16 Pro simulator preview; the preview route was removed.
+- Workspace `pnpm typecheck`, `pnpm test`, and `git diff --check` passed.
+- Mobile release only; no API deployment or migration required.
+- Validate the transition on a slower network and on Android before rollout.

@@ -112,6 +112,9 @@ import { useUsage } from "../usage/use-usage";
 import { WatchCard } from "./watch-card";
 import { MeetingPrepCard } from "./meeting-prep-card";
 import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
+import { findWaitingPrompt } from "./waiting-prompt";
+import { WaitingPromptChip } from "./waiting-prompt-chip";
+import { ThinkingStatus } from "./thinking-status";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -453,17 +456,23 @@ function MessageActions({ user }: { user: boolean }) {
 function ThinkingIndicator() {
   const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
+  const messageId = useAuiState((state) => state.message.id);
+  const mateName = useMateName();
   const colors = useChatColors();
-  if (!running) return null;
-  // A tool at work shows its own steps; only the "nothing specific yet" placeholder gives way to the dot.
-  if (parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined))) return null;
-  // Once the first words arrive the text itself shows progress, so the dot goes, as in ChatGPT.
-  if (parts.some((part) => part.type === "text" && part.text.trim().length > 0)) return null;
-  return (
-    <View style={{ paddingTop: 6, paddingBottom: 8 }}>
-      <PulseDot color={colors.foreground} />
-    </View>
-  );
+  const hasVisibleWork = parts.some((part) => part.type === "tool-call" && !isWaitingPlaceholder(part.result as WorkflowCard | undefined));
+  const hasText = parts.some((part) => part.type === "text" && part.text.trim().length > 0);
+  const shouldShow = running && !hasVisibleWork && !hasText;
+  const [shownFor, setShownFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (!shouldShow) {
+      setShownFor(null);
+      return;
+    }
+    const timer = setTimeout(() => setShownFor(messageId), 300);
+    return () => clearTimeout(timer);
+  }, [messageId, shouldShow]);
+  if (!shouldShow || shownFor !== messageId) return null;
+  return <ThinkingStatus mateName={mateName} color={colors.foreground} mutedColor={colors.mutedForeground} />;
 }
 
 function MessageEditComposer() {
@@ -1105,6 +1114,12 @@ function useEarlierMessages() {
 function EarlierLoading() {
   const colors = useChatColors();
   return <ActivityIndicator accessibilityLabel="Loading earlier messages" color={colors.mutedForeground} style={{ paddingBottom: 16 }} />;
+}
+
+function WaitingPrompt({ onPress }: { onPress: () => void }) {
+  const prompt = useAuiState((state) => findWaitingPrompt(state.thread.messages, state.thread.isRunning));
+  if (!prompt) return null;
+  return <WaitingPromptChip label={prompt.label} onPress={onPress} />;
 }
 
 /**
@@ -2607,6 +2622,7 @@ function ChatScreen({ starting, onOpenMenu }: { starting: boolean; onOpenMenu: (
             <BottomFade />
             <ScrollToBottom visible={away} onPress={scrollToBottom} />
             <View style={{ paddingHorizontal: 12, paddingTop: 8 }}>
+              <WaitingPrompt onPress={() => { Keyboard.dismiss(); scrollToBottom(); }} />
               <UsageLine colors={colors} />
               <ChatComposer />
             </View>
