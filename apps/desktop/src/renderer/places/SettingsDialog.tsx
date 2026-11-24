@@ -8,6 +8,7 @@ import { Icon } from "../components/ui/Icon.tsx";
 import type { SampleProfile } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
 import { CODING_CHOICES } from "../settings/coding.logic.ts";
+import { UsageSettings } from "../settings/UsageSettings.tsx";
 import { markCodingEngaged, setCodingPreference, useCoding } from "../settings/coding.ts";
 import type { ColorScheme } from "../theme/appearance.logic.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
@@ -68,16 +69,19 @@ type SettingsDialogProps = ChatActivitySettingsProps & {
   profile?: SampleProfile;
   /** Whether the coding tools show right now, for the Coding tab's status line. */
   codingShown: boolean;
+  /** The tab it opens on, e.g. Usage from the profile menu. */
+  section?: string;
 };
 
 const SECTIONS = [
+  { id: "usage", label: "Usage", icon: "clock" },
   { id: "activity", label: "Chat activity", icon: "activity" },
   { id: "appearance", label: "Appearance", icon: "sun" },
   { id: "coding", label: "Coding", icon: "branch" },
   { id: "about", label: "About you", icon: "users" },
 ] as const;
 
-export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMode, profile, codingShown }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMode, profile, codingShown, section = "activity" }: SettingsDialogProps) {
   const showProfile = profile && (profile.bio.length > 0 || profile.memories.length > 0);
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -90,7 +94,7 @@ export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMod
               <Icon name="x" />
             </Dialog.Close>
           </header>
-          <Tabs.Root defaultValue="activity" orientation="vertical" className="flex min-h-0 flex-1">
+          <Tabs.Root key={open ? section : "closed"} defaultValue={section} orientation="vertical" className="flex min-h-0 flex-1">
             <Tabs.List aria-label="Settings sections" activateOnFocus className="flex w-36 shrink-0 flex-col gap-1 border-r border-line bg-rail p-2 min-[850px]:w-44">
               {SECTIONS.filter((section) => section.id !== "about" || showProfile).map((section) => (
                 <Tabs.Tab key={section.id} value={section.id} className="flex h-8 cursor-pointer items-center gap-2 rounded-control px-2 text-left text-sm text-ink-soft outline-none transition-colors duration-150 hover:bg-rail-hover hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset data-active:bg-rail-selected data-active:text-ink">
@@ -100,6 +104,9 @@ export function SettingsDialog({ open, onOpenChange, activityMode, onActivityMod
               ))}
             </Tabs.List>
             <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 grid-rows-1">
+              <Tabs.Panel value="usage" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
+                <UsageSettings />
+              </Tabs.Panel>
               <Tabs.Panel value="activity" className="motion-swap col-start-1 row-start-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain outline-none">
                 <ChatActivitySettings activityMode={activityMode} onActivityMode={onActivityMode} />
               </Tabs.Panel>
