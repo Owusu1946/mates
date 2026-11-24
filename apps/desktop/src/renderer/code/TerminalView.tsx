@@ -92,6 +92,9 @@ export function TerminalView({ outputIds, visible }: { outputIds: string[]; visi
       observer.disconnect();
       cancelAnimationFrame(frame);
       clearTimeout(pending.timer);
+      // Forget the cancelled timer too: playback starts only when none is running, so a stale id
+      // here would stop the next mount (StrictMode mounts twice) from ever writing anything.
+      pending.timer = undefined;
       pending.lines = [];
       written.current = 0;
       term.dispose();
