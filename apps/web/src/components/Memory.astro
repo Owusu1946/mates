@@ -1,0 +1,72 @@
+---
+const memories = [
+  { text: "Prefers meetings after 10.", meta: "Cooper · editable" },
+  { text: "Home is Accra. Airport City is usual for work.", meta: "Daily Brief · editable" },
+  { text: "Never send email without a review.", meta: "Inbox Keeper · editable" },
+];
+---
+<section class="memory" id="memory">
+  <div class="copy">
+    <h2>Memory you can edit.</h2>
+    <p>Mates keep details you correct. Open Memory, change a line, or delete it. Nothing is locked in.</p>
+  </div>
+  <ul>
+    {memories.map((item) => (
+      <li>
+        <p>{item.text}</p>
+        <span>{item.meta}</span>
+      </li>
+    ))}
+  </ul>
+</section>
+<style>
+  .memory {
+    width: min(1120px, calc(100% - 40px));
+    margin: 112px auto 0;
+    display: grid;
+    grid-template-columns: 0.9fr 1.1fr;
+    gap: 56px;
+    align-items: center;
+  }
+  h2 {
+    margin: 0;
+    font-size: clamp(32px, 4vw, 48px);
+    font-weight: 500;
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+  }
+  .copy p {
+    max-width: 36ch;
+    margin: 16px 0 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  li {
+    padding: 18px 4px;
+    transition: background 0.25s ease, padding-left 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  li:hover {
+    background: var(--soft);
+    padding-left: 12px;
+  }
+  li p {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: -0.02em;
+  }
+  li span {
+    display: block;
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  @media (max-width: 720px) {
+    .memory { grid-template-columns: 1fr; gap: 28px; }
+  }
+</style>

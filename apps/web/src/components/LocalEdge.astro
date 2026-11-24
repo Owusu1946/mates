@@ -1,0 +1,99 @@
+---
+const tiles = [
+  {
+    title: "Morning brief",
+    lines: [
+      { who: "them", text: "Your first meeting is at 10 in Airport City." },
+      { who: "you", text: "Anything else before lunch?" },
+      { who: "them", text: "One reminder: send Ama the revised agenda." },
+    ],
+  },
+  {
+    title: "Rides in GHS",
+    lines: [
+      { who: "you", text: "Circle to the airport. Under ₵60." },
+      { who: "them", text: "Yango Comfort · estimated GH₵52." },
+      { who: "them", text: "Trotro + short ride · estimated GH₵23." },
+    ],
+  },
+  {
+    title: "Meet notes",
+    lines: [
+      { who: "them", text: "Investor sync at 3. Two still haven’t accepted." },
+      { who: "you", text: "Join and take notes." },
+      { who: "them", text: "I’ll send decisions when you hang up." },
+    ],
+  },
+];
+---
+<section class="local" id="local" aria-labelledby="local-title">
+  <h2 id="local-title">A day in Accra, in three examples.</h2>
+  <div class="grid">
+    {tiles.map((tile) => (
+      <article class="tile">
+        <h3>{tile.title}</h3>
+        <div class="mini-chat">
+          {tile.lines.map((line) => (
+            <div class={line.who === "you" ? "bubble you" : "bubble them"}>{line.text}</div>
+          ))}
+        </div>
+      </article>
+    ))}
+  </div>
+</section>
+<style>
+  .local {
+    width: min(1120px, calc(100% - 32px));
+    margin: 96px auto 0;
+  }
+  h2 {
+    max-width: 16ch;
+    margin: 0 0 40px;
+    font-family: var(--display);
+    font-size: clamp(28px, 3.6vw, 44px);
+    line-height: 1.08;
+    letter-spacing: -0.045em;
+    font-weight: 560;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .tile {
+    padding: 24px 22px 22px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.25s ease;
+  }
+  .tile:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  }
+  h3 {
+    margin: 0 0 18px;
+    font-size: 15px;
+    font-weight: 560;
+  }
+  .mini-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .bubble {
+    max-width: 94%;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+  .bubble.them { align-self: flex-start; background: var(--soft); }
+  .bubble.you { align-self: flex-end; background: var(--text); color: var(--bg); }
+  @media (max-width: 860px) {
+    .grid { grid-template-columns: 1fr; }
+    .local { margin-top: 64px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tile:hover { transform: none; }
+  }
+</style>

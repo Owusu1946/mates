@@ -13,22 +13,23 @@ const sun = mate("sunset");
 <div class="trio">
   <div class="back left">
     <Device title="Daily Brief" header="pill" faces={[{ gradient: sky, state: "happy" }]}>
-      <div class="stamp">7:00 AM</div>
-      <div class="them">3 meetings today, the first at 10. 18° with rain after 4, take a jacket.</div>
-      <div class="them">one urgent: the contract needs your signature today.</div>
-      <div class="event">Created routine <b>Morning brief · 7:00</b></div>
-      <div class="me">move my 10am to after lunch</div>
-      <div class="them">done. Sam accepted 1:30.</div>
+      <div class="stamp">Illustrative · 7:00 AM</div>
+      <div class="them">3 meetings today. First at 10:00. Airport City.</div>
+      <div class="them">One reminder before lunch: send the revised agenda.</div>
+      <div class="event">Created routine <b>Morning brief · weekdays</b></div>
+      <div class="me">move the 10am. it clashes with stand-up</div>
+      <div class="them">I can propose 1:30. You approve before I update the invite.</div>
     </Device>
   </div>
 
   <div class="back right">
-    <Device title="Trip Planner" header="pill" faces={[{ gradient: sun, state: "excited" }]}>
-      <div class="stamp">Sunday 4:20 PM</div>
-      <div class="me">4 days in Lisbon in May, under $1,500. food and walking.</div>
-      <div class="them">flights from $412, a flat in Príncipe Real, and a walking plan with 6 places to eat.</div>
-      <div class="event">Wrote a note <b>Lisbon, May</b></div>
-      <div class="them">nothing booked until you say go.</div>
+    <Device title="Commute" header="pill" faces={[{ gradient: sun, state: "excited" }]}>
+      <div class="stamp">Illustrative · Accra</div>
+      <div class="me">Circle to the airport. Under ₵60, leaving in 15.</div>
+      <div class="them">Yango Comfort <b>₵52</b> · ~7 min pickup.</div>
+      <div class="them">Trotro via Kaneshie <b>₵5</b> + short ride <b>₵18</b> · ~35 min.</div>
+      <div class="event">Ride options <b>ready to review</b></div>
+      <div class="them">Open a ride app to continue.</div>
     </Device>
   </div>
 
@@ -43,6 +44,8 @@ const sun = mate("sunset");
     display: flex;
     justify-content: center;
     width: 100%;
+    transform: scale(.82);
+    transform-origin: top center;
   }
   .front {
     position: relative;

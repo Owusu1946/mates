@@ -70,9 +70,7 @@ export default function BackToTop() {
           <circle cx="30" cy="30" r="27" className="btt-fill" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} />
         </svg>
         <Mascot size={34} state={mood} />
-        <svg className="btt-arrow" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M6 10V2M2.5 5.5 6 2l3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
+
       </span>
     </button>
   );

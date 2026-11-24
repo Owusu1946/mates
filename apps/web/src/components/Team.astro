@@ -11,17 +11,13 @@ const team = [
   { name: "Ivy", role: "Writer", task: "Release notes v2.4", gradient: mate("green"), shape: "circle" as const, state: "writing" as const, done: "Note written", delay: "2.6s" },
   { name: "Sol", role: "Marketer", task: "Draft the announcement", gradient: mate("teal"), shape: "hexagon" as const, state: "thinking" as const, done: "Ready for review", delay: "4s" },
 ];
-const points = [
-  { title: "Plans the work", body: "The lead mate turns your goal into steps and picks who should do each one." },
-  { title: "Hands it off", body: "Mates pass work between them, share notes, and pick up where the last one left off." },
-  { title: "Keeps you posted", body: "You see every handoff as it happens, and nothing ships without your OK." },
-];
+
 ---
 
 <section class="team" id="team">
   <div class="intro">
     <h2>One goal. A whole team on it.</h2>
-    <p>Send one message. Your lead mate plans it, assembles the right mates, and they work it through together.</p>
+
   </div>
 
   <div class="scene" aria-label="A mission: your goal goes to Cooper, who hands work to Nova, Ivy and Sol">
@@ -70,22 +66,14 @@ const points = [
     </div>
   </div>
 
-  <div class="points">
-    {
-      points.map((point) => (
-        <div>
-          <h3>{point.title}</h3>
-          <p>{point.body}</p>
-        </div>
-      ))
-    }
-  </div>
+
 </section>
 
 <style>
   .team {
-    width: min(1240px, calc(100% - 32px));
-    margin: 140px auto 0;
+    margin: 0;
+    width: 100%;
+    grid-column: 1 / -1;
   }
   .intro {
     text-align: center;
@@ -110,8 +98,8 @@ const points = [
     display: grid;
     grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1.05fr) 88px minmax(0, 1.35fr);
     align-items: center;
-    margin-top: 56px;
-    padding: 56px;
+    margin-top: 32px;
+    padding: 32px 0;
     border-radius: 32px;
     background: var(--panel);
   }
@@ -360,7 +348,7 @@ const points = [
   /* Narrow: the flow runs top to bottom and the wires turn vertical. */
   @media (max-width: 860px) {
     .team {
-      margin-top: 96px;
+      margin-top: 0;
     }
     .scene {
       grid-template-columns: 1fr;

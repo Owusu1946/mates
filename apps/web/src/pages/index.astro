@@ -1,127 +1,100 @@
 ---
-import Mascot from "../components/Mascot";
+import Roles from "../components/Roles.astro";
+import Platforms from "../components/Platforms.astro";
+import Capabilities from "../components/Capabilities.astro";
+import Memory from "../components/Memory.astro";
+import ImportAssistants from "../components/ImportAssistants.astro";
 import Faq from "../components/Faq.astro";
-import FeatureCard from "../components/FeatureCard.astro";
+import LocalEdge from "../components/LocalEdge.astro";
 import Footer from "../components/Footer.astro";
-import HeroStage from "../components/HeroStage.astro";
 import Logo from "../components/Logo.astro";
 import MobileMenu from "../components/MobileMenu.astro";
 import Pricing from "../components/Pricing.astro";
-import Roles from "../components/Roles.astro";
-import StoreButtons from "../components/StoreButtons.astro";
 import Waitlist from "../components/Waitlist";
-import Team from "../components/Team.astro";
+import HeroMascot from "../components/HeroMascot";
+import HeroStage from "../components/HeroStage.astro";
 import Apps from "../components/Apps.astro";
 import BackToTop from "../components/BackToTop";
 import Calls from "../components/Calls.astro";
-import Slack from "../components/Slack.astro";
-// Coming soon, hidden until built: import PhoneCalls from "../components/PhoneCalls.astro";
-// Coming soon, hidden until built: import Meet from "../components/Meet.astro";
-// Coming soon, hidden until built: import Decks from "../components/Decks.astro";
-// Coming soon, hidden until built: import More from "../components/More.astro";
+import Meet from "../components/Meet.astro";
 import Computer from "../components/Computer.astro";
 import Base from "../layouts/Base.astro";
 
 const nav = [
-  { label: "Features", href: "#features" },
-  { label: "Missions", href: "#team" },
-  { label: "Calls", href: "#calls" },
-  { label: "Computer", href: "#computer" },
+  { label: "How it works", href: "#team" },
+  { label: "Apps", href: "#apps" },
   { label: "Pricing", href: "#pricing" },
 ];
 const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railway.app";
 ---
 
-<Base>
+<Base skipToContent>
   <header class="nav">
     <a href="/" class="brand" aria-label="Mates home">
-      <Logo size={28} />
+      <Logo size={34} />
       <span>mates</span>
     </a>
     <nav aria-label="Main">
       {nav.map((item) => <a href={item.href}>{item.label}</a>)}
     </nav>
-    <Waitlist client:load api={api} />
+    <div class="nav-action"><Waitlist client:load api={api} /></div>
     <MobileMenu items={[...nav, { label: "FAQs", href: "#faq" }]} />
   </header>
 
-  <main>
-    <section class="hero">
-      <a href="#computer" class="announce">
-        <strong>Mates can ship code now</strong>
-        <span class="dot">·</span>
-        <span class="more-link">See how it works</span>
-        <span class="arrow" aria-hidden="true">↗</span>
-      </a>
-
-      <h1>
-        Meet
-        <span class="inline-mascot"><Mascot client:idle size={96} /></span>
-        Your Orin Mate
-      </h1>
-
-      <p class="lede">
-        AI teammates that live in your pocket. Give them real work and they plan it, hand it off to each other, use your
-        apps the way you do, and come back with it finished.
-      </p>
-
-      <div class="hero-ctas">
-        <StoreButtons />
+  <main id="main-content" tabindex="-1">
+    <section class="hero" id="features">
+      <div class="hero-copy">
+        <h1>Your personal team of <span class="hero-mate">AI mates<span class="headline-mascot" aria-hidden="true"><HeroMascot client:idle size={88} /></span></span>.</h1>
+        <p class="lede">One task. The right mates. Work you can review.</p>
+        <div id="download"><Platforms /></div>
       </div>
-
-      <div class="stage">
-        <HeroStage />
-      </div>
+      <div class="hero-phones"><HeroStage /></div>
     </section>
 
-    <FeatureCard
-      id="features"
-      title="Message your mates like teammates"
-      body="Hand them tasks the way you’d text a friend. Your mates take projects from start to finish, remember how you work, get sharper over time, and check in when they need your OK."
-    >
-      <div slot="visual" class="big-mascot">
-        <Mascot client:visible size={520} />
-      </div>
-    </FeatureCard>
+    <ImportAssistants />
 
     <Roles />
 
-    <Team />
+    <LocalEdge />
 
     <Calls />
 
-    {/* Coming soon, hidden until built: <PhoneCalls /> */}
-
-    {/* Coming soon, hidden until built: <Meet /> */}
-
-    <Slack />
-
-    {/* Coming soon, hidden until built: <Decks /> */}
+    <Meet />
 
     <Computer />
 
     <Apps />
 
-    {/* Coming soon, hidden until built: <More /> */}
+    <Capabilities />
+
+    <Memory />
 
     <Pricing />
 
     <Faq />
 
-    <FeatureCard
-      id="download"
-      title="Your mates are ready."
-      body="Download Mates, give them their first job, and get your evenings back."
-    >
-      <StoreButtons slot="actions" align="start" />
-      <div slot="visual" class="big-mascot">
-        <Mascot client:visible size={520} state="excited" />
-      </div>
-    </FeatureCard>
+
   </main>
 
   <Footer />
   <BackToTop client:idle />
+  <script>
+    const motion = matchMedia("(prefers-reduced-motion: reduce)");
+    if (!motion.matches && "IntersectionObserver" in window) {
+      const observer = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          if (motion.matches) { observer.unobserve(entry.target); continue; }
+          entry.target.classList.add("is-in");
+          observer.unobserve(entry.target);
+        }
+      }, { threshold: 0.01, rootMargin: "0px 0px -48px 0px" });
+      document.querySelectorAll("main > section:not(.hero)").forEach((section) => {
+        section.classList.add("reveal");
+        observer.observe(section);
+      });
+    }
+  </script>
 </Base>
 
 <style>
@@ -129,188 +102,76 @@ const api = import.meta.env.PUBLIC_API_URL ?? "https://mates-production.up.railw
     position: sticky;
     top: 0;
     z-index: 10;
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
     align-items: center;
-    gap: 40px;
-    height: 72px;
-    padding: 0 24px;
-    background: rgba(255, 255, 255, 0.82);
-    -webkit-backdrop-filter: saturate(180%) blur(16px);
-    backdrop-filter: saturate(180%) blur(16px);
+    gap: 28px;
+    height: 64px;
+    padding: 0 28px;
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    backdrop-filter: saturate(160%) blur(18px);
   }
+  .nav-action { justify-self: end; }
   .brand {
+    justify-self: start;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 19px;
-    font-weight: 600;
+    gap: 3px;
+    font-family: var(--display);
+    font-size: 17px;
+    font-weight: 560;
     letter-spacing: -0.03em;
   }
   nav {
     display: flex;
-    gap: 32px;
-    font-size: 15px;
+    gap: 22px;
+    font-size: 14px;
   }
   nav a {
-    color: var(--text);
-    transition: opacity 0.15s ease;
+    color: var(--muted);
+    transition: color 0.2s ease;
   }
   nav a:hover {
-    opacity: 0.6;
+    color: var(--text);
   }
 
+  .hero-mate { white-space:nowrap; }
+  .headline-mascot { display:inline-flex; width:.9em; height:.9em; margin-left:.12em; vertical-align:-.08em; }
+  .headline-mascot :global(span) { width:100% !important; height:100% !important; }
+  .headline-mascot :global(svg) { width:100%; height:100%; }
+  .hero-copy { text-align:center; margin-inline:auto; }
+  .hero-copy :global(.options) { justify-content:center; }
+  .hero-copy .lede { margin-inline:auto; }
+  .hero-phones { width:100%; height:540px; overflow:hidden; mask-image:linear-gradient(#000 85%,transparent); }
+  @media(max-width:860px) { .hero-phones { height:480px; } }
   .hero {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 36px 16px 0;
-    text-align: center;
-    overflow: hidden;
-  }
-  .announce {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 15px;
-  }
-  .announce strong {
-    font-weight: 600;
-  }
-  .announce .dot {
-    color: var(--muted);
-  }
-  .announce .arrow {
     display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    margin-left: 6px;
-    border-radius: 50%;
-    background: var(--soft);
-    font-size: 13px;
-    transition: transform 0.15s ease;
-  }
-  .announce:hover .arrow {
-    transform: translate(2px, -2px);
-  }
-
-  h1 {
-    display: flex;
+    grid-template-columns: 1fr;
     align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 0.18em;
-    margin: 28px 0 0;
-    font-size: clamp(36px, 6.4vw, 76px);
-    font-weight: 600;
+    gap: clamp(32px, 4vw, 56px);
+    width: min(1120px, calc(100% - 48px));
+    margin: clamp(56px, 8vw, 112px) auto;
+  }
+  h1 {
+    max-width: 13ch;
+    margin: 0;
+    font-size: clamp(42px, 6vw, 86px);
+    font-weight: 475;
     letter-spacing: -0.05em;
-    line-height: 1;
-  }
-  .inline-mascot {
-    display: inline-flex;
-    width: 0.92em;
-    height: 0.92em;
-  }
-  .inline-mascot :global(span) {
-    width: 100% !important;
-    height: 100% !important;
-  }
-  .inline-mascot :global(svg) {
-    width: 100%;
-    height: 100%;
-  }
-
-  .lede {
-    max-width: 68ch;
+    line-height: 1.01;
     text-wrap: balance;
-    margin: 20px auto 0;
+  }
+  .lede {
+    max-width: 36ch;
+    margin: 24px 0 28px;
     color: var(--muted);
-    font-size: clamp(16px, 1.6vw, 19px);
+    font-size: clamp(17px, 1.6vw, 20px);
     line-height: 1.5;
   }
-  .hero-ctas {
-    margin-top: 32px;
-  }
-
-  /* The phone rises out of the fold, cropped like a product shot. */
-  .stage {
-    position: relative;
-    width: 100%;
-    height: 640px;
-    margin-top: 64px;
-    display: flex;
-    justify-content: center;
-    -webkit-mask-image: linear-gradient(#000 78%, transparent);
-    mask-image: linear-gradient(#000 78%, transparent);
-  }
-  .stage::before {
-    content: "";
-    position: absolute;
-    top: 80px;
-    width: min(900px, 100%);
-    height: 480px;
-    border-radius: 50%;
-    background: radial-gradient(closest-side, rgba(210, 126, 65, 0.22), transparent);
-    filter: blur(20px);
-  }
-  /* Rises out of the panel's top edge; the panel crops its lower half. */
-  .big-mascot {
-    position: absolute;
-    top: -70px;
-    right: 6%;
-    filter: drop-shadow(0 30px 40px rgba(15, 23, 42, 0.18));
-  }
-
   @media (max-width: 860px) {
-    .big-mascot {
-      top: 0;
-      right: auto;
-      transform: scale(0.6);
-      transform-origin: top center;
-    }
-    nav {
-      display: none;
-    }
-    .nav {
-      padding: 0 16px;
-    }
-    .nav {
-      height: 60px;
-    }
-    .hero {
-      padding-top: 24px;
-    }
-    .announce {
-      font-size: 14px;
-    }
-    h1 {
-      margin-top: 22px;
-    }
-    .stage {
-      margin-top: 48px;
-    }
-  }
-  /* Phones: the announcement keeps just its headline and arrow. */
-  @media (max-width: 520px) {
-    .announce .dot,
-    .announce .more-link {
-      display: none;
-    }
-    .lede {
-      margin-top: 16px;
-    }
-    .big-mascot {
-      transform: scale(0.5);
-    }
-  }
-  @media (max-width: 420px) {
-    .stage {
-      height: 570px;
-      margin-top: 48px;
-    }
-    .stage > :global(*) {
-      transform: scale(0.88);
-      transform-origin: top center;
-    }
+    nav { display: none; }
+    .nav { height: 64px; padding: 0 16px; grid-template-columns: 1fr auto auto; gap: 8px; }
+    .hero { grid-template-columns: 1fr; max-width: 540px; gap: 36px; margin-block: 40px; }
   }
 </style>
