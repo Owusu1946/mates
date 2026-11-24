@@ -13,7 +13,7 @@ export function Menu({ trigger, children, side = "bottom", align = "start" }: { 
       <BaseMenu.Trigger render={trigger} />
       <BaseMenu.Portal>
         <BaseMenu.Positioner side={side} align={align} sideOffset={6} className="z-50 outline-none">
-          <BaseMenu.Popup className="min-w-52 origin-(--transform-origin) rounded-xl border border-line bg-raised p-1 text-sm text-ink shadow-lg shadow-black/10 outline-none transition-[opacity,scale] duration-150 data-ending-style:scale-95 data-ending-style:opacity-0 data-starting-style:scale-95 data-starting-style:opacity-0 dark:shadow-black/50">
+          <BaseMenu.Popup className="motion-popover min-w-52 origin-(--transform-origin) rounded-xl border border-line bg-raised p-1 text-sm text-ink shadow-lg shadow-black/10 outline-none dark:shadow-black/50">
             {children}
           </BaseMenu.Popup>
         </BaseMenu.Positioner>
@@ -25,7 +25,7 @@ export function Menu({ trigger, children, side = "bottom", align = "start" }: { 
 export function MenuItem({ icon, children, className, ...rest }: ComponentProps<typeof BaseMenu.Item> & { icon?: IconName; children: ReactNode }) {
   return (
     <BaseMenu.Item
-      className={cn("flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft", className)}
+      className={cn("flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none transition-colors duration-100 select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft", className)}
       {...rest}
     >
       {icon && <Icon name={icon} />}
@@ -48,7 +48,7 @@ export function MenuRadioItem({ value, icon, children }: { value: string; icon?:
     <BaseMenu.RadioItem
       value={value}
       closeOnClick={false}
-      className="flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft"
+      className="flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none transition-colors duration-100 select-none data-highlighted:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft"
     >
       {icon && <Icon name={icon} />}
       <span className="flex-1">{children}</span>
@@ -56,6 +56,54 @@ export function MenuRadioItem({ value, icon, children }: { value: string; icon?:
         <Icon name="check" className="text-ink!" />
       </BaseMenu.RadioItemIndicator>
     </BaseMenu.RadioItem>
+  );
+}
+
+/**
+ * A few choices side by side in one row, like System / Light / Dark: icon buttons that stay in
+ * the menu's keyboard order. Each needs a label for screen readers and the tooltip.
+ */
+export function MenuSegmented<T extends string>({ value, onChange, options }: { value: T; onChange: (value: T) => void; options: { value: T; label: string; icon: IconName }[] }) {
+  return (
+    <BaseMenu.RadioGroup value={value} onValueChange={(next) => onChange(next as T)} className="flex gap-0.5 rounded-lg bg-soft p-0.5">
+      {options.map((option) => (
+        <BaseMenu.RadioItem
+          key={option.value}
+          value={option.value}
+          closeOnClick={false}
+          aria-label={option.label}
+          title={option.label}
+          className="flex h-7 flex-1 cursor-default items-center justify-center rounded-md text-ink-soft outline-none transition-colors duration-100 select-none data-checked:bg-raised data-checked:text-ink data-checked:shadow-xs data-highlighted:text-ink [&_svg]:size-4"
+        >
+          <Icon name={option.icon} />
+        </BaseMenu.RadioItem>
+      ))}
+    </BaseMenu.RadioGroup>
+  );
+}
+
+/** A row that opens a second menu beside it, for a longer list such as the themes. */
+export function MenuSubmenu({ icon, label, detail, children }: { icon?: IconName; label: string; detail?: ReactNode; children: ReactNode }) {
+  return (
+    <BaseMenu.SubmenuRoot>
+      <BaseMenu.SubmenuTrigger
+        openOnHover
+        delay={80}
+        className="flex h-8 cursor-default items-center gap-2 rounded-lg px-2 outline-none transition-colors duration-100 select-none data-highlighted:bg-hover-fill data-popup-open:bg-hover-fill [&_svg]:size-4 [&_svg]:text-ink-soft"
+      >
+        {icon && <Icon name={icon} />}
+        <span className="flex-1">{label}</span>
+        {detail && <span className="flex items-center gap-1.5 text-xs text-ink-soft">{detail}</span>}
+        <Icon name="arrowRight" className="size-3.5!" />
+      </BaseMenu.SubmenuTrigger>
+      <BaseMenu.Portal>
+        <BaseMenu.Positioner side="right" align="start" sideOffset={6} alignOffset={-4} className="z-50 outline-none">
+          <BaseMenu.Popup className="motion-popover min-w-48 origin-(--transform-origin) rounded-xl border border-line bg-raised p-1 text-sm text-ink shadow-lg shadow-black/10 outline-none dark:shadow-black/50">
+            {children}
+          </BaseMenu.Popup>
+        </BaseMenu.Positioner>
+      </BaseMenu.Portal>
+    </BaseMenu.SubmenuRoot>
   );
 }
 

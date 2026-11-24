@@ -1,3 +1,4 @@
+import { Collapsible } from "@base-ui/react/collapsible";
 import { memo, useState } from "react";
 import { Icon } from "../components/ui/Icon.tsx";
 import { OUTPUTS, PATCHES, type Step } from "../data/sampleRuns.ts";
@@ -38,7 +39,7 @@ export const WorkEntryRow = memo(function WorkEntryRow({ step }: { step: Step })
   const patch = step.patchId ? PATCHES[step.patchId] : undefined;
   const expandable = Boolean(step.outputId || patch || step.thought);
   const stat = patch ? patchStat(patch.path, patch.patch) : null;
-  const toggle = () => setOpen(!open);
+  const toggle = () => setOpen((value) => !value);
 
   return (
     <WorkLogRow
@@ -68,20 +69,26 @@ export const WorkEntryRow = memo(function WorkEntryRow({ step }: { step: Step })
           : undefined
       }
     >
-      {open && step.thought && (
-        <WorkLogDetails>
-          <ThoughtText body={splitThought(step.thought).body} />
-        </WorkLogDetails>
-      )}
-      {open && step.outputId && (
-        <WorkLogDetails kind="panel">
-          <CommandOutput text={OUTPUTS[step.outputId] ?? ""} />
-        </WorkLogDetails>
-      )}
-      {open && patch && (
-        <WorkLogDetails kind="panel">
-          <PatchPreview patch={patch.patch} />
-        </WorkLogDetails>
+      {expandable && (
+        <Collapsible.Root open={open} className="contents">
+          <Collapsible.Panel className="motion-disclosure" inert={!open}>
+            {step.thought && (
+              <WorkLogDetails>
+                <ThoughtText body={splitThought(step.thought).body} />
+              </WorkLogDetails>
+            )}
+            {step.outputId && (
+              <WorkLogDetails kind="panel">
+                <CommandOutput text={OUTPUTS[step.outputId] ?? ""} />
+              </WorkLogDetails>
+            )}
+            {patch && (
+              <WorkLogDetails kind="panel">
+                <PatchPreview patch={patch.patch} />
+              </WorkLogDetails>
+            )}
+          </Collapsible.Panel>
+        </Collapsible.Root>
       )}
     </WorkLogRow>
   );

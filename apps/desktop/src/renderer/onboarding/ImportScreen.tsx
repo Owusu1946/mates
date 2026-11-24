@@ -11,15 +11,15 @@ import { OnboardingScreen } from "./OnboardingScreen.tsx";
 
 /**
  * The last step: bring what ChatGPT, Claude, Gemini or Grok knows, so the new mate doesn't start
- * from zero. Always skippable; the same import lives in Settings → Memory.
+ * from zero. The sample workspace keeps the selected items for this session.
  */
-export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: () => void }) {
+export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: (memories: string[]) => void }) {
   const [source, setSource] = useState<ImportSource | null>(null);
 
   if (source) return <ImportFlow leader={leader} source={source} onBack={() => setSource(null)} onDone={onDone} />;
 
   return (
-    <OnboardingScreen.Root>
+    <OnboardingScreen.Root key="sources">
       <OnboardingScreen.Hero className="gap-3.5 text-ink-soft">
         <span className="flex [&>*]:-ml-2 [&>*]:ring-2 [&>*]:ring-canvas [&>*:first-child]:ml-0">
           {SOURCES.slice(0, 4).map((item) => (
@@ -37,7 +37,7 @@ export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: () =>
       </OnboardingScreen.Body>
       <OnboardingScreen.Content className="grid grid-cols-2 gap-2.5">
         {SOURCES.map((item) => (
-          <button key={item.id} type="button" className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-ink transition-colors hover:bg-hover-fill last:col-span-2" onClick={() => setSource(item.id)}>
+          <button key={item.id} type="button" className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-ink outline-none transition-colors hover:bg-hover-fill focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand last:col-span-2" onClick={() => setSource(item.id)}>
             <span className="flex size-9.5 flex-none items-center justify-center rounded-full bg-raised text-ink shadow-xs/5 dark:bg-hover-fill">
               <AssistantLogo source={item.id} size={20} />
             </span>
@@ -45,23 +45,22 @@ export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: () =>
           </button>
         ))}
       </OnboardingScreen.Content>
-      <OnboardingScreen.Footer className="flex-col gap-1">
-        <Button variant="link" onClick={onDone}>
-          Skip for now
+      <OnboardingScreen.Actions className="mt-5">
+        <Button variant="outline" size="xl" className="w-full" onClick={() => onDone([])}>
+          Continue without importing
         </Button>
-        <span>You can do this anytime in Settings → Memory.</span>
-      </OnboardingScreen.Footer>
+      </OnboardingScreen.Actions>
     </OnboardingScreen.Root>
   );
 }
 
-function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Leader; source: ImportSource; onBack: () => void; onDone: () => void }) {
+function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Leader; source: ImportSource; onBack: () => void; onDone: (memories: string[]) => void }) {
   const source = sourceOf(sourceId);
   const label = source.id === "other" ? "your assistant" : source.name;
   const [answer, setAnswer] = useState("");
   const [copied, setCopied] = useState(false);
   const [items, setItems] = useState<{ text: string; on: boolean }[] | null>(null);
-  const [imported, setImported] = useState<number | null>(null);
+  const [imported, setImported] = useState<string[] | null>(null);
 
   async function copyAndOpen() {
     const prompt = promptFor(source);
@@ -73,7 +72,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
 
   if (imported !== null)
     return (
-      <OnboardingScreen.Root>
+      <OnboardingScreen.Root key="imported">
         <OnboardingScreen.Hero className="mb-4 gap-3.5 text-ink-soft">
           <span className="flex size-14 flex-none items-center justify-center rounded-full bg-raised text-ink shadow-xs/5 dark:bg-hover-fill">
             <AssistantLogo source={source.id} size={26} />
@@ -82,20 +81,21 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
           <Mascot size={72} state="happy" gradient={gradientOf(leader.color)} shape={leader.shape} />
         </OnboardingScreen.Hero>
         <OnboardingScreen.Title>
-          {imported} {imported === 1 ? "memory" : "memories"} from {label}
+          {imported.length} {imported.length === 1 ? "memory" : "memories"} from {label}
         </OnboardingScreen.Title>
-        <OnboardingScreen.Body>Every mate can use them now. You can edit or remove them anytime in Memory.</OnboardingScreen.Body>
+        <OnboardingScreen.Body>You can view them in Settings under About you during this session.</OnboardingScreen.Body>
         <OnboardingScreen.Actions>
-          <Button size="xl" className="w-full" onClick={onDone}>
+          <Button size="xl" className="w-full" onClick={() => onDone(imported)}>
             Continue
           </Button>
         </OnboardingScreen.Actions>
       </OnboardingScreen.Root>
     );
 
-  if (items)
+  if (items) {
+    const selected = items.filter((item) => item.on).map((item) => item.text);
     return (
-      <OnboardingScreen.Root>
+      <OnboardingScreen.Root key="review">
         <OnboardingScreen.Back onClick={() => setItems(null)} />
         <OnboardingScreen.Title>Choose what comes over</OnboardingScreen.Title>
         <OnboardingScreen.Body>
@@ -117,16 +117,17 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
               </li>
             ))}
           </ul>
-          <Button size="xl" className="w-full" disabled={!items.some((item) => item.on)} onClick={() => setImported(items.filter((item) => item.on).length)}>
-            Import {items.filter((item) => item.on).length}
+          <Button size="xl" className="w-full" disabled={selected.length === 0} onClick={() => setImported(selected)}>
+            Import {selected.length}
           </Button>
         </OnboardingScreen.Content>
       </OnboardingScreen.Root>
     );
+  }
 
   const preview = previewMemories(answer);
   return (
-    <OnboardingScreen.Root>
+    <OnboardingScreen.Root key="paste">
       <OnboardingScreen.Back onClick={onBack} label="All assistants" />
       <OnboardingScreen.Title>Bring what {label} knows</OnboardingScreen.Title>
       <OnboardingScreen.Body>Two steps: ask {label} with our prompt, then paste its answer here.</OnboardingScreen.Body>

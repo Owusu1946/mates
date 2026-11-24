@@ -1,9 +1,8 @@
 /**
- * What the sidebar shows and how the keyboard reaches it. Rows read top to bottom (places, mates,
- * groups, code), and the first nine get Ctrl/⌘ 1–9, as T3 Code numbers its thread rows.
+ * What the sidebar shows and how the keyboard reaches it. Mates and groups get Ctrl/⌘ 1–9.
  */
 
-export type Selection = { kind: "chat"; id: string } | { kind: "place"; id: string } | { kind: "repo"; id: string } | { kind: "run"; id: string };
+export type Selection = { kind: "chat" | "repo" | "run"; id: string };
 
 /** T3 Code waits this long after Ctrl/⌘ goes down before showing the number badges. */
 export const JUMP_HINT_DELAY_MS = 200;

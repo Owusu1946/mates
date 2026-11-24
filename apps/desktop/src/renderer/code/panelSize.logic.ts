@@ -4,7 +4,7 @@
  */
 
 export const PANEL = { defaultWidth: 540, minWidth: 360, maxFraction: 0.7, chatMinWidth: 360 } as const;
-export const DRAWER = { defaultHeight: 260, minHeight: 180, maxFraction: 0.75 } as const;
+export const DRAWER = { defaultHeight: 260, minHeight: 180, maxFraction: 0.75, threadMinHeight: 160 } as const;
 
 /** The widest the panel can be: 70% of the window, always leaving the chat its 360px. */
 export function panelMaxWidth(windowWidth: number, rowWidth?: number): number {
@@ -15,7 +15,8 @@ export function panelMaxWidth(windowWidth: number, rowWidth?: number): number {
 }
 
 export function drawerMaxHeight(columnHeight: number): number {
-  return Math.max(DRAWER.minHeight, Math.floor(columnHeight * DRAWER.maxFraction));
+  const fractionCap = Math.floor(columnHeight * DRAWER.maxFraction);
+  return Math.max(DRAWER.minHeight, Math.min(fractionCap, columnHeight - DRAWER.threadMinHeight));
 }
 
 export function clampSize(value: number, min: number, max: number, fallback: number): number {

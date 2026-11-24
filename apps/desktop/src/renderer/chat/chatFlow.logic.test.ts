@@ -69,3 +69,9 @@ test("a reply in progress shows on its mate: thinking, then working while it str
   assert.equal(replyStatus(chatFlowReducer(thinking, { type: "stream", chatId: "c" }).replies, "esi"), "working");
   assert.equal(replyStatus(thinking.replies, "yaw"), null);
 });
+
+test("a conversation from the summon bar is added to the end of its chat", () => {
+  const added = chatFlowReducer(start(), { type: "append", chatId: "chat", messages: [{ id: "q", author: "me", text: "Hostels?" }, { id: "a", author: "lead", text: "Found 3." }] });
+  assert.deepEqual(added.messages.chat!.map((message) => message.id), ["c1", "q", "a"]);
+  assert.equal(chatFlowReducer(added, { type: "append", chatId: "chat", messages: [] }), added);
+});

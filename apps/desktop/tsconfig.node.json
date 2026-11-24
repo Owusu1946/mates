@@ -10,7 +10,7 @@
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node", "electron-vite/node"]
   },
   "include": ["src/main/**/*.ts", "src/preload/**/*.ts", "src/renderer/**/*.logic.ts", "src/renderer/**/*.test.ts", "src/renderer/data/**/*.ts", "electron.vite.config.ts"]
 }

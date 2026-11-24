@@ -1,23 +1,20 @@
-import { useState, type ReactNode } from "react";
-import { cn } from "../lib/utils.ts";
+import { Collapsible } from "@base-ui/react/collapsible";
+import type { ReactNode } from "react";
+import { Icon } from "../components/ui/Icon.tsx";
 
 /** A labelled group of rows that folds away when you click its label. */
 export function SidebarSection({ label, children }: { label: string; children: ReactNode }) {
-  const [open, setOpen] = useState(true);
   return (
-    <section className="flex flex-col gap-px">
-      <button
-        type="button"
-        aria-expanded={open}
-        className="group flex h-7 items-center gap-1 rounded-control px-(--sidebar-row-inset) text-2xs font-medium text-ink-soft outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
-        onClick={() => setOpen(!open)}
+    <Collapsible.Root defaultOpen render={<section />} className="flex flex-col gap-px">
+      <Collapsible.Trigger
+        className="group flex h-7 items-center gap-1 rounded-control px-(--sidebar-row-inset) text-2xs font-medium text-ink-soft outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
       >
         {label}
-        <svg viewBox="0 0 24 24" aria-hidden="true" className={cn("size-3 opacity-0 transition-[rotate,opacity] duration-150 group-hover:opacity-100", !open && "-rotate-90")} fill="none" stroke="currentColor" strokeWidth={2}>
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </button>
-      {open && children}
-    </section>
+        <Icon name="chevronDown" size={12} className="-rotate-90 opacity-0 transition-[rotate,opacity] duration-150 group-aria-expanded:rotate-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+      </Collapsible.Trigger>
+      <Collapsible.Panel className="motion-disclosure" render={(props, state) => <div {...props} inert={!state.open} />}>
+        <div className="flex flex-col gap-px">{children}</div>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }

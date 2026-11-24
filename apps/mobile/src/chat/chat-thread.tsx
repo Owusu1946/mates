@@ -55,7 +55,7 @@ import * as WebBrowser from "expo-web-browser";
 import { linkify } from "./links";
 import { ChatIcon } from "./chat-icon";
 import { ChatSyncContext, ChatSyncNotice } from "./chat-sync";
-import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard } from "./workflow-card";
+import { isMessageLive, isWaitingPlaceholder, ToolWorkflowCard, useQuietChatActivity } from "./workflow-card";
 import { PulseDot } from "./pulse-dot";
 import { NEEDS_YOU, useComputer } from "../computer/use-computer";
 import { AppResponseCard } from "./app-results";
@@ -82,6 +82,7 @@ import { useToast } from "../components/toast";
 import { HandoffCard, NoteChip } from "../mates/relay";
 import { CHIEF_OF_STAFF, collaboratorRefreshDue, mentionDraft, mentionMatesForChat, showChiefOfStaff, visibleMentionText, webSearchDraft } from "./mention-choices";
 import { CodeCard } from "./code-card";
+import { isRoutineActivity } from "./activity-visibility";
 import { ComputerCard } from "./computer-card";
 import { FriendRequestCard } from "./friend-request-card";
 import { PageCard } from "../pages/page-card";
@@ -453,6 +454,7 @@ function MessageActions({ user }: { user: boolean }) {
 }
 
 function ThinkingIndicator() {
+  const quiet = useQuietChatActivity();
   const running = useAuiState(isMessageLive);
   const parts = useAuiState((state) => state.message.parts);
   const messageId = useAuiState((state) => state.message.id);

@@ -1,4 +1,5 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { ChatActivityMode } from "../chat/activityModes.ts";
 import { replyStatus } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
@@ -11,24 +12,18 @@ import { useRunPlayer } from "../code/useRunPlayer.ts";
 import { Icon } from "../components/ui/Icon.tsx";
 import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
-import { PLACES, REPOS, type Crew, type Mate } from "../data/sampleCrew.ts";
+import { REPOS, type Chat, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
-import { PlaceholderPage } from "../places/PlaceholderPage.tsx";
-import { SettingsPage } from "../places/SettingsPage.tsx";
+import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
+import { useStableCallback } from "../hooks/useStableCallback.ts";
 import { THEMES } from "../theme/appearance.logic.ts";
 import { setAppearance } from "../theme/appearance.ts";
 import { CommandPalette, type PaletteItem } from "./CommandPalette.tsx";
 import { FOCUS_ORDER, nextFocusArea, type FocusArea } from "./focusAreas.logic.ts";
 import { TitleBar } from "./TitleBar.tsx";
 import { useGlobalShortcuts } from "./useGlobalShortcuts.ts";
-
-const PLACE_PAGES = {
-  activity: { icon: "activity", title: "What mates did", body: "Everything your mates did for you, newest first, with what it cost and where it's saved." },
-  routines: { icon: "clock", title: "Routines", body: "Things your mates do on a schedule, like the morning brief and the Friday money check." },
-  friends: { icon: "users", title: "Friends", body: "Friends whose mates can talk to yours, and what each one is allowed to ask." },
-} as const;
 
 /** Moves focus into an area: the selected sidebar row, or the area itself. */
 function focusArea(area: FocusArea) {
@@ -41,7 +36,28 @@ function focusArea(area: FocusArea) {
 export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => void }) {
   const [flow, dispatch] = useChatFlow(crew);
   const [selection, setSelection] = useState<Selection>({ kind: "chat", id: "chat-lead" });
+  const [threads, setThreads] = useState<Chat[]>([]);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const openSettings = () => {
+    setPaletteOpen(false);
+    setSettingsOpen(true);
+  };
+  const [activityMode, setActivityMode] = useState<ChatActivityMode>(() => {
+    try {
+      return localStorage.getItem("mates.chat-activity") === "detailed" ? "detailed" : "quiet";
+    } catch {
+      return "quiet";
+    }
+  });
+  const changeActivityMode = (next: ChatActivityMode) => {
+    setActivityMode(next);
+    try {
+      localStorage.setItem("mates.chat-activity", next);
+    } catch {
+      // The selected mode still applies for this session.
+    }
+  };
   const composerRef = useRef<HTMLTextAreaElement>(null);
   // The Code view: every run's playback, drafts per run or repo, and the panels you keep open.
   const [runs, setRuns] = useState<Run[]>(RUNS);
@@ -63,7 +79,11 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     crew.chats.filter((chat) => chat.kind === "mate").map((chat) => chat.id),
     crew.chats.filter((chat) => chat.kind === "group").map((chat) => chat.id),
   );
-  const chat = selection.kind === "chat" ? crew.chats.find((candidate) => candidate.id === selection.id) : undefined;
+  const chats = [...crew.chats, ...threads.map((thread) => {
+    const firstMessage = flow.messages[thread.id]?.[0]?.text;
+    return firstMessage ? { ...thread, title: firstMessage.split("\n", 1)[0] ?? firstMessage, preview: firstMessage } : thread;
+  })];
+  const chat = selection.kind === "chat" ? chats.find((candidate) => candidate.id === selection.id) : undefined;
   const run = selection.kind === "run" ? runs.find((candidate) => candidate.id === selection.id) : undefined;
   const coder = crewMates[MATE_ID]!;
   const runRows = runs.flatMap((candidate) => (runStates[candidate.id] ? [{ run: candidate, status: runStatus(runStates[candidate.id]!) }] : []));
@@ -87,28 +107,50 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   };
 
   const newChat = () => {
-    select({ kind: "chat", id: "chat-lead" });
+    const lead = crew.chats.find((candidate) => candidate.id === "chat-lead")!;
+    const existing = threads.find((thread) => !flow.messages[thread.id]?.length && !flow.drafts[thread.id]);
+    const thread: Chat = existing ?? { ...lead, id: crypto.randomUUID(), kind: "thread", title: "New chat", time: "", preview: "" };
+    if (!existing) setThreads((current) => [thread, ...current]);
+    select({ kind: "chat", id: thread.id });
     // The chat view mounts on this render; focus once it's there.
     requestAnimationFrame(() => composerRef.current?.focus());
   };
 
+  // A conversation carried over from the summon bar opens in its mate's chat, as if it had been here.
+  const receiveHandoff = useStableCallback((handoff: { mateId: string; question: string; answer: string }) => {
+    const target = crew.chats.find((candidate) => candidate.kind === "mate" && candidate.leadId === handoff.mateId);
+    if (!target) return;
+    const at = Date.now();
+    dispatch({
+      type: "append",
+      chatId: target.id,
+      messages: [{ id: `summon-q-${at}`, author: "me", text: handoff.question }, ...(handoff.answer ? [{ id: `summon-a-${at}`, author: handoff.mateId, text: handoff.answer }] : [])],
+    });
+    select({ kind: "chat", id: target.id });
+  });
+  useEffect(() => {
+    const take = () => void window.mates.takeHandoff().then((handoff) => handoff && receiveHandoff(handoff));
+    // One may be waiting from before this window opened, and more can arrive while it's open.
+    take();
+    return window.mates.onHandoff(take);
+  }, [receiveHandoff]);
+
   // Everything Ctrl/⌘ K can reach: where to go, the runs, and what to do.
   const paletteItems: PaletteItem[] = [
-    ...crew.chats.map((candidate): PaletteItem => {
+    ...chats.map((candidate): PaletteItem => {
       const lead = liveMates[candidate.leadId]!;
       return {
         id: `chat:${candidate.id}`,
         group: "Go to",
         label: candidate.title,
-        hint: candidate.kind === "group" ? "Group" : lead.role,
-        keywords: candidate.kind === "group" ? candidate.mateIds.map((id) => crewMates[id]!.name) : [lead.role],
-        leading: candidate.kind === "mate" ? <MateAvatar mate={lead} size={18} /> : <Icon name="hash" />,
+        hint: candidate.kind === "group" ? "Group" : candidate.kind === "thread" ? lead.name : lead.role,
+        keywords: [lead.role, ...candidate.mateIds.map((id) => crewMates[id]!.name)],
+        leading: candidate.kind === "group" ? <Icon name="hash" /> : <MateAvatar mate={lead} size={18} />,
         run: () => select({ kind: "chat", id: candidate.id }),
       };
     }),
-    ...PLACES.map((placeItem): PaletteItem => ({ id: `place:${placeItem.id}`, group: "Go to", label: placeItem.label, leading: <Icon name={placeItem.icon} />, run: () => select({ kind: "place", id: placeItem.id }) })),
     ...REPOS.map((repoItem): PaletteItem => ({ id: `repo:${repoItem.id}`, group: "Go to", label: repoItem.name, hint: repoItem.where, keywords: ["code", "repo"], leading: <Icon name="branch" />, run: () => select({ kind: "repo", id: repoItem.id }) })),
-    { id: "place:settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance"], leading: <Icon name="settings" />, run: () => select({ kind: "place", id: "settings" }) },
+    { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: openSettings },
     ...runRows.map(({ run: runItem, status }): PaletteItem => ({
       id: `run:${runItem.id}`,
       group: "Runs",
@@ -130,18 +172,19 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     { id: "scheme:system", group: "Actions", label: "Match the system", keywords: ["appearance", "theme", "auto"], leading: <Icon name="monitor" />, run: () => setAppearance({ scheme: "system" }) },
     { id: "scheme:light", group: "Actions", label: "Light mode", keywords: ["appearance", "theme"], leading: <Icon name="sun" />, run: () => setAppearance({ scheme: "light" }) },
     { id: "scheme:dark", group: "Actions", label: "Dark mode", keywords: ["appearance", "theme", "night"], leading: <Icon name="moon" />, run: () => setAppearance({ scheme: "dark" }) },
-    ...THEMES.map((theme): PaletteItem => ({ id: `theme:${theme.name}`, group: "Actions", label: `${theme.label} theme`, keywords: ["appearance", "colours", "colors"], leading: <Icon name="sun" />, run: () => setAppearance({ theme: theme.name }) })),
+    ...THEMES.map((theme): PaletteItem => ({ id: `theme:${theme.name}`, group: "Actions", label: `${theme.label} theme`, keywords: ["appearance", "colours", "colors", theme.blurb], leading: <span className="size-3.5 shrink-0 rounded-full ring-1 ring-line" style={{ background: theme.swatch.brand }} />, run: () => setAppearance({ theme: theme.name }) })),
     { id: "sign-out", group: "Actions", label: "Sign out", keywords: ["log out"], leading: <Icon name="logout" />, run: onSignOut },
   ];
 
   const { showJumpHints } = useGlobalShortcuts({
+    settingsOpen,
     onJump: (index) => {
       const target = targets[index];
       if (target) select(target);
     },
     onSearch: () => setPaletteOpen(!paletteOpen),
     onNewChat: newChat,
-    onSettings: () => select({ kind: "place", id: "settings" }),
+    onSettings: () => settingsOpen ? setSettingsOpen(false) : openSettings(),
     onCycleFocus: (backwards) => {
       const current = document.activeElement?.closest<HTMLElement>("[data-focus-area]")?.dataset.focusArea as FocusArea | undefined;
       // Only the areas on screen take part: a run adds its open terminal and panel.
@@ -158,7 +201,6 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   });
 
   const repo = selection.kind === "repo" ? REPOS.find((candidate) => candidate.id === selection.id) : undefined;
-  const place = selection.kind === "place" && selection.id in PLACE_PAGES ? PLACE_PAGES[selection.id as keyof typeof PLACE_PAGES] : undefined;
 
   return (
     <TooltipProvider>
@@ -167,7 +209,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       <div className="flex min-h-0 flex-1">
         <Sidebar
           you={crew.you}
-          chats={crew.chats}
+          chats={chats}
           mates={liveMates}
           unread={flow.unread}
           runs={runRows}
@@ -176,12 +218,11 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           showJumpHints={showJumpHints}
           onSelect={select}
           onNewChat={newChat}
+          onOpenSettings={openSettings}
           onSignOut={onSignOut}
         />
         <main className="min-w-0 flex-1">
-          {chat && <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} />}
-          {place && <PlaceholderPage key={selection.id} {...place} />}
-          {selection.kind === "place" && selection.id === "settings" && <SettingsPage />}
+          {chat && <ChatView key={chat.id} chat={chat} mates={liveMates} timelineMates={crewMates} flow={flow} dispatch={dispatch} composerRef={composerRef} quiet={activityMode === "quiet"} />}
           {repo && (
             <RepoPage
               key={repo.id}
@@ -212,6 +253,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           )}
         </main>
       </div>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} profile={crew.profile} />
     </TooltipProvider>
   );
 }

@@ -24,7 +24,9 @@ export type ChatAction =
   | { type: "tick"; chatId: string; words: number }
   | { type: "stop"; chatId: string }
   | { type: "open"; chatId: string }
-  | { type: "answer"; chatId: string; messageId: string; state: "allowed" | "skipped" };
+  | { type: "answer"; chatId: string; messageId: string; state: "allowed" | "skipped" }
+  /** Messages from elsewhere, like a conversation carried over from the summon bar. */
+  | { type: "append"; chatId: string; messages: Message[] };
 
 export function initialFlow(messages: Record<string, Message[]>, unread: Record<string, boolean>): ChatFlow {
   return { messages, drafts: {}, unread, replies: {}, sent: 0 };
@@ -85,6 +87,8 @@ export function chatFlowReducer(state: ChatFlow, action: ChatAction): ChatFlow {
       return settle(state, action.chatId);
     case "open":
       return state.unread[action.chatId] ? { ...state, unread: { ...state.unread, [action.chatId]: false } } : state;
+    case "append":
+      return action.messages.length ? { ...state, messages: { ...state.messages, [action.chatId]: [...(state.messages[action.chatId] ?? []), ...action.messages] } } : state;
     case "answer": {
       const messages = (state.messages[action.chatId] ?? []).map((message) =>
         message.id === action.messageId && message.card?.type === "approval" ? { ...message, card: { ...message.card, state: action.state } as Card } : message,

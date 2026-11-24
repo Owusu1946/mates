@@ -1,7 +1,10 @@
 import tailwindcss from "@tailwindcss/vite";
+import * as NodeURL from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { Plugin } from "vite";
+
+const page = (name: string) => NodeURL.fileURLToPath(new URL(`src/renderer/${name}.html`, import.meta.url));
 
 /**
  * The renderer's Content Security Policy, written into index.html. Dev adds what Vite needs for
@@ -36,6 +39,10 @@ export default defineConfig({
   renderer: {
     // React Compiler, as T3 Code: components and hooks are memoised by the compiler, never by hand.
     plugins: [react({ compiler: true }), tailwindcss(), contentSecurityPolicy()],
-    build: { outDir: "dist/renderer" },
+    build: {
+      outDir: "dist/renderer",
+      // Two pages: the app's window, and the summon bar that floats over other apps.
+      rolldownOptions: { input: { index: page("index"), summon: page("summon") } },
+    },
   },
 });

@@ -1,6 +1,6 @@
 /**
  * The screens of getting in, and how they connect. Two paths share the first screen: people who
- * already use Mates sign in (QR from the phone, a social account or email), and newcomers create
+ * already use Mates sign in by email, and newcomers create
  * an account, then set up their lead mate, tell it about themselves and bring their memories.
  */
 

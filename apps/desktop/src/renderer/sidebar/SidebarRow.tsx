@@ -32,7 +32,7 @@ export function SidebarRow({ ref, leading, label, selected = false, meta, unread
       )}
       {...rest}
     >
-      {leading}
+      <span className="flex size-5 shrink-0 items-center justify-center">{leading}</span>
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {jump !== null ? (
         <span className="animate-fade">

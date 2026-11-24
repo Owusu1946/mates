@@ -16,6 +16,9 @@ export type WindowSources = {
   icon?: string;
 };
 
+/** The app's main windows: the ones with our title bar. The see-through summon bar isn't one. */
+const mainWindows = new Set<Electron.BrowserWindow>();
+
 const stateFile = () => NodePath.join(Electron.app.getPath("userData"), "window-state.json");
 const appearance = (): Appearance => (Electron.nativeTheme.shouldUseDarkColors ? "dark" : "light");
 
@@ -53,6 +56,8 @@ export function createMainWindow(sources: WindowSources): Electron.BrowserWindow
     window.webContents.setBackgroundThrottling(true);
   });
   saveStateOnClose(window);
+  mainWindows.add(window);
+  window.on("closed", () => mainWindows.delete(window));
   installTextContextMenu(window.webContents);
   if (sources.url) void window.loadURL(sources.url);
   else void window.loadFile(sources.file);
@@ -61,7 +66,8 @@ export function createMainWindow(sources: WindowSources): Electron.BrowserWindow
 
 /**
  * The page's colour scheme (System, Light, Dark) drives Electron's, and every change repaints
- * what the system draws: Windows' caption buttons and the window colour behind the page.
+ * what the system draws on the main windows: Windows' caption buttons and the window colour
+ * behind the page. Other windows, like the see-through summon bar, have neither.
  */
 export function followAppearance() {
   Electron.ipcMain.on("mates:color-scheme", (_event, value: unknown) => {
@@ -70,7 +76,7 @@ export function followAppearance() {
   });
   Electron.nativeTheme.on("updated", () => {
     const now = appearance();
-    for (const window of Electron.BrowserWindow.getAllWindows()) {
+    for (const window of mainWindows) {
       if (window.isDestroyed()) continue;
       if (process.platform === "win32") window.setTitleBarOverlay(titleBarOverlay(now));
       window.setBackgroundColor(WINDOW_COLOURS[now].background);
