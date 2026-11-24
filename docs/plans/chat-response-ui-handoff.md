@@ -23,3 +23,30 @@ Finished code runs with a PR show its title, draft/review state, available file/
 - The text extraction is for display. It never renders supplied HTML or executes embedded content.
 
 Regression checks cover HTML-head removal before truncation, placeholder omission, tracking/payload cleanup, old-card readability, date formatting and Gmail URL construction. Argent verified Kwame’s historical compact list, opening/closing a preview sheet, and Show all on the iPhone 16 Pro simulator. Physical-device and Android checks remain pending.
+
+## PR UI verification
+
+Argent verified the production CodeCard component on the iPhone 16 Pro simulator using temporary local fixtures. No coding run was launched. The temporary route was removed afterwards.
+
+- Dark and light themes rendered the PR title, file count, green additions, red deletions and check labels.
+- Runtime inspection confirmed theme-specific text colors and accessibility labels for additions/deletions.
+- Draft and failed-check fixtures displayed their appropriate states.
+- Historical fixtures with missing statistics omitted those values.
+- Run details expanded and the Review PR action opened github.com.
+- Physical-device, Android and a fresh real code-run response remain rollout checks.
+
+## Task outcome refinement — slice 1
+
+Reviewable mobile-only follow-up for code and computer cards.
+
+- Computer task headers distinguish completed, failed, stopped, approval, login, question and user-control states.
+- Terminal computer cards display the saved summary.
+- Code results distinguish reviewable PRs, drafts, failed checks and completed runs with warnings.
+- Failed code runs no longer claim that nothing was pushed. Existing PR actions remain available.
+- Stopped tasks explain that earlier changes/actions remain.
+- No retry, approval or cancellation behavior is added.
+- Regression checks cover outcome precedence, legacy runs without PRs and every waiting reason.
+- Argent verified failed code with an existing PR, a completed computer summary and a stopped computer task using temporary fixtures on the iPhone 16 Pro simulator. Fixtures were removed. A duplicate failure label found during visual inspection was removed.
+- API deployment and migrations are unnecessary for this slice. Include it in the mobile release.
+
+Next reviewable slice is response hierarchy for calendar and other app results. Sammy commits and pushes manually after review.

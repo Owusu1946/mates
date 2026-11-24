@@ -12,6 +12,7 @@ import { haptic } from "../haptics";
 import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
 import { CardButton } from "./card-button";
+import { computerOutcome } from "./task-outcome";
 import { ShimmerText } from "./shimmer-text";
 
 const ACTIVE = ["queued", "running", "waiting"];
@@ -47,6 +48,7 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
   const card = live.data ?? state;
   const goal = card.computer ?? initial;
   if (!goal) return null;
+  const outcome = computerOutcome(goal);
   const active = ACTIVE.includes(goal.status);
   // This card's goal is the one on the computer right now, so its live view is this task's.
   const onScreen = active && focused && computer.view?.state === "on" && computer.view.goal?.id === goal.goalId;
@@ -81,7 +83,7 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
           {goal.status === "running" || goal.status === "queued" ? (
             <ShimmerText text={card.label} active style={lineStyle} />
           ) : (
-            <Text numberOfLines={1} style={[lineStyle, { color: goal.status === "failed" ? colors.error : goal.status === "cancelled" ? colors.textMuted : colors.text }]}>{card.label}</Text>
+            <Text numberOfLines={1} style={[lineStyle, { color: goal.status === "failed" ? colors.error : goal.status === "cancelled" ? colors.textMuted : colors.text }]}>{outcome ?? card.label}</Text>
           )}
         </View>
         {active && (
@@ -134,6 +136,16 @@ export function ComputerCard({ state }: { state: WorkflowCard }) {
 
       {!active && (
         <Animated.View entering={FadeIn.duration(180)} style={{ gap: 6 }}>
+          {!!goal.summary && (
+            <Text selectable style={{ color: colors.text, fontFamily: "DMSans_400Regular", fontSize: 14, lineHeight: 21 }}>
+              {goal.summary}
+            </Text>
+          )}
+          {goal.status === "cancelled" && (
+            <Text style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 13 }}>
+              Anything already done on the computer remains.
+            </Text>
+          )}
           {goal.status === "failed" && <Text style={{ color: colors.error, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>{goal.error ?? "It didn’t finish."}</Text>}
           {goal.evidence?.map((item) => (
             <Pressable key={item.label + (item.url ?? "")} disabled={!item.url} accessibilityRole={item.url ? "link" : "text"} onPress={() => item.url && void WebBrowser.openBrowserAsync(item.url)}>

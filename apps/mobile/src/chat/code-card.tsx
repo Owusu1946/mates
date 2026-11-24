@@ -10,6 +10,7 @@ import { useTheme } from "../theme/provider";
 import { runRequest } from "./background-chat";
 import { ChatIcon } from "./chat-icon";
 import { ACTIVE, headlineOf, stepsOf, type Step } from "./code-steps";
+import { codeOutcome } from "./task-outcome";
 import { ShimmerText } from "./shimmer-text";
 
 const GREEN = "#30A46C";
@@ -117,9 +118,11 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
       {!running && code.pr && (
         <View style={{ gap: 10 }}>
           <Text style={{ color: colors.text, fontFamily: "DMSans_600SemiBold", fontSize: 17, lineHeight: 23 }}>{code.pr.title}</Text>
-          <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 12 }}>
-            {code.status === "failed" ? "Run failed" : code.status === "cancelled" ? "Run stopped" : code.pr.draft ? "Draft pull request" : code.checks.some(check => !check.passed) ? "Checks need attention" : "Ready for review"}
-          </Text>
+          {code.status === "done" && (
+            <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 12 }}>
+              {codeOutcome(code)}
+            </Text>
+          )}
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
             {code.pr.files !== undefined && <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{code.pr.files} files changed</Text>}
             {code.pr.additions !== undefined && <Text accessibilityLabel={`${code.pr.additions} additions`} style={{ color: isDark ? "#6ee7a0" : "#18733c", fontSize: 13, fontVariant: ["tabular-nums"] }}>+{code.pr.additions}</Text>}
@@ -128,7 +131,17 @@ export function CodeCard({ state }: { state: WorkflowCard }) {
           {!!code.checks.length && <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>{code.checks.map((check, index) => <Text key={check.command + index} style={{ color: check.passed ? (isDark ? "#6ee7a0" : "#18733c") : colors.error, fontSize: 12 }}>{check.passed ? "✓" : "✕"} {check.name}</Text>)}</View>}
         </View>
       )}
-      {code.status === "failed" && <Text style={{ color: colors.error, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>{code.error ?? "The run didn’t finish. Nothing was pushed."}</Text>}
+      {!running && !code.pr && code.status === "done" && (
+        <Text style={{ color: colors.textSecondary, fontFamily: "DMSans_500Medium", fontSize: 13 }}>
+          {codeOutcome(code)}
+        </Text>
+      )}
+      {code.status === "cancelled" && (
+        <Text style={{ color: colors.textMuted, fontFamily: "DMSans_400Regular", fontSize: 13 }}>
+          Review the branch for any changes already made.
+        </Text>
+      )}
+      {code.status === "failed" && <Text style={{ color: colors.error, fontFamily: "DMSans_400Regular", fontSize: 13.5, lineHeight: 19 }}>{code.error ?? "The run didn’t finish. Review the run details before continuing."}</Text>}
 
       {open && (
         <Animated.View entering={FadeIn.duration(180)} style={{ marginTop: 6, paddingLeft: 2, gap: 10 }}>
