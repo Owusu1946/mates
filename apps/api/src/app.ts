@@ -38,6 +38,7 @@ import { cancelRun, executeDelegation, listRuns, runSnapshot, submissionSchema, 
 import { encodeRunEvent, parseRunEventCursor, runEventTypeSchema, terminalRunStatus } from "./run-events.js";
 import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
+import { briefSections, briefSettingsInput, getBriefSettings, markBriefLineNotUseful, putBriefSettings, restoreBriefSection, viewMorningBrief } from "./morning-brief.js";
 import { retryDelivery } from "./delivery.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { listGrants, removeGrant } from "./permissions.js";
@@ -578,6 +579,31 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return c.body(null, 200);
     })
     .get("/v1/schedules", auth, async c => c.json({ routines: await listRoutines(c.get("userId")) }))
+    .get("/v1/morning-brief/settings", auth, async c => c.json({ settings: await getBriefSettings(c.get("userId")) }))
+    .put("/v1/morning-brief/settings", auth, validator("json", (value, c) => {
+      const parsed = briefSettingsInput.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_BRIEF_SETTINGS", "Check the brief time, timezone and sections", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => c.json({ settings: await putBriefSettings(c.get("userId"), c.req.valid("json")) }))
+    .delete("/v1/morning-brief/muted/:section", auth, async c => {
+      const section = z.enum(briefSections).safeParse(c.req.param("section"));
+      if (!section.success) return c.json(failure("INVALID_SECTION", "Invalid brief section", c.get("requestId")), 400);
+      return (await restoreBriefSection(c.get("userId"), section.data)) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Brief settings not found", c.get("requestId")), 404);
+    })
+    .post("/v1/morning-brief/:id/view", auth, async c => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid brief", c.get("requestId")), 400);
+      return (await viewMorningBrief(c.get("userId"), id)) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Brief not found", c.get("requestId")), 404);
+    })
+    .post("/v1/morning-brief/:id/not-useful", auth, validator("json", (value, c) => {
+      const parsed = z.object({ lineId: z.string().min(1).max(200) }).strict().safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_LINE", "Invalid brief line", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid brief", c.get("requestId")), 400);
+      return (await markBriefLineNotUseful(c.get("userId"), id, c.req.valid("json").lineId)) ? c.json({ ok: true }) : c.json(failure("NOT_FOUND", "Brief line not found", c.get("requestId")), 404);
+    })
     .use("/v1/schedules/:id/*", async (c, next) => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid schedule", c.get("requestId")), 400);
       await next();

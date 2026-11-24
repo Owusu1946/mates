@@ -111,6 +111,7 @@ import { LimitReply, limitError, UsageLine } from "../usage/usage-notice";
 import { useUsage } from "../usage/use-usage";
 import { WatchCard } from "./watch-card";
 import { MeetingPrepCard } from "./meeting-prep-card";
+import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -704,6 +705,8 @@ function RoutineMarker({ title, at }: { title: string; at: Date }) {
 
 function ChatMessage() {
   const role = useAuiState((state) => state.message.role);
+  const rawMorningBrief = useAuiState((state) => (state.message.metadata?.custom as { morningBrief?: unknown } | undefined)?.morningBrief);
+  const morningBrief = useMemo(() => parseMorningBrief(rawMorningBrief), [rawMorningBrief]);
   const runId = useAuiState((state) => {
     const custom = state.message.metadata?.custom as { delegationId?: unknown } | undefined;
     return typeof custom?.delegationId === "string" ? custom.delegationId : null;
@@ -765,7 +768,9 @@ function ChatMessage() {
           <MessagePrimitive.Content
             renderToolCall={ToolCallPart}
             renderText={({ part }) =>
-              user ? (
+              morningBrief ? (
+                <MorningBriefCard brief={morningBrief} />
+              ) : user ? (
                 <UserText text={part.text} />
               ) : (
                 <View onLayout={onTextLayout}><RichText colors={richColors}>{part.text}</RichText></View>
@@ -818,7 +823,7 @@ function ChatMessage() {
         </ActionBarPrimitive.Reload>
       </ErrorPrimitive.Root>
       )}
-      {!editing && !running && (user || hasText) && <MessageActions user={user} />}
+      {!morningBrief && !editing && !running && (user || hasText) && <MessageActions user={user} />}
     </MessagePrimitive.Root>
   );
 }

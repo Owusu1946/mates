@@ -56,7 +56,7 @@ function useSettings() {
     version: Constants.expoConfig?.version ?? "—",
     usageSummary: usageSummary(usage, trialEnd),
     hasPlan: usage?.plan.id !== undefined && usage.plan.id !== "none",
-    openUsage: () => router.push("/usage"),
+    openUsage: () => router.navigate("/usage"),
     openManage: async () => {
       try {
         if (Platform.OS === "ios") return await showManageSubscriptions();
@@ -70,13 +70,14 @@ function useSettings() {
       haptic.selection();
       theme.setMode(value);
     },
-    openMemory: () => router.push("/memory"),
-    openNoticed: () => router.push("/noticed"),
-    openApps: () => router.push("/connections"),
-    openPermissions: () => router.push("/permissions"),
-    openFriends: () => router.push("/friends"),
+    openMemory: () => router.navigate("/memory"),
+    openNoticed: () => router.navigate("/noticed"),
+    openApps: () => router.navigate("/connections"),
+    openPermissions: () => router.navigate("/permissions"),
+    openFriends: () => router.navigate("/friends"),
     openNotifications: () => void Linking.openSettings(),
-    showIntro: () => router.push({ pathname: "/(onboarding)", params: { preview: "1" } }),
+    openMorningBrief: () => router.navigate("/morning-brief"),
+    showIntro: () => router.navigate({ pathname: "/(onboarding)", params: { preview: "1" } }),
     signOut: () => {
       if (deleting) return;
       Alert.alert("Sign out?", "You can sign back in at any time.", [
@@ -148,6 +149,7 @@ function IosSettings({ s }: { s: Settings }) {
         </Section>
 
         <Section title="Mates">
+          <LinkRow title="Morning brief" icon="sunrise.fill" color="#FF9500" onPress={s.openMorningBrief} />
           <LinkRow title="Memory" icon="brain.head.profile" color="#AF52DE" onPress={s.openMemory} />
           <LinkRow title="What I’ve noticed" icon="sparkles" color="#FF9500" onPress={s.openNoticed} />
           <LinkRow title="Apps" icon="square.grid.2x2" color="#007AFF" onPress={s.openApps} />
@@ -202,6 +204,7 @@ function AndroidSettings({ s }: { s: Settings }) {
           {s.hasPlan ? row("Manage subscription", () => void s.openManage()) : null}
         </FieldGroup.Section>
         <FieldGroup.Section title="Mates">
+          {row("Morning brief", s.openMorningBrief)}
           {row("Memory", s.openMemory)}
           {row("What I’ve noticed", s.openNoticed)}
           {row("Apps", s.openApps)}

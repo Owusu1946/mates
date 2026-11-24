@@ -19,6 +19,7 @@ import { processPendingBios } from "../about.js";
 import { processBillingEvents } from "../usage/revenuecat.js";
 import { mineHabits } from "../habits/miner.js";
 import { runPrep, syncPreps } from "../habits/prep.js";
+import { dispatchMorningBriefs, executeMorningBrief } from "../morning-brief-run.js";
 
 export const agentExecution = schemaTask({
   id: "cooper-agent",
@@ -152,6 +153,19 @@ export const meetingPrep = schemaTask({
   },
 });
 
+/** One person's brief. A saved occurrence and stable message ID make retries safe. */
+export const morningBriefJob = schemaTask({
+  id: "mate-morning-brief",
+  schema: z.object({ briefId: z.string().uuid() }),
+  concurrency: { perKey: 1, total: 10 },
+  retry: { maxAttempts: 1 },
+  maxDuration: 120,
+  run: async ({ briefId }) => {
+    await executeMorningBrief(briefId);
+    return { briefId };
+  },
+});
+
 /** A goal on the mates' desktop. One at a time per user (one mouse); never retried, since clicks aren't idempotent. */
 export const computerGoal = schemaTask({
   id: "computer-goal",
@@ -180,6 +194,7 @@ export const routineDispatcher = schedules.task({
     await sweepComputers().catch(() => console.warn("computer_sweep_failed"));
     await deliverReminders().catch(() => console.warn("reminder_delivery_failed"));
     await dispatchDueRoutines();
+    await dispatchMorningBriefs().catch((error) => console.warn("morning_brief_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await dispatchWatches().catch((error) => console.warn("watch_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     // Billing: store events not yet processed (or failed and due a retry), and plans whose grant lapsed.
     await processBillingEvents().catch((error) => console.warn("billing_events_failed", { message: error instanceof Error ? error.message : String(error) }));

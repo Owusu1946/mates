@@ -1,0 +1,2 @@
+ALTER TABLE "morning_brief_settings" ADD COLUMN "muted_sections" jsonb DEFAULT '[]'::jsonb NOT NULL;--> statement-breakpoint
+ALTER TABLE "morning_briefs" ADD COLUMN "viewed_at" timestamp with time zone;
