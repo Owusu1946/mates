@@ -5,7 +5,8 @@
   "main": "./src/index.tsx",
   "types": "./src/index.tsx",
   "exports": {
-    ".": "./src/index.tsx"
+    ".": "./src/index.tsx",
+    "./outlines": "./src/outlines.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"

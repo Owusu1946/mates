@@ -1,7 +1,7 @@
 /**
- * The mascot outlines from @muse-clone/mascot (hexagon, circle, rounded triangle), each sampled
- * into 72 evenly spaced points, clockwise from the top, in the shared 200-unit box. Matching
- * point lists let the splash blend one shape into another on the UI thread.
+ * The mascot outlines (hexagon, circle, rounded triangle), each sampled into 72 evenly spaced
+ * points, clockwise from the top, in the shared 200-unit box. Matching point lists let the app's
+ * splash and the website's logo blend one shape into another.
  * Sampled once with the browser's SVGPathElement.getPointAtLength.
  */
 export const OUTLINE_POINTS = 72;
