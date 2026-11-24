@@ -661,6 +661,21 @@ html[data-surface="summon"] body {
  * The hold-to-talk level meter: each bar grows and shrinks on its own beat, transform only, in
  * steps. It runs only while observeVisibleAnimation says it's on screen.
  */
+/* The logo's three mates step out from the middle once, as the website's mark does. */
+@keyframes logo-gather {
+  from {
+    translate: var(--from-x) var(--from-y);
+    scale: 0.6;
+    opacity: 0;
+  }
+}
+
+@utility logo-cell {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: logo-gather 700ms var(--ease-open, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
 @keyframes voice-level {
   0%,
   100% {
