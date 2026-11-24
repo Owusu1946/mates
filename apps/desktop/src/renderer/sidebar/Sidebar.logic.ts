@@ -2,7 +2,7 @@
  * What the sidebar shows and how the keyboard reaches it. Mates and groups get Ctrl/⌘ 1–9.
  */
 
-export type Selection = { kind: "chat" | "repo" | "run"; id: string };
+export type Selection = { kind: "chat" | "repo" | "run" | "place"; id: string };
 
 /** T3 Code waits this long after Ctrl/⌘ goes down before showing the number badges. */
 export const JUMP_HINT_DELAY_MS = 200;

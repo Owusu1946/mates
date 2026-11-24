@@ -23,8 +23,12 @@ import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
 import { REPOS, type Chat, type Crew, type Mate } from "../data/sampleCrew.ts";
 import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
+import { ACTIVITY, FRIEND_REQUESTS, FRIENDS } from "../data/samplePlaces.ts";
+import { ActivityPage } from "../places/ActivityPage.tsx";
+import { FriendsPage } from "../places/FriendsPage.tsx";
 import { NewGroupDialog, type NewGroup } from "../places/NewGroupDialog.tsx";
 import { NewMateDialog, type NewMate } from "../places/NewMateDialog.tsx";
+import { RoutinesPage } from "../places/RoutinesPage.tsx";
 import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
@@ -236,6 +240,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       };
     }),
     ...(codingOn ? REPOS : []).map((repoItem): PaletteItem => ({ id: `repo:${repoItem.id}`, group: "Go to", label: repoItem.name, hint: repoItem.where, keywords: ["code", "repo"], leading: <Icon name="branch" />, run: () => select({ kind: "repo", id: repoItem.id }) })),
+    { id: "place:activity", group: "Go to", label: "What mates did", keywords: ["activity", "feed", "results", "history"], leading: <Icon name="activity" />, run: () => select({ kind: "place", id: "activity" }) },
+    { id: "place:routines", group: "Go to", label: "Routines", keywords: ["schedule", "every", "daily", "brief"], leading: <Icon name="clock" />, run: () => select({ kind: "place", id: "routines" }) },
+    { id: "place:friends", group: "Go to", label: "Friends", keywords: ["people", "invite", "share"], leading: <Icon name="users" />, run: () => select({ kind: "place", id: "friends" }) },
     { id: "settings", group: "Go to", label: "Settings", hint: `${MOD} ,`, keywords: ["preferences", "appearance", "chat activity"], leading: <Icon name="settings" />, run: openSettings },
     ...(codingOn ? runRows : []).map(({ run: runItem, status }): PaletteItem => ({
       id: `run:${runItem.id}`,
@@ -310,6 +317,10 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           onNewMenuOpenChange={setNewMenuOpen}
           onNewMate={() => setCreating("mate")}
           onNewGroup={() => setCreating("group")}
+          placeBadges={{
+            activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
+            friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
+          }}
           onOpenSettings={openSettings}
           onSignOut={onSignOut}
         />
@@ -339,6 +350,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
               />
             </OpenRunContext>
           )}
+          {selection.kind === "place" && selection.id === "activity" && <ActivityPage mates={liveMates} onOpenChat={openChat} />}
+          {selection.kind === "place" && selection.id === "routines" && <RoutinesPage mates={allMates} />}
+          {selection.kind === "place" && selection.id === "friends" && <FriendsPage myEmail="ama@mates.app" />}
           {repo && (
             <RepoPage
               key={repo.id}

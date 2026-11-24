@@ -8,6 +8,7 @@ import { jumpNumber, sameSelection, type Selection } from "./Sidebar.logic.ts";
 import { ChatRow } from "./ChatRow.tsx";
 import { GroupFace } from "./GroupFace.tsx";
 import { MateRow } from "./MateRow.tsx";
+import { SidebarRow } from "./SidebarRow.tsx";
 import { ProfileMenu } from "./ProfileMenu.tsx";
 import { RepoRow } from "./RepoRow.tsx";
 import { SidebarSection } from "./SidebarSection.tsx";
@@ -30,6 +31,8 @@ type SidebarProps = {
   onNewMenuOpenChange: (open: boolean) => void;
   onNewMate: () => void;
   onNewGroup: () => void;
+  /** How many things in each place need you: answers in What mates did, requests in Friends. */
+  placeBadges: { activity: number; friends: number };
   onOpenSettings: () => void;
   onSignOut: () => void;
 };
@@ -50,6 +53,7 @@ export function Sidebar({
   onNewMenuOpenChange,
   onNewMate,
   onNewGroup,
+  placeBadges,
   onOpenSettings,
   onSignOut,
 }: SidebarProps) {
@@ -85,6 +89,25 @@ export function Sidebar({
             New group
           </MenuItem>
         </Menu>
+
+        <div className="-mt-2 flex flex-col gap-px">
+          {(
+            [
+              { id: "activity", label: "What mates did", icon: "activity", badge: placeBadges.activity },
+              { id: "routines", label: "Routines", icon: "clock", badge: 0 },
+              { id: "friends", label: "Friends", icon: "users", badge: placeBadges.friends },
+            ] as const
+          ).map((place) => (
+            <SidebarRow
+              key={place.id}
+              leading={<Icon name={place.icon} />}
+              label={place.label}
+              meta={place.badge > 0 ? <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-caution/20 px-1 text-[10px] font-semibold text-caution-ink">{place.badge}</span> : undefined}
+              selected={isSelected({ kind: "place", id: place.id })}
+              onClick={() => onSelect({ kind: "place", id: place.id })}
+            />
+          ))}
+        </div>
 
         {mateChats.length > 0 && (
           <SidebarSection label="Mates">
