@@ -6,7 +6,7 @@
 
 export type Preferences = {
   desktop: { openAtLogin: boolean; keepRunning: boolean; summonShortcut: string; notch: boolean };
-  memory: { saveAutomatically: boolean; referenceChats: boolean };
+  memory: { enabled: boolean; saveAutomatically: boolean; referenceChats: boolean };
   noticed: { habits: boolean; apps: boolean; meetingPrep: boolean };
   brief: { on: boolean; time: string; weekends: boolean };
   notifications: { done: boolean; needsYou: boolean; friends: boolean; sound: boolean; quietHours: boolean };
@@ -17,7 +17,7 @@ export type Preferences = {
 
 export const DEFAULT_PREFERENCES: Preferences = {
   desktop: { openAtLogin: false, keepRunning: true, summonShortcut: "Alt+Space", notch: true },
-  memory: { saveAutomatically: true, referenceChats: true },
+  memory: { enabled: true, saveAutomatically: true, referenceChats: true },
   noticed: { habits: true, apps: false, meetingPrep: true },
   brief: { on: true, time: "7:00", weekends: false },
   notifications: { done: true, needsYou: true, friends: true, sound: false, quietHours: true },
