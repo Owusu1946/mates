@@ -3,18 +3,26 @@ import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon, type IconName } from "../components/ui/Icon.tsx";
 import type { Mate } from "../data/sampleCrew.ts";
+import { tickTextContent } from "../lib/tickTextContent.ts";
 import { cn } from "../lib/utils.ts";
-import type { ComputerAction, ComputerPlace, ComputerState } from "./computer.logic.ts";
+import { goalOf, liveGoal, queuedGoals, type ComputerAction, type ComputerPlace, type ComputerState, type Goal } from "./computer.logic.ts";
 import { ComputerScreen } from "./ComputerScreen.tsx";
 import { taskFor } from "./useComputers.ts";
 
 const PLACES: { value: ComputerPlace; label: string; icon: IconName }[] = [
   { value: "cloud", label: "Cloud computer", icon: "globe" },
   { value: "thisPC", label: "This PC", icon: "monitor" },
-  { value: "off", label: "Off", icon: "x" },
 ];
 
-const POWER_TEXT = { asleep: "Asleep", starting: "Starting…", working: "Working", paused: "Paused", done: "Done" } as const;
+/** What the phone shows while it starts (apps/mobile/app/(app)/computer.tsx). */
+const BOOT_STEPS = [
+  { at: 0, label: "Waking your computer" },
+  { at: 1, label: "Powering on" },
+  { at: 2, label: "Starting the desktop" },
+  { at: 3, label: "Almost there" },
+];
+
+const WAITING_TITLE = { approval: "Your OK is needed", login: "Sign in to continue", question: "A quick question" } as const;
 
 function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) => void; label: string }) {
   return (
@@ -24,14 +32,79 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: (on: boolean) 
   );
 }
 
-/** Where the mate works, and what each choice means for you. */
-function PlaceSettings({ mate, place, onPlace }: { mate: Mate; place: ComputerPlace; onPlace: (place: ComputerPlace) => void }) {
+/** Starting up: the boot steps, written in place each second so nothing re-renders. */
+function Boot() {
+  const [since] = useState(() => Date.now());
+  return (
+    <>
+      <span className="size-5 animate-spin rounded-full border-2 border-ink-soft border-r-transparent" />
+      <p className="text-sm text-ink-soft" ref={tickTextContent((now) => [...BOOT_STEPS].reverse().find((step) => (now - since) / 1000 >= step.at)!.label, true)} />
+    </>
+  );
+}
+
+/** A goal stopped for you: your OK, a sign-in you do yourself, or a question to answer. */
+function Waiting({ goal, mate, youHaveTheMouse, dispatch }: { goal: Goal; mate: Mate; youHaveTheMouse: boolean; dispatch: (action: ComputerAction) => void }) {
+  const [reply, setReply] = useState("");
+  const kind = goal.waitingFor;
+  if (!kind || kind === "user_control") return null;
+  const step = goal.steps[goal.shown - 1];
+  return (
+    <div className="animate-fade rounded-xl border border-caution/40 bg-caution-surface p-3">
+      <div className="flex items-center gap-2 text-2xs font-medium text-caution-ink">
+        <span className="size-1.5 rounded-full bg-caution" />
+        {WAITING_TITLE[kind]}
+      </div>
+      <p className="mt-1.5 text-sm font-semibold">{step?.needs?.title}</p>
+      <p className="mt-0.5 text-xs text-ink-soft">{step?.needs?.detail}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {kind === "approval" && (
+          <>
+            <Button size="sm" onClick={() => dispatch({ type: "answer", allow: true })}>
+              Allow
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "answer", allow: false })}>
+              Not now
+            </Button>
+          </>
+        )}
+        {kind === "login" &&
+          (youHaveTheMouse ? (
+            <Button size="sm" onClick={() => dispatch({ type: "handBack" })}>
+              I've signed in, hand back to {mate.name}
+            </Button>
+          ) : (
+            <Button size="sm" icon="hand" onClick={() => dispatch({ type: "takeOver" })}>
+              Take over to sign in
+            </Button>
+          ))}
+        {kind === "question" && (
+          <form
+            className="flex w-full gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (reply.trim()) dispatch({ type: "answer", allow: true });
+            }}
+          >
+            <input value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Your answer" className="h-8 min-w-0 flex-1 rounded-control border border-field-line bg-raised px-2.5 text-sm outline-none focus:border-brand" />
+            <Button size="sm" type="submit" disabled={!reply.trim()}>
+              Send
+            </Button>
+          </form>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Where your computer is: the app's cloud computer, or this PC (lending, from the desktop plan). */
+function PlaceSettings({ place, onPlace }: { place: ComputerPlace; onPlace: (place: ComputerPlace) => void }) {
   // UI only: what you'd grant on this PC.
   const [grants, setGrants] = useState({ screen: true, control: false, askNewApps: true });
   return (
     <section className="flex flex-col gap-3">
-      <h3 className="text-sm font-semibold">Where {mate.name} works</h3>
-      <div role="radiogroup" aria-label={`Where ${mate.name} works`} className="grid grid-cols-3 gap-1 rounded-xl bg-soft p-1">
+      <h3 className="text-sm font-semibold">Where your mates work</h3>
+      <div role="radiogroup" aria-label="Where your mates work" className="grid grid-cols-2 gap-1 rounded-xl bg-soft p-1">
         {PLACES.map((option) => (
           <button
             key={option.value}
@@ -39,19 +112,19 @@ function PlaceSettings({ mate, place, onPlace }: { mate: Mate; place: ComputerPl
             role="radio"
             aria-checked={place === option.value}
             onClick={() => onPlace(option.value)}
-            className="flex h-14 flex-col items-center justify-center gap-1 rounded-lg text-xs text-ink-soft outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand aria-checked:bg-raised aria-checked:text-ink aria-checked:shadow-xs"
+            className="flex h-10 items-center justify-center gap-2 rounded-lg text-sm text-ink-soft outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand aria-checked:bg-raised aria-checked:text-ink aria-checked:shadow-xs [&_svg]:size-4"
           >
-            <Icon name={option.icon} size={16} />
+            <Icon name={option.icon} />
             {option.label}
           </button>
         ))}
       </div>
-      {place === "cloud" && (
+      {place === "cloud" ? (
         <div className="flex flex-col gap-2.5 rounded-xl border border-line p-3.5">
-          <p className="text-sm text-ink-soft">A private computer in the cloud with its own browser. Nothing on yours is touched, and it keeps working when this PC is off.</p>
+          <p className="text-sm text-ink-soft">A desktop of your own in the cloud, with Chrome, documents and files. Your mates use it for you, and you can too. It keeps your sign-ins and files, and turns off after 5 minutes with nothing to do.</p>
           <div>
             <div className="mb-1 flex justify-between text-xs">
-              <span>This month</span>
+              <span>This month · Pro</span>
               <span className="text-ink-soft tabular-nums">1h 50m of 3h left</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-hover-fill">
@@ -59,12 +132,9 @@ function PlaceSettings({ mate, place, onPlace }: { mate: Mate; place: ComputerPl
             </div>
           </div>
         </div>
-      )}
-      {place === "thisPC" && (
+      ) : (
         <div className="flex flex-col gap-3 rounded-xl border border-line p-3.5">
-          <p className="text-sm text-ink-soft">
-            {mate.name} uses your apps and logins on this PC. You see everything it does, and moving your mouse or typing pauses it at once.
-          </p>
+          <p className="text-sm text-ink-soft">Your mates use your apps and logins on this PC instead. You see everything they do, and moving your mouse or typing pauses them at once.</p>
           {[
             { key: "screen", label: "See the screen", detail: "To read what's on it" },
             { key: "control", label: "Use mouse and keyboard", detail: "To click and type for you" },
@@ -80,56 +150,73 @@ function PlaceSettings({ mate, place, onPlace }: { mate: Mate; place: ComputerPl
           ))}
         </div>
       )}
-      {place === "off" && <p className="rounded-xl border border-line p-3.5 text-sm text-ink-soft">{mate.name} won't use a computer, and will ask you to do anything that needs one.</p>}
     </section>
   );
 }
 
+type ComputerPanelProps = {
+  state: ComputerState;
+  dispatch: (action: ComputerAction) => void;
+  mates: Record<string, Mate>;
+  /** The mate whose chat is open, offered the computer when it isn't already in line. */
+  chatMate: Mate;
+};
+
 /**
- * A mate's computer beside its chat: its screen, live, with what it's doing; take over, pause or
- * stop at any time; what it's done so far; and where it works. A step that spends money waits
- * for your OK here.
+ * Your computer beside the chat. One desktop your mates share (apps/api/src/computers.ts): who's
+ * using it now, its screen, live, with Take over and Turn off; anything waiting on you; who's next
+ * in line; and where it is. The same in every chat, because it's the same computer.
  */
-export function ComputerPanel({ mate, state, dispatch }: { mate: Mate; state: ComputerState; dispatch: (action: ComputerAction) => void }) {
-  const task = taskFor(mate.id);
-  const done = task.steps.slice(0, state.shown);
-  const current = done.at(-1);
-  const waiting = state.waitingOn ? task.steps.find((step) => step.id === state.waitingOn) : undefined;
-  const live = state.power === "working" || state.power === "paused" || state.power === "done";
+export function ComputerPanel({ state, dispatch, mates, chatMate }: ComputerPanelProps) {
+  const [confirmOff, setConfirmOff] = useState(false);
+  const live = liveGoal(state);
+  const driver = live ? mates[live.mateId] : undefined;
+  const queue = queuedGoals(state);
+  const youHaveTheMouse = state.controller === "user";
+  const chatMateGoal = goalOf(state, chatMate.id);
+  const step = live && live.shown > 0 ? live.steps[live.shown - 1] : undefined;
+  const ask = () => dispatch({ type: "ask", goal: { id: `goal-${chatMate.id}-${Date.now()}`, mateId: chatMate.id, ...taskFor(chatMate.id) } });
+
+  const status =
+    state.power === "off" ? { text: "Off", tone: "bg-ink-soft" }
+    : state.power === "starting" ? { text: "Starting", tone: "status-pulse bg-brand" }
+    : state.power === "stopping" ? { text: "Turning off", tone: "status-pulse bg-ink-soft" }
+    : youHaveTheMouse ? { text: "You have the mouse", tone: "bg-brand" }
+    : live?.status === "waiting" ? { text: `${driver?.name ?? "Your mate"} needs you`, tone: "status-pulse bg-caution" }
+    : driver ? { text: `${driver.name} is using it`, tone: "status-pulse bg-ok" }
+    : { text: "On", tone: "bg-ok" };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4">
       <section className="flex flex-col gap-2.5">
         <div className="flex items-center gap-2">
-          <MateAvatar mate={{ ...mate, status: state.power === "working" && !state.takenOver ? "working" : state.power === "starting" ? "thinking" : "idle" }} size={22} />
-          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">{state.place === "thisPC" ? "Your screen" : `${mate.name}'s computer`}</h3>
-          <span className={cn("flex items-center gap-1.5 text-xs", state.power === "working" ? "text-ok-ink" : "text-ink-soft")}>
-            <span className={cn("size-1.5 rounded-full", state.power === "working" ? "status-pulse bg-ok" : state.power === "starting" ? "status-pulse bg-brand" : "bg-ink-soft")} />
-            {state.takenOver ? "You're driving" : POWER_TEXT[state.power]}
+          <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">{state.place === "thisPC" ? "This PC" : "Your computer"}</h3>
+          <span className="flex items-center gap-1.5 text-xs text-ink-soft">
+            <span className={cn("size-1.5 rounded-full", status.tone)} />
+            {status.text}
           </span>
         </div>
 
         <div className="aspect-[16/10] w-full">
-          {state.place === "off" ? (
-            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-line text-sm text-ink-soft">The computer is off.</div>
-          ) : live && current ? (
-            <ComputerScreen mate={mate} step={current} driving={state.takenOver} />
+          {state.power === "on" && step && driver ? (
+            <ComputerScreen mate={driver} step={step} driving={youHaveTheMouse} />
           ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-line bg-soft text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-line bg-soft px-6 text-center">
               {state.power === "starting" ? (
+                <Boot />
+              ) : state.power === "stopping" ? (
                 <>
                   <span className="size-5 animate-spin rounded-full border-2 border-ink-soft border-r-transparent" />
-                  <p className="text-sm text-ink-soft">Starting {state.place === "thisPC" ? "on this PC" : `${mate.name}'s computer`}…</p>
+                  <p className="text-sm text-ink-soft">Turning off… Your files and sign-ins are kept for next time.</p>
                 </>
+              ) : state.power === "on" ? (
+                <p className="text-sm text-ink-soft">{driver ? `${driver.name} is getting started…` : "On and ready. Your mates use it when a job needs a computer."}</p>
               ) : (
                 <>
-                  <MateAvatar mate={{ ...mate, status: "idle" }} size={40} still />
-                  <div>
-                    <p className="text-sm font-medium">{mate.name}'s computer is asleep</p>
-                    <p className="text-xs text-ink-soft">Next: {task.title.toLowerCase()}</p>
-                  </div>
-                  <Button size="sm" icon="play" onClick={() => dispatch({ type: "wake" })}>
-                    Wake it
+                  <Icon name="monitor" size={28} className="text-ink-soft" />
+                  <p className="text-sm text-ink-soft">Your mates use it for you, and you can too.</p>
+                  <Button size="sm" icon="play" onClick={() => dispatch({ type: "turnOn" })}>
+                    Turn on your computer
                   </Button>
                 </>
               )}
@@ -137,58 +224,90 @@ export function ComputerPanel({ mate, state, dispatch }: { mate: Mate; state: Co
           )}
         </div>
 
-        {live && (
+        {state.power === "on" && (
           <div className="flex items-center gap-1.5">
-            <Button size="sm" variant={state.takenOver ? "default" : "outline"} icon="hand" onClick={() => dispatch({ type: state.takenOver ? "handBack" : "takeOver" })}>
-              {state.takenOver ? `Hand back to ${mate.name}` : "Take over"}
+            <Button size="sm" variant={youHaveTheMouse ? "default" : "outline"} icon="hand" onClick={() => dispatch({ type: youHaveTheMouse ? "handBack" : "takeOver" })}>
+              {youHaveTheMouse ? (driver ? `Hand back to ${driver.name}` : "Hand back") : "Take over"}
             </Button>
-            {!state.takenOver && state.power !== "done" && (
-              <Button size="sm" variant="ghost" icon={state.power === "paused" ? "play" : "pause"} onClick={() => dispatch({ type: state.power === "paused" ? "resume" : "pause" })}>
-                {state.power === "paused" ? "Resume" : "Pause"}
+            {live && !youHaveTheMouse && (
+              <Button size="sm" variant="ghost" icon="square" onClick={() => dispatch({ type: "cancel", goalId: live.id })}>
+                Stop this task
               </Button>
             )}
             <div className="flex-1" />
-            <Button size="sm" variant="ghost-muted" icon="square" onClick={() => dispatch({ type: "stop" })}>
-              Stop
-            </Button>
+            {confirmOff ? (
+              <span className="flex animate-fade items-center gap-1">
+                <Button size="sm" variant="ghost" onClick={() => setConfirmOff(false)}>
+                  Keep it on
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setConfirmOff(false);
+                    dispatch({ type: "turnOff" });
+                  }}
+                >
+                  Turn off
+                </Button>
+              </span>
+            ) : (
+              <Button size="sm" variant="ghost-muted" icon="x" onClick={() => setConfirmOff(true)}>
+                Turn off
+              </Button>
+            )}
           </div>
         )}
 
-        {waiting?.approval && (
-          <div className="animate-fade rounded-xl border border-caution/40 bg-caution-surface p-3">
-            <div className="flex items-center gap-2 text-2xs font-medium text-caution-ink">
-              <span className="size-1.5 rounded-full bg-caution" />
-              Needs your OK
-            </div>
-            <p className="mt-1.5 text-sm font-semibold">{waiting.approval.title}</p>
-            <p className="mt-0.5 text-xs text-ink-soft">{waiting.approval.detail}</p>
-            <div className="mt-3 flex gap-2">
-              <Button size="sm" onClick={() => dispatch({ type: "answer", allow: true })}>
-                Allow
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => dispatch({ type: "answer", allow: false })}>
-                Not now
-              </Button>
-            </div>
-          </div>
+        {youHaveTheMouse && live?.waitingFor === "user_control" && (
+          <p className="text-xs text-ink-soft">You have the mouse. Click and type on the screen; {driver?.name ?? "your mate"} waits until you hand back, and never sees what you type.</p>
+        )}
+        {live && driver && <Waiting goal={live} mate={driver} youHaveTheMouse={youHaveTheMouse} dispatch={dispatch} />}
+
+        {!chatMateGoal && state.power !== "stopping" && (
+          <Button variant="secondary" size="sm" onClick={ask}>
+            <MateAvatar mate={{ ...chatMate, status: "idle" }} size={16} still />
+            Ask {chatMate.name} to {taskFor(chatMate.id).title.charAt(0).toLowerCase() + taskFor(chatMate.id).title.slice(1)}
+          </Button>
         )}
       </section>
 
-      {done.length > 0 && (
+      {live && driver && live.shown > 0 && (
         <section className="flex flex-col gap-1.5">
-          <h3 className="text-sm font-semibold">What {mate.name} did</h3>
+          <h3 className="text-sm font-semibold">
+            {driver.name}: {live.title}
+          </h3>
           <ol className="flex flex-col">
-            {done.map((step, index) => (
-              <li key={step.id} className="flex min-h-7 items-center gap-2.5 text-sm">
-                <span className={cn("size-1.5 shrink-0 rounded-full", index === done.length - 1 && state.power === "working" ? "status-pulse bg-brand" : "bg-ink-soft/50")} />
-                <span className={index === done.length - 1 ? "text-ink" : "text-ink-soft"}>{step.label}</span>
+            {live.steps.slice(0, live.shown).map((done, index) => (
+              <li key={done.id} className="flex min-h-7 items-center gap-2.5 text-sm">
+                <span className={cn("size-1.5 shrink-0 rounded-full", index === live.shown - 1 && live.status === "running" ? "status-pulse bg-brand" : "bg-ink-soft/50")} />
+                <span className={index === live.shown - 1 ? "text-ink" : "text-ink-soft"}>{done.label}</span>
               </li>
             ))}
           </ol>
         </section>
       )}
 
-      <PlaceSettings mate={mate} place={state.place} onPlace={(place) => dispatch({ type: "place", place })} />
+      {queue.length > 0 && (
+        <section className="flex flex-col gap-1.5">
+          <h3 className="text-sm font-semibold">Next in line</h3>
+          {queue.map((goal) => {
+            const mate = mates[goal.mateId];
+            return (
+              <div key={goal.id} className="flex items-center gap-2.5 rounded-lg px-1 py-1.5">
+                {mate && <MateAvatar mate={{ ...mate, status: "idle" }} size={22} />}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm">{goal.title}</div>
+                  <div className="text-2xs text-ink-soft">{mate?.name} · waits for the computer</div>
+                </div>
+                <Button variant="ghost-muted" size="icon-xs" icon="x" aria-label="Remove from the line" onClick={() => dispatch({ type: "cancel", goalId: goal.id })} />
+              </div>
+            );
+          })}
+        </section>
+      )}
+
+      <PlaceSettings place={state.place} onPlace={(place) => dispatch({ type: "place", place })} />
     </div>
   );
 }
