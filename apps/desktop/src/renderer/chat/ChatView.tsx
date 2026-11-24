@@ -1,6 +1,6 @@
 import type { Dispatch, Ref } from "react";
 import type { Chat, Mate } from "../data/sampleCrew.ts";
-import { REPLIES } from "../data/sampleCrew.ts";
+import { REPLIES, VOICE_LINES } from "../data/sampleCrew.ts";
 import { cannedReply, type ChatAction, type ChatFlow } from "./chatFlow.logic.ts";
 import { ChatComposer } from "./ChatComposer.tsx";
 import { ChatHeader } from "./ChatHeader.tsx";
@@ -43,6 +43,13 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
             onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
             onSend={() => dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) })}
             onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+            voice={{
+              line: VOICE_LINES[chat.leadId] ?? "What's on my calendar today",
+              onSend: (text) => {
+                dispatch({ type: "draft", chatId: chat.id, text });
+                dispatch({ type: "send", chatId: chat.id, mateId: chat.leadId, reply: cannedReply(REPLIES, chat.leadId, flow.sent) });
+              },
+            }}
           />
         )}
       />
