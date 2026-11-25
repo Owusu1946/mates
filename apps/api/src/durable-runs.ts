@@ -206,7 +206,7 @@ export async function executeDelegation(
     const status = finalStatus === "cancelled" && userCancelled ? CANCELLED_STATUS : { type: finalStatus === "failed" ? "incomplete" : finalStatus ? "complete" : "running", ...(finalStatus ? { reason: finalStatus === "failed" ? "error" : "stop" } : {}) };
     const message = { id: run.assistantMessageId, role: "assistant", createdAt, content: structuredClone(content), metadata: { custom: { delegationId: id, resumed: !!request.resumeRunId } }, status };
     const statements = [
-      getDb().update(delegations).set({ content: structuredClone(content), sequence, updatedAt: new Date(), ...(finalStatus ? { status: finalStatus, error: failure } : {}) }).where(eq(delegations.id, id)),
+      getDb().update(delegations).set({ content: structuredClone(content), sequence, updatedAt: new Date(), ...(finalStatus ? { status: finalStatus, error: failure, ...(finalStatus === "waiting" ? { blockedSince: new Date() } : {}) } : {}) }).where(eq(delegations.id, id)),
       getDb().insert(runEvents).values({ delegationId: id, sequence, type, payload: { content: structuredClone(content), status: finalStatus ?? "running", error: failure } }),
     ] as const;
     if (run.chatId) {

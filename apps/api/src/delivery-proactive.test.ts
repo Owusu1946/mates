@@ -187,6 +187,23 @@ describe("proactive notification delivery", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    "return-trip:run:00000000-0000-4000-8000-000000000003:blocked-reminder",
+    "return-trip:computer:00000000-0000-4000-8000-000000000003:blocked-reminder",
+    "return-trip:mission:00000000-0000-4000-8000-000000000003:blocked-reminder",
+  ])("suppresses a delayed reminder once %s is resolved", async (sourceKey) => {
+    db.selects.push([notice({ sourceKey })]);
+    db.executes = [[]];
+
+    const sent = await pushProactiveToUser({
+      userId: "user_1", mateId, sourceKey, title: "Still needs you", body: "Open Mates.", data: { chatId: `mate_${mateId}` },
+    });
+
+    expect(sent).toBe(false);
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("does not enqueue the same source twice", async () => {
     db.inserts = [[]];
 

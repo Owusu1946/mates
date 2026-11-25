@@ -1,9 +1,9 @@
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { z } from "zod";
 import { appConnected, appTool, findItems } from "./app-tools.js";
 import { getDb } from "./db/client.js";
-import { delegations, proactiveNotifications, reminders } from "./db/schema.js";
+import { computerGoals, delegations, missions, proactiveNotifications, reminders } from "./db/schema.js";
 import { structured } from "./habits/shared.js";
 import { ridesEnabled } from "./mcp/ride-conversation.js";
 import { rideHandoff } from "./mcp/ride-links.js";
@@ -51,15 +51,28 @@ export async function collectBriefCandidates(userId: string, at: Date, timezone:
 
 /** Over-budget items stay pending until a posted brief includes them. */
 async function deferredNotificationCandidates(userId: string): Promise<Candidate[]> {
-  const rows = await getDb().select({ id: proactiveNotifications.id, mateId: proactiveNotifications.mateId, title: proactiveNotifications.title, body: proactiveNotifications.body, data: proactiveNotifications.data })
+  const [rows, blocked, computers, teams] = await Promise.all([
+    getDb().select({ id: proactiveNotifications.id, mateId: proactiveNotifications.mateId, title: proactiveNotifications.title, body: proactiveNotifications.body, data: proactiveNotifications.data })
     .from(proactiveNotifications)
     .where(and(eq(proactiveNotifications.clerkUserId, userId), eq(proactiveNotifications.status, "brief")))
     .orderBy(proactiveNotifications.createdAt)
-    .limit(5);
-  return rows.map((item) => {
+    .limit(5),
+    getDb().select({ id: delegations.id, content: delegations.content }).from(delegations)
+      .where(and(eq(delegations.clerkUserId, userId), eq(delegations.status, "waiting"), sql`${delegations.blockedReminderAt} IS NOT NULL`, sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`))
+      .orderBy(delegations.blockedSince).limit(5),
+    getDb().select({ id: computerGoals.id, chatId: computerGoals.chatId, question: computerGoals.question }).from(computerGoals)
+      .where(and(eq(computerGoals.clerkUserId, userId), eq(computerGoals.status, "waiting"), sql`EXISTS (SELECT 1 FROM proactive_notifications pn WHERE pn.source_key = 'return-trip:computer:' || ${computerGoals.id}::text || ':blocked-reminder')`))
+      .orderBy(computerGoals.updatedAt).limit(5),
+    getDb().select({ id: missions.id, chatId: missions.chatId, question: missions.question }).from(missions)
+      .where(and(eq(missions.clerkUserId, userId), eq(missions.status, "needs_input"), sql`EXISTS (SELECT 1 FROM proactive_notifications pn WHERE pn.source_key = 'return-trip:mission:' || ${missions.id}::text || ':blocked-reminder')`))
+      .orderBy(missions.updatedAt).limit(5),
+  ]);
+  return [...rows.map((item) => {
     const chatId = typeof item.data.chatId === "string" ? item.data.chatId : `mate_${item.mateId}`;
-    return { id: `deferred:${item.id}`, section: "deferred", text: clean(`${item.title}: ${item.body}`, 200), action: { kind: "chat", chatId }, priority: 0 };
-  });
+    return { id: `deferred:${item.id}`, section: "deferred" as const, text: clean(`${item.title}: ${item.body}`, 200), action: { kind: "chat" as const, chatId }, priority: 0 };
+  }), ...blocked.map((run) => ({ id: `blocked:${run.id}`, section: "deferred" as const, text: `${waitingLabel(run.content)} still needs your decision`, action: { kind: "run" as const, runId: run.id }, priority: 0 })),
+  ...computers.filter((goal) => goal.chatId).map((goal) => ({ id: `blocked-computer:${goal.id}`, section: "deferred" as const, text: clean(goal.question || "A computer task still needs you", 160), action: { kind: "chat" as const, chatId: goal.chatId! }, priority: 0 })),
+  ...teams.filter((mission) => mission.chatId).map((mission) => ({ id: `blocked-mission:${mission.id}`, section: "deferred" as const, text: clean(mission.question || "Your team still needs a decision", 160), action: { kind: "chat" as const, chatId: mission.chatId! }, priority: 0 }))];
 }
 
 async function calendarEvents(userId: string, start: Date, end: Date) {
@@ -141,7 +154,7 @@ async function emailCandidates(userId: string): Promise<Candidate[]> {
 async function taskCandidates(userId: string, start: Date, end: Date, timezone: string): Promise<Candidate[]> {
   const [due, waiting] = await Promise.all([
     getDb().select({ id: reminders.id, title: reminders.title, remindAt: reminders.remindAt }).from(reminders).where(and(eq(reminders.clerkUserId, userId), eq(reminders.status, "pending"), gte(reminders.remindAt, start), lt(reminders.remindAt, end))).orderBy(reminders.remindAt).limit(8),
-    getDb().select({ id: delegations.id, content: delegations.content }).from(delegations).where(and(eq(delegations.clerkUserId, userId), inArray(delegations.status, ["waiting", "waiting_action", "waiting_choice", "waiting_browser", "needs_input"]))).orderBy(desc(delegations.updatedAt)).limit(8),
+    getDb().select({ id: delegations.id, content: delegations.content }).from(delegations).where(and(eq(delegations.clerkUserId, userId), inArray(delegations.status, ["waiting", "waiting_action", "waiting_choice", "waiting_browser", "needs_input"]), sql`${delegations.blockedReminderAt} IS NULL`, sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`)).orderBy(desc(delegations.updatedAt)).limit(8),
   ]);
   return [
     ...waiting.map((run) => ({ id: `run:${run.id}`, section: "tasks" as const, text: `${waitingLabel(run.content)} · needs you`, action: { kind: "run" as const, runId: run.id }, priority: 1 })),

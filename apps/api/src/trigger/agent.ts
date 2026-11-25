@@ -4,6 +4,7 @@ import { executeDelegation, publishOutbox, recoverStalledRuns } from "../durable
 import { enqueuePendingRunFollowups, enqueueRunFollowups, processRunFollowups } from "../run-followups.js";
 import { dispatchDueRoutines } from "../scheduling.js";
 import { deliverFindings } from "../delivery.js";
+import { remindBlockedRuns } from "../return-trip-blocked.js";
 import { deliverSlack } from "../slack-delivery.js";
 import { deliverReminders } from "../reminders.js";
 import { executeCodeRun, recoverStalledCodeRuns } from "../code-runs.js";
@@ -204,6 +205,7 @@ export const routineDispatcher = schedules.task({
     await enqueuePendingRunFollowups().catch((error) => console.warn("post_run_dispatch_failed", { message: error instanceof Error ? error.message : String(error) }));
     await publishOutbox();
     await deliverFindings();
+    await remindBlockedRuns().catch(() => console.warn("blocked_reminders_failed"));
     await deliverSlack().catch(() => console.warn("slack_delivery_failed"));
     return { checkedAt: new Date().toISOString() };
   },

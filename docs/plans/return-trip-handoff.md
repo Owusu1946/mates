@@ -1,7 +1,7 @@
 # The return trip — implementation handoff
 
 **Branch:** `feat/return-trip`  
-**Status:** Slices 1–3 are implemented. Blocked reminders, batching, and active-chat presence are pending.
+**Status:** Slices 1–4 are implemented. Batching and active-chat presence are pending.
 
 ## Slice 1: outcome inventory
 
@@ -21,7 +21,8 @@
 
 - Resuming a waiting task creates a new delegation ID. `deliveries` are unique per delegation and device, so the resumed completion may send a distinct push. Slice 2 makes its finding use the new answer instead of the waiting text copied into the resumed run. A waiting push already queued for the old delegation can still become stale if the user resolves it on another device; handle that when adding blocked follow-up cancellation.
 - Failed findings prefer the stored error over earlier assistant text. Code, deck, computer, and meeting-note pushes now use stable `return-trip:` source keys in the shared outbox, so repeated announcements cannot create another notice. These user-requested results wait through quiet hours but do not use the unprompted budget or proactive mode. Normal run findings keep their per-delegation delivery rows; a resumed run has a new delegation ID.
-- The shared outbox requires migrations `0051_tan_masque.sql` and `0052_friendly_sister_grimm.sql` from the quiet-hours branch. Apply them before deploying the return-trip API or worker. See `quiet-hours-noise-budget-handoff.md` for deployment order and device checks.
+- The shared outbox requires migrations `0051_tan_masque.sql` and `0052_friendly_sister_grimm.sql` from the quiet-hours branch. Slice 4 adds `0053_known_the_hand.sql`, with nullable `blocked_since` and `blocked_reminder_at` columns. Apply all three in order before deploying the API and Trigger worker. See `quiet-hours-noise-budget-handoff.md` for device checks.
+- The minute dispatcher checks waiting delegations, computer goals, and missions after three hours. It enqueues one quiet-hours-aware reminder per unresolved item. Delegation claims recover after two minutes if the process stops before outbox insertion; computer and mission reminders use stable outbox source keys. Resolution is checked again before a delayed push. Unresolved items appear in the next brief's deferred section even when Tasks is off.
 - Push taps pass the chat and result target. The chat switches before locating the target, loads older pages when needed, and falls back to the newest point if the message is no longer retained. Dedicated code, computer, and call result messages carry a message ID; deck and waiting computer cards are located by their card IDs.
 - Code, deck, call, and computer notifications use separate `pushToUser` paths. Route them through a common transition identity before batching or reminders so one event is not sent twice.
 - `chats.last_viewed_at` is not an active-chat presence signal. Foreground suppression needs a short-lived signal tied to the specific chat.
