@@ -146,7 +146,7 @@ describe("setting up a watch", () => {
 describe("firing", () => {
   it("starts one run and pushes, and deletes an app watch's trigger", async () => {
     db.executes = [[{ delegation_id: "run" }]];
-    const result = await fireWatch(row({ trigger: { toolkit: "gmail", slug: "S", triggerId: "ti_9", config: {} } }) as never, "BTC $91,000", [{ url: null, quote: "q" }]);
+    const result = await fireWatch(row({ mateId: "mate_1", trigger: { toolkit: "gmail", slug: "S", triggerId: "ti_9", config: {} } }) as never, "BTC $91,000", [{ url: null, quote: "q" }]);
     expect(result).toMatchObject({ fired: true });
     expect(ext.push).toHaveBeenCalledTimes(1);
     expect(ext.composio.delete).toHaveBeenCalledWith("ti_9");

@@ -2,9 +2,8 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 import { and, eq, inArray, lte, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
-import { chats, delegations, deliveries, deviceTokens, findings, morningBriefSettings, morningBriefs, proactiveNotifications } from "./db/schema.js";
-import { getMateNotificationSettings, isWithinQuietHours, nextQuietHoursEnd } from "./notification-settings.js";
-import { resolveMateIdForChat } from "./notification-settings.js";
+import { chats, delegations, deliveries, deviceTokens, findings, morningBriefs, proactiveNotifications } from "./db/schema.js";
+import { getMateNotificationSettings, isWithinQuietHours, MATE_DAILY_UNPROMPTED_LIMIT, nextQuietHoursEnd, resolveMateIdForChat, USER_DAILY_UNPROMPTED_LIMIT } from "./notification-settings.js";
 
 /** A reply still going after this is long enough to notify even while the app is open. */
 export const WATCHED_REPLY_MS = 60_000;
@@ -111,7 +110,8 @@ export async function deliverFindings() {
   }).from(findings)
     .innerJoin(delegations, eq(delegations.id, findings.delegationId))
     .leftJoin(chats, eq(chats.id, delegations.chatId))
-    .where(sql`${delegations.requestKey} ~ '^(occurrence_|watch_|habit_)'`)
+    .where(sql`${delegations.requestKey} ~ '^(occurrence_|watch_|habit_)'
+      AND NOT EXISTS (SELECT 1 FROM proactive_notifications pn WHERE pn.source_key = 'finding:' || ${delegations.id}::text)`)
     .orderBy(findings.createdAt)
     .limit(50);
   for (const item of proactiveRuns) {
@@ -193,8 +193,12 @@ async function dispatchProactiveNotification(id: string, now: Date) {
   const settings = await getMateNotificationSettings(notice.clerkUserId, notice.mateId);
   const devices = await getDb().select({ token: deviceTokens.token }).from(deviceTokens)
     .where(and(eq(deviceTokens.clerkUserId, notice.clerkUserId), eq(deviceTokens.enabled, true)));
-  if (!devices.length || settings.mode === "off" || settings.mode === "urgent_only" && !notice.urgent) {
+  if (!devices.length || settings.mode === "off") {
     await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now }).where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
+    return false;
+  }
+  if (settings.mode === "urgent_only" && !notice.urgent) {
+    await getDb().update(proactiveNotifications).set({ status: "brief", updatedAt: now }).where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
     return false;
   }
   if (!notice.urgent && isWithinQuietHours({ now, timezone: settings.timezone, quietStart: settings.quietStart, quietEnd: settings.quietEnd })) {
@@ -204,8 +208,6 @@ async function dispatchProactiveNotification(id: string, now: Date) {
     return false;
   }
 
-  const [brief] = await getDb().select({ enabled: morningBriefSettings.enabled }).from(morningBriefSettings)
-    .where(eq(morningBriefSettings.clerkUserId, notice.clerkUserId)).limit(1);
   const start = DateTime.fromJSDate(now).setZone(settings.timezone).startOf("day").toJSDate();
   const end = DateTime.fromJSDate(now).setZone(settings.timezone).plus({ days: 1 }).startOf("day").toJSDate();
   const claim = await getDb().execute(sql`
@@ -221,10 +223,10 @@ async function dispatchProactiveNotification(id: string, now: Date) {
         AND n.urgent = false
         AND n.status IN ('sending', 'sent', 'uncertain')
     ), decision AS MATERIALIZED (
-      SELECT ${notice.urgent} OR (mate_count < 1 AND user_count < 3) AS allowed FROM counts
+      SELECT ${notice.urgent} OR (mate_count < ${MATE_DAILY_UNPROMPTED_LIMIT} AND user_count < ${USER_DAILY_UNPROMPTED_LIMIT}) AS allowed FROM counts
     ), changed AS (
       UPDATE proactive_notifications n
-      SET status = CASE WHEN decision.allowed THEN 'sending' ELSE ${brief?.enabled && typeof notice.data.morningBriefId !== "string" ? "brief" : "suppressed"} END,
+      SET status = CASE WHEN decision.allowed THEN 'sending' ELSE ${typeof notice.data.morningBriefId !== "string" ? "brief" : "suppressed"} END,
           sent_at = CASE WHEN decision.allowed THEN ${now} ELSE NULL END,
           updated_at = ${now}
       FROM decision

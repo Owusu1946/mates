@@ -70,7 +70,6 @@ const habit = (extra: Record<string, unknown> = {}) => ({
   updatedAt: new Date(),
   ...extra,
 });
-const device = { quietStart: 22, quietEnd: 7, timezone: "Africa/Accra" };
 const monday = new Date("2026-11-16T08:52:00Z");
 
 beforeEach(() => {
@@ -84,14 +83,14 @@ beforeEach(() => {
 
 describe("sending a nudge", () => {
   it("posts the offer in the mate's chat and pushes it", async () => {
-    // device, nudges today, chat busy, chat head, chat title
-    db.results = [[device], [{ count: 0 }], [], [{ id: "msg_9" }], [{ title: "Nova" }]];
+    // Nudges today, chat busy, chat head, chat title
+    db.results = [[{ count: 0 }], [], [{ id: "msg_9" }], [{ title: "Nova" }]];
     const sent = await sendNudge(habit(), monday);
     expect(sent).toMatchObject({ sent: true, chatId: "mate_m1" });
     expect(db.batches).toBe(1);
     expect(db.writes[0]).toContain("You usually plan your week around now");
     expect(db.writes[0]).not.toContain("tool-call");
-    expect(ext.push).toHaveBeenCalledWith("user_1", expect.objectContaining({ title: "Nova", data: { chatId: "mate_m1", chatKind: "mate" } }));
+    expect(ext.push).toHaveBeenCalledWith(expect.objectContaining({ userId: "user_1", title: "Nova", data: { chatId: "mate_m1", chatKind: "mate" } }), monday);
   });
 
   it("doesn't when learning is off", async () => {
@@ -104,19 +103,20 @@ describe("sending a nudge", () => {
     expect(await sendNudge(habit(), monday)).toEqual({ sent: false, reason: "done_today" });
   });
 
-  it("doesn't in quiet hours", async () => {
-    db.results = [[device]];
-    expect(await sendNudge(habit(), new Date("2026-11-16T23:00:00Z"))).toEqual({ sent: false, reason: "quiet" });
+  it("posts during quiet hours and lets the central push gate defer delivery", async () => {
+    db.results = [[{ count: 0 }], [], [], [{ title: "Nova" }]];
+    expect(await sendNudge(habit(), new Date("2026-11-16T23:00:00Z"))).toMatchObject({ sent: true, chatId: "mate_m1" });
+    expect(ext.push).toHaveBeenCalledTimes(1);
   });
 
   it("stops at two a day", async () => {
-    db.results = [[device], [{ count: 2 }]];
+    db.results = [[{ count: 2 }]];
     expect(await sendNudge(habit(), monday)).toEqual({ sent: false, reason: "daily_limit" });
     expect(ext.push).not.toHaveBeenCalled();
   });
 
   it("waits when the chat is mid-run", async () => {
-    db.results = [[device], [{ count: 0 }], [{ id: "run_x" }]];
+    db.results = [[{ count: 0 }], [{ id: "run_x" }]];
     expect(await sendNudge(habit(), monday)).toEqual({ sent: false, reason: "busy" });
   });
 });

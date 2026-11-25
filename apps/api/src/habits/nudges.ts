@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "../db/client.js";
-import { chatMessages, chats, delegations, deviceTokens, habitNudges, habits, mates, type ActivityKind, type NudgeOutcome } from "../db/schema.js";
+import { chatMessages, chats, delegations, habitNudges, habits, mates, type ActivityKind, type NudgeOutcome } from "../db/schema.js";
 import { pushProactiveToUser } from "../delivery.js";
 import { resolveMateIdForChat } from "../notification-settings.js";
 import { submitRun } from "../durable-runs.js";
@@ -29,14 +29,6 @@ const OFFER_CONFIDENCE = 0.8;
 
 const offerable = (habit: Pick<HabitRow, "status" | "confidence" | "automatic">) =>
   !habit.automatic && (habit.status === "confirmed" || (habit.status === "candidate" && habit.confidence >= OFFER_CONFIDENCE));
-
-/** Whether the user's most recent phone is in its quiet hours now. */
-export async function inQuietHours(userId: string, now = new Date()) {
-  const [device] = await getDb().select().from(deviceTokens).where(and(eq(deviceTokens.clerkUserId, userId), eq(deviceTokens.enabled, true))).orderBy(desc(deviceTokens.updatedAt)).limit(1);
-  if (!device || device.quietStart === device.quietEnd) return false;
-  const hour = DateTime.fromJSDate(now).setZone(device.timezone).hour;
-  return device.quietStart < device.quietEnd ? hour >= device.quietStart && hour < device.quietEnd : hour >= device.quietStart || hour < device.quietEnd;
-}
 
 async function nudgesToday(userId: string, timezone: string, now: Date) {
   const start = DateTime.fromJSDate(now).setZone(timezone).startOf("day").toJSDate();
