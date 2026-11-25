@@ -44,7 +44,7 @@ const comparison = [
       </tbody>
     </table>
   </div>
-  <p class="comparison-note" id="plan-comparison-note">Weekly usage is relative to Starter. A dash indicates an unlisted limit.</p>
+  <p class="comparison-note" id="plan-comparison-note">Weekly usage is relative to Starter.</p>
 </section>
 <style>
   .billing { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
@@ -71,7 +71,7 @@ const comparison = [
   strong { font: 500 clamp(32px, 4vw, 48px)/1 var(--display); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
   .comparison { margin-top: 32px; overflow-x: auto; }
   .comparison:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 4px; }
-  table { width: 100%; min-width: 500px; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
   caption { padding-bottom: 16px; text-align: left; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
   th, td { padding: 14px 8px; border-bottom: 1px solid var(--line); text-align: center; }
   th { font-weight: 600; }
@@ -80,5 +80,15 @@ const comparison = [
   thead th:first-child { padding-left: 12px; }
   td { color: var(--muted); font-variant-numeric: tabular-nums; }
   .comparison-note { margin: 12px 0 0; font-size: 13px; }
+  @media (max-width: 560px) {
+    table { font-size: 12px; }
+    th, td { padding: 12px 2px; overflow-wrap: anywhere; }
+    th:first-child { width: 27%; }
+    thead th:first-child { padding-left: 4px; }
+  }
+  @media (max-width: 360px) {
+    th:first-child { width: 25%; }
+    td { padding-inline: 0; font-size: 11px; }
+  }
   @media(max-width: 780px) { .plans { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; } }
 </style>
