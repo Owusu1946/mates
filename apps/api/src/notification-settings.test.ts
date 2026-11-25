@@ -3,6 +3,7 @@ import {
   DEFAULT_MATE_NOTIFICATION_SETTINGS,
   isWithinQuietHours,
   mateNotificationSettingsInput,
+  nextQuietHoursEnd,
   proactivePushDecision,
 } from "./notification-settings.js";
 
@@ -33,6 +34,12 @@ describe("mate notification settings", () => {
   it("treats equal endpoints as disabled and invalid timezones as outside quiet hours", () => {
     expect(isWithinQuietHours({ timezone: "Africa/Accra", quietStart: "08:00", quietEnd: "08:00", now: new Date("2026-11-25T08:30:00Z") })).toBe(false);
     expect(isWithinQuietHours({ timezone: "not/a-zone", quietStart: "22:00", quietEnd: "07:00", now: new Date("2026-11-25T23:00:00Z") })).toBe(false);
+  });
+
+  it("schedules deferred notices for the next quiet-hours end in local time", () => {
+    expect(nextQuietHoursEnd(new Date("2026-11-25T23:30:00Z"), "Africa/Accra", "07:00")?.toISOString()).toBe("2026-11-26T07:00:00.000Z");
+    expect(nextQuietHoursEnd(new Date("2026-11-25T06:59:00Z"), "Africa/Accra", "07:00")?.toISOString()).toBe("2026-11-25T07:00:00.000Z");
+    expect(nextQuietHoursEnd(new Date("2026-11-25T23:30:00Z"), "not/a-zone", "07:00")).toBeNull();
   });
 
   it("enforces per-mate and per-user budgets while preserving urgent and off choices", () => {

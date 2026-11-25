@@ -37,6 +37,16 @@ describe("API contract", () => {
     expect((await send({ authorization: "Bearer test" }, 600_001)).status).toBe(400);
   });
 
+  it("validates timezone refreshes for registered notification devices", async () => {
+    const app = createApp(deps);
+    const response = await app.request("/v1/devices/timezone", {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json" },
+      body: JSON.stringify({ token: "ExpoPushToken[device_123]", timezone: "Mars/Olympus" }),
+    });
+    expect(response.status).toBe(400);
+  });
+
   it("replays typed run events over SSE and closes after the terminal event", async () => {
     const id = "00000000-0000-4000-8000-000000000001";
     const snapshots = [

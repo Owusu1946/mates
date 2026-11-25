@@ -4,7 +4,8 @@ import { and, desc, eq, inArray, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "./db/client.js";
 import { profiles, watchEvents, watches, type WatchEvidence, type WatchStatus } from "./db/schema.js";
-import { pushToUser } from "./delivery.js";
+import { pushProactiveToUser } from "./delivery.js";
+import { resolveMateIdForChat } from "./notification-settings.js";
 import { publishOutbox, workerConfigured } from "./durable-runs.js";
 import { getComposio, type WorkflowCard } from "./integrations.js";
 import { CHAT_MODEL } from "./models.js";
@@ -39,6 +40,7 @@ export const watchArgs = z.object({
   kind: z.enum(["web", "app"]).describe("web: something findable on the web (prices, news, releases, tickets). app: an event in one of the user's connected apps (an email, a GitHub issue, a Slack message)."),
   condition: z.string().trim().min(5).max(500).describe("What must be true for it to fire, in plain words, keeping the user's numbers and names exactly."),
   action: z.string().trim().min(3).max(1000).describe("Exactly what to do when it fires, as the user asked (e.g. \"Email me at kenneth@x.com with the price and a link\"). If they only want to know, \"Tell me here\". Never add actions they didn't ask for."),
+  urgent: z.boolean().default(false).describe("Set true only if the user explicitly asks for this watch to notify during quiet hours."),
   check_every_hours: z.number().min(1).max(24).nullable().describe("Web watches: how often to check. Null for as often as their plan allows; longer for things that change slowly."),
   app: z
     .object({
@@ -69,7 +71,7 @@ export const watchTriggersTool = {
   },
 };
 
-export const watchInstructions = `For "tell me when…", "if… then…", "as soon as…" or "watch for…", use cooper_watch: it fires once when the condition is met and does the action. Use kind web for anything findable on the web (prices, news, releases, tickets, availability); use kind app for events in a connected app, after cooper_watch_triggers shows which events it offers. Keep the user's numbers and names exactly in the condition, and write the action exactly as they asked, nothing more. It takes effect at once; never ask them to confirm. Afterwards say in one sentence what you're watching for, how often it's checked, and what you'll do. If it says the condition is already true, tell them that instead.`;
+export const watchInstructions = `For "tell me when…", "if… then…", "as soon as…" or "watch for…", use cooper_watch: it fires once when the condition is met and does the action. Use kind web for anything findable on the web (prices, news, releases, tickets, availability); use kind app for events in a connected app, after cooper_watch_triggers shows which events it offers. Keep the user's numbers and names exactly in the condition, and write the action exactly as they asked, nothing more. Set urgent only when they explicitly ask to be notified during quiet hours. It takes effect at once; never ask them to confirm. Afterwards say in one sentence what you're watching for, how often it's checked, and what you'll do. If it says the condition is already true, tell them that instead.`;
 
 // ---- Setting one up ---------------------------------------------------------------------------
 
@@ -118,6 +120,7 @@ export async function createWatch(userId: string, args: WatchArgs, context: Cont
     kind: args.kind,
     condition: args.condition,
     action: args.action,
+    urgent: args.urgent,
     request: context.request.trim().slice(0, 2000),
     timezone: context.timezone ?? null,
     expiresAt: new Date(Date.now() + WATCH_DAYS * DAY),
@@ -329,7 +332,8 @@ export async function fireWatch(watch: WatchRow, note: string, evidence: WatchEv
     return { fired: false as const, pending: true };
   }
   await logEvent(watch.id, { kind: "fired", met: true, note, evidence });
-  await pushToUser(watch.clerkUserId, { title: watch.title, body: `${note}`.slice(0, 180), data: { chatId } }).catch(() => false);
+  const mateId = watch.mateId ?? await resolveMateIdForChat(watch.clerkUserId, chatId);
+  if (mateId) await pushProactiveToUser({ userId: watch.clerkUserId, mateId, sourceKey: `watch:${watch.id}:fire`, title: watch.title, body: `${note}`.slice(0, 180), data: { chatId }, urgent: watch.urgent }).catch(() => false);
   if (watch.trigger) await deleteTrigger(watch.trigger.triggerId);
   await publishOutbox(runId).catch(() => console.warn("watch_run_deferred", { id: watch.id }));
   return { fired: true as const, runId };
@@ -365,8 +369,10 @@ async function expireWatches(now: Date) {
     .set({ warnedAt: now })
     .where(and(eq(watches.status, "active"), sql`${watches.warnedAt} IS NULL`, lte(watches.expiresAt, new Date(now.getTime() + DAY))))
     .returning();
-  for (const watch of warn)
-    await pushToUser(watch.clerkUserId, { title: watch.title, body: "I'll stop watching tomorrow. Open the card to keep watching.", data: { chatId: watch.chatId } }).catch(() => false);
+  for (const watch of warn) {
+    const mateId = watch.mateId ?? await resolveMateIdForChat(watch.clerkUserId, watch.chatId);
+    if (mateId) await pushProactiveToUser({ userId: watch.clerkUserId, mateId, sourceKey: `watch:${watch.id}:expiry`, title: watch.title, body: "I'll stop watching tomorrow. Open the card to keep watching.", data: { chatId: watch.chatId ?? `mate_${mateId}` } }).catch(() => false);
+  }
   const ended = await getDb()
     .update(watches)
     .set({ status: "expired", nextCheckAt: null, version: sql`${watches.version} + 1`, updatedAt: now })

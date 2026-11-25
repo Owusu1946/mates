@@ -37,7 +37,7 @@ vi.mock("../db/client.js", () => ({
 }));
 vi.mock("./shared.js", () => ({ learningFor: async () => ext.learning }));
 vi.mock("./activity.js", () => ({ doneToday: async () => ext.doneToday, recordActivity: ext.record }));
-vi.mock("../delivery.js", () => ({ pushToUser: ext.push }));
+vi.mock("../delivery.js", () => ({ pushToUser: ext.push, pushProactiveToUser: ext.push }));
 vi.mock("../durable-runs.js", () => ({ submitRun: ext.submitRun }));
 vi.mock("../scheduling.js", () => ({ routineChat: async () => "mate_m1", scheduleRoutine: ext.scheduleRoutine }));
 vi.mock("../mates.js", () => ({ mateChatId: (id: string) => `mate_${id}` }));

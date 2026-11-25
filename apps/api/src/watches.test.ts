@@ -38,7 +38,7 @@ vi.mock("./db/client.js", () => ({
   }),
 }));
 vi.mock("./web-search.js", () => ({ searchExcerpts: ext.search, webSearchConfigured: () => true }));
-vi.mock("./delivery.js", () => ({ pushToUser: ext.push }));
+vi.mock("./delivery.js", () => ({ pushToUser: ext.push, pushProactiveToUser: ext.push }));
 vi.mock("./durable-runs.js", () => ({ publishOutbox: ext.publish, workerConfigured: () => true }));
 vi.mock("./scheduling.js", () => ({ routineChat: async () => "mate_chat_1" }));
 vi.mock("./usage/gate.js", () => ({
@@ -52,7 +52,7 @@ const { checkInterval, controlWatch, createWatch, everyText, firePrompt, fireWat
 
 const model = (content: object) => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(content) } }], usage: { cost: 0.0004 } }));
 const fetchMock = vi.fn();
-const btc = { title: "BTC drops 5%", kind: "web" as const, condition: "Bitcoin falls 5% from today's price", action: "Email me at k@x.com", check_every_hours: null, app: null };
+const btc = { title: "BTC drops 5%", kind: "web" as const, condition: "Bitcoin falls 5% from today's price", action: "Email me at k@x.com", urgent: false, check_every_hours: null, app: null };
 const context = { chatId: "mate_chat_1", mateId: null, request: "watch for a 5% drop in BTC and email me", timezone: "Africa/Accra" };
 const row = (extra: Record<string, unknown> = {}) => ({
   id: "00000000-0000-4000-8000-0000000000a1", clerkUserId: "user_1", chatId: "mate_chat_1", mateId: null, title: "BTC drops 5%", kind: "web", condition: btc.condition, action: btc.action, request: context.request,

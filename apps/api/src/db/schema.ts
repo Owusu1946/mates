@@ -315,6 +315,8 @@ export const watches = pgTable("watches", {
   condition: text("condition").notNull(),
   /** What to do when it happens: approved by the user when the watch was set up. */
   action: text("action").notNull(),
+  /** True only when the user explicitly asked for this watch to bypass quiet hours. */
+  urgent: boolean("urgent").notNull().default(false),
   /** The user's own words when they asked. */
   request: text("request").notNull().default(""),
   status: text("status").$type<WatchStatus>().notNull().default("active"),
@@ -541,6 +543,27 @@ export const mateNotificationSettings = pgTable("mate_notification_settings", {
   check("mate_notification_settings_mode_check", sql`${t.mode} IN ('normal', 'urgent_only', 'off')`),
   check("mate_notification_settings_start_check", sql`${t.quietStart} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
   check("mate_notification_settings_end_check", sql`${t.quietEnd} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+]);
+
+/** One durable record per proactive push, also used to reserve the daily budget atomically. */
+export const proactiveNotifications = pgTable("proactive_notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull().unique(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+  urgent: boolean("urgent").notNull().default(false),
+  status: text("status").$type<"queued" | "quiet" | "brief" | "sending" | "sent" | "failed" | "uncertain" | "suppressed" | "included">().notNull().default("queued"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("proactive_notifications_due_idx").on(t.status, t.nextAttemptAt),
+  index("proactive_notifications_budget_idx").on(t.clerkUserId, t.mateId, t.sentAt),
+  check("proactive_notifications_status_check", sql`${t.status} IN ('queued', 'quiet', 'brief', 'sending', 'sent', 'failed', 'uncertain', 'suppressed', 'included')`),
 ]);
 
 export const groupMembers = pgTable("group_members", {

@@ -656,6 +656,18 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       const [device] = await getDb().select({ enabled: deviceTokens.enabled }).from(deviceTokens).where(and(eq(deviceTokens.token, c.req.valid("json").token), eq(deviceTokens.clerkUserId, c.get("userId"))));
       return c.json({ enabled: device?.enabled === true });
     })
+    .post("/v1/devices/timezone", auth, validator("json", (value, c) => {
+      const parsed = z.object({
+        token: z.string().regex(/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/),
+        timezone: routineSpecSchema.shape.timezone,
+      }).strict().safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_DEVICE", "Invalid device timezone", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => {
+      await getDb().update(deviceTokens).set({ timezone: c.req.valid("json").timezone, updatedAt: new Date() })
+        .where(and(eq(deviceTokens.token, c.req.valid("json").token), eq(deviceTokens.clerkUserId, c.get("userId"))));
+      return c.json({ ok: true });
+    })
     .post("/v1/devices/disable", auth, validator("json", (value, c) => {
       const parsed = z.object({ token: z.string().min(1).max(300) }).safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_DEVICE", "Invalid device", c.get("requestId")), 400);

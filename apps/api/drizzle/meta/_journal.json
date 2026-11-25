@@ -365,6 +365,13 @@
       "when": 1795602504291,
       "tag": "0051_tan_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1795604077702,
+      "tag": "0052_friendly_sister_grimm",
+      "breakpoints": true
     }
   ]
 }
