@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "electron-vite build",
-    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "typecheck": "tsrs -p tsconfig.node.json --noEmit && tsrs -p tsconfig.web.json --noEmit",
     "test": "node --test \"src/**/*.test.ts\"",
     "dist:win": "electron-vite build && electron-builder --win",
     "dist:mac": "electron-vite build && electron-builder --mac",
@@ -38,7 +38,7 @@
     "react-dom": "19.2.3",
     "tailwind-merge": "^3.7.1",
     "tailwindcss": "~4.3.5",
-    "typescript": "~6.0.3",
+    "tsrs": "7.1.0-beta.tsrs5",
     "vite": "^8.3.6"
   }
 }

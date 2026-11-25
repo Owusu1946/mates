@@ -199,7 +199,7 @@ function runEventResponse(
 }
 
 /** The landing site, wherever it is served: its origins may call the /site routes. */
-const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin) => origin.trim());
+const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin: string) => origin.trim());
 
 export function createApp(overrides: Partial<Dependencies> = {}) {
   const dependencies = { ...defaults, ...overrides };
