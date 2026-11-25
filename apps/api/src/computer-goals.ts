@@ -135,7 +135,7 @@ export async function announceGoal(id: string) {
   await pushReturnTripToUser({ userId: goal.clerkUserId, chatId: goal.chatId, mateId: goal.mateId, sourceKey: `computer:${goal.id}:${goal.status}`,
     title: goal.status === "done" ? "Done on your computer" : "Couldn’t finish on your computer",
     body: (goal.status === "done" ? goal.summary : goal.error)?.slice(0, 160) ?? goal.goal.slice(0, 160),
-    data: { chatId: goal.chatId ?? undefined, computerGoalId: goal.id, url: "/computer" },
+    data: { chatId: goal.chatId ?? undefined, computerGoalId: goal.id, messageId: goal.chatId ? `computer_${goal.id}` : undefined, url: "/computer" },
   }).catch(() => undefined);
 }
 

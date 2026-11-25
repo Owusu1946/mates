@@ -596,7 +596,7 @@ async function announce(id: string) {
   await pushReturnTripToUser({ userId: run.clerkUserId, chatId: run.chatId, sourceKey: `code:${run.id}:${run.status}`,
     title: run.status === "done" ? (run.draft ? `Draft PR #${run.prNumber} needs attention` : `PR #${run.prNumber} is ready`) : `Couldn’t finish in ${repoName}`,
     body: run.status === "done" ? `The mates ${run.draft ? "opened a draft" : "opened a"} pull request in ${run.repo}.` : run.error ?? "Open Mates for details.",
-    data: { url: run.prUrl ?? undefined, chatId: run.chatId ?? undefined, codeRunId: run.id },
+    data: { url: run.prUrl ?? undefined, chatId: run.chatId ?? undefined, codeRunId: run.id, messageId: run.chatId ? `code_${run.id}` : undefined },
   }).catch(() => undefined);
 }
 

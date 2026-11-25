@@ -94,6 +94,13 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       void Notifications.dismissNotificationAsync(response.notification.request.identifier).catch(() => {});
       const data = response.notification.request.content.data;
       const chatId = data?.chatId;
+      const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+      const target = {
+        notificationRunId: uuid(data?.delegationId) ? data.delegationId : undefined,
+        notificationMessageId: typeof data?.messageId === "string" && /^(?:code|computer|call)_[0-9a-f-]{36}$/i.test(data.messageId) ? data.messageId : undefined,
+        notificationDeckId: uuid(data?.deckId) ? data.deckId : undefined,
+        notificationComputerGoalId: uuid(data?.computerGoalId) ? data.computerGoalId : undefined,
+      };
       if (typeof data?.morningBriefId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.morningBriefId)) {
         void runRequest(() => tokenRef.current(), `morning-brief/${data.morningBriefId}/view`, {}).catch(() => undefined);
       }
@@ -104,7 +111,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         return;
       }
       if (typeof data?.codeRunId === "string") {
-        if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
+        if (typeof chatId === "string") router.push({ pathname: "/(app)", params: { notificationChatId: chatId, ...target } });
         else if (typeof data.url === "string" && data.url.startsWith("https://")) void Linking.openURL(data.url);
         else router.push("/(app)");
         return;
@@ -115,9 +122,8 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         return;
       }
       // A mate's or group's result (a routine, a background task) opens in their chat.
-      const inMateChat = data?.chatKind === "mate" || data?.chatKind === "group";
-      if (typeof chatId === "string" && (inMateChat || typeof data?.delegationId !== "string")) {
-        router.push({ pathname: "/(app)", params: { notificationChatId: chatId } });
+      if (typeof chatId === "string") {
+        router.push({ pathname: "/(app)", params: { notificationChatId: chatId, ...target } });
         return;
       }
       const id = data?.delegationId;

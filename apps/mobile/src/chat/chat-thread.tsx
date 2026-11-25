@@ -114,7 +114,7 @@ import { WatchCard } from "./watch-card";
 import { MeetingPrepCard } from "./meeting-prep-card";
 import { MorningBriefCard, parseMorningBrief } from "./morning-brief-card";
 import { ThinkingStatus } from "./thinking-status";
-import { delegationMessageIndex } from "./run-message-target";
+import { delegationMessageIndex, notificationMessageIndex } from "./run-message-target";
 
 // Finora's chat palette, scoped to this screen.
 const palettes = {
@@ -1160,10 +1160,17 @@ function ChatBody({
 }) {
   const isEmpty = useAuiState((state) => state.thread.isEmpty);
   const isLoading = useAuiState((state) => state.thread.isLoading);
-  const params = useLocalSearchParams<{ notificationRunId?: string }>();
+  const params = useLocalSearchParams<{ notificationChatId?: string; notificationRunId?: string; notificationMessageId?: string; notificationDeckId?: string; notificationComputerGoalId?: string }>();
   const router = useRouter();
-  const targetRunId = typeof params.notificationRunId === "string" ? params.notificationRunId : undefined;
-  const targetMessageIndex = useAuiState((state) => delegationMessageIndex(state.thread.messages, targetRunId));
+  const switchingChat = !!params.notificationChatId;
+  const targetRunId = !switchingChat && typeof params.notificationRunId === "string" ? params.notificationRunId : undefined;
+  const targetMessageId = !switchingChat && typeof params.notificationMessageId === "string" ? params.notificationMessageId : undefined;
+  const targetDeckId = !switchingChat && typeof params.notificationDeckId === "string" ? params.notificationDeckId : undefined;
+  const targetComputerGoalId = !switchingChat && typeof params.notificationComputerGoalId === "string" ? params.notificationComputerGoalId : undefined;
+  const targetKey = targetRunId ? `run:${targetRunId}` : targetMessageId ? `message:${targetMessageId}` : targetDeckId ? `deck:${targetDeckId}` : targetComputerGoalId ? `computer:${targetComputerGoalId}` : undefined;
+  const targetMessageIndex = useAuiState((state) => targetRunId
+    ? delegationMessageIndex(state.thread.messages, targetRunId)
+    : notificationMessageIndex(state.thread.messages, { messageId: targetMessageId, deckId: targetDeckId, computerGoalId: targetComputerGoalId }));
   const messageCount = useAuiState((state) => state.thread.messages.length);
   const onScroll = useCallback(
     ({ nativeEvent: { contentOffset, contentSize, layoutMeasurement } }: NativeSyntheticEvent<NativeScrollEvent>) =>
@@ -1183,14 +1190,14 @@ function ChatBody({
     [],
   );
   const earlier = useEarlierMessages();
-  const lastTargetPage = useRef<{ runId: string; messageCount: number } | null>(null);
+  const lastTargetPage = useRef<{ targetKey: string; messageCount: number } | null>(null);
   useEffect(() => {
-    if (!targetRunId || isLoading || earlier.loading || !earlier.known) return;
-    if (lastTargetPage.current?.runId !== targetRunId) lastTargetPage.current = null;
+    if (!targetKey || isLoading || earlier.loading || !earlier.known) return;
+    if (lastTargetPage.current?.targetKey !== targetKey) lastTargetPage.current = null;
     if (targetMessageIndex !== null) {
       const timer = setTimeout(() => {
         listRef.current?.scrollToIndex({ index: targetMessageIndex, animated: true, viewPosition: 0.2 });
-        router.setParams({ notificationRunId: undefined });
+        router.setParams({ notificationRunId: undefined, notificationMessageId: undefined, notificationDeckId: undefined, notificationComputerGoalId: undefined });
       }, 80);
       return () => clearTimeout(timer);
     }
@@ -1201,21 +1208,21 @@ function ChatBody({
       }
       if (lastTargetPage.current?.messageCount === messageCount) {
         const timer = setTimeout(() => {
-          router.setParams({ notificationRunId: undefined });
+          router.setParams({ notificationRunId: undefined, notificationMessageId: undefined, notificationDeckId: undefined, notificationComputerGoalId: undefined });
           listRef.current?.scrollToEnd({ animated: true });
         }, 300);
         return () => clearTimeout(timer);
         return;
       }
-      lastTargetPage.current = { runId: targetRunId, messageCount };
+      lastTargetPage.current = { targetKey, messageCount };
       earlier.onUserScroll();
       earlier.history?.loadMore();
       return;
     }
     // The run may predate this chat's retained history. Keep the chat usable at its newest point.
-    router.setParams({ notificationRunId: undefined });
+    router.setParams({ notificationRunId: undefined, notificationMessageId: undefined, notificationDeckId: undefined, notificationComputerGoalId: undefined });
     listRef.current?.scrollToEnd({ animated: true });
-  }, [earlier.hasMore, earlier.history, earlier.known, earlier.loading, earlier.onUserScroll, isLoading, messageCount, router, targetMessageIndex, targetRunId]);
+  }, [earlier.hasMore, earlier.history, earlier.known, earlier.loading, earlier.onUserScroll, isLoading, messageCount, router, targetMessageIndex, targetKey]);
   const onDrag = useCallback(() => {
     earlier.onUserScroll();
     onScrollBeginDrag();
