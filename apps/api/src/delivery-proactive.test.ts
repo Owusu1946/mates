@@ -224,6 +224,26 @@ describe("proactive notification delivery", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("suppresses a waiting result after another device resumed the run", async () => {
+    const result = notice({ sourceKey: "return-trip:run:00000000-0000-4000-8000-000000000003" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "waiting", clerkUserId: "user_1", agentRunId: "00000000-0000-4000-8000-000000000003", createdAt: new Date("2026-11-25T10:00:00Z") }], [{ id: "newer-run" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a computer decision push after the goal is resolved", async () => {
+    const result = notice({ sourceKey: "return-trip:computer:00000000-0000-4000-8000-000000000003:waiting:2026-11-25T11:00:00.000Z" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "done" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it.each([
     "return-trip:run:00000000-0000-4000-8000-000000000003:blocked-reminder",
     "return-trip:computer:00000000-0000-4000-8000-000000000003:blocked-reminder",

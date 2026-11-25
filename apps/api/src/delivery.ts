@@ -2,7 +2,7 @@ import { DateTime } from "luxon";
 import { z } from "zod";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
-import { chats, delegations, deliveries, deviceTokens, findings, morningBriefs, proactiveNotifications } from "./db/schema.js";
+import { chats, computerGoals, delegations, deliveries, deviceTokens, findings, morningBriefs, proactiveNotifications } from "./db/schema.js";
 import { getMateNotificationSettings, isWithinQuietHours, MATE_DAILY_UNPROMPTED_LIMIT, nextQuietHoursEnd, resolveMateIdForChat, USER_DAILY_UNPROMPTED_LIMIT } from "./notification-settings.js";
 
 /** A reply still going after this is long enough to notify even while the app is open. */
@@ -236,11 +236,22 @@ async function watchingChat(userId: string, chatId: unknown, now: Date, resultAt
   return !!chat?.watchedAt && chat.watchedAt.getTime() >= Math.max(now.getTime() - WATCHING_MS, resultAt.getTime());
 }
 
-async function cancelledRunNotice(sourceKey: string) {
+async function obsoleteReturnTripNotice(sourceKey: string) {
   const runId = /^return-trip:run:([0-9a-f-]{36})$/i.exec(sourceKey)?.[1];
-  if (!runId) return false;
-  const [run] = await getDb().select({ status: delegations.status }).from(delegations).where(eq(delegations.id, runId)).limit(1);
-  return !run || run.status === "cancelled";
+  if (runId) {
+    const [run] = await getDb().select({ status: delegations.status, clerkUserId: delegations.clerkUserId, agentRunId: delegations.agentRunId, createdAt: delegations.createdAt })
+      .from(delegations).where(eq(delegations.id, runId)).limit(1);
+    if (!run || run.status === "cancelled") return true;
+    if (run.status !== "waiting") return false;
+    const [resumed] = await getDb().select({ id: delegations.id }).from(delegations)
+      .where(and(eq(delegations.clerkUserId, run.clerkUserId), sql`${delegations.createdAt} > ${run.createdAt}`,
+        sql`${delegations.request}->>'resumeRunId' = ${run.agentRunId}::text`)).limit(1);
+    return !!resumed;
+  }
+  const computerId = /^return-trip:computer:([0-9a-f-]{36}):waiting:/i.exec(sourceKey)?.[1];
+  if (!computerId) return false;
+  const [goal] = await getDb().select({ status: computerGoals.status }).from(computerGoals).where(eq(computerGoals.id, computerId)).limit(1);
+  return !goal || goal.status !== "waiting";
 }
 
 /** Claim a user's ready results together, then send one push with an inbox target when needed. */
@@ -252,7 +263,7 @@ async function dispatchReturnTripBatch(userId: string, now: Date) {
     .orderBy(proactiveNotifications.createdAt).limit(20);
   const ready: string[] = [];
   for (const candidate of candidates) {
-    if (await cancelledRunNotice(candidate.sourceKey)) {
+    if (await obsoleteReturnTripNotice(candidate.sourceKey)) {
       await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
         .where(and(eq(proactiveNotifications.id, candidate.id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
       continue;
@@ -301,7 +312,7 @@ async function dispatchProactiveNotification(id: string, now: Date) {
     }
   }
   const returnTrip = notice.sourceKey.startsWith("return-trip:");
-  if (returnTrip && await cancelledRunNotice(notice.sourceKey)) {
+  if (returnTrip && await obsoleteReturnTripNotice(notice.sourceKey)) {
     await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
       .where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
     return false;
