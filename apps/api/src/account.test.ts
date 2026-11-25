@@ -16,6 +16,7 @@ describe("account deletion", () => {
     const order = ACCOUNT_TABLES.map((table) => getTableName(table));
     expect(order.indexOf("routines")).toBeLessThan(order.indexOf("delegations"));
     expect(order.indexOf("message_feedback")).toBeLessThan(order.indexOf("chats"));
+    expect(order.indexOf("mate_notification_settings")).toBeLessThan(order.indexOf("mates"));
     expect(order.indexOf("chats")).toBeLessThan(order.indexOf("mates"));
   });
 });
