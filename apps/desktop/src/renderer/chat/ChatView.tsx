@@ -8,7 +8,11 @@ import { ChatHeader, type SidePanel } from "./ChatHeader.tsx";
 import type { MessageAction } from "./MessageActions.tsx";
 import { answererFor, pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
+import type { SentFile } from "./attachments.logic.ts";
+import { mentionChoices, tagsOf, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { usableApps } from "../settings/apps.logic.ts";
+import { useApps } from "../settings/apps.ts";
 
 type ChatViewProps = {
   chat: Chat;
@@ -42,6 +46,29 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   // Whoever you replied to answers; otherwise the lead does.
   const answerer = (quote = replying) => answererFor(quote, chat.mateIds, chat.leadId);
   const canned = (mateId: string) => cannedReply(REPLIES, mateId, flow.sent);
+  const apps = useApps();
+  const connected = usableApps(apps);
+  // A mate you @-mention in the chat answers first; then whoever you replied to; then the lead.
+  const answererWith = (picks: MentionPicks) => picks.mates.find((mate) => chat.mateIds.includes(mate.id))?.id ?? answerer();
+  const sendWith = (picks: MentionPicks, files: SentFile[]) => {
+    const mateId = answererWith(picks);
+    dispatch({ type: "send", chatId: chat.id, mateId, reply: canned(mateId), files, tags: tagsOf(picks) });
+  };
+  const mentions = {
+    mateOf: (id: string) => mates[id],
+    appOf: (slug: string) => apps.find((app) => app.slug === slug),
+    hint: chat.kind === "mate" ? "Mentioning a mate shares this chat with them." : undefined,
+    choicesFor: (query: string, picks: MentionPicks) =>
+      mentionChoices({
+        query,
+        kind: chat.kind,
+        primaryMateId: chat.leadId,
+        members: chat.mateIds.map((id) => mates[id]!).filter(Boolean),
+        ownedMates: Object.values(mates),
+        connectedApps: connected,
+        picks,
+      }),
+  };
   const focusComposer = () => requestAnimationFrame(() => composerRef && "current" in composerRef && composerRef.current?.focus());
 
   const onAction = (message: Message, action: MessageAction) => {
@@ -92,15 +119,16 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
               placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
               busy={Boolean(reply)}
               onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
-              onSend={(files) => dispatch({ type: "send", chatId: chat.id, mateId: answerer(), reply: canned(answerer()), files })}
+              onSend={(files, picks) => sendWith(picks, files)}
+              mentions={mentions}
               attachments
               replyingTo={replying && { quote: replying, mate: mates[replying.author], onCancel: () => dispatch({ type: "reply", chatId: chat.id, quote: null }) }}
               onStop={() => dispatch({ type: "stop", chatId: chat.id })}
               voice={{
                 line: VOICE_LINES[chat.leadId] ?? "What's on my calendar today",
-                onSend: (text, files) => {
+                onSend: (text, files, picks) => {
                   dispatch({ type: "draft", chatId: chat.id, text });
-                  dispatch({ type: "send", chatId: chat.id, mateId: answerer(), reply: canned(answerer()), files });
+                  sendWith(picks, files);
                 },
               }}
             />

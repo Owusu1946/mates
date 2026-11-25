@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { AppLogo } from "../components/AppLogo.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
@@ -62,6 +63,19 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
       <div id={`message-${message.id}`} className="group/message message-flash -mx-2 rounded-xl px-2">
         {mine ? (
           <div className="flex flex-col items-end gap-1.5">
+            {message.tags && (
+              <ul className="flex max-w-[80%] flex-wrap justify-end gap-1" aria-label="Mentioned">
+                {message.tags.map((tag) => {
+                  const tagged = tag.kind === "mate" ? mateOf?.(tag.id) : undefined;
+                  return (
+                    <li key={`${tag.kind}:${tag.id}`} className="flex h-6 items-center gap-1 rounded-full border border-line bg-raised ps-1 pe-2 text-2xs font-medium text-ink-soft">
+                      {tagged ? <MateAvatar mate={{ ...tagged, status: "idle" }} size={16} still /> : tag.kind === "app" ? <AppLogo name={tag.label} slug={tag.id} size={16} /> : <Icon name={tag.kind === "web" ? "globe" : "users"} size={12} className="ms-0.5" />}
+                      {tag.label}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
             {message.files && (
               <ul className="flex max-w-[80%] flex-wrap justify-end gap-1.5" aria-label="Files">
                 {message.files.map((file, index) => (
