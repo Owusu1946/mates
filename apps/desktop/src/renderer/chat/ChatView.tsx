@@ -56,6 +56,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           mates={timelineMates}
           group={chat.kind === "group"}
           onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}
+          onCard={(messageId, card) => dispatch({ type: "card", chatId: chat.id, messageId, card })}
           composer={(
             <ChatComposer
               ref={composerRef}

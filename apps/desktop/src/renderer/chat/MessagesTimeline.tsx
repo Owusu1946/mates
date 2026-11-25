@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import type { Mate, Message } from "../data/sampleCrew.ts";
+import type { Card, Mate, Message } from "../data/sampleCrew.ts";
+import { CardMatesContext } from "./cards/CardParts.tsx";
 import { ActivityLine } from "./ActivityLine.tsx";
 import { ChatWorkActivity } from "./ChatWorkActivity.tsx";
 import { shownText, type Reply } from "./chatFlow.logic.ts";
@@ -16,14 +17,16 @@ type MessagesTimelineProps = {
   activity?: string;
   composer: ReactNode;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
+  onCard: (messageId: string, card: Card) => void;
 };
 
-export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer }: MessagesTimelineProps) {
+export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard }: MessagesTimelineProps) {
   const streamed = reply?.phase === "streaming" ? shownText(reply) : "";
   const lastAuthor = messages.at(-1)?.author;
 
   return (
     <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer}>
+      <CardMatesContext value={mates}>
       <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-5 px-6 pt-6 pb-5">
         {messages.map((message, index) => (
           <MessageRow
@@ -32,6 +35,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
             mate={mates[message.author]}
             showAuthor={group && message.author !== "me" && (Boolean(message.day) || messages[index - 1]?.author !== message.author)}
             onAnswer={onAnswer}
+            onCard={onCard}
           />
         ))}
         {!quiet && activity && <ChatWorkActivity steps={[activity]} />}
@@ -40,6 +44,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
           <MessageRow message={{ id: "live", author: reply.mateId, text: streamed }} mate={mates[reply.mateId]} showAuthor={group && lastAuthor !== reply.mateId} onAnswer={onAnswer} />
         )}
       </div>
+      </CardMatesContext>
     </TimelineViewport>
   );
 }

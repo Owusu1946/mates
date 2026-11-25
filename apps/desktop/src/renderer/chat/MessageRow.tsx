@@ -1,9 +1,8 @@
 import { memo } from "react";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
-import { ApprovalCard } from "./cards/ApprovalCard.tsx";
-import { BriefCard } from "./cards/BriefCard.tsx";
-import { RunCard } from "./cards/RunCard.tsx";
+import type { Card } from "../data/sampleCrew.ts";
+import { MessageCard } from "./cards/MessageCard.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 
 type MessageRowProps = {
@@ -13,13 +12,15 @@ type MessageRowProps = {
   /** Name the mate above its words: in groups, when the speaker changes. */
   showAuthor: boolean;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
+  /** A card's new state, for cards that change (a plan running, a routine paused). */
+  onCard?: (messageId: string, card: Card) => void;
 };
 
 /**
  * One message. Yours sit in a bubble on the right (T3 Code's TimelineUserMessageRow); a mate's
  * words sit plainly on the canvas. Memoised so a streaming reply re-renders only its own row.
  */
-export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, onCard }: MessageRowProps) {
   return (
     <>
       {message.day && (
@@ -52,9 +53,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             </div>
           )}
           {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
-          {message.card?.type === "brief" && <BriefCard card={message.card} />}
-          {message.card?.type === "approval" && <ApprovalCard card={message.card} onAnswer={(state) => onAnswer(message.id, state)} />}
-          {message.card?.type === "run" && <RunCard card={message.card} />}
+          {message.card && <MessageCard card={message.card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(card) => onCard?.(message.id, card)} />}
         </div>
       )}
     </>
