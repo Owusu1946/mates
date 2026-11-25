@@ -528,6 +528,21 @@ export const mates = pgTable("mates", {
   uniqueIndex("mates_user_default_idx").on(t.clerkUserId).where(sql`${t.isDefault}`),
 ]);
 
+/** Per-mate controls for proactive notifications. The active timezone follows the user's devices. */
+export const mateNotificationSettings = pgTable("mate_notification_settings", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),
+  mode: text("mode").$type<"normal" | "urgent_only" | "off">().notNull().default("normal"),
+  quietStart: text("quiet_start").notNull().default("22:00"),
+  quietEnd: text("quiet_end").notNull().default("07:00"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.clerkUserId, t.mateId] }),
+  check("mate_notification_settings_mode_check", sql`${t.mode} IN ('normal', 'urgent_only', 'off')`),
+  check("mate_notification_settings_start_check", sql`${t.quietStart} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check("mate_notification_settings_end_check", sql`${t.quietEnd} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+]);
+
 export const groupMembers = pgTable("group_members", {
   chatId: text("chat_id").notNull().references(() => chats.id, { onDelete: "cascade" }),
   mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),

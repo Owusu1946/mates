@@ -40,6 +40,7 @@ import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { briefSections, briefSettingsInput, getBriefSettings, markBriefLineNotUseful, putBriefSettings, restoreBriefSection, viewMorningBrief } from "./morning-brief.js";
 import { retryDelivery } from "./delivery.js";
+import { getMateNotificationSettings, mateNotificationSettingsInput, putMateNotificationSettings } from "./notification-settings.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { listGrants, removeGrant } from "./permissions.js";
 import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
@@ -939,6 +940,20 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return mission ? c.json({ mission }) : c.json(failure("CONFLICT", "This mission can't do that right now.", c.get("requestId")), 409);
     })
     .get("/v1/mates", auth, async (c) => c.json(await listMatesAndGroups(c.get("userId"))))
+    .get("/v1/mates/:id/notification-settings", auth, async (c) => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid mate", c.get("requestId")), 400);
+      return c.json({ settings: await getMateNotificationSettings(c.get("userId"), id) });
+    })
+    .put("/v1/mates/:id/notification-settings", auth, validator("json", (value, c) => {
+      const parsed = mateNotificationSettingsInput.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_NOTIFICATION_SETTINGS", "Check the notification mode and quiet hours", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid mate", c.get("requestId")), 400);
+      return c.json({ settings: await putMateNotificationSettings(c.get("userId"), id, c.req.valid("json")) });
+    })
     .post("/v1/mates", auth, validator("json", (value, c) => {
       const parsed = mateInputSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_MATE", "Give your mate a name, a role and a colour", c.get("requestId")), 400);
