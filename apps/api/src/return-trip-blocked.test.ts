@@ -53,14 +53,15 @@ describe("blocked reminders", () => {
     state.results = [
       { rows: [] },
       { rows: [{ id: "goal-1", userId: "user-1", chatId: "mate-1", mateId: "mate-1", question: "Choose a file" }] },
-      { rows: [{ id: "mission-1", userId: "user-1", chatId: "group-1", question: "Approve the plan" }] },
+      { rows: [{ id: "00000000-0000-4000-8000-000000000003", userId: "user-1", chatId: "group-1", round: 3, question: "Approve the plan" }] },
     ];
 
     await remindBlockedRuns(new Date("2026-11-25T12:00:00Z"));
 
     expect(state.pushes.map((push) => push.sourceKey)).toEqual([
       "computer:goal-1:blocked-reminder",
-      "mission:mission-1:blocked-reminder",
+      "mission:00000000-0000-4000-8000-000000000003:blocked-reminder",
     ]);
+    expect(state.pushes[1]).toMatchObject({ data: { chatId: "group-1", messageId: "mission_00000000-0000-4000-8000-000000000003_3" } });
   });
 });

@@ -119,6 +119,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       // A screen of the app itself (Friends, the computer) when there's no chat to open.
       if (data?.url === "/return-trips" && Array.isArray(data.returnTripIds)) {
         const ids = data.returnTripIds.filter((id): id is string => typeof id === "string" && uuid(id)).slice(0, 20);
+        if (!ids.length) return;
         router.push({ pathname: "/(app)/return-trips", params: { ids: ids.join(",") } });
         return;
       }

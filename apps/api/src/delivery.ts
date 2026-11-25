@@ -274,7 +274,12 @@ async function dispatchReturnTripBatch(userId: string, now: Date) {
       continue;
     }
     const settings = await getMateNotificationSettings(userId, candidate.mateId);
-    if (isWithinQuietHours({ now, timezone: settings.timezone, quietStart: settings.quietStart, quietEnd: settings.quietEnd })) continue;
+    if (isWithinQuietHours({ now, timezone: settings.timezone, quietStart: settings.quietStart, quietEnd: settings.quietEnd })) {
+      const nextAttemptAt = nextQuietHoursEnd(now, settings.timezone, settings.quietEnd) ?? new Date(now.getTime() + 60_000);
+      await getDb().update(proactiveNotifications).set({ status: "quiet", nextAttemptAt, updatedAt: now })
+        .where(and(eq(proactiveNotifications.id, candidate.id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
+      continue;
+    }
     ready.push(candidate.id);
   }
   if (!ready.length) return false;
