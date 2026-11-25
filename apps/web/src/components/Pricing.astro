@@ -2,10 +2,20 @@
 // USD monthly defaults match usage/plans.ts. Annual pricing matches docs/plans/in-app-purchase-progress.md.
 // Mobile displays localized RevenueCat product prices.
 const plans = [
-  { name: "Starter", price: 8, benefit: "Up to 5 mates and 3 routines.", limits: "1 active mission. Standard weekly usage." },
-  { name: "Plus", price: 15, benefit: "Watch for changes across the week.", limits: "10 mates, 2 active missions and 5 watches. Twice Starter’s weekly usage." },
-  { name: "Pro", price: 40, benefit: "Use a computer and open pull requests.", limits: "20 mates, unlimited saved routines and 15 watches. Six times Starter’s weekly usage." },
-  { name: "Max", price: 80, benefit: "Work through longer sessions.", limits: "10 active missions and 40 watches. Twelve times Starter’s weekly usage, with no five-hour cap." },
+  { name: "Starter", price: 8, benefit: "Up to 5 mates and 3 routines." },
+  { name: "Plus", price: 15, benefit: "Watch for changes across the week." },
+  { name: "Pro", price: 40, benefit: "Use a computer and open pull requests." },
+  { name: "Max", price: 80, benefit: "Work through longer sessions." },
+];
+
+const comparison = [
+  { label: "Mates", values: ["5", "10", "20", null] },
+  { label: "Saved routines", values: ["3", null, "Unlimited", null] },
+  { label: "Active missions", values: ["1", "2", null, "10"] },
+  { label: "Active watches", values: ["0", "5", "15", "40"] },
+  { label: "Weekly usage", values: ["1×", "2×", "6×", "12×"] },
+  { label: "Five-hour usage cap", values: ["Yes", "Yes", "Yes", "None"] },
+  { label: "Computer use and pull requests", values: ["No", "No", "Yes", "Yes"] },
 ];
 ---
 <section id="pricing" class="pricing">
@@ -15,7 +25,26 @@ const plans = [
   <input class="billing" type="radio" name="billing" id="billing-yearly" aria-label="Yearly billing" />
   <div class="switch"><label for="billing-monthly">Monthly</label><label for="billing-yearly">Yearly <span class="saving">2 months free</span></label></div>
   <div class="plans">{plans.map(plan => <article><h3>{plan.name}</h3><div class="monthly"><strong>${plan.price}</strong><span> / month</span><small>Billed monthly</small></div><div class="yearly"><strong>${plan.price * 10}</strong><span> / year</span></div><p>{plan.benefit}</p></article>)}</div>
-  <details><summary>Compare plan limits</summary><dl>{plans.map(plan => <div><dt>{plan.name}</dt><dd>{plan.limits}</dd></div>)}</dl></details>
+  <div class="comparison" role="region" aria-label="Plan comparison" tabindex="0">
+    <table aria-describedby="plan-comparison-note">
+      <caption>Compare plan limits</caption>
+      <thead>
+        <tr>
+          <th scope="col">Feature</th>
+          {plans.map(plan => <th scope="col">{plan.name}</th>)}
+        </tr>
+      </thead>
+      <tbody>
+        {comparison.map(({ label, values }) => (
+          <tr>
+            <th scope="row">{label}</th>
+            {values.map(value => <td>{value ?? "—"}</td>)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+  <p class="comparison-note" id="plan-comparison-note">Weekly usage is relative to Starter. A dash indicates an unlisted limit.</p>
 </section>
 <style>
   .billing { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
@@ -33,15 +62,23 @@ const plans = [
 
   .pricing { width: min(1120px, calc(100% - 40px)); margin: clamp(80px, 10vw, 144px) auto 0; }
   h2 { margin: 0; font-size: clamp(36px, 4vw, 56px); line-height: 1.08; letter-spacing: -0.045em; }
-  p, span, dd { color: var(--muted); line-height: 1.55; }
-  .plans, dl { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 24px; }
+  p, span { color: var(--muted); line-height: 1.55; }
+  .plans { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 24px; }
   .plans { margin: 32px 0 12px; }
   article { border-top: 1px solid var(--line); padding-top: 20px; }
-  h3, dt { font-size: 16px; font-weight: 600; }
+  h3 { font-size: 16px; font-weight: 600; }
   h3 { margin: 0 0 16px; }
   strong { font: 500 clamp(32px, 4vw, 48px)/1 var(--display); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
-  details { border-block: 1px solid var(--line); }
-  summary { cursor: pointer; padding: 16px 0; }
-  dd { margin: 6px 0 16px; }
-  @media(max-width: 780px) { .plans, dl { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; } }
+  .comparison { margin-top: 32px; overflow-x: auto; }
+  .comparison:focus-visible { outline: 2px solid var(--accent-deep); outline-offset: 4px; }
+  table { width: 100%; min-width: 500px; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
+  caption { padding-bottom: 16px; text-align: left; font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+  th, td { padding: 14px 8px; border-bottom: 1px solid var(--line); text-align: center; }
+  th { font-weight: 600; }
+  th:first-child { width: 29%; padding-left: 0; text-align: left; }
+  thead th { background: var(--soft); }
+  thead th:first-child { padding-left: 12px; }
+  td { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .comparison-note { margin: 12px 0 0; font-size: 13px; }
+  @media(max-width: 780px) { .plans { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; } }
 </style>
