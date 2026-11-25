@@ -32,6 +32,8 @@ import { RoutinesPage } from "../places/RoutinesPage.tsx";
 import { SettingsDialog } from "../places/SettingsDialog.tsx";
 import { Sidebar } from "../sidebar/Sidebar.tsx";
 import { jumpTargets, type Selection } from "../sidebar/Sidebar.logic.ts";
+import { PinGlyph } from "../sidebar/PinMenu.tsx";
+import { togglePinned, usePins } from "../sidebar/pins.ts";
 import { useStableCallback } from "../hooks/useStableCallback.ts";
 import { showsCoding } from "../settings/coding.logic.ts";
 import { markCodingEngaged, useCoding } from "../settings/coding.ts";
@@ -118,9 +120,11 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   );
   // The timeline uses the crew as it is, so a streaming reply doesn't re-render every row.
   const crewMates: Record<string, Mate> = Object.fromEntries(allMates.map((mate) => [mate.id, mate]));
+  const { pins } = usePins();
   const targets = jumpTargets(
     chats.filter((chat) => chat.kind === "mate").map((chat) => chat.id),
     chats.filter((chat) => chat.kind === "group").map((chat) => chat.id),
+    pins.filter((id) => chats.some((chat) => chat.id === id)),
   );
   // Typing to a mate makes it listen; groups listen through their lead.
   const chatDispatch = (action: ChatAction) => {
@@ -264,6 +268,9 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     })),
     { id: "new-mate", group: "Actions", label: "New mate", hint: `${MOD} N`, keywords: ["create", "add", "assistant"], leading: <Icon name="plus" />, run: () => setCreating("mate") },
     { id: "new-group", group: "Actions", label: "New group", keywords: ["create", "team", "together"], leading: <Icon name="users" />, run: () => setCreating("group") },
+    ...(chat
+      ? [{ id: "pin-chat", group: "Actions", label: pins.includes(chat.id) ? `Unpin ${chat.title}` : `Pin ${chat.title} to the top`, keywords: ["pin", "favourite", "shelf"], leading: <PinGlyph />, run: () => togglePinned(chat.id) } satisfies PaletteItem]
+      : []),
     { id: "ask-to-build", group: "Actions", label: `Ask ${coder.name} to build something`, keywords: ["code", "website", "app", "fix", "build"], leading: <MateAvatar mate={coder} size={18} />, run: askToBuild },
     ...(run && codingOn
       ? [

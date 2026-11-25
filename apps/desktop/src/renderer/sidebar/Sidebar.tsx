@@ -8,6 +8,10 @@ import { jumpNumber, sameSelection, type Selection } from "./Sidebar.logic.ts";
 import { ChatRow } from "./ChatRow.tsx";
 import { GroupFace } from "./GroupFace.tsx";
 import { MateRow } from "./MateRow.tsx";
+import { MateAvatar } from "../chat/MateAvatar.tsx";
+import { PinnedShelf } from "./PinnedShelf.tsx";
+import { isShelfFull, pinnedChats } from "./pins.logic.ts";
+import { togglePinned, usePins } from "./pins.ts";
 import { SidebarRow } from "./SidebarRow.tsx";
 import { ProfileMenu } from "./ProfileMenu.tsx";
 import { RepoRow } from "./RepoRow.tsx";
@@ -38,7 +42,10 @@ type SidebarProps = {
   onSignOut: () => void;
 };
 
-/** The crew: New, your mates and groups (and projects, for people who code), with you at the bottom. */
+/**
+ * The crew: New, the places, the mates you pinned on their shelf, then your mates and groups (and
+ * projects, for people who code), with you at the bottom.
+ */
 export function Sidebar({
   you,
   chats,
@@ -59,8 +66,13 @@ export function Sidebar({
   onOpenUsage,
   onSignOut,
 }: SidebarProps) {
-  const mateChats = chats.filter((chat) => chat.kind === "mate");
-  const groups = chats.filter((chat) => chat.kind === "group");
+  const { pins, hopped } = usePins();
+  const pinned = pinnedChats(chats, pins);
+  const full = isShelfFull(pins);
+  const mateChats = chats.filter((chat) => chat.kind === "mate" && !pins.includes(chat.id));
+  const groups = chats.filter((chat) => chat.kind === "group" && !pins.includes(chat.id));
+  const groupMates = (chat: Chat) => chat.mateIds.flatMap((id) => (mates[id] ? [mates[id]] : []));
+  const pinFor = (chat: Chat) => ({ full, onToggle: () => togglePinned(chat.id) });
   const repos = REPOS.map((repo) => ({ repo, runs: runs.filter(({ run }) => run.repoId === repo.id) }));
   const isSelected = (row: Selection) => sameSelection(selection, row);
   const jump = (row: Selection) => (showJumpHints ? jumpNumber(jumpTargets, row) : null);
@@ -111,6 +123,27 @@ export function Sidebar({
           ))}
         </div>
 
+        {pinned.length > 0 && (
+          <SidebarSection label="Pinned">
+            <PinnedShelf
+              hopped={hopped}
+              onSelect={(id) => onSelect({ kind: "chat", id })}
+              items={pinned.map((chat) => {
+                const lead = mates[chat.leadId];
+                return {
+                  id: chat.id,
+                  title: chat.title,
+                  face: chat.kind === "group" ? <GroupFace mates={groupMates(chat)} /> : lead && <MateAvatar mate={lead} size={38} />,
+                  unread: Boolean(unread[chat.id]),
+                  needsYou: chat.kind === "mate" && lead?.status === "waiting",
+                  selected: isSelected({ kind: "chat", id: chat.id }),
+                  jump: jump({ kind: "chat", id: chat.id }),
+                };
+              })}
+            />
+          </SidebarSection>
+        )}
+
         {mateChats.length > 0 && (
           <SidebarSection label="Mates">
             {mateChats.map((chat) => (
@@ -122,6 +155,7 @@ export function Sidebar({
                 unread={Boolean(unread[chat.id])}
                 jump={jump({ kind: "chat", id: chat.id })}
                 onSelect={() => onSelect({ kind: "chat", id: chat.id })}
+                pin={pinFor(chat)}
               />
             ))}
           </SidebarSection>
@@ -132,7 +166,7 @@ export function Sidebar({
             {groups.map((chat) => (
               <ChatRow
                 key={chat.id}
-                face={<GroupFace mates={chat.mateIds.flatMap((id) => (mates[id] ? [mates[id]] : []))} />}
+                face={<GroupFace mates={groupMates(chat)} />}
                 title={chat.title}
                 subtitle={chat.preview}
                 time={chat.time}
@@ -140,6 +174,7 @@ export function Sidebar({
                 selected={isSelected({ kind: "chat", id: chat.id })}
                 jump={jump({ kind: "chat", id: chat.id })}
                 onSelect={() => onSelect({ kind: "chat", id: chat.id })}
+                pin={pinFor(chat)}
               />
             ))}
           </SidebarSection>
