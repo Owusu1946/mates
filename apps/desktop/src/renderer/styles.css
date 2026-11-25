@@ -671,6 +671,17 @@ html[data-surface="summon"] body {
  * The hold-to-talk level meter: each bar grows and shrinks on its own beat, transform only, in
  * steps. It runs only while observeVisibleAnimation says it's on screen.
  */
+/*
+ * Room for the macOS traffic lights (at x 16, three 14pt buttons): the title bar's content starts
+ * after them, and back at the edge in full screen, where they're hidden.
+ */
+@utility traffic-lights-inset {
+  padding-left: 90px;
+  :root[data-full-screen] & {
+    padding-left: 1rem;
+  }
+}
+
 /* The logo's three mates step out from the middle once, as the website's mark does. */
 @keyframes logo-gather {
   from {

@@ -18,11 +18,11 @@ export function TitleBar({ onSearch }: { onSearch?: () => void }) {
   return (
     <header className={cn("flex h-(--title-bar) shrink-0", drag && "app-drag", search && "border-b border-line")}>
       {search && (
-        <div className={cn("flex w-(--sidebar-width) shrink-0 items-center border-r border-line bg-rail px-4", platform === "darwin" && "pl-21")}>
-          <MatesWordmark />
+        <div className={cn("flex w-(--sidebar-width) shrink-0 items-center border-r border-line bg-rail px-4", platform === "darwin" && "traffic-lights-inset")}>
+          <MatesWordmark compact={platform === "darwin"} />
         </div>
       )}
-      <div className={cn("flex min-w-0 flex-1 items-center px-3", search && "justify-center", platform === "win32" && "pr-[150px]", platform === "darwin" && !search && "pl-20")}>
+      <div className={cn("flex min-w-0 flex-1 items-center px-3", search && "justify-center", platform === "win32" && "pr-[150px]", platform === "darwin" && !search && "traffic-lights-inset")}>
         {platform === "win32" && !search && <span className="text-xs text-ink-soft">Mates</span>}
         {search && (
           <button

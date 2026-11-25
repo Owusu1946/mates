@@ -1,4 +1,5 @@
 import { useId, type CSSProperties } from "react";
+import { cn } from "../lib/utils.ts";
 import { MATE_PALETTE } from "../theme/matePalette.ts";
 
 /**
@@ -45,13 +46,20 @@ export function MatesLogo({ size = 24 }: { size?: number }) {
 /**
  * The logo and the name, filling the corner above the sidebar. "mates" is set in Bricolage
  * Grotesque at its display optical size, whose ink traps give it its own voice, so it reads as a
- * wordmark rather than a label.
+ * wordmark rather than a label. `compact` is for a Mac, where it sits beside the traffic lights and
+ * matches their weight instead of filling the corner.
  */
-export function MatesWordmark() {
+export function MatesWordmark({ compact = false }: { compact?: boolean }) {
   return (
-    <span className="flex items-center gap-2.5 select-none" aria-label="Mates">
-      <MatesLogo size={28} />
-      <span aria-hidden="true" className="pb-0.5 font-display text-[28px] leading-none font-bold tracking-[-0.02em] text-ink [font-variation-settings:'opsz'_96]">
+    <span className={cn("flex items-center select-none", compact ? "gap-1.5" : "gap-2.5")} aria-label="Mates">
+      <MatesLogo size={compact ? 18 : 28} />
+      <span
+        aria-hidden="true"
+        className={cn(
+          "font-display leading-none font-bold text-ink [font-variation-settings:'opsz'_96]",
+          compact ? "text-[19px] tracking-[-0.015em]" : "pb-0.5 text-[28px] tracking-[-0.02em]",
+        )}
+      >
         mates
       </span>
     </span>
