@@ -23,7 +23,7 @@ export function quietInForeground(run: { requestKey: string; createdAt: Date }, 
 /** Keep lock-screen copy brief and plain while retaining the useful result signal. */
 export function findingPushBody(status: string, finding: { summary: string | null } | undefined) {
   const summary = finding?.summary?.split(/\r?\n/)[0]?.replace(/[*_`#>]/g, "").replace(/\s+/g, " ").trim();
-  const failedPlaceholder = status === "failed" && /^your result is ready(?: to view)?\.?$/i.test(summary ?? "");
+  const failedPlaceholder = status === "failed" && /^(?:your result is ready(?: to view)?|this task couldn’t be completed)\.?$/i.test(summary ?? "");
   const excerpt = summary && summary.length > 2 && !failedPlaceholder
     ? summary.length > 120
       ? `${summary.slice(0, 117).replace(/\s+\S*$/, "").trimEnd()}…`

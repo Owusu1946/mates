@@ -1,7 +1,7 @@
 # The return trip — implementation handoff
 
 **Branch:** `feat/return-trip`  
-**Status:** Slice 1 outcome mapping is implemented. Notification transitions, deep links, reminders, batching, and presence are pending.
+**Status:** Slices 1–2 outcome mapping and finding copy are implemented. Deep links, reminders, batching, and presence are pending.
 
 ## Slice 1: outcome inventory
 
@@ -19,7 +19,8 @@
 
 ## Gaps for the next slices
 
-- `saveFinding` uses `ON CONFLICT DO NOTHING` and `deliveries` are unique per run and device. A run that goes from waiting to completed currently has no second return-trip notification.
+- Resuming a waiting task creates a new delegation ID. `deliveries` are unique per delegation and device, so the resumed completion may send a distinct push. Slice 2 makes its finding use the new answer instead of the waiting text copied into the resumed run. A waiting push already queued for the old delegation can still become stale if the user resolves it on another device; handle that when adding blocked follow-up cancellation.
+- Failed findings now prefer the stored error over earlier assistant text. Direct code, deck, call, and computer notifications already have their own outcome copy; they remain on their existing delivery paths until transition identity is unified.
 - Mate and group notification taps pass `notificationChatId`, but no result message target. `run-message-target.ts` already finds the current array position for a delegation.
 - Code, deck, call, and computer notifications use separate `pushToUser` paths. Route them through a common transition identity before batching or reminders so one event is not sent twice.
 - `chats.last_viewed_at` is not an active-chat presence signal. Foreground suppression needs a short-lived signal tied to the specific chat.
