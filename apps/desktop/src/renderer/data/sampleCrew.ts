@@ -28,6 +28,9 @@ export type Card =
   /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
   | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number };
 
+/** Something @-mentioned with a message, kept as it was named then. */
+export type MessageTag = { kind: "web" | "chief" | "mate" | "app"; id: string; label: string };
+
 /** Enough of a message to show it quoted, even after it changes. */
 export type Quote = { id: string; author: string; text: string };
 
@@ -52,6 +55,8 @@ export type Message = {
   failed?: boolean;
   /** Yours, changed after sending. */
   edited?: boolean;
+  /** What you @-mentioned with it: web search, Chief of Staff, mates, an app. */
+  tags?: MessageTag[];
   /** Shown as a divider above the message. */
   day?: string;
 };

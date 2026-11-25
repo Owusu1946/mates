@@ -1,5 +1,5 @@
 import type { SentFile } from "./attachments.logic.ts";
-import type { Card, Message, Quote } from "../data/sampleCrew.ts";
+import type { Card, Message, MessageTag, Quote } from "../data/sampleCrew.ts";
 
 /**
  * The conversation, without an API: drafts per chat, sending, the mate thinking and then
@@ -24,7 +24,7 @@ export type ChatFlow = {
 
 export type ChatAction =
   | { type: "draft"; chatId: string; text: string }
-  | { type: "send"; chatId: string; mateId: string; reply: string; files?: SentFile[] }
+  | { type: "send"; chatId: string; mateId: string; reply: string; files?: SentFile[]; tags?: MessageTag[] }
   | { type: "stream"; chatId: string }
   | { type: "tick"; chatId: string; words: number }
   | { type: "stop"; chatId: string }
@@ -93,7 +93,8 @@ export function chatFlowReducer(state: ChatFlow, action: ChatAction): ChatFlow {
       const files = action.files?.length ? action.files : undefined;
       if ((!text && !files) || state.replies[action.chatId]) return state;
       const replyTo = state.replying[action.chatId];
-      const message: Message = { id: `u${state.sent}`, author: "me", text, files, ...(replyTo ? { replyTo } : {}) };
+      const tags = action.tags?.length ? action.tags : undefined;
+      const message: Message = { id: `u${state.sent}`, author: "me", text, files, ...(replyTo ? { replyTo } : {}), ...(tags ? { tags } : {}) };
       const { [action.chatId]: _, ...replying } = state.replying;
       return startReply(
         {
