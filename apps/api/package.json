@@ -18,7 +18,7 @@
     "worker:dev": "pnpm dlx trigger.dev@4.7.3 dev",
     "worker:deploy": "pnpm dlx trigger.dev@4.7.3 deploy",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsrs --noEmit"
   },
   "dependencies": {
     "@browserbasehq/sdk": "^2.21.0",
@@ -52,7 +52,7 @@
     "drizzle-kit": "^0.31.4",
     "jszip": "3.10.1",
     "tsx": "^4.20.5",
-    "typescript": "~6.0.3",
+    "tsrs": "7.1.0-beta.tsrs5",
     "vitest": "^3.2.4"
   }
 }

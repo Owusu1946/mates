@@ -18,12 +18,12 @@ importers:
 
   .:
     devDependencies:
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       turbo:
         specifier: ^2.5.6
         version: 2.11.7
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
 
   apps/api:
     dependencies:
@@ -68,7 +68,7 @@ importers:
         version: 22.0.1
       '@t3-oss/env-core':
         specifier: ^0.13.11
-        version: 0.13.11(typescript@6.0.3)(zod@4.4.3)
+        version: 0.13.11(zod@4.4.3)
       '@trigger.dev/sdk':
         specifier: 4.7.3
         version: 4.7.3(react@19.2.3)(zod@4.4.3)
@@ -99,7 +99,7 @@ importers:
     devDependencies:
       '@trigger.dev/build':
         specifier: 4.7.3
-        version: 4.7.3(typescript@6.0.3)(zod@4.4.3)
+        version: 4.7.3(zod@4.4.3)
       '@types/luxon':
         specifier: ^3.7.6
         version: 3.7.6
@@ -112,12 +112,12 @@ importers:
       jszip:
         specifier: 3.10.1
         version: 3.10.1
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       tsx:
         specifier: ^4.20.5
         version: 4.23.15
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -187,9 +187,9 @@ importers:
       tailwindcss:
         specifier: ~4.3.5
         version: 4.3.5
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       vite:
         specifier: ^8.3.6
         version: 8.3.6(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -434,6 +434,9 @@ importers:
       metro-transform-worker:
         specifier: 0.84.5
         version: 0.84.5
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -477,9 +480,9 @@ importers:
       '@types/node':
         specifier: ^24.3.1
         version: 24.19.1
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
 
   packages/decks:
     dependencies:
@@ -487,9 +490,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -502,9 +505,9 @@ importers:
       react:
         specifier: 19.2.3
         version: 19.2.3
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
 
   packages/pages:
     dependencies:
@@ -515,9 +518,9 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
     devDependencies:
-      typescript:
-        specifier: ~6.0.3
-        version: 6.0.3
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
       vitest:
         specifier: ^3.2.4
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.19.1)(jiti@2.7.0)(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
@@ -4226,6 +4229,58 @@ packages:
         optional: true
       react:
         optional: true
+
+  '@tsrs/darwin-arm64@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-wRLJq3IDZjdLrh+lsipipCfYPpFjNW/0zjeM9azNLjA33OWjOIxT2THiKExf7bjkbr6SGCrrjDR+ZZyXYz4Rjg==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@tsrs/darwin-x64@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-jTZgFXcnDbkDZwq121fhcZv8YaoJCzSWshJJYRnfc2QqagI31Fn9Vjbiz/GgfoAvw32vK8OZrNCDzN2Cu9UkDQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@tsrs/linux-arm64-gnu@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-o0ofV8Yw5IbaXR7wjIHaqBv9YddJ6Weot+IpYWfUNqG3YpAe4N5G0dU9vsCLX7eNNYx1mMyIZK0eyMV1r6qg2g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tsrs/linux-arm64-musl@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-Nki4kxNnp8qO+/8MtZeO0cAt8ifGHPbC9R0BepVlLuDdvR2cqfzym+l75zXtvnwW1nekmKwbNpHqsuHXoITYGQ==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@tsrs/linux-x64-gnu@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-hyg70btCCaMT3RvFYU0KEibFyQjFUUfrqk4zTl7rf/7G3HPO3X6sEs8J/AHYUvJB0cA+dXgU/adkiZf1XJI/XA==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@tsrs/linux-x64-musl@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-5RI2Ziy8eSkvUi/oeQbrCSzJC/AP7DCtn9IEOWS74BhuQK7WUr1op5ozQMsn4kA6DfuCAuYSQZygTk2Zv3Ib+g==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@tsrs/win32-arm64@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-RqvW3yaksYl8h8m+aHGfWT9He6AwgvhJ38+8rcuE+Mz12DxVLeRVvWco5k1DZ3nMT056Erohyuwuv4F3A5Tnww==}
+    engines: {node: '>=16.20.0'}
+    cpu: [arm64]
+    os: [win32]
+
+  '@tsrs/win32-x64@7.1.0-beta.tsrs5':
+    resolution: {integrity: sha512-ZTEC3ITNsWH54a/0CtlRhNNfstVFHeg40sUjuQMYIlLiLxRFOXOPjFL/eyjZAS/1fNM+DGtz+6RY6AAMdqyoXw==}
+    engines: {node: '>=16.20.0'}
+    cpu: [x64]
+    os: [win32]
 
   '@turbo/darwin-64@2.11.7':
     resolution: {integrity: sha512-Z2LFOxwbiJueD1miByXJS/BrW21vv6YaQXZustty5jEX4vQYw6zyh101Sz1QO7WG0mqBzKagZ/DoAeeujI0/Sw==}
@@ -9021,6 +9076,11 @@ packages:
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
 
+  tsrs@7.1.0-beta.tsrs5:
+    resolution: {integrity: sha512-z+hNizBykB1mv/XxMnMYMSGuwnYEk6S708LGEEaTmdLu6eaH4NOtVemySycbEiW/SCjMeYMk+SZfVdRJwEmYXA==}
+    engines: {node: '>=16.20.0'}
+    hasBin: true
+
   tsx@4.23.15:
     resolution: {integrity: sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==}
     engines: {node: '>=18.0.0'}
@@ -13642,15 +13702,14 @@ snapshots:
     dependencies:
       defer-to-connect: 2.0.1
 
-  '@t3-oss/env-core@0.13.11(typescript@6.0.3)(zod@4.4.3)':
-    optionalDependencies:
-      typescript: 6.0.3
-      zod: 4.4.3
-
   '@t3-oss/env-core@0.13.11(typescript@6.0.3)(zod@4.6.5)':
     optionalDependencies:
       typescript: 6.0.3
       zod: 4.6.5
+
+  '@t3-oss/env-core@0.13.11(zod@4.4.3)':
+    optionalDependencies:
+      zod: 4.4.3
 
   '@tailwindcss/node@4.3.5':
     dependencies:
@@ -13727,16 +13786,14 @@ snapshots:
       '@tanstack/query-core': 5.104.1
       react: 19.2.3
 
-  '@trigger.dev/build@4.7.3(typescript@6.0.3)(zod@4.4.3)':
+  '@trigger.dev/build@4.7.3(zod@4.4.3)':
     dependencies:
       '@prisma/config': 6.19.3
       '@trigger.dev/core': 4.7.3(zod@4.4.3)
       mlly: 1.8.2
       pkg-types: 1.3.1
       tinyglobby: 0.2.17
-      tsconfck: 3.1.3(typescript@6.0.3)
-    optionalDependencies:
-      typescript: 6.0.3
+      tsconfck: 3.1.3
     transitivePeerDependencies:
       - bufferutil
       - magicast
@@ -13795,6 +13852,30 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  '@tsrs/darwin-arm64@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/darwin-x64@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/linux-arm64-gnu@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/linux-arm64-musl@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/linux-x64-gnu@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/linux-x64-musl@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/win32-arm64@7.1.0-beta.tsrs5':
+    optional: true
+
+  '@tsrs/win32-x64@7.1.0-beta.tsrs5':
+    optional: true
 
   '@turbo/darwin-64@2.11.7':
     optional: true
@@ -19357,11 +19438,20 @@ snapshots:
 
   ts-interface-checker@0.1.13: {}
 
-  tsconfck@3.1.3(typescript@6.0.3):
-    optionalDependencies:
-      typescript: 6.0.3
+  tsconfck@3.1.3: {}
 
   tslib@2.8.1: {}
+
+  tsrs@7.1.0-beta.tsrs5:
+    optionalDependencies:
+      '@tsrs/darwin-arm64': 7.1.0-beta.tsrs5
+      '@tsrs/darwin-x64': 7.1.0-beta.tsrs5
+      '@tsrs/linux-arm64-gnu': 7.1.0-beta.tsrs5
+      '@tsrs/linux-arm64-musl': 7.1.0-beta.tsrs5
+      '@tsrs/linux-x64-gnu': 7.1.0-beta.tsrs5
+      '@tsrs/linux-x64-musl': 7.1.0-beta.tsrs5
+      '@tsrs/win32-arm64': 7.1.0-beta.tsrs5
+      '@tsrs/win32-x64': 7.1.0-beta.tsrs5
 
   tsx@4.23.15:
     dependencies:
