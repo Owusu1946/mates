@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_NOTCH_WIDTH, detectNotch, notchCanvasBounds, notchOptions } from "./NotchWindow.logic.ts";
+import { DEFAULT_NOTCH_WIDTH, detectNotch, drifted, notchCanvasBounds, notchOptions, rememberNotch } from "./NotchWindow.logic.ts";
 
 const notched = { internal: true, bounds: { x: 0, y: 0, width: 1512, height: 982 }, workArea: { x: 0, y: 37, width: 1512, height: 945 } };
 const plain = { internal: true, bounds: { x: 0, y: 0, width: 1440, height: 900 }, workArea: { x: 0, y: 24, width: 1440, height: 876 } };
@@ -29,4 +29,22 @@ test("the window floats as a non-activating panel on a Mac, and only there", () 
   assert.equal(notchOptions("/p.cjs", "win32").type, undefined);
   assert.equal(notchOptions("/p.cjs", "darwin").transparent, true);
   assert.equal(notchOptions("/p.cjs", "darwin").webPreferences?.sandbox, true);
+});
+
+test("a full-screen app hides the menu bar, but the notch is remembered", () => {
+  const seen = new Map();
+  const screen = { id: 1, ...notched };
+  const fullScreen = { ...screen, workArea: screen.bounds };
+  assert.deepEqual(rememberNotch(seen, screen, detectNotch(screen, "darwin")), { width: DEFAULT_NOTCH_WIDTH, height: 37 });
+  assert.equal(detectNotch(fullScreen, "darwin"), null, "the menu bar alone no longer shows it");
+  assert.deepEqual(rememberNotch(seen, fullScreen, detectNotch(fullScreen, "darwin")), { width: DEFAULT_NOTCH_WIDTH, height: 37 });
+  const rescaled = { ...fullScreen, bounds: { ...fullScreen.bounds, width: 1800, height: 1169 } };
+  assert.equal(rememberNotch(seen, rescaled, null), null, "a new resolution looks again");
+  assert.equal(rememberNotch(seen, { id: 2, ...external }, null), null, "a screen never seen notched has none");
+});
+
+test("a window moved off its place, as macOS does on a Space change, has drifted", () => {
+  const target = notchCanvasBounds(notched);
+  assert.equal(drifted(target, target), false);
+  assert.equal(drifted({ ...target, y: target.y + 160 }, target), true);
 });

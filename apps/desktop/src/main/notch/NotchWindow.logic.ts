@@ -34,6 +34,24 @@ export function detectNotch(display: DisplayLike, platform: string, env: { force
   return { width: notchWidth, height: menuBar };
 }
 
+/**
+ * The notch on this display, remembering what was seen before. A full-screen app hides the menu
+ * bar, so its height stops giving the notch away, but the camera housing is still there: once a
+ * built-in screen has shown its notch, it keeps it until its size changes (a new resolution).
+ */
+export function rememberNotch(seen: Map<number, { size: string; notch: Notch }>, display: DisplayLike & { id: number }, detected: Notch | null): Notch | null {
+  const size = `${display.bounds.width}x${display.bounds.height}`;
+  if (detected) {
+    seen.set(display.id, { size, notch: detected });
+    return detected;
+  }
+  const known = seen.get(display.id);
+  return known && known.size === size ? known.notch : null;
+}
+
+/** Whether the window has drifted from where it belongs, as macOS does on a Space change. */
+export const drifted = (actual: Area, target: Area) => actual.x !== target.x || actual.y !== target.y || actual.width !== target.width || actual.height !== target.height;
+
 /** The canvas, centred on the notch, flush with the top of the screen (over the menu bar). */
 export function notchCanvasBounds(display: DisplayLike): Area {
   const width = Math.min(NOTCH_CANVAS.width, display.bounds.width);
