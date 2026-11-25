@@ -25,10 +25,12 @@ export type RowActions = {
   busy: boolean;
 };
 
-function Action({ icon, label, onClick, active = false, disabled = false }: { icon: IconName; label: string; onClick: () => void; active?: boolean; disabled?: boolean }) {
+const REVEAL = "opacity-0 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100";
+
+function Action({ icon, label, onClick, active = false, disabled = false, className }: { icon: IconName; label: string; onClick: () => void; active?: boolean; disabled?: boolean; className?: string }) {
   return (
     <Tooltip side="top" content={label}>
-      <Button size="icon-xs" variant="ghost-muted" aria-label={label} aria-pressed={active || undefined} disabled={disabled} onClick={onClick} className={cn(active && "text-ink [&_svg]:text-brand")}>
+      <Button size="icon-xs" variant="ghost-muted" aria-label={label} aria-pressed={active || undefined} disabled={disabled} onClick={onClick} className={cn(className, active && "text-ink [&_svg]:text-brand")}>
         <Icon name={icon} />
       </Button>
     </Tooltip>
@@ -38,7 +40,7 @@ function Action({ icon, label, onClick, active = false, disabled = false }: { ic
 /**
  * The row under a message: copy for everything; reply, pin, ask again and thumbs for a mate's
  * reply; edit and pin for yours. Hidden until you hover or tab to the message, so the chat stays
- * quiet, except under the latest reply.
+ * quiet, except under the latest reply. A pinned message keeps its pin showing, as its marker.
  */
 export function MessageActions({ message, actions, mine }: { message: Message; actions: RowActions; mine: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -52,17 +54,13 @@ export function MessageActions({ message, actions, mine }: { message: Message; a
   const versions = message.versions ?? [];
   const version = message.version ?? versions.length - 1;
   const hasText = message.text.trim().length > 0;
+  const reveal = actions.latest && !mine ? undefined : REVEAL;
 
   return (
-    <div
-      className={cn(
-        "flex items-center gap-0.5 transition-opacity duration-150 group-focus-within/message:opacity-100 group-hover/message:opacity-100 has-aria-expanded:opacity-100",
-        mine && "justify-end",
-        actions.latest && !mine ? "opacity-100" : "opacity-0",
-      )}
-    >
+    <div className={cn("flex items-center gap-0.5", mine && "flex-row-reverse")}>
+      {mine && <Action icon="pin" label={message.pinned ? "Unpin" : "Pin"} active={message.pinned} className={message.pinned ? undefined : reveal} onClick={() => act({ type: "pin" })} />}
       {!mine && versions.length > 1 && (
-        <span className="me-1 flex items-center text-2xs text-ink-soft tabular-nums">
+        <span className={cn("me-1 flex items-center text-2xs text-ink-soft tabular-nums", reveal)}>
           <Button size="icon-xs" variant="ghost-muted" aria-label="Previous version" disabled={version === 0 || actions.busy} onClick={() => act({ type: "version", index: version - 1 })}>
             <Icon name="chevronLeft" />
           </Button>
@@ -76,17 +74,18 @@ export function MessageActions({ message, actions, mine }: { message: Message; a
         <Action
           icon={copied ? "check" : "copy"}
           label={copied ? "Copied" : "Copy"}
+          className={copied ? undefined : reveal}
           onClick={() => void navigator.clipboard.writeText(message.text).then(() => setCopied(true))}
         />
       )}
-      {!mine && actions.replyable && hasText && <Action icon="reply" label="Reply" onClick={() => act({ type: "reply" })} />}
-      {mine && hasText && <Action icon="edit" label="Edit" disabled={actions.busy} onClick={() => act({ type: "edit" })} />}
-      <Action icon="pin" label={message.pinned ? "Unpin" : "Pin"} active={message.pinned} onClick={() => act({ type: "pin" })} />
-      {!mine && actions.regenerable && <Action icon="retry" label="Ask again" disabled={actions.busy} onClick={() => act({ type: "regenerate" })} />}
+      {!mine && actions.replyable && hasText && <Action icon="reply" label="Reply" className={reveal} onClick={() => act({ type: "reply" })} />}
+      {mine && hasText && <Action icon="edit" label="Edit" disabled={actions.busy} className={reveal} onClick={() => act({ type: "edit" })} />}
+      {!mine && <Action icon="pin" label={message.pinned ? "Unpin" : "Pin"} active={message.pinned} className={message.pinned ? undefined : reveal} onClick={() => act({ type: "pin" })} />}
+      {!mine && actions.regenerable && <Action icon="retry" label="Ask again" disabled={actions.busy} className={reveal} onClick={() => act({ type: "regenerate" })} />}
       {!mine && hasText && (
         <>
-          <Action icon="thumbsUp" label="Good reply" active={message.rating === "up"} onClick={() => act({ type: "rate", rating: "up" })} />
-          <Action icon="thumbsDown" label="Bad reply" active={message.rating === "down"} onClick={() => act({ type: "rate", rating: "down" })} />
+          <Action icon="thumbsUp" label="Good reply" active={message.rating === "up"} className={message.rating === "up" ? undefined : reveal} onClick={() => act({ type: "rate", rating: "up" })} />
+          <Action icon="thumbsDown" label="Bad reply" active={message.rating === "down"} className={message.rating === "down" ? undefined : reveal} onClick={() => act({ type: "rate", rating: "down" })} />
         </>
       )}
     </div>

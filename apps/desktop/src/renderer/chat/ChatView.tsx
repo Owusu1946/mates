@@ -94,7 +94,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
               onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
               onSend={(files) => dispatch({ type: "send", chatId: chat.id, mateId: answerer(), reply: canned(answerer()), files })}
               attachments
-              replyingTo={replying && { name: nameOf(replying.author), text: replying.text, onCancel: () => dispatch({ type: "reply", chatId: chat.id, quote: null }) }}
+              replyingTo={replying && { quote: replying, mate: mates[replying.author], onCancel: () => dispatch({ type: "reply", chatId: chat.id, quote: null }) }}
               onStop={() => dispatch({ type: "stop", chatId: chat.id })}
               voice={{
                 line: VOICE_LINES[chat.leadId] ?? "What's on my calendar today",

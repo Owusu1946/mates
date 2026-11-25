@@ -1,12 +1,13 @@
 import { memo, useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
-import type { Mate, Message, Quote } from "../data/sampleCrew.ts";
+import type { Mate, Message } from "../data/sampleCrew.ts";
 import { ApprovalCard } from "./cards/ApprovalCard.tsx";
 import { BriefCard } from "./cards/BriefCard.tsx";
 import { RunCard } from "./cards/RunCard.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 import { MessageActions, type RowActions } from "./MessageActions.tsx";
+import { ReplyQuote } from "./ReplyQuote.tsx";
 
 type MessageRowProps = {
   message: Message;
@@ -17,25 +18,11 @@ type MessageRowProps = {
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
   /** Copy, reply, pin and the rest. Without it (previews, a streaming reply), the row has none. */
   actions?: RowActions;
-  /** Who wrote a quoted message, for "Replying to Esi". */
-  nameOf?: (author: string) => string;
+  /** Who wrote a quoted message, for its face, name and colour. */
+  mateOf?: (author: string) => Mate | undefined;
   /** Saves an edit to your message; the mate answers again. */
   onEdit?: (message: Message, text: string) => void;
 };
-
-/** The message you were answering, above your bubble; clicking it goes there. */
-function QuoteBlock({ quote, name }: { quote: Quote; name: string }) {
-  return (
-    <button
-      type="button"
-      onClick={() => jumpToMessage(quote.id)}
-      className="max-w-[80%] rounded-lg border-l-2 border-brand/60 bg-soft px-3 py-1.5 text-left text-xs text-ink-soft transition-colors hover:bg-hover-fill"
-    >
-      <span className="font-medium text-ink">{name}</span>
-      <span className="line-clamp-2">{quote.text}</span>
-    </button>
-  );
-}
 
 /** Scrolls a message into view and flashes it, for quotes and pins. */
 export function jumpToMessage(id: string) {
@@ -51,7 +38,7 @@ export function jumpToMessage(id: string) {
  * words sit plainly on the canvas. Under each, its actions. Memoised so a streaming reply
  * re-renders only its own row.
  */
-export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, actions, nameOf, onEdit }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, actions, mateOf, onEdit }: MessageRowProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const mine = message.author === "me";
   const rowActions = actions && {
@@ -75,7 +62,6 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
       <div id={`message-${message.id}`} className="group/message message-flash -mx-2 rounded-xl px-2">
         {mine ? (
           <div className="flex flex-col items-end gap-1.5">
-            {message.replyTo && <QuoteBlock quote={message.replyTo} name={nameOf?.(message.replyTo.author) ?? ""} />}
             {message.files && (
               <ul className="flex max-w-[80%] flex-wrap justify-end gap-1.5" aria-label="Files">
                 {message.files.map((file, index) => (
@@ -118,9 +104,20 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
               </div>
             ) : (
               message.text && (
-                <p className={`max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 leading-relaxed wrap-anywhere whitespace-pre-wrap select-text ${message.failed ? "opacity-70 ring-1 ring-danger/40" : ""}`}>
-                  {message.text}
-                </p>
+                <div className={`max-w-[80%] rounded-2xl bg-bubble px-4 py-2.5 ${message.replyTo ? "min-w-60 pt-2" : ""} ${message.failed ? "opacity-70 ring-1 ring-danger/40" : ""}`}>
+                  {/* The quote takes the bubble's width without widening it; the message sets the size. */}
+                  {message.replyTo && (
+                    <div className="mb-1 w-0 min-w-full">
+                      <ReplyQuote
+                        quote={message.replyTo}
+                        mate={mateOf?.(message.replyTo.author)}
+                        name={mateOf?.(message.replyTo.author)?.name ?? "You"}
+                        onClick={() => jumpToMessage(message.replyTo!.id)}
+                      />
+                    </div>
+                  )}
+                  <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>
+                </div>
               )
             )}
             {message.failed ? (
@@ -134,7 +131,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             ) : (
               editing === null && (message.edited || message.pinned || rowActions) && (
                 <div className="flex items-center gap-2">
-                  {message.pinned && <Icon name="pin" size={12} className="text-brand" />}
+                  {message.pinned && !rowActions && <Icon name="pin" size={12} className="text-brand" />}
                   {message.edited && <span className="text-2xs text-ink-soft">Edited</span>}
                   {rowActions && <MessageActions message={message} actions={rowActions} mine />}
                 </div>
@@ -155,7 +152,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             {message.card?.type === "run" && <RunCard card={message.card} />}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
-                {message.pinned && <Icon name="pin" size={12} className="ms-1.5 text-brand" />}
+                {message.pinned && !rowActions && <Icon name="pin" size={12} className="ms-1.5 text-brand" />}
                 {rowActions && <MessageActions message={message} actions={rowActions} mine={false} />}
               </div>
             )}
@@ -177,7 +174,7 @@ function sameRow(before: MessageRowProps, after: MessageRowProps) {
     before.mate === after.mate &&
     before.showAuthor === after.showAuthor &&
     before.onAnswer === after.onAnswer &&
-    before.nameOf === after.nameOf &&
+    before.mateOf === after.mateOf &&
     before.onEdit === after.onEdit
   );
 }

@@ -32,7 +32,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   // Stable, so the memoised rows don't all re-render as a reply streams.
   const act = useStableCallback(onAction);
   const edit = useStableCallback(onEdit);
-  const nameOf = useStableCallback((author: string) => (author === "me" ? "You" : (mates[author]?.name ?? "")));
+  const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
     <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer}>
@@ -49,7 +49,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
               showAuthor={group && message.author !== "me" && (Boolean(message.day) || messages[index - 1]?.author !== message.author)}
               onAnswer={onAnswer}
               actions={asking ? undefined : { onAction: act, replyable: group, regenerable: message.id === regenerable, latest: message.id === latestReply, busy }}
-              nameOf={nameOf}
+              mateOf={mateOf}
               onEdit={edit}
             />
           );

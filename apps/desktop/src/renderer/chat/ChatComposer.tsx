@@ -6,7 +6,9 @@ import { joinDictation } from "../voice/dictation.logic.ts";
 import { DictationControls, DictationText } from "../voice/DictationParts.tsx";
 import { MicButton } from "../voice/MicButton.tsx";
 import { useDictation } from "../voice/useDictation.ts";
+import type { Mate, Quote } from "../data/sampleCrew.ts";
 import { admitFiles, formatBytes, kindOf, type Attachment, type SentFile } from "./attachments.logic.ts";
+import { ReplyQuote } from "./ReplyQuote.tsx";
 
 type ChatComposerProps = {
   ref?: Ref<HTMLTextAreaElement>;
@@ -27,7 +29,7 @@ type ChatComposerProps = {
   /** Dictation: click the mic, talk, and the words land here. Without it, there's no mic. */
   voice?: { line: string; onSend: (text: string, files: SentFile[]) => void };
   /** In a group, the message you're answering: shown above the box until you send or let it go. */
-  replyingTo?: { name: string; text: string; onCancel: () => void };
+  replyingTo?: { quote: Quote; mate?: Mate; onCancel: () => void };
 };
 
 /**
@@ -144,12 +146,9 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
         }}
       >
         {replyingTo && (
-          <div className="motion-swap mx-2 mt-2 flex items-start gap-2 rounded-lg border-l-2 border-brand/60 bg-soft py-1.5 ps-2.5 pe-1 text-xs">
-            <Icon name="reply" size={13} className="mt-0.5 shrink-0 text-ink-soft" />
-            <span className="min-w-0 flex-1">
-              <span className="font-medium">Replying to {replyingTo.name}</span>
-              <span className="block truncate text-ink-soft">{replyingTo.text}</span>
-            </span>
+          <div className="motion-swap flex items-center gap-2 border-b border-line py-1.5 ps-4 pe-2">
+            <Icon name="reply" size={13} className="shrink-0 text-ink-soft" />
+            <ReplyQuote quote={replyingTo.quote} mate={replyingTo.mate} name={replyingTo.mate?.name ?? "You"} className="flex-1" />
             <button type="button" aria-label="Don't reply" title="Don't reply (Esc)" onClick={replyingTo.onCancel} className="shrink-0 rounded-md p-1 text-ink-soft hover:bg-hover-fill hover:text-ink">
               <Icon name="x" size={12} />
             </button>
