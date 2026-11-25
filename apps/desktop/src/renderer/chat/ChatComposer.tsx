@@ -26,6 +26,8 @@ type ChatComposerProps = {
   attachments?: boolean;
   /** Dictation: click the mic, talk, and the words land here. Without it, there's no mic. */
   voice?: { line: string; onSend: (text: string, files: SentFile[]) => void };
+  /** In a group, the message you're answering: shown above the box until you send or let it go. */
+  replyingTo?: { name: string; text: string; onCancel: () => void };
 };
 
 /**
@@ -36,7 +38,7 @@ type ChatComposerProps = {
  * The mic is hands-free: one click and you talk, with pause, cancel and Done in the toolbar. Done
  * puts the words in the box to edit; Send sends them straight away. Memoised: typing re-renders only this.
  */
-export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder, busy, onDraft, onSend, onStop, footer, disabled = false, attachments: canAttach = false, voice }: ChatComposerProps) {
+export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder, busy, onDraft, onSend, onStop, footer, disabled = false, attachments: canAttach = false, voice, replyingTo }: ChatComposerProps) {
   const [files, setFiles] = useState<Attachment[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [dragging, setDragging] = useState(0);
@@ -141,6 +143,18 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
           add(event.dataTransfer.files);
         }}
       >
+        {replyingTo && (
+          <div className="motion-swap mx-2 mt-2 flex items-start gap-2 rounded-lg border-l-2 border-brand/60 bg-soft py-1.5 ps-2.5 pe-1 text-xs">
+            <Icon name="reply" size={13} className="mt-0.5 shrink-0 text-ink-soft" />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium">Replying to {replyingTo.name}</span>
+              <span className="block truncate text-ink-soft">{replyingTo.text}</span>
+            </span>
+            <button type="button" aria-label="Don't reply" title="Don't reply (Esc)" onClick={replyingTo.onCancel} className="shrink-0 rounded-md p-1 text-ink-soft hover:bg-hover-fill hover:text-ink">
+              <Icon name="x" size={12} />
+            </button>
+          </div>
+        )}
         {files.length > 0 && (
           <ul className="flex flex-wrap gap-2 px-3 pt-3" aria-label="Files to send">
             {files.map((file) => (
@@ -194,6 +208,9 @@ export const ChatComposer = memo(function ChatComposer({ ref, draft, placeholder
               } else if (event.key === "Escape" && busy) {
                 event.preventDefault();
                 onStop();
+              } else if (event.key === "Escape" && replyingTo) {
+                event.preventDefault();
+                replyingTo.onCancel();
               }
             }}
           />
