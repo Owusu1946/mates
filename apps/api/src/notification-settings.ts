@@ -81,7 +81,7 @@ async function timezoneForUser(userId: string) {
   const [device] = await getDb()
     .select({ timezone: deviceTokens.timezone })
     .from(deviceTokens)
-    .where(eq(deviceTokens.clerkUserId, userId))
+    .where(and(eq(deviceTokens.clerkUserId, userId), eq(deviceTokens.enabled, true)))
     .orderBy(desc(deviceTokens.updatedAt))
     .limit(1);
   return device?.timezone && IANAZone.isValidZone(device.timezone) ? device.timezone : "Africa/Accra";

@@ -212,7 +212,7 @@ async function dispatchProactiveNotification(id: string, now: Date) {
   const end = DateTime.fromJSDate(now).setZone(settings.timezone).plus({ days: 1 }).startOf("day").toJSDate();
   const claim = await getDb().execute(sql`
     WITH gate_lock AS MATERIALIZED (
-      SELECT pg_advisory_xact_lock(hashtextextended(${notice.clerkUserId}, 0))
+      SELECT pg_advisory_xact_lock(42, hashtext(${notice.clerkUserId}))
     ), counts AS MATERIALIZED (
       SELECT
         count(*) FILTER (WHERE n.mate_id = ${notice.mateId})::int AS mate_count,

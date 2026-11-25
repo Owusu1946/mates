@@ -46,6 +46,7 @@ Use a test account and verify:
 
 - Urgency is only set on a watch when the user explicitly asks to be notified during quiet hours. Other proactive sources are non-urgent.
 - Reminder pushes intentionally bypass this proactive policy. User-requested and feature-specific direct pushes outside the scoped proactive sources also retain their existing behavior; review them separately before expanding the budget's scope.
+- A watch can produce a condition alert and a later run-result finding. They have separate source keys. Under Normal mode, the first non-urgent push uses that mate's daily allowance and the second is folded into a later brief. Explicitly urgent watch alerts bypass the budget; the later result does not.
 - Quiet hours use one effective user timezone, selected from the most recently updated enabled device. A user with devices in different timezones does not yet get per-device quiet-hour delivery.
 - The outbox uses at-most-once handling for uncertain provider outcomes. A provider timeout is not blindly retried because it may already have accepted the push.
 - Deferred items are included in a later morning brief when one runs. They do not cause the brief to be enabled automatically.
@@ -53,7 +54,7 @@ Use a test account and verify:
 ## Verification completed during implementation
 
 - `pnpm typecheck` — passed.
-- `pnpm test` — passed (69 API test files, 646 API tests; 57 mobile tests).
+- `pnpm test` — passed after the audit follow-up (70 API test files, 652 API tests; 57 mobile tests).
 - `git diff --check` — passed.
 
 No database migration or deployment was run, and no physical-device notification check has been completed.

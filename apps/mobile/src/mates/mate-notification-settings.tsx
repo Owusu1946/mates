@@ -137,6 +137,7 @@ export function MateNotificationSettings({ mateId, mateName }: { mateId: string;
                 ? `Times follow ${settings.timezone.replace(/_/g, " ")}. Only watches you mark urgent can interrupt quiet hours. Your reminders stay on time.`
                 : `Times follow ${settings.timezone.replace(/_/g, " ")}. Non-urgent pushes wait until quiet hours end, but chat still gets the message. Urgent watches can come through; reminders stay on time.`}
           </Text>
+          {settings.quietStart === settings.quietEnd ? <Text style={{ color: colors.textSecondary, fontFamily: font.regular, fontSize: 13 }}>Matching start and end times turn quiet hours off.</Text> : null}
         </View>
 
         {query.isError ? <Pressable accessibilityRole="button" onPress={() => void query.refetch()}><Text style={{ color: colors.error, fontFamily: font.medium, fontSize: 13 }}>Couldn’t refresh settings. Tap to retry.</Text></Pressable> : null}

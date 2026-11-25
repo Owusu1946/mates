@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PgDialect } from "drizzle-orm/pg-core";
+import type { SQL } from "drizzle-orm";
 
 const db = vi.hoisted(() => ({
   selects: [] as unknown[][],
   inserts: [] as unknown[][],
   executes: [] as { status: string }[][],
+  executed: [] as SQL[],
   writes: [] as Record<string, unknown>[],
 }));
 
@@ -29,7 +32,10 @@ vi.mock("./db/client.js", () => ({
     select: () => query("select"),
     insert: () => query("insert"),
     update: () => query("update"),
-    execute: async () => ({ rows: db.executes.shift() ?? [] }),
+    execute: async (statement: SQL) => {
+      db.executed.push(statement);
+      return { rows: db.executes.shift() ?? [] };
+    },
   }),
 }));
 
@@ -74,6 +80,7 @@ beforeEach(() => {
   db.selects = [];
   db.inserts = [[{ id: noticeId }]];
   db.executes = [];
+  db.executed = [];
   db.writes = [];
   setProviderAccepted();
 });
@@ -146,6 +153,20 @@ describe("proactive notification delivery", () => {
     }, new Date("2026-11-25T12:00:00Z"));
 
     expect(sent).toBe(false);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a budget-exhausted morning brief push instead of folding it into another brief", async () => {
+    dispatchReads(notice({ data: { morningBriefId: noticeId, chatId: `mate_${mateId}` } }));
+    db.executes = [[{ status: "suppressed" }]];
+
+    const sent = await pushProactiveToUser({
+      userId: "user_1", mateId, sourceKey: `morning-brief:${noticeId}`, title: "Your morning",
+      body: "Today’s brief", data: { morningBriefId: noticeId, chatId: `mate_${mateId}` },
+    }, new Date("2026-11-25T12:00:00Z"));
+
+    expect(sent).toBe(false);
+    expect(new PgDialect().sqlToQuery(db.executed[0]!).params).toContain("suppressed");
     expect(fetch).not.toHaveBeenCalled();
   });
 
