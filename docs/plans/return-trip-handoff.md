@@ -14,7 +14,7 @@
 | Deck | ready | — | failed | `announce` in `decks.ts` |
 | Mission | done | needs_input | — | Mission status and round findings; no dedicated outcome push |
 | Call | ended | — | failed | Meeting notes push on completion; failures need review |
-| Browser handoff | completed | approval, login, user_control, verification | blocked, error, expired | Cards in its parent run; avoid a second push for the same parent transition |
+| Browser handoff | completed | approval, login, user_control, verification | blocked, error, expired | The parent delegation owns delivery; browser session states only classify its card |
 | Computer goal | done | waiting | failed | Goal push paths; avoid duplicate parent-run pushes |
 
 ## Gaps for the next slices

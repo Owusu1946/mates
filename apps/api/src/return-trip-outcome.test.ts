@@ -10,7 +10,8 @@ describe("background work outcomes", () => {
     ["call", "ended", "done"], ["call", "failed", "failed"],
     ["computer", "waiting", "blocked"], ["computer", "done", "done"], ["computer", "failed", "failed"],
     ["browser", "approval", "blocked"], ["browser", "login", "blocked"],
-    ["browser", "verification", "blocked"], ["browser", "blocked", "failed"],
+    ["browser", "verification", "blocked"], ["browser", "user_control", "blocked"],
+    ["browser", "blocked", "failed"], ["browser", "error", "failed"],
     ["browser", "expired", "failed"], ["browser", "completed", "done"],
   ])("maps %s %s to %s", (source, status, outcome) => {
     expect(returnTripOutcome(source, status)).toBe(outcome);

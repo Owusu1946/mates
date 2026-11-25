@@ -1212,7 +1212,6 @@ function ChatBody({
           listRef.current?.scrollToEnd({ animated: true });
         }, 300);
         return () => clearTimeout(timer);
-        return;
       }
       lastTargetPage.current = { targetKey, messageCount };
       earlier.onUserScroll();

@@ -1,5 +1,6 @@
 /** User-visible outcomes for background work. Null means work is still active or was cancelled. */
 export type ReturnTripOutcome = "done" | "blocked" | "failed";
+// Browser sessions live inside a parent run. Its finding owns the push; browser outcomes classify the card only.
 export type ReturnTripSource = "run" | "code" | "deck" | "mission" | "call" | "browser" | "computer";
 
 export function returnTripOutcome(source: ReturnTripSource, status: string): ReturnTripOutcome | null {
