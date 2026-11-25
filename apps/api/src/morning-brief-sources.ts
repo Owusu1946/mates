@@ -58,7 +58,7 @@ async function deferredNotificationCandidates(userId: string): Promise<Candidate
     .orderBy(proactiveNotifications.createdAt)
     .limit(5),
     getDb().select({ id: delegations.id, content: delegations.content }).from(delegations)
-      .where(and(eq(delegations.clerkUserId, userId), eq(delegations.status, "waiting"), sql`${delegations.blockedReminderAt} IS NOT NULL`, sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`))
+      .where(and(eq(delegations.clerkUserId, userId), eq(delegations.status, "waiting"), sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.created_at > ${delegations.createdAt} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`, sql`${delegations.blockedReminderAt} IS NOT NULL`))
       .orderBy(delegations.blockedSince).limit(5),
     getDb().select({ id: computerGoals.id, chatId: computerGoals.chatId, question: computerGoals.question }).from(computerGoals)
       .where(and(eq(computerGoals.clerkUserId, userId), eq(computerGoals.status, "waiting"), sql`EXISTS (SELECT 1 FROM proactive_notifications pn WHERE pn.source_key = 'return-trip:computer:' || ${computerGoals.id}::text || ':blocked-reminder')`))
@@ -154,7 +154,7 @@ async function emailCandidates(userId: string): Promise<Candidate[]> {
 async function taskCandidates(userId: string, start: Date, end: Date, timezone: string): Promise<Candidate[]> {
   const [due, waiting] = await Promise.all([
     getDb().select({ id: reminders.id, title: reminders.title, remindAt: reminders.remindAt }).from(reminders).where(and(eq(reminders.clerkUserId, userId), eq(reminders.status, "pending"), gte(reminders.remindAt, start), lt(reminders.remindAt, end))).orderBy(reminders.remindAt).limit(8),
-    getDb().select({ id: delegations.id, content: delegations.content }).from(delegations).where(and(eq(delegations.clerkUserId, userId), inArray(delegations.status, ["waiting", "waiting_action", "waiting_choice", "waiting_browser", "needs_input"]), sql`${delegations.blockedReminderAt} IS NULL`, sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`)).orderBy(desc(delegations.updatedAt)).limit(8),
+    getDb().select({ id: delegations.id, content: delegations.content }).from(delegations).where(and(eq(delegations.clerkUserId, userId), inArray(delegations.status, ["waiting", "waiting_action", "waiting_choice", "waiting_browser", "needs_input"]), sql`${delegations.blockedReminderAt} IS NULL`, sql`NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = ${delegations.clerkUserId} AND resumed.created_at > ${delegations.createdAt} AND resumed.request->>'resumeRunId' = ${delegations.agentRunId}::text)`)).orderBy(desc(delegations.updatedAt)).limit(8),
   ]);
   return [
     ...waiting.map((run) => ({ id: `run:${run.id}`, section: "tasks" as const, text: `${waitingLabel(run.content)} · needs you`, action: { kind: "run" as const, runId: run.id }, priority: 1 })),

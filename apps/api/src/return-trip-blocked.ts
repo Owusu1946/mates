@@ -18,6 +18,7 @@ export async function remindBlockedRuns(now = new Date()) {
         AND NOT EXISTS (
           SELECT 1 FROM delegations resumed
           WHERE resumed.clerk_user_id = d.clerk_user_id
+            AND resumed.created_at > d.created_at
             AND resumed.request->>'resumeRunId' = d.agent_run_id::text
         )
       ORDER BY d.blocked_since FOR UPDATE SKIP LOCKED LIMIT 50

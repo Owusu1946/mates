@@ -201,11 +201,12 @@ async function dispatchProactiveNotification(id: string, now: Date) {
   const blockedComputerId = /^return-trip:computer:([0-9a-f-]{36}):blocked-reminder$/i.exec(notice.sourceKey)?.[1];
   const blockedMissionId = /^return-trip:mission:([0-9a-f-]{36}):blocked-reminder$/i.exec(notice.sourceKey)?.[1];
   if (blockedRunId || blockedComputerId || blockedMissionId) {
-    const current = blockedRunId ? await getDb().execute(sql`SELECT 1 FROM delegations d WHERE d.id = ${blockedRunId} AND d.status = 'waiting'
+    const current = (blockedRunId ? await getDb().execute(sql`SELECT 1 FROM delegations d WHERE d.id = ${blockedRunId} AND d.status = 'waiting'
       AND NOT EXISTS (SELECT 1 FROM delegations resumed WHERE resumed.clerk_user_id = d.clerk_user_id
+        AND resumed.created_at > d.created_at
         AND resumed.request->>'resumeRunId' = d.agent_run_id::text) LIMIT 1`)
       : blockedComputerId ? await getDb().execute(sql`SELECT 1 FROM computer_goals WHERE id = ${blockedComputerId} AND status = 'waiting' LIMIT 1`)
-        : await getDb().execute(sql`SELECT 1 FROM missions WHERE id = ${blockedMissionId} AND status = 'needs_input' LIMIT 1`) as unknown as { rows?: unknown[] };
+        : await getDb().execute(sql`SELECT 1 FROM missions WHERE id = ${blockedMissionId} AND status = 'needs_input' LIMIT 1`)) as { rows?: unknown[] };
     if (!current.rows?.length) {
       await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now }).where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
       return false;
