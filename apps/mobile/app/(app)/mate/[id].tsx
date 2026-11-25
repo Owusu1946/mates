@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Sc
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMateActions, useMates } from "../../../src/mates/data";
 import { MateForm } from "../../../src/mates/mate-form";
+import { MateNotificationSettings } from "../../../src/mates/mate-notification-settings";
 import { useTheme } from "../../../src/theme/provider";
 
 /** A mate's profile: edit name, colour and role, or remove the mate and its conversation. */
@@ -54,6 +55,7 @@ export default function MateProfileScreen() {
             actions.updateMate.mutate({ id: mate.id, ...input }, { onSuccess: () => router.back(), onError: (e) => setError(e.message) });
           }}
         />
+        <MateNotificationSettings mateId={mate.id} mateName={mate.name} />
         {mate.isDefault ? (
           <Text style={{ color: colors.textMuted, fontSize: 13, textAlign: "center" }}>{mate.name} leads your team and can’t be removed.</Text>
         ) : (
