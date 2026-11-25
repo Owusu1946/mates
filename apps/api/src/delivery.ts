@@ -175,6 +175,13 @@ export async function pushProactiveToUser(input: ProactivePushInput, now = new D
   return dispatchProactiveNotification(queued.id, now);
 }
 
+/** A user-requested result uses the same durable outbox without consuming the unprompted budget. */
+export async function pushReturnTripToUser(input: Omit<ProactivePushInput, "mateId" | "urgent"> & { chatId: string | null; mateId?: string | null }) {
+  const mateId = input.mateId ?? await resolveMateIdForChat(input.userId, input.chatId);
+  if (!mateId) return false;
+  return pushProactiveToUser({ ...input, mateId, sourceKey: `return-trip:${input.sourceKey}` });
+}
+
 /** The minute dispatcher resumes quiet-hour deferrals and marks abandoned send claims uncertain. */
 export async function deliverPendingProactiveNotifications(now = new Date()) {
   await getDb().update(proactiveNotifications)
@@ -190,14 +197,15 @@ export async function deliverPendingProactiveNotifications(now = new Date()) {
 async function dispatchProactiveNotification(id: string, now: Date) {
   const [notice] = await getDb().select().from(proactiveNotifications).where(eq(proactiveNotifications.id, id)).limit(1);
   if (!notice || !["queued", "quiet"].includes(notice.status)) return false;
+  const returnTrip = notice.sourceKey.startsWith("return-trip:");
   const settings = await getMateNotificationSettings(notice.clerkUserId, notice.mateId);
   const devices = await getDb().select({ token: deviceTokens.token }).from(deviceTokens)
     .where(and(eq(deviceTokens.clerkUserId, notice.clerkUserId), eq(deviceTokens.enabled, true)));
-  if (!devices.length || settings.mode === "off") {
+  if (!devices.length || !returnTrip && settings.mode === "off") {
     await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now }).where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
     return false;
   }
-  if (settings.mode === "urgent_only" && !notice.urgent) {
+  if (!returnTrip && settings.mode === "urgent_only" && !notice.urgent) {
     await getDb().update(proactiveNotifications).set({ status: "brief", updatedAt: now }).where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
     return false;
   }
@@ -220,10 +228,10 @@ async function dispatchProactiveNotification(id: string, now: Date) {
       FROM proactive_notifications n CROSS JOIN gate_lock
       WHERE n.clerk_user_id = ${notice.clerkUserId}
         AND n.sent_at >= ${start} AND n.sent_at < ${end}
-        AND n.urgent = false
+        AND n.urgent = false AND n.source_key NOT LIKE 'return-trip:%'
         AND n.status IN ('sending', 'sent', 'uncertain')
     ), decision AS MATERIALIZED (
-      SELECT ${notice.urgent} OR (mate_count < ${MATE_DAILY_UNPROMPTED_LIMIT} AND user_count < ${USER_DAILY_UNPROMPTED_LIMIT}) AS allowed FROM counts
+      SELECT ${notice.urgent || returnTrip} OR (mate_count < ${MATE_DAILY_UNPROMPTED_LIMIT} AND user_count < ${USER_DAILY_UNPROMPTED_LIMIT}) AS allowed FROM counts
     ), changed AS (
       UPDATE proactive_notifications n
       SET status = CASE WHEN decision.allowed THEN 'sending' ELSE ${typeof notice.data.morningBriefId !== "string" ? "brief" : "suppressed"} END,

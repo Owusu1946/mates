@@ -13,7 +13,7 @@ import { extractMemories, memoryFacts } from "./memory.js";
 import { recentTurns } from "./missions.js";
 import { CHAT_MODEL } from "./models.js";
 import { keytermsFor } from "./transcription.js";
-import { pushToUser } from "./delivery.js";
+import { pushReturnTripToUser } from "./delivery.js";
 import { recordActivity } from "./habits/activity.js";
 import { onActivityEvent } from "./habits/nudges.js";
 import { briefForMeeting } from "./habits/prep.js";
@@ -365,7 +365,7 @@ async function finishCall(userId: string, call: typeof calls.$inferSelect, trans
 
 /** A meeting's notes reach the owner wherever they are: a push, and the Slack thread it was asked from. */
 async function shareMeetingNotes(userId: string, call: typeof calls.$inferSelect, mateName: string, summary: string, actionItems: string[]) {
-  await pushToUser(userId, { title: `${mateName}’s meeting notes`, body: summary.slice(0, 180), data: { chatId: call.chatId, chatKind: "mate" } });
+  await pushReturnTripToUser({ userId, chatId: call.chatId, mateId: call.leadMateId, sourceKey: `call:${call.id}:notes`, title: `${mateName}’s meeting notes`, body: summary.slice(0, 180), data: { chatId: call.chatId, chatKind: "mate" } });
   const slack = call.meeting?.slack;
   const install = slack ? await installFor(slack.teamId) : null;
   if (!slack || !install) return;

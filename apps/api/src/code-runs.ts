@@ -5,7 +5,7 @@ import { assertPushable, branchName, checkDiff, coderPrompt, compareWithBaseline
 import { attachComputer, bootComputer, computerConfigured, gitAuthEnv, WORKDIR, type Computer } from "./computer.js";
 import { getDb } from "./db/client.js";
 import { chatMessages, chats, codeCheckBaselines, codeRuns, type CodeActivity, type CodeCheck, type CodeNote, type CodeRunStatus } from "./db/schema.js";
-import { pushToUser } from "./delivery.js";
+import { pushReturnTripToUser } from "./delivery.js";
 import { botIdentity, githubConfigured, listRepos, openPullRequest, repoToken } from "./github.js";
 import type { WorkflowCard } from "./integrations.js";
 import { CHAT_MODEL, CODE_MODEL } from "./models.js";
@@ -593,7 +593,7 @@ async function announce(id: string) {
     ]);
     await dbStore.update(id, { messageId });
   }
-  await pushToUser(run.clerkUserId, {
+  await pushReturnTripToUser({ userId: run.clerkUserId, chatId: run.chatId, sourceKey: `code:${run.id}:${run.status}`,
     title: run.status === "done" ? (run.draft ? `Draft PR #${run.prNumber} needs attention` : `PR #${run.prNumber} is ready`) : `Couldn’t finish in ${repoName}`,
     body: run.status === "done" ? `The mates ${run.draft ? "opened a draft" : "opened a"} pull request in ${run.repo}.` : run.error ?? "Open Mates for details.",
     data: { url: run.prUrl ?? undefined, chatId: run.chatId ?? undefined, codeRunId: run.id },

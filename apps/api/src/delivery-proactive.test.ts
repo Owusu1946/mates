@@ -39,7 +39,7 @@ vi.mock("./db/client.js", () => ({
   }),
 }));
 
-const { deliverPendingProactiveNotifications, pushProactiveToUser } = await import("./delivery.js");
+const { deliverPendingProactiveNotifications, pushProactiveToUser, pushReturnTripToUser } = await import("./delivery.js");
 
 const mateId = "00000000-0000-4000-8000-000000000001";
 const noticeId = "00000000-0000-4000-8000-000000000002";
@@ -168,6 +168,23 @@ describe("proactive notification delivery", () => {
     expect(sent).toBe(false);
     expect(new PgDialect().sqlToQuery(db.executed[0]!).params).toContain("suppressed");
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("sends a user-requested result without using the unprompted budget or the proactive Off mode", async () => {
+    dispatchReads(notice({ sourceKey: "return-trip:code:run_1:done" }), { mode: "off", quietStart: "22:00", quietEnd: "07:00" });
+    db.selects.push([{ token }]);
+    db.executes = [[{ status: "sending" }]];
+
+    const sent = await pushReturnTripToUser({
+      userId: "user_1", mateId, chatId: `mate_${mateId}`, sourceKey: "code:run_1:done",
+      title: "PR is ready", body: "Opened PR #12.", data: { chatId: `mate_${mateId}` },
+    });
+
+    const claim = new PgDialect().sqlToQuery(db.executed[0]!);
+    expect(sent).toBe(true);
+    expect(claim.params).toContain(true);
+    expect(claim.sql).toContain("source_key NOT LIKE 'return-trip:%'");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it("does not enqueue the same source twice", async () => {
