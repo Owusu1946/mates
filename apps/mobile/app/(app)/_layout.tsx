@@ -117,6 +117,11 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         return;
       }
       // A screen of the app itself (Friends, the computer) when there's no chat to open.
+      if (data?.url === "/return-trips" && Array.isArray(data.returnTripIds)) {
+        const ids = data.returnTripIds.filter((id): id is string => typeof id === "string" && uuid(id)).slice(0, 20);
+        router.push({ pathname: "/(app)/return-trips", params: { ids: ids.join(",") } });
+        return;
+      }
       if (typeof data?.url === "string" && /^\/(?:[a-z-]+|page\/[0-9a-f-]{36})$/.test(data.url) && typeof chatId !== "string") {
         router.push(data.url as never);
         return;

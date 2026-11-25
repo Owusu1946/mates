@@ -43,7 +43,7 @@ export async function deliverFindings() {
   const results = await getDb().select({ run: delegations, summary: findings.summary, title: chats.title, kind: chats.kind, mateId: chats.mateId, leaderMateId: chats.leaderMateId })
     .from(findings).innerJoin(delegations, eq(delegations.id, findings.delegationId))
     .leftJoin(chats, eq(chats.id, delegations.chatId))
-    .where(sql`${delegations.requestKey} !~ '^(occurrence_|watch_|habit_)'
+    .where(sql`${delegations.requestKey} !~ '^(occurrence_|watch_|habit_)' AND ${delegations.status} <> 'cancelled'
       AND ${findings.createdAt} > now() - interval '7 days'
       AND EXISTS (SELECT 1 FROM device_tokens device WHERE device.clerk_user_id = ${delegations.clerkUserId}
         AND device.enabled = true AND ${findings.createdAt} >= device.updated_at)
@@ -236,6 +236,13 @@ async function watchingChat(userId: string, chatId: unknown, now: Date, resultAt
   return !!chat?.watchedAt && chat.watchedAt.getTime() >= Math.max(now.getTime() - WATCHING_MS, resultAt.getTime());
 }
 
+async function cancelledRunNotice(sourceKey: string) {
+  const runId = /^return-trip:run:([0-9a-f-]{36})$/i.exec(sourceKey)?.[1];
+  if (!runId) return false;
+  const [run] = await getDb().select({ status: delegations.status }).from(delegations).where(eq(delegations.id, runId)).limit(1);
+  return !run || run.status === "cancelled";
+}
+
 /** Claim a user's ready results together, then send one push with an inbox target when needed. */
 async function dispatchReturnTripBatch(userId: string, now: Date) {
   const candidates = await getDb().select().from(proactiveNotifications)
@@ -245,6 +252,11 @@ async function dispatchReturnTripBatch(userId: string, now: Date) {
     .orderBy(proactiveNotifications.createdAt).limit(20);
   const ready: string[] = [];
   for (const candidate of candidates) {
+    if (await cancelledRunNotice(candidate.sourceKey)) {
+      await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
+        .where(and(eq(proactiveNotifications.id, candidate.id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
+      continue;
+    }
     if (await watchingChat(userId, candidate.data.chatId, now, candidate.createdAt)) {
       await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
         .where(and(eq(proactiveNotifications.id, candidate.id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
@@ -257,12 +269,12 @@ async function dispatchReturnTripBatch(userId: string, now: Date) {
   if (!ready.length) return false;
   const claimed = await getDb().update(proactiveNotifications)
     .set({ status: "sending", sentAt: now, updatedAt: now })
-    .where(and(inArray(proactiveNotifications.id, ready), inArray(proactiveNotifications.status, ["queued", "quiet"])))
+    .where(and(inArray(proactiveNotifications.id, ready), inArray(proactiveNotifications.status, ["queued", "quiet"]), lte(proactiveNotifications.nextAttemptAt, now)))
     .returning({ id: proactiveNotifications.id, title: proactiveNotifications.title, body: proactiveNotifications.body, data: proactiveNotifications.data });
   if (!claimed.length) return false;
   const message = claimed.length === 1
     ? { title: claimed[0]!.title, body: claimed[0]!.body, data: claimed[0]!.data }
-    : { title: "Mates", body: `${claimed.length} things are ready. Open to see them.`, data: { url: "/return-trips" } };
+    : { title: "Mates", body: `${claimed.length} updates from your mates. Open to see them.`, data: { url: "/return-trips", returnTripIds: claimed.map((item) => item.id) } };
   const accepted = await pushToUser(userId, message);
   await getDb().update(proactiveNotifications)
     .set({ status: accepted ? "sent" : "failed", sentAt: accepted ? now : null, updatedAt: now })
@@ -289,6 +301,11 @@ async function dispatchProactiveNotification(id: string, now: Date) {
     }
   }
   const returnTrip = notice.sourceKey.startsWith("return-trip:");
+  if (returnTrip && await cancelledRunNotice(notice.sourceKey)) {
+    await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
+      .where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));
+    return false;
+  }
   if (returnTrip && await watchingChat(notice.clerkUserId, notice.data.chatId, now, notice.createdAt)) {
     await getDb().update(proactiveNotifications).set({ status: "suppressed", updatedAt: now })
       .where(and(eq(proactiveNotifications.id, id), inArray(proactiveNotifications.status, ["queued", "quiet"])));

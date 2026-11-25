@@ -197,9 +197,10 @@ describe("proactive notification delivery", () => {
     await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
 
     expect(fetch).toHaveBeenCalledTimes(1);
-    const payload = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1].body as string) as { body: string; data: { url: string } };
-    expect(payload.body).toBe("2 things are ready. Open to see them.");
+    const payload = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1].body as string) as { body: string; data: { url: string; returnTripIds: string[] } };
+    expect(payload.body).toBe("2 updates from your mates. Open to see them.");
     expect(payload.data.url).toBe("/return-trips");
+    expect(payload.data.returnTripIds).toEqual([first.id, second.id]);
     expect(db.writes).toContainEqual(expect.objectContaining({ status: "sent" }));
   });
 
@@ -208,6 +209,16 @@ describe("proactive notification delivery", () => {
     db.selects = [[{ id: noticeId }], [result], [{ watchedAt: new Date("2026-11-25T12:00:10Z") }]];
 
     await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:20Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a queued run result if the run was cancelled before dispatch", async () => {
+    const result = notice({ sourceKey: "return-trip:run:00000000-0000-4000-8000-000000000003" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "cancelled" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
 
     expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
     expect(fetch).not.toHaveBeenCalled();
