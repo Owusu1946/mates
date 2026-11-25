@@ -9,6 +9,7 @@ type MateRowProps = {
   unread: boolean;
   jump: number | null;
   onSelect: () => void;
+  pin?: { full: boolean; onToggle: () => void };
 };
 
 /** What a mate is up to, in place of its last message while it's doing something. */
@@ -29,6 +30,6 @@ function subtitleFor(mate: Mate, chat: Chat) {
 }
 
 /** A mate in the sidebar: its face shows its mood, and the line under its name what it's doing. */
-export function MateRow({ chat, mate, selected, unread, jump, onSelect }: MateRowProps) {
-  return <ChatRow face={<MateAvatar mate={mate} size={34} />} title={chat.title} subtitle={subtitleFor(mate, chat)} time={chat.time} unread={unread} selected={selected} jump={jump} onSelect={onSelect} />;
+export function MateRow({ chat, mate, selected, unread, jump, onSelect, pin }: MateRowProps) {
+  return <ChatRow face={<MateAvatar mate={mate} size={34} />} title={chat.title} subtitle={subtitleFor(mate, chat)} time={chat.time} unread={unread} selected={selected} jump={jump} onSelect={onSelect} pin={pin} />;
 }

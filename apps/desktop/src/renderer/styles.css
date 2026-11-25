@@ -682,6 +682,23 @@ html[data-surface="summon"] body {
   }
 }
 
+/* A mate just pinned hops up onto the shelf: a lift, a small overshoot, then it settles. */
+@keyframes pin-hop {
+  0% {
+    translate: 0 10px;
+    scale: 0.7;
+    opacity: 0;
+  }
+  60% {
+    translate: 0 -3px;
+    scale: 1.06;
+    opacity: 1;
+  }
+}
+@utility pin-hop {
+  animation: pin-hop 420ms var(--ease-open, ease-out) both;
+}
+
 /* The logo's three mates step out from the middle once, as the website's mark does. */
 @keyframes logo-gather {
   from {

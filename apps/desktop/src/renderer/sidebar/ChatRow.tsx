@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Kbd, MOD } from "../components/ui/Kbd.tsx";
 import { cn } from "../lib/utils.ts";
+import { PinGlyph, PinMenu } from "./PinMenu.tsx";
 
 type ChatRowProps = {
   face: ReactNode;
@@ -13,14 +14,17 @@ type ChatRowProps = {
   /** The Ctrl/⌘ number, shown while the key is held. */
   jump: number | null;
   onSelect: () => void;
+  /** Pinning: a pin on hover where the time was, and Pin in the right-click menu. */
+  pin?: { full: boolean; onToggle: () => void };
 };
 
 /**
  * A chat in the sidebar, two lines like a messaging app (and OpenMausBot): the mate's face big
- * enough to read its mood, the name and time, then the last message or what it's doing.
+ * enough to read its mood, the name and time, then the last message or what it's doing. Hover
+ * and the time steps aside for a pin.
  */
-export function ChatRow({ face, title, subtitle, time, unread = false, selected, jump, onSelect }: ChatRowProps) {
-  return (
+export function ChatRow({ face, title, subtitle, time, unread = false, selected, jump, onSelect, pin }: ChatRowProps) {
+  const row = (
     <button
       type="button"
       aria-current={selected ? "page" : undefined}
@@ -39,7 +43,7 @@ export function ChatRow({ face, title, subtitle, time, unread = false, selected,
               </Kbd>
             </span>
           ) : (
-            time && <span className="shrink-0 text-2xs text-ink-soft tabular-nums">{time}</span>
+            time && <span className={cn("shrink-0 text-2xs text-ink-soft tabular-nums transition-opacity duration-150", pin && "group-hover/row:opacity-0 group-focus-within/row:opacity-0")}>{time}</span>
           )}
         </span>
         <span className="mt-0.5 flex items-center gap-2">
@@ -48,5 +52,25 @@ export function ChatRow({ face, title, subtitle, time, unread = false, selected,
         </span>
       </span>
     </button>
+  );
+  if (!pin) return row;
+  return (
+    <PinMenu pinned={false} full={pin.full} onToggle={pin.onToggle}>
+      <div className="group/row relative">
+        {row}
+        {jump === null && (
+          <button
+            type="button"
+            aria-label={pin.full ? "Pinned is full" : `Pin ${title}`}
+            title={pin.full ? "Pinned is full" : "Pin to the top"}
+            disabled={pin.full}
+            onClick={pin.onToggle}
+            className="absolute top-2 right-2 flex size-6 items-center justify-center rounded-md text-ink-soft opacity-0 transition-[opacity,color,background-color] duration-150 group-hover/row:opacity-100 hover:bg-hover-fill hover:text-ink focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-ink-soft"
+          >
+            <PinGlyph />
+          </button>
+        )}
+      </div>
+    </PinMenu>
   );
 }
