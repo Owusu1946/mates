@@ -94,6 +94,8 @@ export const chats = pgTable(
       .default("legacy"),
     mateId: uuid("mate_id").references(() => mates.id, { onDelete: "cascade" }),
     leaderMateId: uuid("leader_mate_id").references(() => mates.id, { onDelete: "set null" }),
+    /** Refreshed only while a client is foregrounded on this chat. */
+    watchedAt: timestamp("watched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),

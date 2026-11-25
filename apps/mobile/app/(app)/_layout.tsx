@@ -97,7 +97,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
       const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
       const target = {
         notificationRunId: uuid(data?.delegationId) ? data.delegationId : undefined,
-        notificationMessageId: typeof data?.messageId === "string" && /^(?:code|computer|call)_[0-9a-f-]{36}$/i.test(data.messageId) ? data.messageId : undefined,
+        notificationMessageId: typeof data?.messageId === "string" && /^(?:(?:code|computer|call)_[0-9a-f-]{36}|mission_[0-9a-f-]{36}_\d+)$/i.test(data.messageId) ? data.messageId : undefined,
         notificationDeckId: uuid(data?.deckId) ? data.deckId : undefined,
         notificationComputerGoalId: uuid(data?.computerGoalId) ? data.computerGoalId : undefined,
       };
@@ -255,6 +255,7 @@ function AuthenticatedStack({ userId }: { userId: string }) {
         <Stack screenOptions={{ headerBackButtonDisplayMode: "minimal" }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="feed" options={{ title: "Feed", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
+          <Stack.Screen name="return-trips" options={{ title: "Ready for you", headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
           <Stack.Screen name="ideas" options={{ title: "Ideas" }} />
           <Stack.Screen name="tasks" options={{ title: "Routines" }} />
           {/* A modal sheet (swipe down to close), as for New mate: a formSheet gives its content no height, so it renders blank. */}

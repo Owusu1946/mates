@@ -49,16 +49,16 @@ export async function remindBlockedRuns(now = new Date()) {
     }).catch(() => console.warn("computer_reminder_enqueue_failed", { id: goal.id }));
   }
   const missionsDue = await getDb().execute(sql`
-    SELECT m.id, m.clerk_user_id AS "userId", m.chat_id AS "chatId", m.question
+    SELECT m.id, m.clerk_user_id AS "userId", m.chat_id AS "chatId", m.round, m.question
     FROM missions m WHERE m.status = 'needs_input' AND m.updated_at <= ${new Date(now.getTime() - REMINDER_DELAY_MS)}
       AND NOT EXISTS (SELECT 1 FROM proactive_notifications pn WHERE pn.source_key = 'return-trip:mission:' || m.id::text || ':blocked-reminder')
     ORDER BY m.updated_at LIMIT 50
-  `) as unknown as { rows?: { id: string; userId: string; chatId: string | null; question: string | null }[] };
+  `) as unknown as { rows?: { id: string; userId: string; chatId: string | null; round: number; question: string | null }[] };
   for (const mission of missionsDue.rows ?? []) {
     await pushReturnTripToUser({
       userId: mission.userId, chatId: mission.chatId, sourceKey: `mission:${mission.id}:blocked-reminder`,
       title: "Your team needs a decision", body: mission.question?.slice(0, 160) || "Open Mates to continue your mission.",
-      data: { chatId: mission.chatId },
+      data: { chatId: mission.chatId, messageId: `mission_${mission.id}_${mission.round}` },
     }).catch(() => console.warn("mission_reminder_enqueue_failed", { id: mission.id }));
   }
 }

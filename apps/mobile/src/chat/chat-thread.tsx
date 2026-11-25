@@ -10,13 +10,14 @@ import {
   useAuiState,
 } from "@assistant-ui/react-native";
 import * as Clipboard from "expo-clipboard";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  AppState,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -2577,6 +2578,18 @@ function useStartingChat() {
 }
 
 export function ChatThread() {
+  const { getToken } = useAuth();
+  const chatId = useAuiState((state) => state.threadListItem.remoteId);
+  useFocusEffect(useCallback(() => {
+    if (!chatId) return;
+    const refresh = () => {
+      if (AppState.currentState === "active") void runRequest(getToken, `chats/${encodeURIComponent(chatId)}/watching`, {}).catch(() => {});
+    };
+    refresh();
+    const timer = setInterval(refresh, 15_000);
+    const appState = AppState.addEventListener("change", (state) => { if (state === "active") refresh(); });
+    return () => { clearInterval(timer); appState.remove(); };
+  }, [chatId, getToken]));
   const colors = useChatColors();
   const { isDark } = useTheme();
   const starting = useStartingChat();

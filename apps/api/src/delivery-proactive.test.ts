@@ -5,6 +5,7 @@ import type { SQL } from "drizzle-orm";
 const db = vi.hoisted(() => ({
   selects: [] as unknown[][],
   inserts: [] as unknown[][],
+  updates: [] as unknown[][],
   executes: [] as { status: string }[][],
   executed: [] as SQL[],
   writes: [] as Record<string, unknown>[],
@@ -19,7 +20,7 @@ function query(kind: "select" | "insert" | "update") {
     db.writes.push(values);
     return self;
   };
-  self.returning = () => Promise.resolve(kind === "insert" ? db.inserts.shift() ?? [] : []);
+  self.returning = () => Promise.resolve(kind === "insert" ? db.inserts.shift() ?? [] : kind === "update" ? db.updates.shift() ?? [] : []);
   self.then = (resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) => {
     const result = kind === "select" ? db.selects.shift() ?? [] : [];
     return Promise.resolve(result).then(resolve, reject);
@@ -79,6 +80,7 @@ function setProviderAccepted() {
 beforeEach(() => {
   db.selects = [];
   db.inserts = [[{ id: noticeId }]];
+  db.updates = [];
   db.executes = [];
   db.executed = [];
   db.writes = [];
@@ -170,21 +172,45 @@ describe("proactive notification delivery", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("sends a user-requested result without using the unprompted budget or the proactive Off mode", async () => {
-    dispatchReads(notice({ sourceKey: "return-trip:code:run_1:done" }), { mode: "off", quietStart: "22:00", quietEnd: "07:00" });
-    db.selects.push([{ token }]);
-    db.executes = [[{ status: "sending" }]];
-
-    const sent = await pushReturnTripToUser({
+  it("queues a user-requested result once for batching", async () => {
+    const queued = await pushReturnTripToUser({
       userId: "user_1", mateId, chatId: `mate_${mateId}`, sourceKey: "code:run_1:done",
       title: "PR is ready", body: "Opened PR #12.", data: { chatId: `mate_${mateId}` },
     });
+    expect(queued).toBe(true);
+    expect(db.selects).toHaveLength(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
-    const claim = new PgDialect().sqlToQuery(db.executed[0]!);
-    expect(sent).toBe(true);
-    expect(claim.params).toContain(true);
-    expect(claim.sql).toContain("source_key NOT LIKE 'return-trip:%'");
+  it("groups two ready results into one push that opens the results list", async () => {
+    const first = notice({ sourceKey: "return-trip:code:1:done", data: { chatId: `mate_${mateId}` } });
+    const second = notice({ id: "00000000-0000-4000-8000-000000000004", sourceKey: "return-trip:deck:2:ready", data: { chatId: `mate_${mateId}` } });
+    db.selects = [
+      [{ id: noticeId }], [first], [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }], [{ token }],
+      [first, second],
+      [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }],
+      [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }],
+      [{ token }],
+    ];
+    db.updates = [[{ id: first.id, title: first.title, body: first.body, data: first.data }, { id: second.id, title: second.title, body: second.body, data: second.data }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
     expect(fetch).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1].body as string) as { body: string; data: { url: string } };
+    expect(payload.body).toBe("2 things are ready. Open to see them.");
+    expect(payload.data.url).toBe("/return-trips");
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "sent" }));
+  });
+
+  it("suppresses a result when its chat was watched after the result appeared", async () => {
+    const result = notice({ sourceKey: "return-trip:code:1:done", createdAt: new Date("2026-11-25T12:00:00Z") });
+    db.selects = [[{ id: noticeId }], [result], [{ watchedAt: new Date("2026-11-25T12:00:10Z") }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:20Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it.each([
