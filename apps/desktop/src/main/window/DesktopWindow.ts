@@ -59,6 +59,11 @@ export function createMainWindow(sources: WindowSources): Electron.BrowserWindow
   mainWindows.add(window);
   window.on("closed", () => mainWindows.delete(window));
   installTextContextMenu(window.webContents);
+  // Full screen hides the traffic lights, so the title bar can stop leaving room for them.
+  const sendFullScreen = () => window.webContents.send("mates:full-screen", window.isFullScreen());
+  window.on("enter-full-screen", sendFullScreen);
+  window.on("leave-full-screen", sendFullScreen);
+  window.webContents.on("did-finish-load", sendFullScreen);
   if (sources.url) void window.loadURL(sources.url);
   else void window.loadFile(sources.file);
   return window;

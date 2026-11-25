@@ -24,5 +24,7 @@ interface Window {
     /** A conversation handed over from the summon bar, if one is waiting. */
     takeHandoff(): Promise<{ mateId: string; question: string; answer: string } | null>;
     onHandoff(listener: () => void): () => void;
+    /** Whether the main window is full screen (on a Mac, the traffic lights are hidden then). */
+    onFullScreen(listener: (fullScreen: boolean) => void): () => void;
   };
 }

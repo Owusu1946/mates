@@ -32,4 +32,9 @@ contextBridge.exposeInMainWorld("mates", {
   appInfo: () => ipcRenderer.invoke("mates:app-info"),
   takeHandoff: () => ipcRenderer.invoke("mates:take-handoff"),
   onHandoff: (listener: () => void) => subscribe("mates:handoff-ready", listener),
+  onFullScreen: (listener: (fullScreen: boolean) => void) => {
+    const handler = (_event: unknown, fullScreen: unknown) => listener(fullScreen === true);
+    ipcRenderer.on("mates:full-screen", handler);
+    return () => ipcRenderer.off("mates:full-screen", handler);
+  },
 });

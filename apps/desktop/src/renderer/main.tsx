@@ -6,6 +6,7 @@ import "./styles.css";
 
 // Platform and appearance go on <html> first, so the right title bar and colours paint on the first frame.
 document.documentElement.dataset.platform = window.mates.platform;
+window.mates.onFullScreen((fullScreen) => document.documentElement.toggleAttribute("data-full-screen", fullScreen));
 startAppearance();
 
 createRoot(document.getElementById("root")!).render(
