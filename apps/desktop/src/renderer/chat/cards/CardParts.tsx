@@ -13,6 +13,9 @@ import { cn } from "../../lib/utils.ts";
 /** The chat's mates, for cards that show who said what. */
 export const CardMatesContext = createContext<Record<string, Mate>>({});
 
+/** Puts words in the chat's composer, for a card's follow-ups ("Reply to Ama"); none in previews. */
+export const ComposeContext = createContext<((text: string) => void) | null>(null);
+
 export function CardSurface({ children, className, tone }: { children: ReactNode; className?: string; tone?: "caution" }) {
   return <section className={cn("overflow-hidden rounded-xl border bg-raised transition-colors duration-200", tone === "caution" ? "border-caution/40" : "border-line", className)}>{children}</section>;
 }

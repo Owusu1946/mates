@@ -8,14 +8,19 @@ import { usePlanUndo } from "../../remote/cardControls.ts";
 import type { CardAction } from "./cardAnswers.logic.ts";
 import { cn } from "../../lib/utils.ts";
 import { MateAvatar } from "../MateAvatar.tsx";
-import { CardAnswerLine, CardMatesContext, CardSurface, QuietAction } from "./CardParts.tsx";
+import { CardAnswerLine, CardMatesContext, CardSurface, ComposeContext, QuietAction } from "./CardParts.tsx";
 import { advancePlan, chosenActions, planSummary } from "./cards.logic.ts";
 
 /** How long each step of a plan takes in the sample, so you can watch it go. */
 const SAMPLE_STEP_MS = 700;
 
-/** What a mate found in an app: a short list, newest first, the way the app itself would show it. */
+/**
+ * What a mate found in an app: a short list, newest first, the way the app itself would show it.
+ * A result with a link opens it in your browser, and a follow-up ("Reply to Ama") puts its words in
+ * the composer for you to send, as on the phone.
+ */
 export function ResultsCard({ card }: { card: Extract<Card, { type: "results" }> }) {
+  const compose = use(ComposeContext);
   return (
     <CardSurface>
       <header className="flex items-center gap-2.5 px-4 pt-3 pb-2">
@@ -30,12 +35,27 @@ export function ResultsCard({ card }: { card: Extract<Card, { type: "results" }>
             <span className={cn("truncate text-sm", item.unread && "font-semibold")}>{item.from}</span>
             <span className="text-2xs text-ink-soft tabular-nums">{item.time}</span>
             <span className="col-start-2 col-end-4 truncate text-[13px]">
-              {item.title}
-              <span className="text-ink-soft"> — {item.snippet}</span>
+              {item.url ? (
+                <a href={item.url} target="_blank" rel="noreferrer" className="underline-offset-2 hover:underline">
+                  {item.title}
+                </a>
+              ) : (
+                item.title
+              )}
+              {item.snippet && <span className="text-ink-soft"> — {item.snippet}</span>}
             </span>
           </li>
         ))}
       </ul>
+      {compose && card.followUps && card.followUps.length > 0 && (
+        <footer className="flex flex-wrap gap-1.5 border-t border-line px-4 py-2.5">
+          {card.followUps.map((followUp) => (
+            <Button key={followUp.label} size="xs" variant="outline" onClick={() => compose(followUp.prompt)}>
+              {followUp.label}
+            </Button>
+          ))}
+        </footer>
+      )}
     </CardSurface>
   );
 }

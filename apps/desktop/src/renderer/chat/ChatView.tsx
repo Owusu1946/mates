@@ -11,6 +11,7 @@ import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
 import { stableRows } from "./stableRows.ts";
+import { ComposeContext } from "./cards/CardParts.tsx";
 import { useAuth } from "@clerk/electron/react";
 import { cardKey, useCardActions } from "../remote/cardActions.ts";
 import { useFeedback } from "../remote/feedback.ts";
@@ -136,6 +137,10 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           onEdit={onEdit}
         />
         <PinnedBar pinned={pinnedOf(messages)} nameOf={nameOf} onUnpin={togglePin} />
+        <ComposeContext value={(text) => {
+          dispatch({ type: "draft", chatId: chat.id, text });
+          focusComposer();
+        }}>
         <MessagesTimeline
           chatId={chat.id}
           messages={messages}
@@ -172,6 +177,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
             />
           )}
         />
+        </ComposeContext>
       </div>
       <RightPanel open={side !== null} tabs={side === "call" ? [{ id: "call", label: "Call", icon: "phone" }] : [{ id: "computer", label: "Computer", icon: "monitor" }]} active={side ?? "computer"} onClose={() => onSide(null)}>
         {sidePanel}
