@@ -11,6 +11,7 @@ import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import type { SentFile } from "./attachments.logic.ts";
 import { mentionChoices, tagsOf, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { useThread } from "../remote/thread.ts";
 import { usableApps } from "../settings/apps.logic.ts";
 import { useApps } from "../settings/apps.ts";
 
@@ -40,7 +41,9 @@ type ChatViewProps = {
 export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet, side, sidePanel, inCall, computerBusy, onSide, onEdit }: ChatViewProps) {
   const lead = mates[chat.leadId]!;
   const reply = flow.replies[chat.id];
-  const messages = flow.messages[chat.id] ?? [];
+  // The chat's real history; what's sent here joins it until sending reaches the API (next change).
+  const thread = useThread(chat.id, chat.leadId);
+  const messages = [...thread.rows, ...(flow.messages[chat.id] ?? [])];
   const replying = flow.replying[chat.id];
   const nameOf = (author: string) => (author === "me" ? "You" : (mates[author]?.name ?? ""));
   // Whoever you replied to answers; otherwise the lead does.
@@ -113,6 +116,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           onCard={(messageId, card) => dispatch({ type: "card", chatId: chat.id, messageId, card })}
           onAction={onAction}
           onEdit={editMessage}
+          history={{ loading: thread.loading, error: thread.error, hasMore: thread.hasMore, loadingEarlier: thread.loadingEarlier, onLoadEarlier: thread.loadEarlier, onRetry: thread.refresh }}
           composer={(
             <ChatComposer
               ref={composerRef}

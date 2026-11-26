@@ -7,10 +7,12 @@ type TimelineViewportProps = {
   followLatest: boolean;
   children: ReactNode;
   composer: ReactNode;
+  /** Scrolled near the top: time to load older messages. */
+  onNearTop?: () => void;
 };
 
-export function TimelineViewport({ scrollKey, contentKey, followLatest, children, composer }: TimelineViewportProps) {
-  const { scroller, composerDock, onScroll } = useTimelineScroll(scrollKey, contentKey, followLatest);
+export function TimelineViewport({ scrollKey, contentKey, followLatest, children, composer, onNearTop }: TimelineViewportProps) {
+  const { scroller, composerDock, onScroll } = useTimelineScroll(scrollKey, contentKey, followLatest, onNearTop);
 
   return (
     <div ref={scroller} tabIndex={-1} data-focus-area="timeline" className="min-h-0 flex-1 overflow-y-auto outline-none" onScroll={onScroll}>

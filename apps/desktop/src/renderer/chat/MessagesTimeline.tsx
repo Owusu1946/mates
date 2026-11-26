@@ -9,6 +9,18 @@ import type { MessageAction } from "./MessageActions.tsx";
 import { regenerableId } from "./messageActions.logic.ts";
 import { MessageRow } from "./MessageRow.tsx";
 import { TimelineViewport } from "./TimelineViewport.tsx";
+import { Button } from "../components/ui/Button.tsx";
+
+/** The shape of a conversation while the first page loads: a few lines on each side, holding still. */
+function HistorySkeleton() {
+  return (
+    <div aria-busy="true" aria-label="Loading messages" className="flex flex-col gap-5 py-4">
+      {[64, 40, 72, 52].map((width, index) => (
+        <span key={index} className={`h-4 rounded-full bg-hover-fill motion-safe:animate-pulse ${index % 2 ? "self-start" : "self-end"}`} style={{ width: `${width}%` }} />
+      ))}
+    </div>
+  );
+}
 
 type MessagesTimelineProps = {
   chatId: string;
@@ -23,9 +35,11 @@ type MessagesTimelineProps = {
   onCard: (messageId: string, card: Card) => void;
   onAction: (message: Message, action: MessageAction) => void;
   onEdit: (message: Message, text: string) => void;
+  /** The chat's history: older messages left to load, and whether they're loading. */
+  history?: { loading: boolean; error: string | null; hasMore: boolean; loadingEarlier: boolean; onLoadEarlier: () => void; onRetry: () => void };
 };
 
-export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onAction, onEdit }: MessagesTimelineProps) {
+export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onAction, onEdit, history }: MessagesTimelineProps) {
   const streamed = reply?.phase === "streaming" ? shownText(reply) : "";
   const lastAuthor = messages.at(-1)?.author;
   const regenerable = regenerableId(messages);
@@ -38,9 +52,25 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
-    <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer}>
+    <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
       <CardMatesContext value={mates}>
       <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
+        {history?.hasMore && (
+          <div className="flex justify-center py-1">
+            <Button variant="ghost-muted" size="xs" disabled={history.loadingEarlier} onClick={history.onLoadEarlier}>
+              {history.loadingEarlier ? "Loading earlier messages…" : "Load earlier messages"}
+            </Button>
+          </div>
+        )}
+        {history?.loading && !messages.length && <HistorySkeleton />}
+        {history?.error && !messages.length && (
+          <div role="alert" className="flex flex-col items-center gap-2 py-10 text-center text-sm text-ink-soft">
+            {history.error}
+            <Button variant="outline" size="xs" onClick={history.onRetry}>
+              Try again
+            </Button>
+          </div>
+        )}
         {messages.map((message, index) => {
           // Asked again: the new answer streams where the old one was.
           const asking = reply?.target === message.id;
