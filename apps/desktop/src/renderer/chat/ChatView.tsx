@@ -10,6 +10,7 @@ import { pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { useRunWatch } from "../remote/runWatch.ts";
 import { useChatActions } from "../remote/send.ts";
 import { useThread } from "../remote/thread.ts";
 import { usableApps } from "../settings/apps.logic.ts";
@@ -43,6 +44,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   // The chat's real history, with what you send and what streams back (remote/thread.ts, send.ts).
   const thread = useThread(chat.id, chat.leadId);
   const actions = useChatActions(chat.id);
+  useRunWatch(chat.id);
   const messages = thread.rows.map((message) => (actions.failed.has(message.id) ? { ...message, failed: true, failedReason: actions.failed.get(message.id) } : message));
   // One reply at a time per chat, as the API allows.
   const busy = messages.some((message) => message.live);
