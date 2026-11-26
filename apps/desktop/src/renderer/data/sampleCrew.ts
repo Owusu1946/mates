@@ -72,6 +72,8 @@ export type Message = {
   author: string;
   text: string;
   card?: Card;
+  /** A mate's reply: its cards in order (what it's doing, what it needs, what it found). */
+  cards?: Card[];
   /** Files you sent with it. */
   files?: SentFile[];
   /** In a group, the message you were answering, as it read then. */

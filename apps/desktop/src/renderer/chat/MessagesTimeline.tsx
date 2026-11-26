@@ -85,7 +85,8 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
           const asking = reply?.target === message.id;
           if (asking && reply.phase === "thinking" && mates[reply.mateId]) return <ActivityLine key={message.id} mate={mates[reply.mateId]!} />;
           // A reply being written: thinking until its words come, with what the mate is doing.
-          if (message.live && !message.text.trim() && mates[message.author])
+          // Thinking only until its first words or its progress arrive; then the row shows them.
+          if (message.live && !message.text.trim() && !message.cards?.length && mates[message.author])
             return (
               <div key={message.id} className="flex flex-col gap-2">
                 {!quiet && message.step && <ChatWorkActivity steps={[message.step]} />}

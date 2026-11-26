@@ -1,5 +1,6 @@
 import { branchTo, textOf, type StoredItem, type StoredMessage } from "@muse-clone/client-core";
 import type { Message } from "./sampleCrew.ts";
+import { cardsOf } from "./workflowCards.logic.ts";
 
 /**
  * A chat's stored messages as the timeline's rows. Pure, so the rules are tested without React.
@@ -27,21 +28,24 @@ export function dayLabel(iso: string, now: Date): string {
   return at.toLocaleDateString(undefined, { day: "numeric", month: "long", ...(at.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }) });
 }
 
-/** A reply split by speaker: each mate's turn, in order, with the text that follows its card. */
-function turnsOf(message: StoredMessage, defaultAuthor: string): { author: string; text: string }[] {
-  const turns: { author: string; text: string }[] = [];
-  let current = { author: defaultAuthor, text: "" };
+type Turn = { author: string; text: string; parts: unknown[] };
+
+/** A reply split by speaker: each mate's turn, in order, with the text and cards that follow its label. */
+function turnsOf(message: StoredMessage, defaultAuthor: string): Turn[] {
+  const turns: Turn[] = [];
+  let current: Turn = { author: defaultAuthor, text: "", parts: [] };
   let spoke = false;
   for (const part of message.content) {
     const card = cardOf(part);
     if (card?.kind === "speaker" && card.speaker?.id) {
-      if (spoke || current.text) turns.push(current);
-      current = { author: card.speaker.id, text: "" };
+      if (spoke || current.text || current.parts.length) turns.push(current);
+      current = { author: card.speaker.id, text: "", parts: [] };
       spoke = true;
     } else if (part.type === "text") current.text += String((part as { text?: unknown }).text ?? "");
+    else if (card) current.parts.push(part);
   }
   turns.push(current);
-  return turns.filter((turn, index) => turn.text.trim() || index === turns.length - 1);
+  return turns.filter((turn, index) => turn.text.trim() || turn.parts.length || index === turns.length - 1);
 }
 
 /** The running step of a live reply: what the mate is doing right now. */
@@ -85,15 +89,18 @@ export function toRows(items: StoredItem[], headId: string | null, options: RowO
     const versionIds = siblings.map((item) => item.message.id);
     const turns = turnsOf(message, options.defaultAuthor);
     const step = live ? runningStep(message) : undefined;
+    const stopped = message.status?.type === "incomplete" && message.status.reason === "cancelled";
     turns.forEach((turn, index) => {
       const last = index === turns.length - 1;
-      // A finished reply that's only cards shows nothing yet (cards come in their own change).
-      if (!turn.text.trim() && !(last && live)) return;
+      const cards = cardsOf(turn.parts, { stopped });
+      // Nothing to show yet: no words, no cards, and not being written.
+      if (!turn.text.trim() && !cards.length && !(last && live)) return;
       rows.push({
         id: index ? `${message.id}:${index}` : message.id,
         sourceId: message.id,
         author: turn.author,
         text: turn.text,
+        ...(cards.length ? { cards } : {}),
         ...(firstOfDay && !rows.some((row) => row.sourceId === message.id) ? { day } : {}),
         ...(last && live ? { live: true, ...(step ? { step } : {}) } : {}),
         ...(last && versions ? { versions, version: versionIds.indexOf(message.id), versionIds } : {}),
@@ -104,7 +111,15 @@ export function toRows(items: StoredItem[], headId: string | null, options: RowO
   return rows;
 }
 
-const sameValue = (a: unknown, b: unknown): boolean => a === b || (Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, index) => sameValue(item, b[index])));
+/** Equal by value: lists item by item, and plain objects (a row's cards) key by key. */
+function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) || Array.isArray(b)) return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, index) => sameValue(item, b[index]));
+  if (!a || !b || typeof a !== "object" || typeof b !== "object") return false;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) if (!sameValue((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) return false;
+  return true;
+}
 
 /** Two rows that say the same: every field equal (lists compared item by item). */
 function sameRow(a: Message, b: Message): boolean {

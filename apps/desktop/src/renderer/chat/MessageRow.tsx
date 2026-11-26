@@ -17,8 +17,8 @@ type MessageRowProps = {
   /** Name the mate above its words: in groups, when the speaker changes. */
   showAuthor: boolean;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
-  /** A card's new state, for cards that change (a plan running, a routine paused). */
-  onCard?: (messageId: string, card: Card) => void;
+  /** A card's new state, for cards that change (a plan running, a routine paused); `index` is its place in the reply. */
+  onCard?: (messageId: string, card: Card, index: number) => void;
   /** Copy, reply, pin and the rest. Without it (previews, a streaming reply), the row has none. */
   actions?: RowActions;
   /** Who wrote a quoted message, for its face, name and colour. */
@@ -26,6 +26,16 @@ type MessageRowProps = {
   /** Saves an edit to your message; the mate answers again. */
   onEdit?: (message: Message, text: string) => void;
 };
+
+/**
+ * A reply's cards for one place in the row, keeping each card's place in the reply: progress goes
+ * above the words, everything else below, and the sources last.
+ */
+function cardsIn(message: Message, place: "before" | "after") {
+  const cards = (message.cards ?? (message.card ? [message.card] : [])).map((card, index) => ({ card, index }));
+  if (place === "before") return cards.filter(({ card }) => card.type === "activity");
+  return [...cards.filter(({ card }) => card.type !== "activity" && card.type !== "sources"), ...cards.filter(({ card }) => card.type === "sources")];
+}
 
 /** Scrolls a message into view and flashes it, for quotes and pins. */
 export function jumpToMessage(id: string) {
@@ -164,8 +174,14 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
                 {mate.name}
               </div>
             )}
+            {/* What it's doing comes first, then its words, then what it needs or found, sources last. */}
+            {cardsIn(message, "before").map(({ card, index }) => (
+              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
+            ))}
             {message.text && <MarkdownText text={message.text} />}
-            {message.card && <MessageCard card={message.card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(card) => onCard?.(message.id, card)} />}
+            {cardsIn(message, "after").map(({ card, index }) => (
+              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
+            ))}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
                 {message.pinned && !rowActions && <Icon name="pin" size={12} className="ms-1.5 text-brand" />}
