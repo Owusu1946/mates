@@ -4,14 +4,17 @@ import { cn } from "../lib/utils.ts";
 /** Hosts whose icon didn't load this session, so they go straight to their letter (T3 Code's failedFaviconHosts). */
 const failed = new Set<string>();
 
-/** The icon the API names for a page's site (apps/api web-search.ts), the same one the phone shows. */
-export const faviconFor = (domain: string) => `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
+/**
+ * A site's icon, served by the app itself (main/app/DesktopFavicons.ts): DuckDuckGo's, as the phone
+ * shows, or the site's own, or Google's. The page never loads images from the web directly.
+ */
+export const faviconFor = (domain: string) => `mates://app/favicon/${encodeURIComponent(domain.replace(/^www\./, ""))}`;
 
 /**
  * A site's icon, or its first letter when there isn't one: in citations, links and the sources
  * list. Loads lazily and never blocks the text around it.
  */
-export const Favicon = memo(function Favicon({ domain, src, size = 14, className }: { domain: string; src?: string; size?: number; className?: string }) {
+export const Favicon = memo(function Favicon({ domain, size = 14, className }: { domain: string; src?: string; size?: number; className?: string }) {
   const [broken, setBroken] = useState(() => failed.has(domain));
   const box = { width: size, height: size };
   if (broken || !domain)
@@ -22,7 +25,7 @@ export const Favicon = memo(function Favicon({ domain, src, size = 14, className
     );
   return (
     <img
-      src={src ?? faviconFor(domain)}
+      src={faviconFor(domain)}
       alt=""
       aria-hidden
       loading="lazy"

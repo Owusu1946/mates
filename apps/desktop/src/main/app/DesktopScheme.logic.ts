@@ -31,3 +31,30 @@ export function rendererFile(requestUrl: string, root: string): string | null {
   const relative = NodePath.relative(root, file);
   return relative && !relative.startsWith("..") && !NodePath.isAbsolute(relative) ? file : null;
 }
+
+/** Site icons are served on mates://app/favicon/<site> (DesktopFavicons.ts), fetched by the app rather than the page. */
+export const FAVICON_PATH = "/favicon/";
+
+/** The site a mates://app/favicon/<site> request is for, or null when it isn't a plain host name. */
+export function faviconSite(requestUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== `${APP_SCHEME}:` || url.host !== APP_HOST || !url.pathname.startsWith(FAVICON_PATH)) return null;
+  let site: string;
+  try {
+    site = decodeURIComponent(url.pathname.slice(FAVICON_PATH.length)).toLowerCase();
+  } catch {
+    return null;
+  }
+  return /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(site) ? site : null;
+}
+
+/**
+ * Where to look for a site's icon, best first: DuckDuckGo's (as the phone shows), the site's own,
+ * then Google's, which answers every site (a plain globe when it has nothing better).
+ */
+export const faviconSources = (site: string) => [`https://icons.duckduckgo.com/ip3/${site}.ico`, `https://${site}/favicon.ico`, `https://www.google.com/s2/favicons?domain=${site}&sz=64`];
