@@ -10,7 +10,9 @@ import { pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { useAuth } from "@clerk/electron/react";
 import { useFeedback } from "../remote/feedback.ts";
+import { toggleMessagePin, useMessagePins } from "../remote/messagePins.ts";
 import { useRunWatch, useWatching } from "../remote/runWatch.ts";
 import { useChatActions } from "../remote/send.ts";
 import { useThread } from "../remote/thread.ts";
@@ -48,11 +50,15 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   useRunWatch(chat.id);
   useWatching(chat.id);
   const feedback = useFeedback();
-  // What only this device knows about a row: a send that didn't go, and your thumbs on a reply.
+  const { userId } = useAuth();
+  const pins = useMessagePins(userId, chat.id);
+  const togglePin = (message: Message) => userId && toggleMessagePin(userId, chat.id, message.sourceId ?? message.id);
+  // What only this device knows about a row: a send that didn't go, your thumbs on a reply, your pins.
   const messages = thread.rows.map((message) => {
     const rating = message.author !== "me" ? feedback.ratings[message.sourceId ?? message.id] : undefined;
     const failed = actions.failed.get(message.id);
-    return failed || rating ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}) } : message;
+    const pinned = pins.includes(message.sourceId ?? message.id);
+    return failed || rating || pinned ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}), ...(pinned ? { pinned } : {}) } : message;
   });
   // One reply at a time per chat, as the API allows.
   const busy = messages.some((message) => message.live);
@@ -88,11 +94,10 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const focusComposer = () => requestAnimationFrame(() => composerRef && "current" in composerRef && composerRef.current?.focus());
 
   const onAction = (message: Message, action: MessageAction) => {
-    const target = { chatId: chat.id, messageId: message.id };
     if (action.type === "reply") {
       dispatch({ type: "reply", chatId: chat.id, quote: quoteOf(message) });
       focusComposer();
-    } else if (action.type === "pin") dispatch({ type: "pin", ...target });
+    } else if (action.type === "pin") togglePin(message);
     else if (action.type === "rate") void feedback.rate(message.sourceId ?? message.id, action.rating, action.reason);
     else if (action.type === "version") {
       const version = message.versionIds?.[action.index];
@@ -117,7 +122,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           onComputer={() => onSide(side === "computer" ? null : "computer")}
           onEdit={onEdit}
         />
-        <PinnedBar pinned={pinnedOf(messages)} nameOf={nameOf} onUnpin={(message) => dispatch({ type: "pin", chatId: chat.id, messageId: message.id })} />
+        <PinnedBar pinned={pinnedOf(messages)} nameOf={nameOf} onUnpin={togglePin} />
         <MessagesTimeline
           chatId={chat.id}
           messages={messages}
