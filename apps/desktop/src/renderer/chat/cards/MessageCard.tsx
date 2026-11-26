@@ -7,6 +7,7 @@ import { MemoryLine, SourcesPill } from "./QuietCards.tsx";
 import { RunCard } from "./RunCard.tsx";
 import { ConnectCard, ScheduleCard, WatchCard } from "./StandingCards.tsx";
 import { ComparisonCard, PlanCard, ResultsCard } from "./WorkCards.tsx";
+import { WorkActivity } from "../WorkActivity.tsx";
 
 type MessageCardProps = {
   card: Card;
@@ -21,6 +22,8 @@ type MessageCardProps = {
 export function MessageCard({ card, authorId, onAnswer, onChange }: MessageCardProps) {
   const mates = use(CardMatesContext);
   switch (card.type) {
+    case "activity":
+      return <WorkActivity card={card} />;
     case "brief":
       return <BriefCard card={card} />;
     case "approval":
