@@ -12,7 +12,9 @@ import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
 import { stableRows } from "./stableRows.ts";
 import { useAuth } from "@clerk/electron/react";
+import { cardKey, useCardActions } from "../remote/cardActions.ts";
 import { useFeedback } from "../remote/feedback.ts";
+import { shownStatus } from "./cards/cardAnswers.logic.ts";
 import { toggleMessagePin, useMessagePins } from "../remote/messagePins.ts";
 import { useRunWatch, useWatching } from "../remote/runWatch.ts";
 import { useChatActions } from "../remote/send.ts";
@@ -55,11 +57,18 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const pins = useMessagePins(userId, chat.id);
   const togglePin = (message: Message) => userId && toggleMessagePin(userId, chat.id, message.sourceId ?? message.id);
   // What only this device knows about a row: a send that didn't go, your thumbs on a reply, your pins.
+  const cardActions = useCardActions(chat.id);
   const fromApi = thread.rows.map((message) => {
     const rating = message.author !== "me" ? feedback.ratings[message.sourceId ?? message.id] : undefined;
     const failed = actions.failed.get(message.id);
     const pinned = pins.includes(message.sourceId ?? message.id);
-    return failed || rating || pinned ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}), ...(pinned ? { pinned } : {}) } : message;
+    // Answers to its cards in flight here, while each card still waits (cardAnswers.logic.ts).
+    const statuses = message.cards ? Object.fromEntries(message.cards.flatMap((card, index) => {
+      const status = shownStatus(card, cardActions.statuses[cardKey(message.id, index)]);
+      return status ? [[index, status]] : [];
+    })) : {};
+    const answering = Object.keys(statuses).length > 0;
+    return failed || rating || pinned || answering ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}), ...(pinned ? { pinned } : {}), ...(answering ? { cardStatuses: statuses } : {}) } : message;
   });
   // Notes only this window made (a call's summary, a hand-off from the summon bar) follow the real messages.
   // Rows that didn't change stay the same objects, so a streamed word draws only its own row.
@@ -135,6 +144,10 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           group={chat.kind === "group"}
           onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}
           onCard={(messageId, card) => dispatch({ type: "card", chatId: chat.id, messageId, card })}
+          onCardAction={(message, index, action) => {
+            const card = message.cards?.[index];
+            void cardActions.answer(message.id, message.sourceId ?? message.id, index, card && "resumeRunId" in card ? card.resumeRunId : undefined, action);
+          }}
           onAction={onAction}
           onEdit={editMessage}
           history={{ loading: thread.loading, error: thread.error, hasMore: thread.hasMore, loadingEarlier: thread.loadingEarlier, onLoadEarlier: thread.loadEarlier, onRetry: thread.refresh }}

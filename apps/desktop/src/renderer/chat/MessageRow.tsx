@@ -4,6 +4,7 @@ import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import type { Card } from "../data/sampleCrew.ts";
+import type { CardAction } from "./cards/cardAnswers.logic.ts";
 import { MessageCard } from "./cards/MessageCard.tsx";
 import { sourcesOf } from "./citations.logic.ts";
 import { MarkdownText } from "./MarkdownText.tsx";
@@ -20,6 +21,8 @@ type MessageRowProps = {
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
   /** A card's new state, for cards that change (a plan running, a routine paused); `index` is its place in the reply. */
   onCard?: (messageId: string, card: Card, index: number) => void;
+  /** Answers one of its cards (by its place in the reply). */
+  onCardAction?: (message: Message, index: number, action: CardAction) => void;
   /** Copy, reply, pin and the rest. Without it (previews, a streaming reply), the row has none. */
   actions?: RowActions;
   /** Who wrote a quoted message, for its face, name and colour. */
@@ -52,7 +55,7 @@ export function jumpToMessage(id: string) {
  * words sit plainly on the canvas. Under each, its actions. Memoised so a streaming reply
  * re-renders only its own row.
  */
-export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, onCard, actions, mateOf, onEdit }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, onCard, onCardAction, actions, mateOf, onEdit }: MessageRowProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const mine = message.author === "me";
   const rowActions = actions && {
@@ -177,11 +180,11 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             )}
             {/* What it's doing comes first, then its words, then what it needs or found, sources last. */}
             {cardsIn(message, "before").map(({ card, index }) => (
-              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
+              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} onAction={(action) => onCardAction?.(message, index, action)} status={message.cardStatuses?.[index]} />
             ))}
             {message.text && <MarkdownText text={message.text} sources={sourcesOf(message.cards)} />}
             {cardsIn(message, "after").map(({ card, index }) => (
-              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
+              <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} onAction={(action) => onCardAction?.(message, index, action)} status={message.cardStatuses?.[index]} />
             ))}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
@@ -208,6 +211,7 @@ function sameRow(before: MessageRowProps, after: MessageRowProps) {
     before.showAuthor === after.showAuthor &&
     before.onAnswer === after.onAnswer &&
     before.onCard === after.onCard &&
+    before.onCardAction === after.onCardAction &&
     before.mateOf === after.mateOf &&
     before.onEdit === after.onEdit
   );

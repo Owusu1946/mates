@@ -27,6 +27,9 @@ type Ask = {
   /** The message the reply answers. */
   parentId: string;
   replyId: string;
+  /** Answering a card: the run waiting for the answer, and the answer (durable-runs.ts). */
+  resumeRunId?: string;
+  choice?: string;
 };
 
 /** Sends that didn't go, by your message's id: why, and how to send it again. */
@@ -74,6 +77,8 @@ async function ask(client: QueryClient, getToken: GetToken, userId: string, requ
     const sent = request.user;
     updateThread(client, key, (thread) => withSent(thread, { id: sent.id, text: sent.text, createdAt: new Date().toISOString() }, sent.parentId));
   }
+  // Answering a card carries on the reply it's in: what it said stays while the run picks up again.
+  const before = client.getQueryData<Thread>(key)?.items.find((item) => item.message.id === request.replyId)?.message;
   updateThread(client, key, (thread) => withReply(thread, { id: request.replyId, parentId: request.parentId, content: [], live: true }));
   try {
     await ensureOk(await apiFetch(getToken, chatPath, { method: "PUT" }), "Couldn’t start this chat.");
@@ -83,7 +88,7 @@ async function ask(client: QueryClient, getToken: GetToken, userId: string, requ
     }
     const thread = client.getQueryData<Thread>(key);
     const history = branchTo(thread?.items ?? [], request.parentId).map((item: StoredItem) => item.message);
-    const body = runRequest({ chatId: request.chatId, assistantMessageId: request.replyId, parentId: request.parentId, timezone: timezone(), history });
+    const body = runRequest({ chatId: request.chatId, assistantMessageId: request.replyId, parentId: request.parentId, timezone: timezone(), history, ...(request.resumeRunId ? { resumeRunId: request.resumeRunId } : {}), ...(request.choice ? { choice: request.choice } : {}) });
     const response = await ensureOk(
       await apiFetch(getToken, "/v1/runs", { method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream, application/json" }, body: JSON.stringify(body) }),
       "Couldn’t reach your mate.",
@@ -95,8 +100,13 @@ async function ask(client: QueryClient, getToken: GetToken, userId: string, requ
     if (request.user && failures.delete(request.user.id)) changed();
     followRun(client, getToken, { runId, chatKey: key, replyId: request.replyId, parentId: request.parentId, stream: streamed ? response.body : null });
   } catch (error) {
-    // The thinking reply goes; your message stays, marked, to send again as the same request.
-    updateThread(client, key, (thread) => ({ ...thread, items: thread.items.filter((item) => item.message.id !== request.replyId), live: thread.live.filter((id) => id !== request.replyId), headId: thread.headId === request.replyId ? request.parentId : thread.headId }));
+    // A new thinking reply goes, and a reply that was carrying on goes back to how it was; your
+    // message stays, marked, to send again as the same request.
+    updateThread(client, key, (thread) => {
+      const live = thread.live.filter((id) => id !== request.replyId);
+      if (before) return { ...thread, live, items: thread.items.map((item) => (item.message.id === request.replyId ? { ...item, message: before } : item)) };
+      return { ...thread, live, items: thread.items.filter((item) => item.message.id !== request.replyId), headId: thread.headId === request.replyId ? request.parentId : thread.headId };
+    });
     if (request.user) {
       failures.set(request.user.id, { reason: reasonOf(error), ask: request });
       changed();
@@ -116,6 +126,11 @@ export type ChatActions = {
   retry: (messageId: string) => Promise<void>;
   /** Stops the reply being written. */
   stop: () => Promise<void>;
+  /**
+   * Answers a card in a reply: the run waiting on it carries on in that same reply, with
+   * `choice` (approve, a picked option, a plan's actions). Resolves with why it couldn't, or null.
+   */
+  resume: (replyId: string, resumeRunId: string, choice?: string) => Promise<string | null>;
   /** Why each of your messages that didn't go failed. */
   failed: Map<string, string>;
 };
@@ -156,6 +171,16 @@ export function useChatActions(chatId: string): ChatActions {
       }
       // The follower stays on to receive "cancelled"; it's only dropped if the server can't be told.
       await Promise.all(runIds.map((runId) => apiFetch(token, `/v1/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }).catch(() => stopFollowing(runId))));
+    },
+    resume: async (replyId, resumeRunId, choice) => {
+      const parentId = thread()?.items.find((item) => item.message.id === replyId)?.parentId;
+      if (!userId || !parentId) return "This reply can’t carry on from here.";
+      try {
+        await ask(client, token, userId, { chatId, user: null, parentId, replyId, resumeRunId, ...(choice ? { choice } : {}) });
+        return null;
+      } catch (error) {
+        return reasonOf(error);
+      }
     },
     failed: failedIn(chatId),
   };

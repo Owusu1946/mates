@@ -1,5 +1,6 @@
 import { use } from "react";
-import type { Card } from "../../data/sampleCrew.ts";
+import type { Card, CardStatus } from "../../data/sampleCrew.ts";
+import type { CardAction } from "./cardAnswers.logic.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { BriefCard } from "./BriefCard.tsx";
 import { CardMatesContext } from "./CardParts.tsx";
@@ -16,6 +17,10 @@ type MessageCardProps = {
   onAnswer: (state: "allowed" | "skipped") => void;
   /** A card that changes (a plan running, a routine paused) saves its new state here. */
   onChange: (card: Card) => void;
+  /** Answers it: the reply's run carries on with the answer (remote/cardActions.ts). */
+  onAction?: (action: CardAction) => void;
+  /** The answer in flight, or why it couldn't go. */
+  status?: CardStatus;
 };
 
 /** The card a message carries, whichever kind it is. */

@@ -22,6 +22,9 @@ export type Mate = {
 
 export type BriefRow = { label: string; text: string };
 
+/** How an answer to a card stands on this device: on its way, or it couldn't go (chat/cards/cardAnswers.logic.ts). */
+export type CardStatus = { pending: string } | { error: string };
+
 /** A card that can be answered: the run waiting for the answer (resumed with it, apps/api durable-runs). */
 type Resumable = { resumeRunId?: string };
 
@@ -74,6 +77,8 @@ export type Message = {
   card?: Card;
   /** A mate's reply: its cards in order (what it's doing, what it needs, what it found). */
   cards?: Card[];
+  /** Answers to its cards in flight here, by the card's place in the reply. */
+  cardStatuses?: Record<number, CardStatus>;
   /** Files you sent with it. */
   files?: SentFile[];
   /** In a group, the message you were answering, as it read then. */

@@ -9,6 +9,7 @@ import type { MessageAction } from "./MessageActions.tsx";
 import { regenerableId } from "./messageActions.logic.ts";
 import { MessageRow } from "./MessageRow.tsx";
 import { TimelineViewport } from "./TimelineViewport.tsx";
+import type { CardAction } from "./cards/cardAnswers.logic.ts";
 import { useRevealedText } from "./useRevealedText.ts";
 import { QuietActivityContext } from "./WorkActivity.tsx";
 import { Button } from "../components/ui/Button.tsx";
@@ -41,13 +42,15 @@ type MessagesTimelineProps = {
   composer: ReactNode;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
   onCard: (messageId: string, card: Card) => void;
+  /** Answers one of a reply's cards. */
+  onCardAction?: (message: Message, index: number, action: CardAction) => void;
   onAction: (message: Message, action: MessageAction) => void;
   onEdit: (message: Message, text: string) => void;
   /** The chat's history: older messages left to load, and whether they're loading. */
   history?: { loading: boolean; error: string | null; hasMore: boolean; loadingEarlier: boolean; onLoadEarlier: () => void; onRetry: () => void };
 };
 
-export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onAction, onEdit, history }: MessagesTimelineProps) {
+export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onCardAction, onAction, onEdit, history }: MessagesTimelineProps) {
   const streamed = reply?.phase === "streaming" ? shownText(reply) : "";
   const lastAuthor = messages.at(-1)?.author;
   const regenerable = regenerableId(messages);
@@ -59,6 +62,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const act = useStableCallback(onAction);
   const edit = useStableCallback(onEdit);
   const changeCard = useStableCallback(onCard);
+  const answerCard = useStableCallback((message: Message, index: number, action: CardAction) => onCardAction?.(message, index, action));
   const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
@@ -106,6 +110,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
               showAuthor={group && message.author !== "me" && (Boolean(message.day) || messages[index - 1]?.author !== message.author)}
               onAnswer={onAnswer}
               onCard={changeCard}
+              onCardAction={answerCard}
               actions={asking || message.live ? undefined : { onAction: act, replyable: group, regenerable: message.id === regenerable, latest: message.id === latestReply, busy }}
               mateOf={mateOf}
               onEdit={edit}
