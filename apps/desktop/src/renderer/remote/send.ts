@@ -43,6 +43,18 @@ const subscribe = (listener: () => void) => {
   return () => listeners.delete(listener);
 };
 
+/** Each chat's failed sends, built once per change rather than on every render. */
+const failedByChat = new Map<string, { version: number; failed: Map<string, string> }>();
+function failedIn(chatId: string): Map<string, string> {
+  const held = failedByChat.get(chatId);
+  if (held?.version === failuresVersion) return held.failed;
+  const failed = new Map([...failures].filter(([, failure]) => failure.ask.chatId === chatId).map(([messageId, failure]) => [messageId, failure.reason]));
+  // Unchanged for this chat: keep the same map, so nothing that reads it recomputes.
+  const same = held && held.failed.size === failed.size && [...failed].every(([id, reason]) => held.failed.get(id) === reason);
+  failedByChat.set(chatId, { version: failuresVersion, failed: same ? held.failed : failed });
+  return same ? held.failed : failed;
+}
+
 /** Runs this window started, by reply id, so Stop knows which run to cancel. */
 const runsByReply = new Map<string, string>();
 
@@ -145,6 +157,6 @@ export function useChatActions(chatId: string): ChatActions {
       // The follower stays on to receive "cancelled"; it's only dropped if the server can't be told.
       await Promise.all(runIds.map((runId) => apiFetch(token, `/v1/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" }).catch(() => stopFollowing(runId))));
     },
-    failed: new Map([...failures].filter(([, failure]) => failure.ask.chatId === chatId).map(([messageId, failure]) => [messageId, failure.reason])),
+    failed: failedIn(chatId),
   };
 }
