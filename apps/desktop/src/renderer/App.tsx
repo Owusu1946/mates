@@ -1,23 +1,18 @@
 import { useAuth, useUser } from "@clerk/electron/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { AuthProvider } from "./auth/AuthProvider.tsx";
 import { useLeaderSetup } from "./auth/useLeaderSetup.ts";
-import { crewFor, type Crew } from "./data/sampleCrew.ts";
+import type { SampleProfile } from "./data/sampleCrew.ts";
+import { useCrew } from "./remote/crew.ts";
+import { DataProvider, useForgetData } from "./remote/DataProvider.tsx";
+import { forgetSeen } from "./remote/seen.ts";
 import { preferenceFromOnboarding } from "./settings/coding.logic.ts";
 import { startCoding } from "./settings/coding.ts";
-import { Onboarding, type OnboardingResult } from "./onboarding/Onboarding.tsx";
+import { Onboarding } from "./onboarding/Onboarding.tsx";
 import { AppLayout } from "./shell/AppLayout.tsx";
 import { TitleBar } from "./shell/TitleBar.tsx";
-
-/**
- * A new member's crew is led by the mate they just made, with no projects yet; someone signing back
- * in gets the sample workspace, projects included. Onboarding's coding answer sets the preference.
- * Only who you are is real so far: the crew, chats and projects are still the sample's.
- */
-function crewAfter(you: string, result: OnboardingResult): Crew {
-  startCoding(preferenceFromOnboarding(result.codes));
-  return { ...crewFor(result.myName.trim() || you, result.leader), profile: result.profile, hasProjects: false };
-}
+import { WorkspaceLoading } from "./shell/WorkspaceLoading.tsx";
 
 export function App() {
   return (
@@ -31,31 +26,64 @@ export function App() {
 
 /** Signed out: the ways in. Signed in: setting up the lead mate if it isn't yet, then the app. */
 function Session() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   // Clerk is reading the saved session: keep the empty window rather than flash the sign-in screen.
   if (!isLoaded) return <TitleBar />;
-  if (!isSignedIn)
+  if (!isSignedIn || !userId)
     return (
       <>
         <TitleBar />
         <Onboarding />
       </>
     );
-  return <SignedIn />;
+  // Each account gets its own data and cache, so switching accounts never shows the last one's.
+  return (
+    <DataProvider key={userId} userId={userId}>
+      <SignedIn userId={userId} />
+    </DataProvider>
+  );
 }
 
-function SignedIn() {
+/** What setup told us that the crew itself doesn't: the introduction to show in Memory. */
+type Joined = { profile: SampleProfile };
+
+function SignedIn({ userId }: { userId: string }) {
   const { signOut } = useAuth();
   const { user } = useUser();
+  const forget = useForgetData();
+  const client = useQueryClient();
   const setup = useLeaderSetup();
-  const [crew, setCrew] = useState<Crew | null>(null);
+  const [joined, setJoined] = useState<Joined | null>(null);
   const you = user?.firstName || user?.primaryEmailAddress?.emailAddress.split("@")[0] || "there";
+  // Signing out leaves nothing of this account on this device: its cache, then its session.
+  const leave = async () => {
+    await forget();
+    forgetSeen(userId);
+    await signOut();
+  };
 
-  if (crew || setup.status === "done") return <AppLayout crew={crew ?? crewFor(you)} onSignOut={() => void signOut()} />;
+  if (joined || setup.status === "done") return <Workspace you={you} email={user?.primaryEmailAddress?.emailAddress} joined={joined} onSignOut={() => void leave()} />;
   return (
     <>
       <TitleBar />
-      {setup.status === "needed" && <Onboarding start="leader" onFinish={(result) => setCrew(crewAfter(you, result))} />}
+      {setup.status === "needed" && (
+        <Onboarding
+          start="leader"
+          onFinish={(result) => {
+            startCoding(preferenceFromOnboarding(result.codes));
+            // Setup saved the lead mate's name and look: load the crew fresh, not from an older copy.
+            void client.invalidateQueries({ queryKey: ["mates"] });
+            setJoined({ profile: result.profile });
+          }}
+        />
+      )}
     </>
   );
+}
+
+/** Your crew from the API: the saved copy at once when there is one, the loading sidebar otherwise. */
+function Workspace({ you, email, joined, onSignOut }: { you: string; email: string | undefined; joined: Joined | null; onSignOut: () => void }) {
+  const live = useCrew();
+  if (!live.crew) return <WorkspaceLoading error={live.error} onRetry={live.refresh} />;
+  return <AppLayout you={you} email={email} crew={live.crew} unread={live.unread} onSeen={live.markSeen} profile={joined?.profile} hasProjects={joined ? false : undefined} onSignOut={onSignOut} />;
 }

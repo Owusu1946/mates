@@ -2,10 +2,10 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import type { ReactNode } from "react";
 import { Icon } from "../components/ui/Icon.tsx";
 
-/** A labelled group of rows that folds away when you click its label. */
-export function SidebarSection({ label, children }: { label: string; children: ReactNode }) {
+/** A labelled group of rows that folds away when you click its label; `defaultOpen={false}` starts folded. */
+export function SidebarSection({ label, defaultOpen = true, children }: { label: string; defaultOpen?: boolean; children: ReactNode }) {
   return (
-    <Collapsible.Root defaultOpen render={<section />} className="flex flex-col gap-px">
+    <Collapsible.Root defaultOpen={defaultOpen} render={<section />} className="flex flex-col gap-px">
       <Collapsible.Trigger
         className="group flex h-7 items-center gap-1 rounded-control px-(--sidebar-row-inset) text-2xs font-medium text-ink-soft outline-none transition-colors hover:text-ink focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-inset"
       >

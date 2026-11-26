@@ -71,6 +71,8 @@ export function Sidebar({
   const full = isShelfFull(pins);
   const mateChats = chats.filter((chat) => chat.kind === "mate" && !pins.includes(chat.id));
   const groups = chats.filter((chat) => chat.kind === "group" && !pins.includes(chat.id));
+  // Chats from before mates, folded away as on the phone.
+  const earlier = chats.filter((chat) => chat.kind === "thread" && !pins.includes(chat.id));
   const groupMates = (chat: Chat) => chat.mateIds.flatMap((id) => (mates[id] ? [mates[id]] : []));
   const pinFor = (chat: Chat) => ({ full, onToggle: () => togglePinned(chat.id) });
   const repos = REPOS.map((repo) => ({ repo, runs: runs.filter(({ run }) => run.repoId === repo.id) }));
@@ -173,6 +175,25 @@ export function Sidebar({
                 unread={Boolean(unread[chat.id])}
                 selected={isSelected({ kind: "chat", id: chat.id })}
                 jump={jump({ kind: "chat", id: chat.id })}
+                onSelect={() => onSelect({ kind: "chat", id: chat.id })}
+                pin={pinFor(chat)}
+              />
+            ))}
+          </SidebarSection>
+        )}
+
+        {earlier.length > 0 && (
+          <SidebarSection label={`Earlier chats · ${earlier.length}`} defaultOpen={false}>
+            {earlier.map((chat) => (
+              <ChatRow
+                key={chat.id}
+                face={mates[chat.leadId] && <MateAvatar mate={mates[chat.leadId]!} size={34} />}
+                title={chat.title}
+                subtitle={chat.preview}
+                time={chat.time}
+                unread={Boolean(unread[chat.id])}
+                selected={isSelected({ kind: "chat", id: chat.id })}
+                jump={null}
                 onSelect={() => onSelect({ kind: "chat", id: chat.id })}
                 pin={pinFor(chat)}
               />

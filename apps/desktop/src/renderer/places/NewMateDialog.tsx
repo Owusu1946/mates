@@ -17,7 +17,10 @@ const ROLE_IDEAS = ["Research", "Planning", "Money", "Health", "Shopping", "Buil
  * A mate's name, what it helps with, a shape and a colour, with its face reacting as you choose.
  * New, it joins the sidebar and says hello in its own chat; with `initial`, it edits that mate.
  */
-export function NewMateDialog({ open, onOpenChange, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: (mate: NewMate) => void; initial?: NewMate }) {
+/** Saves the mate; resolves with the reason it couldn't (shown in the form), or null once saved. */
+type SaveMate = (mate: NewMate) => Promise<string | null>;
+
+export function NewMateDialog({ open, onOpenChange, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; onCreate: SaveMate; initial?: NewMate }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={initial ? `Edit ${initial.name}` : "New mate"} description={initial ? "Their name, job and look. Their chats and memories stay." : "Someone new for your crew, with their own job."}>
       {/* Mounted per open, so each one starts fresh. */}
@@ -26,7 +29,9 @@ export function NewMateDialog({ open, onOpenChange, onCreate, initial }: { open:
   );
 }
 
-function NewMateForm({ onCreate, initial }: { onCreate: (mate: NewMate) => void; initial?: NewMate }) {
+function NewMateForm({ onCreate, initial }: { onCreate: SaveMate; initial?: NewMate }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState(initial?.name ?? "");
   const [role, setRole] = useState(initial?.role ?? "");
   const [shape, setShape] = useState<ShapeName>(initial?.shape ?? "circle");
@@ -51,7 +56,14 @@ function NewMateForm({ onCreate, initial }: { onCreate: (mate: NewMate) => void;
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (valid) onCreate({ name: name.trim(), role: role.trim() || "Personal assistant", shape, color });
+        if (!valid || saving) return;
+        setSaving(true);
+        setError(null);
+        // "Companion" is the API's everyday role, so an empty one stays a preset, not a custom role.
+        void onCreate({ name: name.trim(), role: role.trim() || "Companion", shape, color }).then((failed) => {
+          setError(failed);
+          setSaving(false);
+        });
       }}
     >
       <div className="flex justify-center">
@@ -85,8 +97,13 @@ function NewMateForm({ onCreate, initial }: { onCreate: (mate: NewMate) => void;
           react();
         }}
       />
-      <Button type="submit" size="lg" className="w-full" disabled={!valid}>
-        {initial ? "Save" : `Create ${name.trim() || "mate"}`}
+      {error && (
+        <p role="alert" className="-mt-1 text-center text-sm text-danger-ink">
+          {error}
+        </p>
+      )}
+      <Button type="submit" size="lg" className="w-full" disabled={!valid || saving}>
+        {saving ? "Saving…" : initial ? "Save" : `Create ${name.trim() || "mate"}`}
       </Button>
     </form>
   );

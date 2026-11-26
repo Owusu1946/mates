@@ -13,7 +13,10 @@ export type NewGroup = { title: string; mateIds: string[] };
  * A group of mates working on something together: a name, and at least two mates. With `initial`,
  * it edits that group: rename it, or add and remove mates.
  */
-export function NewGroupDialog({ open, onOpenChange, mates, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; mates: Mate[]; onCreate: (group: NewGroup) => void; initial?: NewGroup }) {
+/** Saves the group; resolves with the reason it couldn't (shown in the form), or null once saved. */
+type SaveGroup = (group: NewGroup) => Promise<string | null>;
+
+export function NewGroupDialog({ open, onOpenChange, mates, onCreate, initial }: { open: boolean; onOpenChange: (open: boolean) => void; mates: Mate[]; onCreate: SaveGroup; initial?: NewGroup }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} title={initial ? `Edit ${initial.title}` : "New group"} description={initial ? "Its name and who's in it. The conversation stays." : "Mates who work on something together, in one chat."}>
       {open && <NewGroupForm mates={mates} onCreate={onCreate} initial={initial} />}
@@ -21,7 +24,9 @@ export function NewGroupDialog({ open, onOpenChange, mates, onCreate, initial }:
   );
 }
 
-function NewGroupForm({ mates, onCreate, initial }: { mates: Mate[]; onCreate: (group: NewGroup) => void; initial?: NewGroup }) {
+function NewGroupForm({ mates, onCreate, initial }: { mates: Mate[]; onCreate: SaveGroup; initial?: NewGroup }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [picked, setPicked] = useState<string[]>(initial?.mateIds ?? []);
   const valid = title.trim().length > 0 && picked.length >= 2;
@@ -33,7 +38,13 @@ function NewGroupForm({ mates, onCreate, initial }: { mates: Mate[]; onCreate: (
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        if (valid) onCreate({ title: title.trim(), mateIds: picked });
+        if (!valid || saving) return;
+        setSaving(true);
+        setError(null);
+        void onCreate({ title: title.trim(), mateIds: picked }).then((failed) => {
+          setError(failed);
+          setSaving(false);
+        });
       }}
     >
       <TextField label="Name" placeholder="Wedding planning" maxLength={40} value={title} onChange={(event) => setTitle(event.target.value)} autoFocus />
@@ -64,8 +75,13 @@ function NewGroupForm({ mates, onCreate, initial }: { mates: Mate[]; onCreate: (
           })}
         </div>
       </fieldset>
-      <Button type="submit" size="lg" className="w-full" disabled={!valid}>
-        {picked.length < 2 ? "Choose at least two mates" : initial ? "Save" : `Create ${title.trim() || "group"}`}
+      {error && (
+        <p role="alert" className="-mt-1 text-center text-sm text-danger-ink">
+          {error}
+        </p>
+      )}
+      <Button type="submit" size="lg" className="w-full" disabled={!valid || saving}>
+        {saving ? "Saving…" : picked.length < 2 ? "Choose at least two mates" : initial ? "Save" : `Create ${title.trim() || "group"}`}
       </Button>
     </form>
   );
