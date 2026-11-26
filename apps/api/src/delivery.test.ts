@@ -37,6 +37,8 @@ describe("findingPushBody", () => {
       .toBe("Couldn’t finish: Calendar access expired.");
     expect(findingPushBody("failed", { summary: "Your result is ready." }))
       .toBe("This task couldn’t be completed.");
+    expect(findingPushBody("failed", { summary: "This task couldn’t be completed." }))
+      .toBe("This task couldn’t be completed.");
   });
 
   it("uses clear fallbacks and caps long previews", () => {

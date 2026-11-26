@@ -4,7 +4,7 @@ import { z } from "zod";
 import { computerConfigured, dbComputerStore, type ComputerGoal } from "./computers.js";
 import { getDb } from "./db/client.js";
 import { chatMessages, chats, computerGoals } from "./db/schema.js";
-import { pushToUser } from "./delivery.js";
+import { pushReturnTripToUser } from "./delivery.js";
 import type { WorkflowCard } from "./integrations.js";
 import { assertUsage, userPlan } from "./usage/gate.js";
 import { canUseComputer } from "./usage/plans.js";
@@ -132,16 +132,16 @@ export async function announceGoal(id: string) {
       getDb().update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, goal.chatId)),
     ]);
   }
-  await pushToUser(goal.clerkUserId, {
+  await pushReturnTripToUser({ userId: goal.clerkUserId, chatId: goal.chatId, mateId: goal.mateId, sourceKey: `computer:${goal.id}:${goal.status}`,
     title: goal.status === "done" ? "Done on your computer" : "Couldn’t finish on your computer",
     body: (goal.status === "done" ? goal.summary : goal.error)?.slice(0, 160) ?? goal.goal.slice(0, 160),
-    data: { chatId: goal.chatId ?? undefined, computerGoalId: goal.id, url: "/computer" },
+    data: { chatId: goal.chatId ?? undefined, computerGoalId: goal.id, messageId: goal.chatId ? `computer_${goal.id}` : undefined, url: "/computer" },
   }).catch(() => undefined);
 }
 
 /** Tells the user a goal is waiting on them (a login, an approval, a question). */
 export async function notifyWaiting(goal: ComputerGoal) {
-  await pushToUser(goal.clerkUserId, {
+  await pushReturnTripToUser({ userId: goal.clerkUserId, chatId: goal.chatId, mateId: goal.mateId, sourceKey: `computer:${goal.id}:waiting:${goal.updatedAt.toISOString()}`,
     title: goal.waitingFor === "approval" ? "Your OK is needed" : goal.waitingFor === "login" ? "Sign in on your computer" : "A quick question",
     body: goal.question?.slice(0, 160) ?? goal.goal.slice(0, 160),
     data: { chatId: goal.chatId ?? undefined, computerGoalId: goal.id, url: "/computer" },

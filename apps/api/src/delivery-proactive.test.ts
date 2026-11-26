@@ -5,6 +5,7 @@ import type { SQL } from "drizzle-orm";
 const db = vi.hoisted(() => ({
   selects: [] as unknown[][],
   inserts: [] as unknown[][],
+  updates: [] as unknown[][],
   executes: [] as { status: string }[][],
   executed: [] as SQL[],
   writes: [] as Record<string, unknown>[],
@@ -19,7 +20,7 @@ function query(kind: "select" | "insert" | "update") {
     db.writes.push(values);
     return self;
   };
-  self.returning = () => Promise.resolve(kind === "insert" ? db.inserts.shift() ?? [] : []);
+  self.returning = () => Promise.resolve(kind === "insert" ? db.inserts.shift() ?? [] : kind === "update" ? db.updates.shift() ?? [] : []);
   self.then = (resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) => {
     const result = kind === "select" ? db.selects.shift() ?? [] : [];
     return Promise.resolve(result).then(resolve, reject);
@@ -39,7 +40,7 @@ vi.mock("./db/client.js", () => ({
   }),
 }));
 
-const { deliverPendingProactiveNotifications, pushProactiveToUser } = await import("./delivery.js");
+const { deliverPendingProactiveNotifications, pushProactiveToUser, pushReturnTripToUser } = await import("./delivery.js");
 
 const mateId = "00000000-0000-4000-8000-000000000001";
 const noticeId = "00000000-0000-4000-8000-000000000002";
@@ -79,6 +80,7 @@ function setProviderAccepted() {
 beforeEach(() => {
   db.selects = [];
   db.inserts = [[{ id: noticeId }]];
+  db.updates = [];
   db.executes = [];
   db.executed = [];
   db.writes = [];
@@ -167,6 +169,95 @@ describe("proactive notification delivery", () => {
 
     expect(sent).toBe(false);
     expect(new PgDialect().sqlToQuery(db.executed[0]!).params).toContain("suppressed");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("queues a user-requested result once for batching", async () => {
+    const queued = await pushReturnTripToUser({
+      userId: "user_1", mateId, chatId: `mate_${mateId}`, sourceKey: "code:run_1:done",
+      title: "PR is ready", body: "Opened PR #12.", data: { chatId: `mate_${mateId}` },
+    });
+    expect(queued).toBe(true);
+    expect(db.selects).toHaveLength(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("groups two ready results into one push that opens the results list", async () => {
+    const first = notice({ sourceKey: "return-trip:code:1:done", data: { chatId: `mate_${mateId}` } });
+    const second = notice({ id: "00000000-0000-4000-8000-000000000004", sourceKey: "return-trip:deck:2:ready", data: { chatId: `mate_${mateId}` } });
+    db.selects = [
+      [{ id: noticeId }], [first], [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }], [{ token }],
+      [first, second],
+      [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }],
+      [], [{ id: mateId }], [], [{ timezone: "Africa/Accra" }],
+      [{ token }],
+    ];
+    db.updates = [[{ id: first.id, title: first.title, body: first.body, data: first.data }, { id: second.id, title: second.title, body: second.body, data: second.data }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const payload = JSON.parse((fetch as ReturnType<typeof vi.fn>).mock.calls[0]![1].body as string) as { body: string; data: { url: string; returnTripIds: string[] } };
+    expect(payload.body).toBe("2 updates from your mates. Open to see them.");
+    expect(payload.data.url).toBe("/return-trips");
+    expect(payload.data.returnTripIds).toEqual([first.id, second.id]);
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "sent" }));
+  });
+
+  it("suppresses a result when its chat was watched after the result appeared", async () => {
+    const result = notice({ sourceKey: "return-trip:code:1:done", createdAt: new Date("2026-11-25T12:00:00Z") });
+    db.selects = [[{ id: noticeId }], [result], [{ watchedAt: new Date("2026-11-25T12:00:10Z") }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:20Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a queued run result if the run was cancelled before dispatch", async () => {
+    const result = notice({ sourceKey: "return-trip:run:00000000-0000-4000-8000-000000000003" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "cancelled" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a waiting result after another device resumed the run", async () => {
+    const result = notice({ sourceKey: "return-trip:run:00000000-0000-4000-8000-000000000003" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "waiting", clerkUserId: "user_1", agentRunId: "00000000-0000-4000-8000-000000000003", createdAt: new Date("2026-11-25T10:00:00Z") }], [{ id: "newer-run" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("suppresses a computer decision push after the goal is resolved", async () => {
+    const result = notice({ sourceKey: "return-trip:computer:00000000-0000-4000-8000-000000000003:waiting:2026-11-25T11:00:00.000Z" });
+    db.selects = [[{ id: noticeId }], [result], [{ status: "done" }]];
+
+    await deliverPendingProactiveNotifications(new Date("2026-11-25T12:00:00Z"));
+
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "return-trip:run:00000000-0000-4000-8000-000000000003:blocked-reminder",
+    "return-trip:computer:00000000-0000-4000-8000-000000000003:blocked-reminder",
+    "return-trip:mission:00000000-0000-4000-8000-000000000003:blocked-reminder",
+  ])("suppresses a delayed reminder once %s is resolved", async (sourceKey) => {
+    db.selects.push([notice({ sourceKey })]);
+    db.executes = [[]];
+
+    const sent = await pushProactiveToUser({
+      userId: "user_1", mateId, sourceKey, title: "Still needs you", body: "Open Mates.", data: { chatId: `mate_${mateId}` },
+    });
+
+    expect(sent).toBe(false);
+    expect(db.writes).toContainEqual(expect.objectContaining({ status: "suppressed" }));
     expect(fetch).not.toHaveBeenCalled();
   });
 

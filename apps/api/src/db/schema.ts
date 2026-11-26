@@ -94,6 +94,8 @@ export const chats = pgTable(
       .default("legacy"),
     mateId: uuid("mate_id").references(() => mates.id, { onDelete: "cascade" }),
     leaderMateId: uuid("leader_mate_id").references(() => mates.id, { onDelete: "set null" }),
+    /** Refreshed only while a client is foregrounded on this chat. */
+    watchedAt: timestamp("watched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -207,6 +209,8 @@ export const delegations = pgTable("delegations", {
   executionGeneration: integer("execution_generation").notNull().default(0),
   resumeCheckpoint: boolean("resume_checkpoint").notNull().default(false),
   followupsQueuedAt: timestamp("followups_queued_at", { withTimezone: true }),
+  blockedSince: timestamp("blocked_since", { withTimezone: true }),
+  blockedReminderAt: timestamp("blocked_reminder_at", { withTimezone: true }),
   sequence: integer("sequence").notNull().default(0),
   content: jsonb("content").$type<Record<string, unknown>[]>().notNull().default([]),
   pendingTool: jsonb("pending_tool").$type<Record<string, unknown>>(),
