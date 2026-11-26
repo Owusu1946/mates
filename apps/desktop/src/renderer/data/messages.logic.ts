@@ -1,4 +1,4 @@
-import { branchTo, siblingsOf, textOf, type StoredItem, type StoredMessage } from "@muse-clone/client-core";
+import { branchTo, textOf, type StoredItem, type StoredMessage } from "@muse-clone/client-core";
 import type { Message } from "./sampleCrew.ts";
 
 /**
@@ -62,7 +62,15 @@ export type RowOptions = {
 export function toRows(items: StoredItem[], headId: string | null, options: RowOptions): Message[] {
   const rows: Message[] = [];
   let lastDay = "";
-  for (const { message } of branchTo(items, headId)) {
+  // Each message's answers, found once, so a reply's versions cost nothing per message (a chat of
+  // hundreds re-reads on every streamed word).
+  const answers = new Map<string | null, StoredItem[]>();
+  for (const item of items) {
+    const list = answers.get(item.parentId);
+    if (list) list.push(item);
+    else answers.set(item.parentId, [item]);
+  }
+  for (const { message, parentId } of branchTo(items, headId)) {
     if (message.role !== "user" && message.role !== "assistant") continue;
     const day = dayLabel(message.createdAt, options.now);
     const firstOfDay = day !== lastDay;
@@ -72,8 +80,9 @@ export function toRows(items: StoredItem[], headId: string | null, options: RowO
       lastDay = day;
       continue;
     }
-    const siblings = siblingsOf(items, message.id);
-    const versions = siblings.length > 1 ? siblings.map((id) => textOf(items.find((item) => item.message.id === id)!.message)) : undefined;
+    const siblings = (answers.get(parentId) ?? []).filter((item) => item.message.role === message.role);
+    const versions = siblings.length > 1 ? siblings.map((item) => textOf(item.message)) : undefined;
+    const versionIds = siblings.map((item) => item.message.id);
     const turns = turnsOf(message, options.defaultAuthor);
     const step = live ? runningStep(message) : undefined;
     turns.forEach((turn, index) => {
@@ -87,7 +96,7 @@ export function toRows(items: StoredItem[], headId: string | null, options: RowO
         text: turn.text,
         ...(firstOfDay && !rows.some((row) => row.sourceId === message.id) ? { day } : {}),
         ...(last && live ? { live: true, ...(step ? { step } : {}) } : {}),
-        ...(last && versions ? { versions, version: siblings.indexOf(message.id), versionIds: siblings } : {}),
+        ...(last && versions ? { versions, version: versionIds.indexOf(message.id), versionIds } : {}),
       });
       lastDay = day;
     });
