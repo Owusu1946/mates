@@ -138,7 +138,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             {message.failed ? (
               <p className="flex items-center gap-1.5 text-xs text-danger-ink" role="status">
                 <Icon name="alert" size={13} />
-                Didn't send.
+                {message.failedReason ? `Didn't send: ${message.failedReason}` : "Didn't send."}
                 <Button size="xs" variant="link" disabled={actions?.busy} onClick={() => actions?.onAction(message, { type: "retry" })}>
                   Try again
                 </Button>

@@ -75,6 +75,8 @@ export type Message = {
   version?: number;
   /** Yours, when it didn't go: it can be sent again. */
   failed?: boolean;
+  /** Why it didn't go, in the API's words (out of usage, offline). */
+  failedReason?: string;
   /** Yours, changed after sending. */
   edited?: boolean;
   /** What you @-mentioned with it: web search, Chief of Staff, mates, an app. */

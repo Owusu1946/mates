@@ -1,16 +1,16 @@
 import type { Dispatch, ReactNode, Ref } from "react";
 import { RightPanel } from "../code/RightPanel.tsx";
 import type { Chat, Mate, Message } from "../data/sampleCrew.ts";
-import { REPLIES, VOICE_LINES } from "../data/sampleCrew.ts";
-import { cannedReply, type ChatAction, type ChatFlow } from "./chatFlow.logic.ts";
+import { VOICE_LINES } from "../data/sampleCrew.ts";
+import type { ChatAction, ChatFlow } from "./chatFlow.logic.ts";
 import { ChatComposer } from "./ChatComposer.tsx";
 import { ChatHeader, type SidePanel } from "./ChatHeader.tsx";
 import type { MessageAction } from "./MessageActions.tsx";
-import { answererFor, pinnedOf, quoteOf } from "./messageActions.logic.ts";
+import { pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
-import type { SentFile } from "./attachments.logic.ts";
-import { mentionChoices, tagsOf, type MentionPicks } from "./mentions.logic.ts";
+import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { useChatActions } from "../remote/send.ts";
 import { useThread } from "../remote/thread.ts";
 import { usableApps } from "../settings/apps.logic.ts";
 import { useApps } from "../settings/apps.ts";
@@ -40,23 +40,26 @@ type ChatViewProps = {
  */
 export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerRef, quiet, side, sidePanel, inCall, computerBusy, onSide, onEdit }: ChatViewProps) {
   const lead = mates[chat.leadId]!;
-  const reply = flow.replies[chat.id];
-  // The chat's real history; what's sent here joins it until sending reaches the API (next change).
+  // The chat's real history, with what you send and what streams back (remote/thread.ts, send.ts).
   const thread = useThread(chat.id, chat.leadId);
-  const messages = [...thread.rows, ...(flow.messages[chat.id] ?? [])];
+  const actions = useChatActions(chat.id);
+  const messages = thread.rows.map((message) => (actions.failed.has(message.id) ? { ...message, failed: true, failedReason: actions.failed.get(message.id) } : message));
+  // One reply at a time per chat, as the API allows.
+  const busy = messages.some((message) => message.live);
   const replying = flow.replying[chat.id];
   const nameOf = (author: string) => (author === "me" ? "You" : (mates[author]?.name ?? ""));
-  // Whoever you replied to answers; otherwise the lead does.
-  const answerer = (quote = replying) => answererFor(quote, chat.mateIds, chat.leadId);
-  const canned = (mateId: string) => cannedReply(REPLIES, mateId, flow.sent);
   const apps = useApps();
   const connected = usableApps(apps);
-  // A mate you @-mention in the chat answers first; then whoever you replied to; then the lead.
-  const answererWith = (picks: MentionPicks) => picks.mates.find((mate) => chat.mateIds.includes(mate.id))?.id ?? answerer();
-  const sendWith = (picks: MentionPicks, files: SentFile[]) => {
-    const mateId = answererWith(picks);
-    dispatch({ type: "send", chatId: chat.id, mateId, reply: canned(mateId), files, tags: tagsOf(picks) });
+  // The draft goes to the API; the composer clears at once, and a send that fails stays in the chat to try again.
+  const sendDraft = (text = flow.drafts[chat.id] ?? "") => {
+    if (!text.trim() || busy) return;
+    void actions.send(text.trim());
+    dispatch({ type: "draft", chatId: chat.id, text: "" });
+    dispatch({ type: "reply", chatId: chat.id, quote: null });
   };
+  // The stored message a row shows, and the one it answers.
+  const sourceOf = (message: Message) => message.sourceId ?? message.id;
+  const parentOf = (message: Message) => thread.thread?.items.find((item) => item.message.id === sourceOf(message))?.parentId ?? null;
   const mentions = {
     mateOf: (id: string) => mates[id],
     appOf: (slug: string) => apps.find((app) => app.slug === slug),
@@ -81,14 +84,15 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
       focusComposer();
     } else if (action.type === "pin") dispatch({ type: "pin", ...target });
     else if (action.type === "rate") dispatch({ type: "rate", ...target, rating: action.rating });
-    else if (action.type === "version") dispatch({ type: "version", ...target, index: action.index });
-    else if (action.type === "regenerate") dispatch({ type: "regenerate", ...target, reply: canned(message.author) });
-    else if (action.type === "retry") dispatch({ type: "retry", ...target, mateId: answerer(message.replyTo), reply: canned(answerer(message.replyTo)) });
+    else if (action.type === "version") {
+      const version = message.versionIds?.[action.index];
+      if (version) thread.showVersion(version);
+    } else if (action.type === "regenerate") {
+      const question = parentOf(message);
+      if (question) void actions.regenerate(question);
+    } else if (action.type === "retry") void actions.retry(message.id);
   };
-  const editMessage = (message: Message, text: string) => {
-    const mateId = answerer(message.replyTo);
-    dispatch({ type: "edit", chatId: chat.id, messageId: message.id, text, mateId, reply: canned(mateId) });
-  };
+  const editMessage = (message: Message, text: string) => void actions.edit(sourceOf(message), text.trim());
   return (
     <div data-run-row className="flex h-full min-w-0 animate-fade">
       <div className="flex min-w-0 flex-1 flex-col">
@@ -107,9 +111,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
         <MessagesTimeline
           chatId={chat.id}
           messages={messages}
-          reply={reply}
           quiet={quiet}
-          activity={lead.status === "working" && !reply ? lead.step : undefined}
           mates={timelineMates}
           group={chat.kind === "group"}
           onAnswer={(messageId, state) => dispatch({ type: "answer", chatId: chat.id, messageId, state })}
@@ -122,19 +124,15 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
               ref={composerRef}
               draft={flow.drafts[chat.id] ?? ""}
               placeholder={chat.kind === "group" ? `Message ${chat.title}` : `Message ${lead.name}`}
-              busy={Boolean(reply)}
+              busy={busy}
               onDraft={(text) => dispatch({ type: "draft", chatId: chat.id, text })}
-              onSend={(files, picks) => sendWith(picks, files)}
+              onSend={() => sendDraft()}
               mentions={mentions}
-              attachments
               replyingTo={replying && { quote: replying, mate: mates[replying.author], onCancel: () => dispatch({ type: "reply", chatId: chat.id, quote: null }) }}
-              onStop={() => dispatch({ type: "stop", chatId: chat.id })}
+              onStop={() => void actions.stop()}
               voice={{
                 line: VOICE_LINES[chat.leadId] ?? "What's on my calendar today",
-                onSend: (text, files, picks) => {
-                  dispatch({ type: "draft", chatId: chat.id, text });
-                  sendWith(picks, files);
-                },
+                onSend: (text) => sendDraft(text),
               }}
             />
           )}

@@ -44,7 +44,9 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const lastAuthor = messages.at(-1)?.author;
   const regenerable = regenerableId(messages);
   const latestReply = messages.findLast((message) => message.author !== "me")?.id;
-  const busy = Boolean(reply);
+  const busy = Boolean(reply) || messages.some((message) => message.live);
+  // Changes as a reply streams, so the view keeps up with it while you're at the bottom.
+  const tail = messages.at(-1);
   // Stable, so the memoised rows don't all re-render as a reply streams.
   const act = useStableCallback(onAction);
   const edit = useStableCallback(onEdit);
@@ -52,7 +54,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
-    <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
+    <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}:${tail?.text.length ?? 0}:${tail?.live ? 1 : 0}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
       <CardMatesContext value={mates}>
       <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
         {history?.hasMore && (
@@ -75,6 +77,14 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
           // Asked again: the new answer streams where the old one was.
           const asking = reply?.target === message.id;
           if (asking && reply.phase === "thinking" && mates[reply.mateId]) return <ActivityLine key={message.id} mate={mates[reply.mateId]!} />;
+          // A reply being written: thinking until its words come, with what the mate is doing.
+          if (message.live && !message.text.trim() && mates[message.author])
+            return (
+              <div key={message.id} className="flex flex-col gap-2">
+                {!quiet && message.step && <ChatWorkActivity steps={[message.step]} />}
+                <ActivityLine mate={mates[message.author]!} />
+              </div>
+            );
           return (
             <MessageRow
               key={message.id}
@@ -83,7 +93,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
               showAuthor={group && message.author !== "me" && (Boolean(message.day) || messages[index - 1]?.author !== message.author)}
               onAnswer={onAnswer}
               onCard={changeCard}
-              actions={asking ? undefined : { onAction: act, replyable: group, regenerable: message.id === regenerable, latest: message.id === latestReply, busy }}
+              actions={asking || message.live ? undefined : { onAction: act, replyable: group, regenerable: message.id === regenerable, latest: message.id === latestReply, busy }}
               mateOf={mateOf}
               onEdit={edit}
             />
