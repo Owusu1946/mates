@@ -62,7 +62,9 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
           <span className="h-px flex-1 bg-line" />
         </div>
       )}
-      <div id={`message-${message.id}`} className="group/message message-flash -mx-2 rounded-xl px-2">
+      {/* Off screen, the browser skips drawing the row (content-visibility), so long chats stay fast;
+          while being written it's always drawn, so following the newest words never jumps. */}
+      <div id={`message-${message.id}`} className={`group/message message-flash -mx-2 rounded-xl px-2 ${message.live ? "" : "[content-visibility:auto] [contain-intrinsic-size:auto_6rem]"}`}>
         {mine ? (
           <div className="flex flex-col items-end gap-1.5">
             {message.tags && (
