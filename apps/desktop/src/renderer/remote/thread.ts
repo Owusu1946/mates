@@ -6,6 +6,7 @@ import { toRows } from "../data/messages.logic.ts";
 import { emptyThread, type Thread } from "../data/threadEdit.logic.ts";
 import type { Message } from "../data/sampleCrew.ts";
 import { read, useApi, type ApiClient } from "../lib/api.ts";
+import { streamingReplies } from "./liveRuns.ts";
 
 
 /** Messages per page, as on the phone: opening a chat, refreshing it, and each step back. */
@@ -40,7 +41,10 @@ export function updateThread(client: QueryClient, key: readonly unknown[], chang
  * what changed is swapped in, so unchanged rows keep their objects and don't redraw. A page that
  * no longer joins on (the chat moved far while this device was away) starts over from that page.
  */
-function mergeNewest(held: Thread | undefined, page: Page): Thread {
+function mergeNewest(held: Thread | undefined, fetched: Page): Thread {
+  // A reply streaming here is newer than any saved copy: the page doesn't touch it (T3 Code's rule).
+  const streaming = held ? held.items.filter((item) => streamingReplies.has(item.message.id)).map((item) => item.message.id) : [];
+  const page = streaming.length ? { ...fetched, items: fetched.items.filter((item) => !streaming.includes(item.message.id)), live: [...new Set([...fetched.live, ...streaming])] } : fetched;
   if (!held || !held.items.length) return { items: rootPage(page.items), headId: page.headId, hasMore: page.hasMore, live: page.live };
   const plan = planMerge({ headId: held.headId, messages: held.items }, page.items, { realParents: page.realParents, serverHead: page.headId });
   if (!plan) return { ...held, live: page.live };

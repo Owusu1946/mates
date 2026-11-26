@@ -28,6 +28,8 @@ export type RunTarget = {
 };
 
 const following = new Map<string, AbortController>();
+/** Replies being written here right now: a refresh from the server must not overwrite them with an older copy. */
+export const streamingReplies = new Set<string>();
 /** Reconnects in a row before it reads the run's saved state between tries. */
 const STREAM_TRIES = 3;
 /** Failures in a row before it stops following; the run carries on, and the next refresh shows it. */
@@ -55,7 +57,9 @@ export function followRun(client: QueryClient, getToken: GetToken, target: RunTa
   if (following.has(target.runId)) return;
   const controller = new AbortController();
   following.set(target.runId, controller);
+  streamingReplies.add(target.replyId);
   void run(client, getToken, target, controller.signal).finally(() => {
+    streamingReplies.delete(target.replyId);
     if (following.get(target.runId) === controller) following.delete(target.runId);
   });
 }
