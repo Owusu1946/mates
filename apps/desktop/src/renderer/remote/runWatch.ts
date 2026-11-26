@@ -76,3 +76,30 @@ export function useRunWatch(chatId: string) {
     };
   }, [chatId, client, getToken, userId]);
 }
+
+/** The API holds back a chat's push notifications for 30 seconds after it was last on screen (delivery.ts). */
+const WATCHING_MS = 15_000;
+
+/**
+ * Tells the API you're reading this chat (POST /v1/chats/:id/watching) every 15 seconds while
+ * the window has focus, as the phone does, so your phone doesn't buzz for a reply you're already
+ * watching arrive here. A chat that doesn't exist yet (a mate you haven't messaged) just says no.
+ */
+export function useWatching(chatId: string) {
+  const { userId, getToken } = useAuth();
+
+  useEffect(() => {
+    if (!userId) return;
+    const token: GetToken = () => getToken();
+    const beat = () => {
+      if (document.hasFocus()) void apiFetch(token, `/v1/chats/${encodeURIComponent(chatId)}/watching`, { method: "POST" }).catch(() => undefined);
+    };
+    beat();
+    const timer = setInterval(beat, WATCHING_MS);
+    window.addEventListener("focus", beat);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", beat);
+    };
+  }, [chatId, getToken, userId]);
+}
