@@ -103,3 +103,33 @@ export function toRows(items: StoredItem[], headId: string | null, options: RowO
   }
   return rows;
 }
+
+const sameValue = (a: unknown, b: unknown): boolean => a === b || (Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((item, index) => sameValue(item, b[index])));
+
+/** Two rows that say the same: every field equal (lists compared item by item). */
+function sameRow(a: Message, b: Message): boolean {
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof Message>;
+  for (const key of keys) if (!sameValue(a[key], b[key])) return false;
+  return true;
+}
+
+/**
+ * The new rows, with each one that didn't change replaced by the very row object it was before,
+ * and the previous list itself when nothing changed at all. The timeline's rows are memoised on
+ * their message object, so while a reply streams only its own row draws again, not the whole chat.
+ */
+export function keepUnchanged(previous: readonly Message[], next: Message[]): Message[] {
+  if (!previous.length) return next;
+  const before = new Map(previous.map((row) => [row.id, row]));
+  let changed = previous.length !== next.length;
+  const rows = next.map((row, index) => {
+    const old = before.get(row.id);
+    if (old && sameRow(old, row)) {
+      if (previous[index] !== old) changed = true;
+      return old;
+    }
+    changed = true;
+    return row;
+  });
+  return changed ? rows : (previous as Message[]);
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { StoredItem, StoredMessage } from "@muse-clone/client-core";
-import { dayLabel, toRows } from "./messages.logic.ts";
+import { dayLabel, keepUnchanged, toRows } from "./messages.logic.ts";
 
 const now = new Date("2026-11-26T15:00:00");
 const message = (id: string, role: StoredMessage["role"], content: StoredMessage["content"], createdAt = "2026-11-26T10:00:00"): StoredMessage => ({ id, role, createdAt, content });
@@ -70,4 +70,34 @@ test("system rows don't show, and days read Today, Yesterday, the weekday, then 
   assert.equal(dayLabel("2026-11-25T23:00:00", now), "Yesterday");
   assert.equal(dayLabel("2026-11-22T08:00:00", now), new Date("2026-11-22T08:00:00").toLocaleDateString(undefined, { weekday: "long" }));
   assert.equal(dayLabel("2026-10-02T08:00:00", now), new Date("2026-10-02T08:00:00").toLocaleDateString(undefined, { day: "numeric", month: "long" }));
+});
+
+test("unchanged rows keep their objects, so only what changed draws again", () => {
+  const before = [
+    { id: "u1", author: "me", text: "Hi" },
+    { id: "a1", author: "kofi", text: "Hel", live: true },
+  ];
+  const next = [
+    { id: "u1", author: "me", text: "Hi" },
+    { id: "a1", author: "kofi", text: "Hello", live: true },
+  ];
+  const rows = keepUnchanged(before, next);
+  assert.equal(rows[0], before[0]);
+  assert.notEqual(rows[1], before[1]);
+  assert.equal(rows[1]!.text, "Hello");
+});
+
+test("nothing changed: the very same list comes back", () => {
+  const before = [{ id: "a1", author: "kofi", text: "Hi", versions: ["Hi", "Hey"], version: 0 }];
+  assert.equal(keepUnchanged(before, [{ id: "a1", author: "kofi", text: "Hi", versions: ["Hi", "Hey"], version: 0 }]), before);
+});
+
+test("a new row, a removed field or a reorder is a change", () => {
+  const before = [{ id: "u1", author: "me", text: "Hi", pinned: true }];
+  assert.notEqual(keepUnchanged(before, [{ id: "u1", author: "me", text: "Hi" }])[0], before[0]);
+  const two = [{ id: "a", author: "me", text: "a" }, { id: "b", author: "me", text: "b" }];
+  const swapped = keepUnchanged(two, [{ id: "b", author: "me", text: "b" }, { id: "a", author: "me", text: "a" }]);
+  assert.notEqual(swapped, two);
+  assert.equal(swapped[0], two[1]);
+  assert.equal(keepUnchanged([], two), two);
 });

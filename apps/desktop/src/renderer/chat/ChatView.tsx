@@ -10,6 +10,7 @@ import { pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { stableRows } from "./stableRows.ts";
 import { useAuth } from "@clerk/electron/react";
 import { useFeedback } from "../remote/feedback.ts";
 import { toggleMessagePin, useMessagePins } from "../remote/messagePins.ts";
@@ -61,7 +62,8 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
     return failed || rating || pinned ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}), ...(pinned ? { pinned } : {}) } : message;
   });
   // Notes only this window made (a call's summary, a hand-off from the summon bar) follow the real messages.
-  const messages = [...fromApi, ...(flow.messages[chat.id] ?? [])];
+  // Rows that didn't change stay the same objects, so a streamed word draws only its own row.
+  const messages = stableRows(chat.id, [...fromApi, ...(flow.messages[chat.id] ?? [])]);
   // One reply at a time per chat, as the API allows.
   const busy = messages.some((message) => message.live);
   const replying = flow.replying[chat.id];
