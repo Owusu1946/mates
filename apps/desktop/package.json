@@ -45,6 +45,8 @@
     "oxc-transform-react": "~0.156.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-markdown": "10.1.0",
+    "remark-gfm": "4.0.1",
     "tailwind-merge": "^3.7.1",
     "tailwindcss": "~4.3.5",
     "tsrs": "7.1.0-beta.tsrs5",

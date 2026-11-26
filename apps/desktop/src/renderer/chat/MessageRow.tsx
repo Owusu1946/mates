@@ -5,6 +5,7 @@ import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import type { Card } from "../data/sampleCrew.ts";
 import { MessageCard } from "./cards/MessageCard.tsx";
+import { MarkdownText } from "./MarkdownText.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 import { MessageActions, type RowActions } from "./MessageActions.tsx";
 import { ReplyQuote } from "./ReplyQuote.tsx";
@@ -161,7 +162,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
                 {mate.name}
               </div>
             )}
-            {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
+            {message.text && <MarkdownText text={message.text} />}
             {message.card && <MessageCard card={message.card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(card) => onCard?.(message.id, card)} />}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
