@@ -4,6 +4,7 @@ import type { CardAction } from "./cardAnswers.logic.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { BriefCard } from "./BriefCard.tsx";
 import { ChoiceCard } from "./ChoiceCard.tsx";
+import { LiveMemoryLine, LiveScheduleCard, LiveWatchCard } from "./LiveCards.tsx";
 import { CardMatesContext } from "./CardParts.tsx";
 import { MemoryLine, SourcesPill } from "./QuietCards.tsx";
 import { RunCard } from "./RunCard.tsx";
@@ -41,7 +42,7 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
     case "sources":
       return <SourcesPill card={card} />;
     case "memory":
-      return <MemoryLine card={card} onChange={onChange} />;
+      return card.id ? <LiveMemoryLine card={card} /> : <MemoryLine card={card} onChange={onChange} canUndo={false} />;
     case "results":
       return <ResultsCard card={card} />;
     case "plan":
@@ -49,9 +50,9 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
     case "comparison":
       return <ComparisonCard card={card} />;
     case "schedule":
-      return <ScheduleCard card={card} onChange={onChange} />;
+      return card.routineId ? <LiveScheduleCard card={card} /> : <ScheduleCard card={card} onChange={onChange} />;
     case "watch":
-      return <WatchCard card={card} onChange={onChange} />;
+      return card.watchId ? <LiveWatchCard card={card} /> : <WatchCard card={card} onChange={onChange} />;
     case "connect":
       return <ConnectCard card={card} mateName={mates[authorId]?.name ?? "Your mate"} onAction={onAction} status={status} onChange={onChange} />;
   }

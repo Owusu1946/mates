@@ -57,7 +57,8 @@ export function SourcesPill({ card }: { card: Extract<Card, { type: "sources" }>
   );
 }
 
-export function MemoryLine({ card, onChange }: { card: Extract<Card, { type: "memory" }>; onChange: (card: Card) => void }) {
+/** `canUndo`: only a memory just saved can be taken back (as on the phone). */
+export function MemoryLine({ card, onChange, canUndo = true }: { card: Extract<Card, { type: "memory" }>; onChange: (card: Card) => void; canUndo?: boolean }) {
   const label = memoryLabel(card);
   if (card.undone) {
     return <p className="flex items-center gap-1.5 text-xs text-ink-soft/70 italic">{label}</p>;
@@ -81,9 +82,11 @@ export function MemoryLine({ card, onChange }: { card: Extract<Card, { type: "me
           {card.action === "forgotten" ? "No longer remembered" : "Your mates will remember"}
         </p>
         <p className="leading-snug select-text">{card.text}</p>
-        <div className="-mx-1.5 flex gap-1">
-          <QuietAction onClick={() => onChange({ ...card, undone: true })}>Undo</QuietAction>
-        </div>
+        {canUndo && (
+          <div className="-mx-1.5 flex gap-1">
+            <QuietAction onClick={() => onChange({ ...card, undone: true })}>Undo</QuietAction>
+          </div>
+        )}
       </div>
     </CardPopover>
   );

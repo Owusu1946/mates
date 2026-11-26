@@ -1,11 +1,13 @@
 import { useAuth } from "@clerk/electron/react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { isConnectUrl } from "../chat/cards/cardAnswers.logic.ts";
 import { apiFetch, ensureOk, type GetToken } from "../lib/api.ts";
 
 /**
  * What a card does straight through the API, without the reply carrying on: undoing what a plan
- * did. Each resolves on the card itself, which says how it went.
+ * did, connecting an app, pausing a routine or a watch, taking back a memory. Each resolves on the
+ * card itself, which says how it went.
  */
 
 type Undo = { kind: "app" | "reminder"; id: string };
@@ -81,4 +83,98 @@ function waitOrFocus(ms: number, signal: AbortSignal) {
     window.addEventListener("focus", done);
     signal.addEventListener("abort", done);
   });
+}
+
+type RoutineRow = { id: string; version: number; status: string; nextRunAt?: string | null };
+type WatchState = { watchId: string; version: number; status: string; lastNote: string | null; lastCheckedAt: string | null };
+
+/**
+ * A routine set up in chat, kept current from your schedules (GET /v1/schedules, as the phone
+ * polls it), and paused, resumed or cancelled through its control (POST /v1/schedules/:id/control
+ * with the version it's at, so a change made elsewhere isn't overwritten).
+ */
+export function useRoutine(routineId: string | undefined) {
+  const { userId, getToken } = useAuth();
+  const client = useQueryClient();
+  const key = ["schedules", userId] as const;
+  const list = useQuery({
+    queryKey: key,
+    queryFn: async () => ((await (await ensureOk(await apiFetch(() => getToken(), "/v1/schedules"), "Couldn’t load your routines.")).json()) as { routines?: RoutineRow[] }).routines ?? [],
+    enabled: Boolean(routineId && userId),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const routine = list.data?.find((row) => row.id === routineId);
+
+  async function control(action: "pause" | "resume" | "cancel", fallbackVersion?: number) {
+    const version = routine?.version ?? fallbackVersion;
+    if (!routineId || !version) return;
+    setError(null);
+    try {
+      const response = await apiFetch(() => getToken(), `/v1/schedules/${encodeURIComponent(routineId)}/control`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, version }) });
+      if (response.status === 409) throw new Error("This changed elsewhere. Look again in a moment.");
+      const { routine: next } = (await (await ensureOk(response, "Couldn’t change that routine.")).json()) as { routine: RoutineRow };
+      client.setQueryData<RoutineRow[]>(key, (rows) => (rows ?? []).map((row) => (row.id === next.id ? next : row)));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn’t change that routine.");
+      void client.invalidateQueries({ queryKey: key });
+    }
+  }
+
+  return { routine, error, control };
+}
+
+/** A watch, kept current from your watches (GET /v1/watches) and controlled with its version (POST /v1/watches/:id/control). */
+export function useWatch(watchId: string | undefined) {
+  const { userId, getToken } = useAuth();
+  const client = useQueryClient();
+  const key = ["watches", userId] as const;
+  const list = useQuery({
+    queryKey: key,
+    queryFn: async () => (((await (await ensureOk(await apiFetch(() => getToken(), "/v1/watches"), "Couldn’t load your watches.")).json()) as { watches?: { watch?: WatchState }[] }).watches ?? []).flatMap((card) => (card.watch ? [card.watch] : [])),
+    enabled: Boolean(watchId && userId),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const watch = list.data?.find((row) => row.watchId === watchId);
+
+  async function control(action: "pause" | "resume" | "cancel", fallbackVersion?: number) {
+    const version = watch?.version ?? fallbackVersion;
+    if (!watchId || !version) return;
+    setError(null);
+    try {
+      const response = await apiFetch(() => getToken(), `/v1/watches/${encodeURIComponent(watchId)}/control`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action, version }) });
+      if (response.status === 409) throw new Error("This watch changed. Look again in a moment.");
+      const body = (await (await ensureOk(response, "Couldn’t change that watch.")).json()) as { watch?: { watch?: WatchState } };
+      const next = body.watch?.watch;
+      if (next) client.setQueryData<WatchState[]>(key, (rows) => [...(rows ?? []).filter((row) => row.watchId !== next.watchId), next]);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn’t change that watch.");
+      void client.invalidateQueries({ queryKey: key });
+    }
+  }
+
+  return { watch, error, control };
+}
+
+/** Taking back a memory a mate just saved (DELETE /v1/memories/:id); one already gone counts as undone. */
+export function useMemoryUndo() {
+  const { getToken } = useAuth();
+  const [undone, setUndone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function undo(memoryId: string) {
+    setError(null);
+    try {
+      const response = await apiFetch(() => getToken(), `/v1/memories/${encodeURIComponent(memoryId)}`, { method: "DELETE" });
+      if (response.status !== 404) await ensureOk(response, "Couldn’t take that back.");
+      setUndone(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn’t take that back.");
+    }
+  }
+
+  return { undone, error, undo };
 }
