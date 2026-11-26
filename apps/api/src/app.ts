@@ -199,6 +199,12 @@ function runEventResponse(
   });
 }
 
+/**
+ * The installed desktop app's pages (apps/desktop DesktopScheme.logic.ts). It's the same on every
+ * install, so it's always allowed; the desktop's dev server goes in ALLOWED_ORIGINS like any other.
+ */
+const DESKTOP_ORIGIN = "mates://app";
+
 /** The landing site, wherever it is served: its origins may call the /site routes. */
 const siteOrigins = () => (process.env.SITE_ORIGINS ?? "https://agents.askorin.app,http://localhost:4321").split(",").map((origin: string) => origin.trim());
 
@@ -245,9 +251,10 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       "/v1/*",
       cors({
         origin: (origin) => {
-          const allowed = (
-            process.env.ALLOWED_ORIGINS ?? "http://localhost:8081"
-          ).split(",");
+          const allowed = [
+            ...(process.env.ALLOWED_ORIGINS ?? "http://localhost:8081").split(","),
+            DESKTOP_ORIGIN,
+          ];
           return allowed.includes(origin) ? origin : allowed[0]!;
         },
         credentials: true,

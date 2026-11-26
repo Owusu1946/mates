@@ -198,6 +198,13 @@ describe("API contract", () => {
     expect(response.headers.get("access-control-allow-origin")).toBe("https://agents.askorin.app");
   });
 
+  it("lets the installed desktop app call the API, and nothing else it doesn't know", async () => {
+    const preflight = (origin: string) =>
+      createApp(deps).request("/v1/me", { method: "OPTIONS", headers: { origin, "access-control-request-method": "GET", "access-control-request-headers": "authorization" } });
+    expect((await preflight("mates://app")).headers.get("access-control-allow-origin")).toBe("mates://app");
+    expect((await preflight("https://evil.example")).headers.get("access-control-allow-origin")).not.toBe("https://evil.example");
+  });
+
   it("turns away waitlist sign-ups that aren't emails, and bots quietly", async () => {
     const app = createApp(deps);
     const join = (body: object) =>
