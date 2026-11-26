@@ -3,11 +3,10 @@ import { branchTo, cleanMessage, headOf, leafUnder, planMerge, rootPage, type St
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toRows } from "../data/messages.logic.ts";
+import { emptyThread, type Thread } from "../data/threadEdit.logic.ts";
 import type { Message } from "../data/sampleCrew.ts";
 import { read, useApi, type ApiClient } from "../lib/api.ts";
 
-/** A chat as held on this device: its messages with their parents, the one it reads down to, and whether older ones are left. */
-export type Thread = { items: StoredItem[]; headId: string | null; hasMore: boolean; live: string[] };
 
 /** Messages per page, as on the phone: opening a chat, refreshing it, and each step back. */
 const PAGE = 50;
@@ -33,7 +32,7 @@ async function fetchPage(api: ApiClient, chatId: string, before?: string): Promi
 
 /** Changes a held chat in place (a sent message, a streamed reply); a chat not held yet starts empty. */
 export function updateThread(client: QueryClient, key: readonly unknown[], change: (thread: Thread) => Thread) {
-  client.setQueryData<Thread>(key, (thread) => change(thread ?? { items: [], headId: null, hasMore: false, live: [] }));
+  client.setQueryData<Thread>(key, (thread) => change(thread ?? emptyThread()));
 }
 
 /**
@@ -48,6 +47,8 @@ function mergeNewest(held: Thread | undefined, page: Page): Thread {
   if (!plan.connected) return { items: rootPage(page.items), headId: page.headId, hasMore: page.hasMore, live: page.live };
   return { items: plan.messages, headId: plan.headId, hasMore: held.hasMore, live: page.live };
 }
+
+export type { Thread };
 
 export type ThreadState = {
   rows: Message[];
