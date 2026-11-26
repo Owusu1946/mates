@@ -54,12 +54,14 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const pins = useMessagePins(userId, chat.id);
   const togglePin = (message: Message) => userId && toggleMessagePin(userId, chat.id, message.sourceId ?? message.id);
   // What only this device knows about a row: a send that didn't go, your thumbs on a reply, your pins.
-  const messages = thread.rows.map((message) => {
+  const fromApi = thread.rows.map((message) => {
     const rating = message.author !== "me" ? feedback.ratings[message.sourceId ?? message.id] : undefined;
     const failed = actions.failed.get(message.id);
     const pinned = pins.includes(message.sourceId ?? message.id);
     return failed || rating || pinned ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}), ...(pinned ? { pinned } : {}) } : message;
   });
+  // Notes only this window made (a call's summary, a hand-off from the summon bar) follow the real messages.
+  const messages = [...fromApi, ...(flow.messages[chat.id] ?? [])];
   // One reply at a time per chat, as the API allows.
   const busy = messages.some((message) => message.live);
   const replying = flow.replying[chat.id];
