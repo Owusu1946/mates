@@ -4,4 +4,5 @@
  * (docs/desktop/desktop-app.md, packages/client-core).
  */
 export { readRunStreamEvents, type RunStreamEvent } from "./runStream.ts";
+export { branchTo, cleanMessage, headOf, leafUnder, siblingsOf, textOf, type StoredItem, type StoredMessage, type StoredPart, type StoredTextPart, type StoredToolPart } from "./messages.ts";
 export { canonical, planMerge, rootPage, sameMessage, type HistoryItem, type HistoryMessage, type HistoryRepository, type MergeOptions } from "./historyMerge.ts";
