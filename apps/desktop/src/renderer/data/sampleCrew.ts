@@ -75,12 +75,22 @@ export type Message = {
   version?: number;
   /** Yours, when it didn't go: it can be sent again. */
   failed?: boolean;
+  /** Why it didn't go, in the API's words (out of usage, offline). */
+  failedReason?: string;
   /** Yours, changed after sending. */
   edited?: boolean;
   /** What you @-mentioned with it: web search, Chief of Staff, mates, an app. */
   tags?: MessageTag[];
   /** Shown as a divider above the message. */
   day?: string;
+  /** The stored message this row shows (one stored reply can be several rows in a group). */
+  sourceId?: string;
+  /** The server is still writing it: here, on another device, or in a routine. */
+  live?: boolean;
+  /** What the mate is doing right now, while a live reply works (its running step). */
+  step?: string;
+  /** The versions' stored ids, matching `versions`, for switching between them. */
+  versionIds?: string[];
 };
 
 export type Chat = {

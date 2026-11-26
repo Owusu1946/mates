@@ -6,6 +6,7 @@ import { useLeaderSetup } from "./auth/useLeaderSetup.ts";
 import type { SampleProfile } from "./data/sampleCrew.ts";
 import { useCrew } from "./remote/crew.ts";
 import { DataProvider, useForgetData } from "./remote/DataProvider.tsx";
+import { forgetMessagePins } from "./remote/messagePins.ts";
 import { forgetSeen } from "./remote/seen.ts";
 import { preferenceFromOnboarding } from "./settings/coding.logic.ts";
 import { startCoding } from "./settings/coding.ts";
@@ -59,6 +60,7 @@ function SignedIn({ userId }: { userId: string }) {
   const leave = async () => {
     await forget();
     forgetSeen(userId);
+    forgetMessagePins(userId);
     await signOut();
   };
 

@@ -1,5 +1,5 @@
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
-import { focusManager, QueryClient } from "@tanstack/react-query";
+import { focusManager, QueryClient, type Query } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { del, get, set } from "idb-keyval";
 import { createContext, useContext, useState, type ReactNode } from "react";
@@ -9,6 +9,22 @@ const MAX_AGE = 24 * 60 * 60_000;
 
 /** Bump when a cached shape changes, so an older cache is thrown away instead of misread. */
 const CACHE_VERSION = "1";
+
+/** Chats saved for offline reading, as on the phone: the ones opened most recently. */
+const SAVED_CHATS = 10;
+
+/** What's worth saving: everything loaded fine, but of the chats only the most recent few. */
+const shouldSave = (client: QueryClient) => (query: Query): boolean => {
+  if (query.state.status !== "success") return false;
+  if (query.queryKey[0] !== "thread") return true;
+  const recent = client
+    .getQueryCache()
+    .findAll({ queryKey: ["thread"] })
+    .filter((candidate) => candidate.state.status === "success")
+    .sort((a, b) => b.state.dataUpdatedAt - a.state.dataUpdatedAt)
+    .slice(0, SAVED_CHATS);
+  return recent.includes(query);
+};
 
 // Electron windows stay "visible" when you switch apps, so focus is what says you're back.
 focusManager.setEventListener((onFocus) => {
@@ -55,7 +71,7 @@ export function DataProvider({ userId, children }: { userId: string; children: R
     await persister.removeClient();
   };
   return (
-    <PersistQueryClientProvider client={client} persistOptions={{ persister, maxAge: MAX_AGE, buster: CACHE_VERSION }}>
+    <PersistQueryClientProvider client={client} persistOptions={{ persister, maxAge: MAX_AGE, buster: CACHE_VERSION, dehydrateOptions: { shouldDehydrateQuery: shouldSave(client) } }}>
       <ForgetContext value={forget}>{children}</ForgetContext>
     </PersistQueryClientProvider>
   );

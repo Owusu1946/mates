@@ -14,6 +14,8 @@ import { liveGoal } from "../computer/computer.logic.ts";
 import { ComputerPanel } from "../computer/ComputerPanel.tsx";
 import { useComputer } from "../computer/useComputers.ts";
 import { useMateMoods } from "../chat/useMateMoods.ts";
+import type { Reply } from "../chat/chatFlow.logic.ts";
+import { useLiveChats } from "../remote/liveRuns.ts";
 import { RepoPage } from "../code/RepoPage.tsx";
 import { runStatus } from "../code/runPlayer.logic.ts";
 import { RunStatusDot } from "../code/RunStatusDot.tsx";
@@ -120,11 +122,23 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
   const chats: CrewChat[] = [...crew.chats, ...crew.earlier];
   // A mate's mood shows everywhere, its sidebar face and the header: listening while you type to
   // it, thinking, working, happy when it's done (chat/mateMood.logic.ts).
-  const moods = useMateMoods(flow.replies);
+  // Replies in progress in any chat (remote/liveRuns.ts): each one's mate thinks, works on its step, or waits on you.
+  const live = useLiveChats();
+  const leadOf = (chatId: string) => chats.find((candidate) => candidate.id === chatId)?.leadId;
+  const replies: Record<string, Reply> = Object.fromEntries(
+    Object.entries(live).flatMap(([chatId, state]) => {
+      const mateId = leadOf(chatId);
+      return mateId && state.phase !== "waiting" ? [[chatId, { chatId, mateId, phase: state.phase === "thinking" ? "thinking" : "streaming", full: "", shown: 0 } satisfies Reply]] : [];
+    }),
+  );
+  const steps = Object.fromEntries(Object.entries(live).flatMap(([chatId, state]) => (leadOf(chatId) ? [[leadOf(chatId)!, state]] : [])));
+  const moods = useMateMoods(replies);
   const liveMates: Record<string, Mate> = Object.fromEntries(
     allMates.map((mate) => {
       const status = moods.moodOf(mate.id);
-      if (status) return [mate.id, { ...mate, status }];
+      const now = steps[mate.id];
+      if (now?.phase === "waiting") return [mate.id, { ...mate, status: "waiting", step: now.step ?? "Waiting on you" }];
+      if (status) return [mate.id, { ...mate, status, ...(now?.step ? { step: now.step } : {}) }];
       // The mate using the computer shows it: working on its current step, or needing you.
       if (computerGoal?.mateId === mate.id) {
         const step = computerGoal.steps[computerGoal.shown - 1]?.label;

@@ -5,6 +5,7 @@ import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import type { Card } from "../data/sampleCrew.ts";
 import { MessageCard } from "./cards/MessageCard.tsx";
+import { MarkdownText } from "./MarkdownText.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 import { MessageActions, type RowActions } from "./MessageActions.tsx";
 import { ReplyQuote } from "./ReplyQuote.tsx";
@@ -61,7 +62,9 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
           <span className="h-px flex-1 bg-line" />
         </div>
       )}
-      <div id={`message-${message.id}`} className="group/message message-flash -mx-2 rounded-xl px-2">
+      {/* Off screen, the browser skips drawing the row (content-visibility), so long chats stay fast;
+          while being written it's always drawn, so following the newest words never jumps. */}
+      <div id={`message-${message.id}`} className={`group/message message-flash -mx-2 rounded-xl px-2 ${message.live ? "" : "[content-visibility:auto] [contain-intrinsic-size:auto_6rem]"}`}>
         {mine ? (
           <div className="flex flex-col items-end gap-1.5">
             {message.tags && (
@@ -138,7 +141,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             {message.failed ? (
               <p className="flex items-center gap-1.5 text-xs text-danger-ink" role="status">
                 <Icon name="alert" size={13} />
-                Didn't send.
+                {message.failedReason ? `Didn't send: ${message.failedReason}` : "Didn't send."}
                 <Button size="xs" variant="link" disabled={actions?.busy} onClick={() => actions?.onAction(message, { type: "retry" })}>
                   Try again
                 </Button>
@@ -161,7 +164,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
                 {mate.name}
               </div>
             )}
-            {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
+            {message.text && <MarkdownText text={message.text} />}
             {message.card && <MessageCard card={message.card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(card) => onCard?.(message.id, card)} />}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
