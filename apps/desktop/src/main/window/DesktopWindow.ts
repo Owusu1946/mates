@@ -9,9 +9,8 @@ type SavedWindowState = { bounds: Electron.Rectangle; maximized: boolean };
 
 export type WindowSources = {
   preload: string;
-  /** The dev server in development, else the bundled index.html. */
-  url: string | null;
-  file: string;
+  /** The dev server in development, else mates://app (DesktopScheme.logic.ts). */
+  url: string;
   /** Linux needs the icon on the window while running unpackaged. */
   icon?: string;
 };
@@ -64,8 +63,7 @@ export function createMainWindow(sources: WindowSources): Electron.BrowserWindow
   window.on("enter-full-screen", sendFullScreen);
   window.on("leave-full-screen", sendFullScreen);
   window.webContents.on("did-finish-load", sendFullScreen);
-  if (sources.url) void window.loadURL(sources.url);
-  else void window.loadFile(sources.file);
+  void window.loadURL(sources.url);
   return window;
 }
 
