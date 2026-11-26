@@ -24,7 +24,7 @@ type MessageCardProps = {
 };
 
 /** The card a message carries, whichever kind it is. */
-export function MessageCard({ card, authorId, onAnswer, onChange }: MessageCardProps) {
+export function MessageCard({ card, authorId, onAnswer, onChange, onAction, status }: MessageCardProps) {
   const mates = use(CardMatesContext);
   switch (card.type) {
     case "activity":
@@ -32,7 +32,7 @@ export function MessageCard({ card, authorId, onAnswer, onChange }: MessageCardP
     case "brief":
       return <BriefCard card={card} />;
     case "approval":
-      return <ApprovalCard card={card} onAnswer={onAnswer} />;
+      return <ApprovalCard card={card} onAnswer={onAnswer} onAction={onAction} status={status} />;
     case "run":
       return <RunCard card={card} />;
     case "sources":
