@@ -5,6 +5,7 @@ import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
 import type { Card } from "../data/sampleCrew.ts";
 import { MessageCard } from "./cards/MessageCard.tsx";
+import { sourcesOf } from "./citations.logic.ts";
 import { MarkdownText } from "./MarkdownText.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 import { MessageActions, type RowActions } from "./MessageActions.tsx";
@@ -178,7 +179,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
             {cardsIn(message, "before").map(({ card, index }) => (
               <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
             ))}
-            {message.text && <MarkdownText text={message.text} />}
+            {message.text && <MarkdownText text={message.text} sources={sourcesOf(message.cards)} />}
             {cardsIn(message, "after").map(({ card, index }) => (
               <MessageCard key={index} card={card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(next) => onCard?.(message.id, next, index)} />
             ))}

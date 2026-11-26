@@ -38,5 +38,5 @@ export function citationFor(href: string | undefined, sources: readonly Source[]
 }
 
 /** The sources a row's cards carry. */
-export const sourcesOf = (cards: readonly { type: string }[] | undefined): Source[] =>
-  (cards ?? []).flatMap((card) => (card.type === "sources" ? (card as { sources: Source[] }).sources : []));
+export const sourcesOf = (cards: readonly { type: string; sources?: unknown }[] | undefined): Source[] =>
+  (cards ?? []).flatMap((card) => (card.type === "sources" && Array.isArray(card.sources) ? (card.sources as Source[]) : []));
