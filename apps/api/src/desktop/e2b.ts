@@ -104,11 +104,20 @@ export async function run(sandbox: Pick<Sandbox, "commands">, command: string, t
   }
 }
 
+/**
+ * The key that makes creating a desktop safe to retry. E2B takes only lowercase letters, digits and
+ * hyphens, and Clerk ids have capitals ("user_3MMWYVm…"), so the id is lowercased as well as
+ * stripped. The time keeps a desktop made after the last one was deleted from reusing its key.
+ */
+export function sandboxIdempotencyKey(userId: string, now = Date.now()): string {
+  return `mates-${userId.toLowerCase().replace(/[^a-z0-9]/g, "").slice(-24)}-${now.toString(36)}`;
+}
+
 /** A new desktop for one user, from our template: already on when this returns. */
 export async function createDesktopSandbox(userId: string): Promise<{ providerId: string; snapshot: string }> {
   const template = templateName();
   // One key for both tries, so a retry after a lost response can't make a second desktop.
-  const idempotencyKey = `mates-${userId.replace(/[^a-zA-Z0-9]/g, "").slice(-24)}-${Date.now().toString(36)}`;
+  const idempotencyKey = sandboxIdempotencyKey(userId);
   const sandbox = await retryOnce(() =>
     Sandbox.create(template, {
       ...api(),

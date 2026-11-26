@@ -21,7 +21,7 @@ vi.mock("e2b", async (importOriginal) => {
   };
 });
 
-const { desktopError, desktopState, expireLiveUrl, keyCombo, liveUrl, liveViewUrl, livePassword, run, shellQuote, startDesktop, stopDesktop, wrap, xdotoolKey } = await import("./e2b.js");
+const { createDesktopSandbox, desktopError, desktopState, expireLiveUrl, keyCombo, liveUrl, liveViewUrl, livePassword, run, sandboxIdempotencyKey, shellQuote, startDesktop, stopDesktop, wrap, xdotoolKey } = await import("./e2b.js");
 
 /** A connected sandbox whose commands answer from fake.replies (exit 0 and no output otherwise). */
 function sandbox() {
@@ -217,5 +217,30 @@ describe("lifecycle", () => {
     expect(desktopError(new RateLimitError("429 team abc"))).toMatch(/busy right now/);
     expect(desktopError(new ServiceBusyError("503"))).toMatch(/busy right now/);
     expect(desktopError(new NotFoundError("sandbox sbx1 not found"))).toMatch(/no longer exists/);
+  });
+});
+
+describe("creating a desktop", () => {
+  // E2B rejects anything else: "Invalid idempotencyKey: only lowercase letters, digits and hyphens are allowed."
+  const VALID = /^[a-z0-9-]+$/;
+
+  it("builds a key E2B accepts from a Clerk id with capitals", () => {
+    const key = sandboxIdempotencyKey("user_3MMWYVm8nGUI2El8FlgNlCMvRxE", 1_764_000_000_000);
+    expect(key).toMatch(VALID);
+    // The last 24 characters of the id, as before, now lowercased.
+    expect(key).toBe(`mates-wyvm8ngui2el8flgnlcmvrxe-${(1_764_000_000_000).toString(36)}`);
+  });
+
+  it("sends that key to E2B, the same one on a retry", async () => {
+    vi.stubEnv("E2B_API_KEY", "key");
+    vi.stubEnv("E2B_TEMPLATE", "mates-desktop");
+    fake.create.mockReset();
+    fake.create.mockRejectedValueOnce(new ServiceBusyError("busy")).mockResolvedValueOnce({ sandboxId: "sbx_1" });
+    await expect(createDesktopSandbox("user_3MMWYVm8nGUI2El8FlgNlCMvRxE")).resolves.toEqual({ providerId: "sbx_1", snapshot: "mates-desktop" });
+    const keys = fake.create.mock.calls.map((call) => call[1].idempotencyKey);
+    expect(keys).toHaveLength(2);
+    expect(keys[0]).toMatch(VALID);
+    expect(keys[1]).toBe(keys[0]);
+    vi.unstubAllEnvs();
   });
 });
