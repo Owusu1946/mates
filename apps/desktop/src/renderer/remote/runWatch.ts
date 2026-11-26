@@ -47,6 +47,8 @@ export function useRunWatch(chatId: string) {
             const detail = await apiFetch(token, `/v1/runs/${encodeURIComponent(run.id)}?after=0`);
             const body = detail.ok ? ((await detail.json()) as { run?: RunDetail }) : null;
             if (stopped || !body?.run?.parentId) continue;
+            // The message it answers was sent elsewhere: bring the history in so the question shows above the reply.
+            void client.invalidateQueries({ queryKey: key });
             followRun(client, token, { runId: run.id, chatKey: key, replyId: body.run.assistantMessageId, parentId: body.run.parentId });
           }
         } catch {
