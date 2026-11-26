@@ -9,6 +9,11 @@ export type Screen =
   | "signIn"
   | "signInPassword"
   | "signInCode"
+  /** A new device or a second factor: the code Clerk emails before the sign-in completes. */
+  | "signInDevice"
+  /** Forgot password: the reset code, then the new password. */
+  | "signInReset"
+  | "signInNewPassword"
   | "signInSocial"
   | "signUp"
   | "signUpPassword"
@@ -25,13 +30,15 @@ export type FlowState = {
   email: string;
   /** Apple or Google, while you finish in the browser. */
   provider?: SocialProvider;
+  /** A line for the screen just reached, like "We emailed you a code"; going back drops it. */
+  notice?: string;
 };
 
 export type SocialProvider = "apple" | "google";
 
 export const PROVIDER_NAME: Record<SocialProvider, string> = { apple: "Apple", google: "Google" };
 
-export type FlowAction = { type: "go"; to: Screen; email?: string; provider?: SocialProvider } | { type: "back" };
+export type FlowAction = { type: "go"; to: Screen; email?: string; provider?: SocialProvider; notice?: string } | { type: "back" };
 
 export const INITIAL_FLOW: FlowState = { screen: "choose", direction: "forward", email: "" };
 
@@ -43,6 +50,9 @@ export const BACK: Partial<Record<Screen, Screen>> = {
   signIn: "choose",
   signInPassword: "signIn",
   signInCode: "signInPassword",
+  signInDevice: "signInPassword",
+  signInReset: "signInPassword",
+  signInNewPassword: "signInPassword",
   signInSocial: "signIn",
   signUp: "choose",
   signUpPassword: "signUp",
@@ -61,9 +71,9 @@ export const NEW_STEPS: { label: string; screens: Screen[] }[] = [
 export function flowReducer(state: FlowState, action: FlowAction): FlowState {
   if (action.type === "back") {
     const previous = BACK[state.screen];
-    return previous ? { ...state, screen: previous, direction: "back" } : state;
+    return previous ? { ...state, screen: previous, direction: "back", notice: undefined } : state;
   }
-  return { screen: action.to, direction: "forward", email: action.email ?? state.email, provider: action.provider ?? state.provider };
+  return { screen: action.to, direction: "forward", email: action.email ?? state.email, provider: action.provider ?? state.provider, notice: action.notice };
 }
 
 /** Where the newcomer is in their journey, or null on the shared and sign-in screens. */
