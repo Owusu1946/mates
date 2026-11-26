@@ -8,7 +8,8 @@ import { formatCallTime } from "../call/call.logic.ts";
 import { CallPanel } from "../call/CallPanel.tsx";
 import { useCall } from "../call/useCall.ts";
 import type { SidePanel } from "../chat/ChatHeader.tsx";
-import { useChatFlow } from "../chat/useChatFlow.ts";
+import { useChatFlowFrom } from "../chat/useChatFlow.ts";
+import { initialFlow } from "../chat/chatFlow.logic.ts";
 import { liveGoal } from "../computer/computer.logic.ts";
 import { ComputerPanel } from "../computer/ComputerPanel.tsx";
 import { useComputer } from "../computer/useComputers.ts";
@@ -21,8 +22,10 @@ import { useRunPlayer } from "../code/useRunPlayer.ts";
 import { Icon } from "../components/ui/Icon.tsx";
 import { MOD } from "../components/ui/Kbd.tsx";
 import { TooltipProvider } from "../components/ui/Tooltip.tsx";
-import { REPOS, type Chat, type Crew, type Mate } from "../data/sampleCrew.ts";
-import { MATE_ID, newRun, RUNS, type Run } from "../data/sampleRuns.ts";
+import { REPOS, type Chat, type Mate, type SampleProfile } from "../data/sampleCrew.ts";
+import type { Crew, CrewChat } from "../data/toDesktop.logic.ts";
+import { useCrewActions } from "../remote/crew.ts";
+import { newRun, RUNS, type Run } from "../data/sampleRuns.ts";
 import { ACTIVITY, FRIEND_REQUESTS, FRIENDS } from "../data/samplePlaces.ts";
 import { ActivityPage } from "../places/ActivityPage.tsx";
 import { FriendsPage } from "../places/FriendsPage.tsx";
@@ -51,12 +54,27 @@ function focusArea(area: FocusArea) {
   target?.focus();
 }
 
+type AppLayoutProps = {
+  you: string;
+  email: string | undefined;
+  /** Your crew from the API (remote/crew.ts). */
+  crew: Crew;
+  unread: Record<string, boolean>;
+  /** You looked at a chat: it stops counting as unread on this device. */
+  onSeen: (chatId: string) => void;
+  /** What you told your lead mate at sign-up, until Memory reads the API. */
+  profile?: SampleProfile;
+  hasProjects?: boolean;
+  onSignOut: () => void;
+};
+
 /** The crew window: title bar, sidebar and whatever's selected (T3 Code's AppSidebarLayout). */
-export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => void }) {
-  const [flow, dispatch] = useChatFlow(crew);
-  const [selection, setSelection] = useState<Selection>({ kind: "chat", id: "chat-lead" });
-  // Mates and groups you make here join the crew's.
-  const [made, setMade] = useState<{ mates: Mate[]; chats: Chat[] }>({ mates: [], chats: [] });
+export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjects, onSignOut }: AppLayoutProps) {
+  // Conversations are still the sample's until they read the API (the next change).
+  const [flow, dispatch] = useChatFlowFrom(() => initialFlow({}, {}));
+  const leadChatId = crew.chats.find((candidate) => candidate.kind === "mate" && candidate.leadId === crew.leadId)?.id ?? crew.chats[0]?.id ?? "";
+  const [selection, setSelection] = useState<Selection>({ kind: "chat", id: leadChatId });
+  const actions = useCrewActions();
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [creating, setCreating] = useState<"mate" | "group" | null>(null);
   // Call and Computer: one call for the whole app, so switching chats doesn't drop it, and your
@@ -96,13 +114,10 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   const [panels, setPanels] = useState<CodePanels>({ diff: false, terminal: false, diffStyle: "unified", wrap: false, focusPath: null });
   const changePanels = (change: Partial<CodePanels>) => setPanels({ ...panels, ...change });
 
-  // Edits to mates and groups, kept over the crew's own (UI only, until they reach the API).
-  const [edited, setEdited] = useState<{ mates: Record<string, Partial<Mate>>; chats: Record<string, Partial<Chat>> }>({ mates: {}, chats: {} });
   const [editing, setEditing] = useState<string | null>(null);
-  const allMates = [...crew.mates, ...made.mates].map((mate) => ({ ...mate, ...edited.mates[mate.id] }));
-  const mateNames = Object.fromEntries(allMates.map((mate) => [mate.id, mate.name]));
-  // A mate's chat is called what the mate is.
-  const chats = [...crew.chats, ...made.chats].map((chat) => ({ ...chat, ...edited.chats[chat.id], ...(chat.kind === "mate" ? { title: mateNames[chat.leadId] ?? chat.title } : {}) }));
+  const allMates = crew.mates;
+  // Mates and groups first, newest first; then the older chats the sidebar folds away.
+  const chats: CrewChat[] = [...crew.chats, ...crew.earlier];
   // A mate's mood shows everywhere, its sidebar face and the header: listening while you type to
   // it, thinking, working, happy when it's done (chat/mateMood.logic.ts).
   const moods = useMateMoods(flow.replies);
@@ -133,16 +148,30 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     dispatch(action);
   };
   const chat = selection.kind === "chat" ? chats.find((candidate) => candidate.id === selection.id) : undefined;
+  // The chat on screen stays read as messages arrive, but only while you're in this window: a
+  // reply that lands while you're in another app is still new when you come back.
+  const seeOpenChat = useStableCallback(() => {
+    if (chat && document.hasFocus()) onSeen(chat.id);
+  });
+  useEffect(() => {
+    seeOpenChat();
+    window.addEventListener("focus", seeOpenChat);
+    return () => window.removeEventListener("focus", seeOpenChat);
+  }, [chat?.id, chat?.at, seeOpenChat]);
   const run = selection.kind === "run" ? runs.find((candidate) => candidate.id === selection.id) : undefined;
-  const coder = crewMates[MATE_ID]!;
+  // The code runs are still the sample's; your lead mate stands in for their coder.
+  const coder = (crew.leadId && crewMates[crew.leadId]) || allMates[0]!;
   // Coding is a side of Mates, not the centre: its tools show only for people who code.
   const coding = useCoding();
-  const codingOn = showsCoding(coding.preference, { engaged: coding.engaged, hasProjects: crew.hasProjects !== false });
+  const codingOn = showsCoding(coding.preference, { engaged: coding.engaged, hasProjects: hasProjects !== false });
   const runRows = runs.flatMap((candidate) => (runStates[candidate.id] ? [{ run: candidate, status: runStatus(runStates[candidate.id]!) }] : []));
 
   const select = (next: Selection) => {
     setSelection(next);
-    if (next.kind === "chat") dispatch({ type: "open", chatId: next.id });
+    if (next.kind === "chat") {
+      dispatch({ type: "open", chatId: next.id });
+      onSeen(next.id);
+    }
     // A run plays the first time you open it.
     if (next.kind === "run") runDispatch({ type: "start", runId: next.id, at: Date.now() });
   };
@@ -154,7 +183,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
   };
 
   const askToBuild = () => {
-    select({ kind: "chat", id: "chat-yaw" });
+    select({ kind: "chat", id: leadChatId });
     requestAnimationFrame(() => composerRef.current?.focus());
   };
 
@@ -195,26 +224,22 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
     requestAnimationFrame(() => composerRef.current?.focus());
   };
 
-  // A new mate joins the sidebar with its own chat and says hello.
-  const createMate = ({ name, role, shape, color }: NewMate) => {
-    const id = `mate-${crypto.randomUUID()}`;
-    const mate: Mate = { id, name, role, shape, color, status: "idle" };
-    const chat: Chat = { id: `chat-${id}`, kind: "mate", title: name, mateIds: [id], leadId: id, preview: "Say hello", time: "now" };
-    setMade({ mates: [...made.mates, mate], chats: [...made.chats, chat] });
-    dispatch({ type: "append", chatId: chat.id, messages: [{ id: `${id}-hello`, author: id, day: "Today", text: `Hi, I'm ${name}. What would you like me to take care of?` }] });
+  // A new mate joins your crew on every device, with its own chat, where it says hello (the API's greeting).
+  const createMate = async (input: NewMate) => {
+    const result = await actions.createMate(input);
+    if (result.error !== null) return result.error;
     setCreating(null);
-    openChat(chat.id);
+    openChat(result.value);
+    return null;
   };
 
-  // A new group: the first mate chosen leads it and opens the conversation.
-  const createGroup = ({ title, mateIds }: NewGroup) => {
-    const id = `group-${crypto.randomUUID()}`;
-    const lead = crewMates[mateIds[0]!]!;
-    const chat: Chat = { id, kind: "group", title, mateIds, leadId: lead.id, preview: `${lead.name}: What are we working on?`, time: "now" };
-    setMade({ ...made, chats: [...made.chats, chat] });
-    dispatch({ type: "append", chatId: id, messages: [{ id: `${id}-hello`, author: lead.id, day: "Today", text: "Everyone's here. What are we working on?" }] });
+  // A new group: the first mate chosen leads it.
+  const createGroup = async ({ title, mateIds }: NewGroup) => {
+    const result = await actions.createGroup({ title, mateIds });
+    if (result.error !== null) return result.error;
     setCreating(null);
-    openChat(id);
+    openChat(result.value);
+    return null;
   };
 
   // A conversation carried over from the summon bar opens in its mate's chat, as if it had been here.
@@ -319,10 +344,10 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={paletteItems} />
       <div className="flex min-h-0 flex-1">
         <Sidebar
-          you={crew.you}
+          you={you}
           chats={chats}
           mates={liveMates}
-          unread={flow.unread}
+          unread={unread}
           runs={runRows}
           showProjects={codingOn}
           selection={selection}
@@ -360,7 +385,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
                 onEdit={() => setEditing(chat.id)}
                 sidePanel={
                   side === "call" && call ? (
-                    <CallPanel call={call} mates={liveMates} you={crew.you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
+                    <CallPanel call={call} mates={liveMates} you={you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
                   ) : side === "computer" ? (
                     <ComputerPanel state={computer} dispatch={computerDispatch} mates={liveMates} chatMate={liveMates[chat.leadId]!} />
                   ) : null
@@ -370,7 +395,7 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
           )}
           {selection.kind === "place" && selection.id === "activity" && <ActivityPage mates={liveMates} onOpenChat={openChat} />}
           {selection.kind === "place" && selection.id === "routines" && <RoutinesPage mates={allMates} />}
-          {selection.kind === "place" && selection.id === "friends" && <FriendsPage myEmail="ama@mates.app" />}
+          {selection.kind === "place" && selection.id === "friends" && <FriendsPage myEmail={email ?? ""} />}
           {repo && (
             <RepoPage
               key={repo.id}
@@ -412,11 +437,12 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
             onOpenChange={(open) => !open && setEditing(null)}
             mates={allMates}
             initial={{ title: target.title, mateIds: target.mateIds }}
-            onCreate={({ title, mateIds }) => {
+            onCreate={async ({ title, mateIds }) => {
               // The lead stays if still in the group; otherwise the first mate leads.
               const leadId = mateIds.includes(target.leadId) ? target.leadId : mateIds[0]!;
-              setEdited({ ...edited, chats: { ...edited.chats, [target.id]: { title, mateIds, leadId } } });
-              setEditing(null);
+              const error = await actions.updateGroup(target.id, { title, mateIds, leadId });
+              if (!error) setEditing(null);
+              return error;
             }}
           />
         ) : mate ? (
@@ -424,16 +450,17 @@ export function AppLayout({ crew, onSignOut }: { crew: Crew; onSignOut: () => vo
             open
             onOpenChange={(open) => !open && setEditing(null)}
             initial={{ name: mate.name, role: mate.role, shape: mate.shape, color: mate.color }}
-            onCreate={(changes) => {
-              setEdited({ ...edited, mates: { ...edited.mates, [mate.id]: changes } });
-              setEditing(null);
+            onCreate={async (changes) => {
+              const error = await actions.updateMate(mate.id, changes);
+              if (!error) setEditing(null);
+              return error;
             }}
           />
         ) : null;
       })()}
       <NewMateDialog open={creating === "mate"} onOpenChange={(open) => setCreating(open ? "mate" : null)} onCreate={createMate} />
       <NewGroupDialog open={creating === "group"} onOpenChange={(open) => setCreating(open ? "group" : null)} mates={allMates} onCreate={createGroup} />
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} you={crew.you} onSignOut={onSignOut} mates={Object.values(liveMates)} profile={crew.profile} codingShown={codingOn} section={settingsSection} />
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} activityMode={activityMode} onActivityMode={changeActivityMode} you={you} onSignOut={onSignOut} mates={Object.values(liveMates)} profile={profile} codingShown={codingOn} section={settingsSection} />
     </TooltipProvider>
   );
 }
