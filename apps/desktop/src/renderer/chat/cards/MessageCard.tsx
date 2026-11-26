@@ -5,6 +5,7 @@ import { ApprovalCard } from "./ApprovalCard.tsx";
 import { BriefCard } from "./BriefCard.tsx";
 import { ChoiceCard } from "./ChoiceCard.tsx";
 import { LiveMemoryLine, LiveScheduleCard, LiveWatchCard } from "./LiveCards.tsx";
+import { SummaryCard } from "./SummaryCard.tsx";
 import { CardMatesContext } from "./CardParts.tsx";
 import { MemoryLine, SourcesPill } from "./QuietCards.tsx";
 import { RunCard } from "./RunCard.tsx";
@@ -31,6 +32,8 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
   switch (card.type) {
     case "activity":
       return <WorkActivity card={card} />;
+    case "summary":
+      return <SummaryCard card={card} />;
     case "choice":
       return <ChoiceCard card={card} onAction={onAction} status={status} />;
     case "brief":
