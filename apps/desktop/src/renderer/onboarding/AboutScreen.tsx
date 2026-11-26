@@ -83,7 +83,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
           </div>
           <div className="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-2.5">
             <span className="text-sm">Do you write code or build websites?</span>
-            <div role="radiogroup" aria-label="Do you write code or build websites?" className="flex gap-0.5 rounded-lg bg-soft p-0.5">
+            <div role="radiogroup" aria-label="Do you write code or build websites?" className="flex shrink-0 gap-0.5 rounded-lg bg-soft p-0.5">
               {[
                 { value: true, label: "Yes" },
                 { value: false, label: "Not really" },
@@ -94,7 +94,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
                   role="radio"
                   aria-checked={codes === option.value}
                   onClick={() => setCodes(option.value)}
-                  className="h-7 rounded-md px-3 text-xs text-ink-soft transition-colors aria-checked:bg-raised aria-checked:text-ink aria-checked:shadow-xs"
+                  className="h-7 rounded-md px-3 text-xs whitespace-nowrap text-ink-soft transition-colors aria-checked:bg-raised aria-checked:text-ink aria-checked:shadow-xs"
                 >
                   {option.label}
                 </button>
