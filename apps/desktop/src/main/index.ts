@@ -6,7 +6,7 @@ import { applyAppIdentity } from "./app/DesktopAppIdentity.ts";
 import { startLifecycle } from "./app/DesktopLifecycle.ts";
 import { installDesktopPrefs } from "./app/DesktopPrefs.ts";
 import { APP_HOST, APP_ORIGIN, APP_SCHEME } from "./app/DesktopScheme.logic.ts";
-import { serveRenderer } from "./app/DesktopScheme.ts";
+import { registerDevProtocolClient, serveRenderer } from "./app/DesktopScheme.ts";
 import { installTray } from "./app/DesktopTray.ts";
 import { installWebLinkGuards } from "./app/DesktopWebLinks.ts";
 import { shortcutLabel } from "./summon/SummonWindow.logic.ts";
@@ -57,5 +57,6 @@ if (primary) {
     manageSingleInstanceLock: false,
     userAgent: `Mates/${Electron.app.getVersion()}`,
   });
+  registerDevProtocolClient();
   Electron.app.on("before-quit", () => clerk.cleanup());
 }
