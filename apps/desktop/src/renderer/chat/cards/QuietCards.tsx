@@ -1,6 +1,6 @@
-import { AppLogo } from "../../components/AppLogo.tsx";
 import { Icon } from "../../components/ui/Icon.tsx";
 import type { Card } from "../../data/sampleCrew.ts";
+import { Favicon } from "../Favicon.tsx";
 import { CardPopover, QuietAction, Sparkle } from "./CardParts.tsx";
 import { memoryLabel, sourcesPill } from "./cards.logic.ts";
 
@@ -11,6 +11,8 @@ import { memoryLabel, sourcesPill } from "./cards.logic.ts";
 
 export function SourcesPill({ card }: { card: Extract<Card, { type: "sources" }> }) {
   const { domains, label } = sourcesPill(card.sources);
+  // Each site's icon as the API names it (the same the phone shows), else its first letter.
+  const iconOf = (domain: string) => card.sources.find((source) => source.domain === domain)?.favicon;
   return (
     <CardPopover
       label="Sources"
@@ -21,7 +23,7 @@ export function SourcesPill({ card }: { card: Extract<Card, { type: "sources" }>
         >
           <span className="flex -space-x-1.5">
             {domains.map((domain) => (
-              <AppLogo key={domain} name={domain} slug={domain} size={18} className="rounded-full ring-2 ring-raised" />
+              <Favicon key={domain} domain={domain} src={iconOf(domain)} size={18} className="rounded-full bg-raised ring-2 ring-raised" />
             ))}
           </span>
           {label}
@@ -38,11 +40,11 @@ export function SourcesPill({ card }: { card: Extract<Card, { type: "sources" }>
               rel="noreferrer"
               className="group flex items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none transition-colors duration-100 hover:bg-hover-fill focus-visible:bg-hover-fill"
             >
-              <AppLogo name={source.domain} slug={source.domain} size={18} className="mt-0.5 rounded-full" />
+              <Favicon domain={source.domain} src={source.favicon} size={18} className="mt-0.5 rounded-full" />
               <span className="min-w-0 flex-1">
                 <span className="line-clamp-2 text-[13px] leading-snug">{source.title}</span>
                 <span className="text-2xs text-ink-soft">
-                  {source.domain}
+                  {source.domain.replace(/^www\./, "")}
                   {source.published ? ` · ${source.published}` : ""}
                 </span>
               </span>

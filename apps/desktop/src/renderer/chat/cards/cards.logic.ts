@@ -27,7 +27,8 @@ export function planSummary(plan: Plan): string {
 
 /** Up to three different sites for the pill's icons, and how many sources in all. */
 export function sourcesPill(sources: Source[]): { domains: string[]; label: string } {
-  const domains = [...new Set(sources.map((source) => source.domain))].slice(0, 3);
+  // Up to four different sites, as the phone shows (sources-card.tsx).
+  const domains = [...new Set(sources.map((source) => source.domain))].slice(0, 4);
   return { domains, label: sources.length === 1 ? "1 source" : `${sources.length} sources` };
 }
 

@@ -31,9 +31,9 @@ test("a plan says what's chosen, then runs only that, one step at a time", () =>
   assert.equal(planSummary({ ...plan, state: "declined" }), "You said not now");
 });
 
-test("the sources pill shows up to three different sites", () => {
+test("the sources pill shows up to four different sites", () => {
   const source = (id: string, domain: string) => ({ id, url: `https://${domain}`, title: id, domain });
-  assert.deepEqual(sourcesPill([source("1", "a.com"), source("2", "a.com"), source("3", "b.com"), source("4", "c.com"), source("5", "d.com")]), { domains: ["a.com", "b.com", "c.com"], label: "5 sources" });
+  assert.deepEqual(sourcesPill([source("1", "a.com"), source("2", "a.com"), source("3", "b.com"), source("4", "c.com"), source("5", "d.com"), source("6", "e.com")]), { domains: ["a.com", "b.com", "c.com", "d.com"], label: "6 sources" });
   assert.equal(sourcesPill([source("1", "a.com")]).label, "1 source");
 });
 
