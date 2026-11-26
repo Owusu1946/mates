@@ -1,18 +1,11 @@
 import type { Card, Source } from "../../data/sampleCrew.ts";
 
-/** The rules behind the chat cards: what each one says about itself, and how a plan runs. */
+/** The rules behind the chat cards: what each one says about itself. */
 
 type Plan = Extract<Card, { type: "plan" }>;
 
 /** The actions you've left ticked, which are the ones that run. */
 export const chosenActions = (plan: Plan) => plan.actions.filter((action) => action.selected);
-
-/** Runs a plan one step: the next chosen action is done; when none are left, the plan is. Unchosen ones are skipped. */
-export function advancePlan(plan: Plan): Plan {
-  const next = plan.actions.find((action) => action.selected && action.status !== "done");
-  if (!next) return { ...plan, state: "done", actions: plan.actions.map((action) => (action.selected ? action : { ...action, status: "skipped" })) };
-  return { ...plan, actions: plan.actions.map((action) => (action === next ? { ...action, status: "done" } : action)) };
-}
 
 /** The plan's line under its title: what's waiting, what's happening, or what happened. */
 export function planSummary(plan: Plan): string {

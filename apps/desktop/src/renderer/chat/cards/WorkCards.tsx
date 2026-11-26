@@ -1,5 +1,5 @@
 import { Collapsible } from "@base-ui/react/collapsible";
-import { use, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { AppLogo } from "../../components/AppLogo.tsx";
 import { Button } from "../../components/ui/Button.tsx";
 import { Icon } from "../../components/ui/Icon.tsx";
@@ -9,10 +9,7 @@ import type { CardAction } from "./cardAnswers.logic.ts";
 import { cn } from "../../lib/utils.ts";
 import { MateAvatar } from "../MateAvatar.tsx";
 import { CardAnswerLine, CardMatesContext, CardSurface, ComposeContext, QuietAction } from "./CardParts.tsx";
-import { advancePlan, chosenActions, planSummary } from "./cards.logic.ts";
-
-/** How long each step of a plan takes in the sample, so you can watch it go. */
-const SAMPLE_STEP_MS = 700;
+import { chosenActions, planSummary } from "./cards.logic.ts";
 
 /**
  * What a mate found in an app: a short list, newest first, the way the app itself would show it.
@@ -84,12 +81,6 @@ export function PlanCard({ card, onChange, onAction, status }: { card: Extract<C
   const chosen = chosenActions(shown).length;
   const pending = status && "pending" in status;
   const undo = usePlanUndo();
-
-  useEffect(() => {
-    if (real || card.state !== "running") return;
-    const timer = setTimeout(() => onChange(advancePlan(card)), SAMPLE_STEP_MS);
-    return () => clearTimeout(timer);
-  }, [card, onChange, real]);
 
   const toggle = (id: string) => {
     if (!real) return onChange({ ...card, actions: card.actions.map((action) => (action.id === id ? { ...action, selected: !action.selected } : action)) });
