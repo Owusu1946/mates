@@ -9,7 +9,14 @@ import type { MessageAction } from "./MessageActions.tsx";
 import { regenerableId } from "./messageActions.logic.ts";
 import { MessageRow } from "./MessageRow.tsx";
 import { TimelineViewport } from "./TimelineViewport.tsx";
+import { useRevealedText } from "./useRevealedText.ts";
 import { Button } from "../components/ui/Button.tsx";
+
+/** A reply being written: its words shown smoothly as they arrive (useRevealedText), no actions until it settles. */
+function LiveMessageRow({ message, ...row }: Omit<Parameters<typeof MessageRow>[0], "actions">) {
+  const text = useRevealedText(message.text);
+  return <MessageRow {...row} message={text === message.text ? message : { ...message, text }} />;
+}
 
 /** The shape of a conversation while the first page loads: a few lines on each side, holding still. */
 function HistorySkeleton() {
@@ -85,6 +92,9 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
                 <ActivityLine mate={mates[message.author]!} />
               </div>
             );
+          // Words being written flow in smoothly; only this row re-renders as they do.
+          if (message.live)
+            return <LiveMessageRow key={message.id} message={message} mate={mates[message.author]} showAuthor={group && (Boolean(message.day) || messages[index - 1]?.author !== message.author)} onAnswer={onAnswer} />;
           return (
             <MessageRow
               key={message.id}
