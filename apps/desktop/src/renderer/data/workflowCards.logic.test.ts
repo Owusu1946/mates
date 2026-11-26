@@ -93,3 +93,12 @@ test("a reply's cards come in order, skipping text and what shows nothing", () =
   assert.deepEqual(cards.map((one) => one.type), ["activity", "sources"]);
   assert.deepEqual(cardsOf([{ type: "tool-call", result: null }, { type: "tool-call", result: { label: "no kind" } }], live), []);
 });
+
+test("web results don't also show as a list when the reply has its sources", () => {
+  const web = part(card("results", { toolkit: "web", name: "web", label: "Latest Ghana news", items: [{ sourceId: "1", title: "Cocobod recalls fertiliser" }] }));
+  const gmail = part(card("results", { toolkit: "gmail", name: "Gmail", label: "Emails that need you", items: [] }));
+  const sources = part(card("sources", { sources: [{ id: "s1", url: "https://a.gh", title: "A", domain: "a.gh", publishedAt: null }] }));
+  assert.deepEqual(cardsOf([web, gmail, sources], live).map((one) => one.type === "results" ? one.app.slug : one.type), ["gmail", "sources"]);
+  // Without sources, the results are all there is: they show.
+  assert.deepEqual(cardsOf([web], live).map((one) => one.type), ["results"]);
+});

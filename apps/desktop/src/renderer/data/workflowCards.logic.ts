@@ -174,11 +174,17 @@ export function toCard(api: ApiCard, context: CardContext): Card | null {
   }
 }
 
-/** A reply's cards in order, ready to draw. */
+/**
+ * A reply's cards in order, ready to draw. Web search results don't show as a list of their own
+ * when the reply has its sources: the citations and the sources pill already show those pages (the
+ * API means to send one or the other, agent-chat.ts).
+ */
 export function cardsOf(content: readonly unknown[], context: CardContext): Card[] {
-  return content.flatMap((part) => {
+  const cards = content.flatMap((part) => {
     const api = cardOf(part);
     const card = api && toCard(api, context);
     return card ? [card] : [];
   });
+  if (!cards.some((card) => card.type === "sources")) return cards;
+  return cards.filter((card) => !(card.type === "results" && card.app.slug === "web"));
 }
