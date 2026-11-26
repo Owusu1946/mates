@@ -1,7 +1,7 @@
 import { verifyToken as verifyClerkToken } from "@clerk/backend";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { getDb } from "./db/client.js";
-import { delegations, deliveries, deviceTokens, findings, profiles, type Profile } from "./db/schema.js";
+import { chats, delegations, deliveries, deviceTokens, findings, proactiveNotifications, profiles, type Profile } from "./db/schema.js";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
@@ -40,6 +40,7 @@ import { recordClientFirstText } from "./run-timings.js";
 import { changeRoutine, draftRoutine, editRoutine, listRoutines, routineHistory, routineSpecSchema, runRoutineNow } from "./scheduling.js";
 import { briefSections, briefSettingsInput, getBriefSettings, markBriefLineNotUseful, putBriefSettings, restoreBriefSection, viewMorningBrief } from "./morning-brief.js";
 import { retryDelivery } from "./delivery.js";
+import { getMateNotificationSettings, mateNotificationSettingsInput, putMateNotificationSettings } from "./notification-settings.js";
 import { forgetAllMemories, forgetMemory, listMemories, memoryInputSchema, memorySettings, memorySettingsSchema, updateMemory, updateMemorySettings } from "./memory.js";
 import { listGrants, removeGrant } from "./permissions.js";
 import { confirmImport, exportMemories, forgetImported, IMPORT_SOURCES, ImportError, importConfirmSchema, importRequestSchema, MAX_IMPORT_CHARS, previewImport } from "./memory-import.js";
@@ -637,6 +638,10 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return runs ? c.json({ runs }) : c.json(failure("NOT_FOUND", "Routine not found", c.get("requestId")), 404);
     })
     .get("/v1/feed", auth, async c => c.json({ items: await getDb().select({ id: findings.delegationId, title: findings.title, summary: findings.summary, readAt: findings.readAt, createdAt: findings.createdAt, status: delegations.status, chatId: delegations.chatId }).from(findings).innerJoin(delegations, eq(findings.delegationId, delegations.id)).where(eq(findings.clerkUserId, c.get("userId"))).orderBy(desc(findings.createdAt)).limit(100) }))
+    .get("/v1/return-trips", auth, async c => c.json({ items: await getDb().select({ id: proactiveNotifications.id, title: proactiveNotifications.title, body: proactiveNotifications.body, data: proactiveNotifications.data, createdAt: proactiveNotifications.createdAt })
+      .from(proactiveNotifications)
+      .where(and(eq(proactiveNotifications.clerkUserId, c.get("userId")), sql`${proactiveNotifications.sourceKey} LIKE 'return-trip:%'`, inArray(proactiveNotifications.status, ["sent", "suppressed"]), gte(proactiveNotifications.createdAt, new Date(Date.now() - 7 * 24 * 60 * 60_000))))
+      .orderBy(desc(proactiveNotifications.createdAt)).limit(50) }))
     .post("/v1/feed/:id/read", auth, async c => {
       if (!z.string().uuid().safeParse(c.req.param("id")).success) return c.json(failure("INVALID_ID", "Invalid finding", c.get("requestId")), 400);
       const rows = await getDb().update(findings).set({ readAt: new Date() }).where(and(eq(findings.delegationId, c.req.param("id")), eq(findings.clerkUserId, c.get("userId")))).returning({ id: findings.delegationId });
@@ -654,6 +659,18 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
     }), async c => {
       const [device] = await getDb().select({ enabled: deviceTokens.enabled }).from(deviceTokens).where(and(eq(deviceTokens.token, c.req.valid("json").token), eq(deviceTokens.clerkUserId, c.get("userId"))));
       return c.json({ enabled: device?.enabled === true });
+    })
+    .post("/v1/devices/timezone", auth, validator("json", (value, c) => {
+      const parsed = z.object({
+        token: z.string().regex(/^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/),
+        timezone: routineSpecSchema.shape.timezone,
+      }).strict().safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_DEVICE", "Invalid device timezone", c.get("requestId")), 400);
+      return parsed.data;
+    }), async c => {
+      await getDb().update(deviceTokens).set({ timezone: c.req.valid("json").timezone, updatedAt: new Date() })
+        .where(and(eq(deviceTokens.token, c.req.valid("json").token), eq(deviceTokens.clerkUserId, c.get("userId"))));
+      return c.json({ ok: true });
     })
     .post("/v1/devices/disable", auth, validator("json", (value, c) => {
       const parsed = z.object({ token: z.string().min(1).max(300) }).safeParse(value);
@@ -939,6 +956,20 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
       return mission ? c.json({ mission }) : c.json(failure("CONFLICT", "This mission can't do that right now.", c.get("requestId")), 409);
     })
     .get("/v1/mates", auth, async (c) => c.json(await listMatesAndGroups(c.get("userId"))))
+    .get("/v1/mates/:id/notification-settings", auth, async (c) => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid mate", c.get("requestId")), 400);
+      return c.json({ settings: await getMateNotificationSettings(c.get("userId"), id) });
+    })
+    .put("/v1/mates/:id/notification-settings", auth, validator("json", (value, c) => {
+      const parsed = mateNotificationSettingsInput.safeParse(value);
+      if (!parsed.success) return c.json(failure("INVALID_NOTIFICATION_SETTINGS", "Check the notification mode and quiet hours", c.get("requestId")), 400);
+      return parsed.data;
+    }), async (c) => {
+      const id = c.req.param("id");
+      if (!z.string().uuid().safeParse(id).success) return c.json(failure("INVALID_ID", "Invalid mate", c.get("requestId")), 400);
+      return c.json({ settings: await putMateNotificationSettings(c.get("userId"), id, c.req.valid("json")) });
+    })
     .post("/v1/mates", auth, validator("json", (value, c) => {
       const parsed = mateInputSchema.safeParse(value);
       if (!parsed.success) return c.json(failure("INVALID_MATE", "Give your mate a name, a role and a colour", c.get("requestId")), 400);
@@ -1106,6 +1137,12 @@ export function createApp(overrides: Partial<Dependencies> = {}) {
           404,
         );
       return c.json({ chat });
+    })
+    .post("/v1/chats/:id/watching", auth, async (c) => {
+      const [chat] = await getDb().update(chats).set({ watchedAt: new Date() })
+        .where(and(eq(chats.id, c.req.param("id")), eq(chats.clerkUserId, c.get("userId"))))
+        .returning({ id: chats.id });
+      return chat ? c.json({ watching: true }) : c.json(failure("NOT_FOUND", "Chat not found", c.get("requestId")), 404);
     })
     .put("/v1/chats/:id/collaborators", auth, validator("json", (value, c) => {
       const parsed = chatCollaboratorsSchema.safeParse(value);

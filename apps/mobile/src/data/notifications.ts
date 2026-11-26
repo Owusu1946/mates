@@ -73,5 +73,9 @@ async function refreshDeviceRegistration(getToken: () => Promise<string | null>,
 
   const status = await runRequest<{ enabled: boolean }>(getToken, "devices/status", { token: storedToken });
   if (!status.enabled) await AsyncStorage.removeItem(key);
+  else {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Africa/Accra";
+    await runRequest(getToken, "devices/timezone", { token: storedToken, timezone });
+  }
   return status.enabled;
 }

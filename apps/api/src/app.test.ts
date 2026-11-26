@@ -14,6 +14,20 @@ const deps = {
 };
 
 describe("API contract", () => {
+  it("validates mate notification settings without exposing another mate's settings", async () => {
+    const app = createApp(deps);
+    const headers = { authorization: "Bearer test", "content-type": "application/json" };
+    const invalidId = await app.request("/v1/mates/not-a-uuid/notification-settings", { headers });
+    const invalidSettings = await app.request("/v1/mates/00000000-0000-4000-8000-000000000001/notification-settings", {
+      method: "PUT",
+      headers,
+      body: JSON.stringify({ mode: "normal", quietStart: "24:00", quietEnd: "07:00" }),
+    });
+
+    expect(invalidId.status).toBe(400);
+    expect(invalidSettings.status).toBe(400);
+  });
+
   it("requires authentication and a bounded sample for first-text timing", async () => {
     const app = createApp(deps);
     const path = "/v1/runs/00000000-0000-4000-8000-000000000001/first-text";
@@ -21,6 +35,16 @@ describe("API contract", () => {
     expect((await send({}, 1200)).status).toBe(401);
     expect((await send({ authorization: "Bearer test" }, -1)).status).toBe(400);
     expect((await send({ authorization: "Bearer test" }, 600_001)).status).toBe(400);
+  });
+
+  it("validates timezone refreshes for registered notification devices", async () => {
+    const app = createApp(deps);
+    const response = await app.request("/v1/devices/timezone", {
+      method: "POST",
+      headers: { authorization: "Bearer test", "content-type": "application/json" },
+      body: JSON.stringify({ token: "ExpoPushToken[device_123]", timezone: "Mars/Olympus" }),
+    });
+    expect(response.status).toBe(400);
   });
 
   it("replays typed run events over SSE and closes after the terminal event", async () => {

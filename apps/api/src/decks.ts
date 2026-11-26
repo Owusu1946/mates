@@ -18,7 +18,7 @@ import {
 } from "@muse-clone/decks";
 import { getDb } from "./db/client.js";
 import { decks, deckVersions, type DeckRequest, type DeckStatus } from "./db/schema.js";
-import { pushToUser } from "./delivery.js";
+import { pushReturnTripToUser } from "./delivery.js";
 import type { WorkflowCard } from "./integrations.js";
 import { gradientOf } from "./mates.js";
 import { CHAT_MODEL } from "./models.js";
@@ -725,7 +725,7 @@ export async function undoDeck(userId: string, deckId: string) {
 async function announce(deckId: string) {
   const [row] = await getDb().select().from(decks).where(eq(decks.id, deckId));
   if (!row || row.status === "cancelled") return;
-  await pushToUser(row.clerkUserId, {
+  await pushReturnTripToUser({ userId: row.clerkUserId, chatId: row.chatId, sourceKey: `deck:${row.id}:${row.status}`,
     title: row.status === "ready" ? "Your deck is ready" : "Couldn’t finish the deck",
     body: row.status === "ready" ? `${row.title} · ${row.slides.length} slides` : row.error ?? "Open Mates for details.",
     data: { chatId: row.chatId ?? undefined, deckId: row.id },

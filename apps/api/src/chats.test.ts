@@ -26,6 +26,7 @@ function setup() {
     kind: "mate" as const,
     mateId: "d4a6d498-9aee-4daa-920e-9b837bdd80c3",
     leaderMateId: null,
+    watchedAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

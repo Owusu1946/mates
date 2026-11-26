@@ -1,0 +1,1 @@
+ALTER TABLE "chats" ADD COLUMN "watched_at" timestamp with time zone;

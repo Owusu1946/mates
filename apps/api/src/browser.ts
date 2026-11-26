@@ -283,6 +283,7 @@ function pageDelay(ms: number, signal: AbortSignal) {
 }
 
 export async function finishBrowsers(runId: string, userId: string, status: string, emit: (id: string, card: WorkflowCard) => void) {
+  // The parent delegation delivers the result or decision push. A browser-session push would duplicate it.
   const rows = await getDb().select().from(browserSessions).where(and(eq(browserSessions.runId, runId), eq(browserSessions.clerkUserId, userId)));
   for (const row of rows) if (row.status === "running" || status === "cancelled" && !["completed", "cancelled", "expired", "error", "blocked"].includes(row.status)) { await closeBrowser(row.id, userId, status); emit(`browser_${row.id}`, browserCard(await ownedBrowser(row.id, userId))); }
 }

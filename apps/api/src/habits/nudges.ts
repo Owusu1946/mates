@@ -2,8 +2,9 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, gte, inArray, isNull, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "../db/client.js";
-import { chatMessages, chats, delegations, deviceTokens, habitNudges, habits, mates, type ActivityKind, type NudgeOutcome } from "../db/schema.js";
-import { pushToUser } from "../delivery.js";
+import { chatMessages, chats, delegations, habitNudges, habits, mates, type ActivityKind, type NudgeOutcome } from "../db/schema.js";
+import { pushProactiveToUser } from "../delivery.js";
+import { resolveMateIdForChat } from "../notification-settings.js";
 import { submitRun } from "../durable-runs.js";
 import { mateChatId } from "../mates.js";
 import { routineChat, scheduleRoutine } from "../scheduling.js";
@@ -29,14 +30,6 @@ const OFFER_CONFIDENCE = 0.8;
 const offerable = (habit: Pick<HabitRow, "status" | "confidence" | "automatic">) =>
   !habit.automatic && (habit.status === "confirmed" || (habit.status === "candidate" && habit.confidence >= OFFER_CONFIDENCE));
 
-/** Whether the user's most recent phone is in its quiet hours now. */
-export async function inQuietHours(userId: string, now = new Date()) {
-  const [device] = await getDb().select().from(deviceTokens).where(and(eq(deviceTokens.clerkUserId, userId), eq(deviceTokens.enabled, true))).orderBy(desc(deviceTokens.updatedAt)).limit(1);
-  if (!device || device.quietStart === device.quietEnd) return false;
-  const hour = DateTime.fromJSDate(now).setZone(device.timezone).hour;
-  return device.quietStart < device.quietEnd ? hour >= device.quietStart && hour < device.quietEnd : hour >= device.quietStart || hour < device.quietEnd;
-}
-
 async function nudgesToday(userId: string, timezone: string, now: Date) {
   const start = DateTime.fromJSDate(now).setZone(timezone).startOf("day").toJSDate();
   const [row] = await getDb().select({ count: sql<number>`count(*)::int` }).from(habitNudges).where(and(eq(habitNudges.clerkUserId, userId), gte(habitNudges.sentAt, start)));
@@ -53,18 +46,18 @@ export function nudgeText(habit: Pick<HabitRow, "line" | "accepted" | "automatic
   return !habit.automatic && habit.accepted >= AUTOMATE_AFTER - 1 ? `${habit.line} Or I can just do it automatically from now on.` : habit.line;
 }
 
-export type NudgeSkip = "learning_off" | "done_today" | "quiet" | "daily_limit" | "busy";
+export type NudgeSkip = "learning_off" | "done_today" | "daily_limit" | "busy";
 
 /**
  * Posts the offer in the mate's chat and pushes it. Checks, in order: learning is on, it wasn't
- * already done today, the phone isn't in quiet hours, today's limit isn't reached, the chat is free.
+ * already done today, today's nudge limit isn't reached, and the chat is free. The push can wait
+ * for quiet hours or the daily notification budget without losing the chat message.
  */
 export async function sendNudge(habit: HabitRow, now = new Date()): Promise<{ sent: true; chatId: string; nudgeId: string } | { sent: false; reason: NudgeSkip }> {
   const learning = await learningFor(habit.clerkUserId);
   if (!learning.habits) return { sent: false, reason: "learning_off" };
   const timezone = habit.trigger.type === "time" ? habit.trigger.tz : "Africa/Accra";
   if (habit.trigger.type === "time" && (await doneToday(habit.clerkUserId, habit.taskKey, timezone, now))) return { sent: false, reason: "done_today" };
-  if (await inQuietHours(habit.clerkUserId, now)) return { sent: false, reason: "quiet" };
   if ((await nudgesToday(habit.clerkUserId, timezone, now)) >= MAX_NUDGES_PER_DAY) return { sent: false, reason: "daily_limit" };
   const chatId = await routineChat(habit.clerkUserId, habit.mateId ? mateChatId(habit.mateId) : null);
   if (await chatBusy(chatId)) return { sent: false, reason: "busy" };
@@ -88,7 +81,8 @@ export async function sendNudge(habit: HabitRow, now = new Date()): Promise<{ se
     getDb().update(chats).set({ updatedAt: now }).where(eq(chats.id, chatId)),
   ]);
   const [chat] = await getDb().select({ title: chats.title }).from(chats).where(eq(chats.id, chatId));
-  await pushToUser(habit.clerkUserId, { title: chat?.title ?? "Mates", body: text.slice(0, 180), data: { chatId, chatKind: "mate" } }).catch(() => false);
+  const mateId = habit.mateId ?? await resolveMateIdForChat(habit.clerkUserId, chatId);
+  if (mateId) await pushProactiveToUser({ userId: habit.clerkUserId, mateId, sourceKey: `nudge:${nudgeId}`, title: chat?.title ?? "Mates", body: text.slice(0, 180), data: { chatId, chatKind: "mate" } }, now).catch(() => false);
   return { sent: true, chatId, nudgeId };
 }
 

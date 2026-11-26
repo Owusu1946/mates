@@ -2,7 +2,7 @@ import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "../db/client.js";
 import { calls, chatMessages, chats, habits, meetingPreps } from "../db/schema.js";
-import { pushToUser } from "../delivery.js";
+import { pushProactiveToUser } from "../delivery.js";
 import { appTool, findItems } from "../app-tools.js";
 import type { WorkflowCard } from "../integrations.js";
 
@@ -223,7 +223,7 @@ export async function runPrep(prepId: string) {
     getDb().update(meetingPreps).set({ brief: [brief.brief, ...brief.open_items.map((i) => `Open: ${i}`)].join("\n").slice(0, 2000), chatId }).where(eq(meetingPreps.id, prep.id)),
     getDb().update(chats).set({ updatedAt: new Date() }).where(eq(chats.id, chatId)),
   ]);
-  await pushToUser(userId, { title: mate.name, body: `Prep for “${prep.title}” in ${Math.max(1, Math.round((prep.startsAt.getTime() - Date.now()) / 60_000))} min`, data: { chatId, chatKind: "mate" } }).catch(() => false);
+  await pushProactiveToUser({ userId, mateId: mate.id, sourceKey: `meeting-prep:${prep.id}`, title: mate.name, body: `Prep for “${prep.title}” in ${Math.max(1, Math.round((prep.startsAt.getTime() - Date.now()) / 60_000))} min`, data: { chatId, chatKind: "mate" } }).catch(() => false);
 }
 
 /** The prep brief for a meeting a mate is joining, so it knows the people and what's open. */

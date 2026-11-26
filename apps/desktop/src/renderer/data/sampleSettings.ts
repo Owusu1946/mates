@@ -1,18 +1,7 @@
 /**
- * Apps, permissions and devices for the sample workspace, until Settings reaches the API
- * (connections, action grants, devices).
+ * Permissions and devices for the sample workspace, until Settings reaches the API (action
+ * grants, devices). Apps live in sampleApps.ts.
  */
-
-export type AppConnection = { id: string; name: string; what: string; connected: boolean };
-
-export const APPS: AppConnection[] = [
-  { id: "gmail", name: "Gmail", what: "Read, sort and send email", connected: true },
-  { id: "calendar", name: "Google Calendar", what: "See and book your time", connected: true },
-  { id: "drive", name: "Google Drive", what: "Find and save documents", connected: false },
-  { id: "notion", name: "Notion", what: "Notes and pages", connected: false },
-  { id: "slack", name: "Slack", what: "Messages in your workspace", connected: false },
-  { id: "github", name: "GitHub", what: "Code and pull requests", connected: true },
-];
 
 /** Standing permissions you've given, as the phone lists them: "Send emails to Kwesi in Gmail". */
 export type Permission = { id: string; verb: string; target?: string; app: string };

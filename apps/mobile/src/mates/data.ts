@@ -29,6 +29,13 @@ export type ChatSummary = {
 export type MateInput = { name: string; role: string; roleDescription: string; color: string; shape?: string };
 export type GroupInput = { name: string; mateIds: string[]; leaderMateId?: string };
 type MatesData = { mates: Mate[]; groups: Group[]; presets: Presets };
+export type MateNotificationSettings = {
+  mateId: string;
+  mode: "normal" | "urgent_only" | "off";
+  quietStart: string;
+  quietEnd: string;
+  timezone: string;
+};
 
 /** Cooper's original look; used until mates load. */
 export const DEFAULT_GRADIENT: Gradient = ["#e5c59e", "#d27e41", "#9A3412"];
@@ -165,4 +172,33 @@ export function useMateActions() {
     }),
     refresh,
   };
+}
+
+/** Notification policy for a single mate, including the user's current device timezone. */
+export function useMateNotificationSettings(mateId: string) {
+  const api = useApi();
+  const { userId } = useAuth();
+  return useQuery({
+    queryKey: ["mate-notification-settings", userId, mateId],
+    enabled: !!userId && !!mateId,
+    queryFn: async () => (await read<{ settings: MateNotificationSettings }>(
+      await api.v1.mates[":id"]["notification-settings"].$get({ param: { id: mateId } }),
+      "Couldn’t load notification settings.",
+    )).settings,
+  });
+}
+
+/** Saves a mate's notification policy and refreshes the matching settings cache. */
+export function useSaveMateNotificationSettings() {
+  const api = useApi();
+  const { userId } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ mateId, settings }: { mateId: string; settings: Pick<MateNotificationSettings, "mode" | "quietStart" | "quietEnd"> }) =>
+      (await read<{ settings: MateNotificationSettings }>(
+        await api.v1.mates[":id"]["notification-settings"].$put({ param: { id: mateId }, json: settings as never }),
+        "Couldn’t save notification settings.",
+      )).settings,
+    onSuccess: (settings) => client.setQueryData(["mate-notification-settings", userId, settings.mateId], settings),
+  });
 }

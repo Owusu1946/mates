@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findingPushBody, quietInForeground, WATCHED_REPLY_MS } from "./delivery.js";
+import { findingPushBody, isProactiveRun, quietInForeground, WATCHED_REPLY_MS } from "./delivery.js";
 
 const now = Date.parse("2026-11-16T11:00:00Z");
 const started = (msAgo: number) => new Date(now - msAgo);
@@ -37,10 +37,19 @@ describe("findingPushBody", () => {
       .toBe("Couldn’t finish: Calendar access expired.");
     expect(findingPushBody("failed", { summary: "Your result is ready." }))
       .toBe("This task couldn’t be completed.");
+    expect(findingPushBody("failed", { summary: "This task couldn’t be completed." }))
+      .toBe("This task couldn’t be completed.");
   });
 
   it("uses clear fallbacks and caps long previews", () => {
     expect(findingPushBody("failed", undefined)).toBe("This task couldn’t be completed.");
     expect(findingPushBody("completed", { summary: `A useful result ${"with detail ".repeat(20)}` }).length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe("proactive run classification", () => {
+  it("routes scheduled, watched, and habit runs through the proactive gate", () => {
+    for (const requestKey of ["occurrence_routine_1", "watch_1_fire", "habit_1_reply"]) expect(isProactiveRun(requestKey)).toBe(true);
+    for (const requestKey of ["assistant_1_new_", "manual_1", "mission_1"]) expect(isProactiveRun(requestKey)).toBe(false);
   });
 });
