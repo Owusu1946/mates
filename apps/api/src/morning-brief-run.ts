@@ -1,10 +1,9 @@
 import { tasks } from "@trigger.dev/sdk";
-import { and, desc, eq, gte, isNull, lt, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lt, lte, sql } from "drizzle-orm";
 import { DateTime } from "luxon";
 import { getDb } from "./db/client.js";
-import { chatMessages, chats, morningBriefs, morningBriefSettings } from "./db/schema.js";
-import { pushToUser } from "./delivery.js";
-import { inQuietHours } from "./habits/nudges.js";
+import { chatMessages, chats, morningBriefs, morningBriefSettings, proactiveNotifications } from "./db/schema.js";
+import { pushProactiveToUser } from "./delivery.js";
 import { ensureDefaultMate, mateChatId } from "./mates.js";
 import { nextBriefAt, type BriefSettingsInput } from "./morning-brief.js";
 import { collectBriefCandidates, composeBriefLines, type BriefLine } from "./morning-brief-sources.js";
@@ -84,10 +83,12 @@ export async function executeMorningBrief(briefId: string, now = new Date()) {
       status: { type: "complete", reason: "stop" },
       metadata: { custom: { morningBrief: { id: brief.id, localDay: brief.localDay, lines } } },
     };
+    const deferredIds = lines.flatMap((line) => line.section === "deferred" && line.id.startsWith("deferred:") ? [line.id.slice("deferred:".length)] : []);
     await getDb().batch([
       getDb().insert(chatMessages).values({ chatId, id: messageId, parentId: head?.id ?? null, message }).onConflictDoNothing(),
       getDb().update(chats).set({ updatedAt: createdAt }).where(eq(chats.id, chatId)),
       getDb().update(morningBriefs).set({ status: "posted", chatId, leaseUntil: null, error: null, updatedAt: createdAt }).where(eq(morningBriefs.id, brief.id)),
+      ...(deferredIds.length ? [getDb().update(proactiveNotifications).set({ status: "included", updatedAt: createdAt }).where(and(inArray(proactiveNotifications.id, deferredIds), eq(proactiveNotifications.status, "brief")))] : []),
     ]);
   } catch (error) {
     await getDb().update(morningBriefs).set({ status: brief.attempts >= 3 ? "failed" : "queued", leaseUntil: null, error: (error instanceof Error ? error.message : String(error)).slice(0, 500), updatedAt: new Date() }).where(eq(morningBriefs.id, brief.id));
@@ -100,12 +101,12 @@ export async function sendPendingMorningPushes(now = new Date()) {
   await getDb().update(morningBriefs).set({ error: "Push window expired before notification" }).where(and(eq(morningBriefs.status, "posted"), isNull(morningBriefs.pushAttemptedAt), isNull(morningBriefs.error), lt(morningBriefs.scheduledFor, new Date(now.getTime() - PUSH_WINDOW_MS))));
   const ready = await getDb().select().from(morningBriefs).where(and(eq(morningBriefs.status, "posted"), isNull(morningBriefs.pushAttemptedAt), gte(morningBriefs.scheduledFor, new Date(now.getTime() - PUSH_WINDOW_MS)))).orderBy(morningBriefs.scheduledFor).limit(20);
   for (const brief of ready) {
-    if (!brief.chatId || !brief.lines?.length || await inQuietHours(brief.clerkUserId, now)) continue;
+    if (!brief.chatId || !brief.lines?.length) continue;
     const [claimed] = await getDb().update(morningBriefs).set({ pushAttemptedAt: now }).where(and(eq(morningBriefs.id, brief.id), isNull(morningBriefs.pushAttemptedAt))).returning({ id: morningBriefs.id });
     if (!claimed) continue;
     try {
-      const accepted = await pushToUser(brief.clerkUserId, { title: "Your morning", body: brief.lines[0]!.text, data: { chatId: brief.chatId, chatKind: "mate", morningBriefId: brief.id } });
-      await getDb().update(morningBriefs).set(accepted ? { pushAcceptedAt: new Date() } : { error: "Push was not accepted by any device" }).where(eq(morningBriefs.id, brief.id));
+      const mate = await ensureDefaultMate(brief.clerkUserId);
+      await pushProactiveToUser({ userId: brief.clerkUserId, mateId: mate.id, sourceKey: `morning-brief:${brief.id}`, title: "Your morning", body: brief.lines[0]!.text, data: { chatId: brief.chatId, chatKind: "mate", morningBriefId: brief.id } }, now);
     } catch (error) {
       // The provider might have accepted the push before a later failure. Do not retry blindly.
       await getDb().update(morningBriefs).set({ error: `Push outcome unknown: ${error instanceof Error ? error.message : String(error)}`.slice(0, 500) }).where(eq(morningBriefs.id, brief.id));

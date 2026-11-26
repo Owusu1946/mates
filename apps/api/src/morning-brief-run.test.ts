@@ -32,6 +32,11 @@ describe("morning brief delivery rules", () => {
     expect(selectBriefLines(candidates, [], false, true).map((line) => line.id)).toEqual(["task"]);
   });
 
+  it("keeps over-budget proactive notices in the next brief regardless of model selection", () => {
+    const deferred: Candidate = { id: "deferred:notice-1", section: "deferred", priority: 0, text: "Nova: Your report is ready", action: { kind: "chat", chatId: "mate_nova" } };
+    expect(selectBriefLines([candidate("task", "tasks", 1), deferred], []).map((line) => line.id)).toEqual(["deferred:notice-1"]);
+  });
+
   it("caps normal and light briefs, including their email limits", () => {
     const candidates = [
       ...Array.from({ length: 3 }, (_, index) => candidate(`task:${index}`, "tasks", 1)),
