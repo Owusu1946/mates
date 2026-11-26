@@ -81,6 +81,14 @@ export type Message = {
   tags?: MessageTag[];
   /** Shown as a divider above the message. */
   day?: string;
+  /** The stored message this row shows (one stored reply can be several rows in a group). */
+  sourceId?: string;
+  /** The server is still writing it: here, on another device, or in a routine. */
+  live?: boolean;
+  /** What the mate is doing right now, while a live reply works (its running step). */
+  step?: string;
+  /** The versions' stored ids, matching `versions`, for switching between them. */
+  versionIds?: string[];
 };
 
 export type Chat = {
