@@ -1,6 +1,7 @@
 import { Icon } from "../../components/ui/Icon.tsx";
 import type { Card } from "../../data/sampleCrew.ts";
 import { Favicon } from "../Favicon.tsx";
+import { useOpenInPanel } from "../CitationChip.tsx";
 import { CardPopover, QuietAction, Sparkle } from "./CardParts.tsx";
 import { memoryLabel, sourcesPill } from "./cards.logic.ts";
 
@@ -34,26 +35,35 @@ export function SourcesPill({ card }: { card: Extract<Card, { type: "sources" }>
       <ul>
         {card.sources.map((source) => (
           <li key={source.id}>
-            <a
-              href={source.url}
-              target="_blank"
-              rel="noreferrer"
-              className="group flex items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none transition-colors duration-100 hover:bg-hover-fill focus-visible:bg-hover-fill"
-            >
-              <Favicon domain={source.domain} src={source.favicon} size={18} className="mt-0.5 rounded-full" />
-              <span className="min-w-0 flex-1">
-                <span className="line-clamp-2 text-[13px] leading-snug">{source.title}</span>
-                <span className="text-2xs text-ink-soft">
-                  {source.domain.replace(/^www\./, "")}
-                  {source.published ? ` · ${source.published}` : ""}
-                </span>
-              </span>
-              <Icon name="external" size={13} className="mt-0.5 shrink-0 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100" />
-            </a>
+            <SourceLink source={source} />
           </li>
         ))}
       </ul>
     </CardPopover>
+  );
+}
+
+/** One page in the sources list: opens beside the chat, like a citation. */
+function SourceLink({ source }: { source: Extract<Card, { type: "sources" }>["sources"][number] }) {
+  const open = useOpenInPanel(source.url);
+  return (
+    <a
+      href={source.url}
+      target="_blank"
+      rel="noreferrer"
+      onClick={open}
+      className="group flex items-start gap-2.5 rounded-lg px-2.5 py-2 outline-none transition-colors duration-100 hover:bg-hover-fill focus-visible:bg-hover-fill"
+    >
+      <Favicon domain={source.domain} src={source.favicon} size={18} className="mt-0.5 rounded-full" />
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 text-[13px] leading-snug">{source.title}</span>
+        <span className="text-2xs text-ink-soft">
+          {source.domain.replace(/^www\./, "")}
+          {source.published ? ` · ${source.published}` : ""}
+        </span>
+      </span>
+      <Icon name="external" size={13} className="mt-0.5 shrink-0 text-ink-soft opacity-0 transition-opacity group-hover:opacity-100" />
+    </a>
   );
 }
 

@@ -179,7 +179,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
         />
         </ComposeContext>
       </div>
-      <RightPanel open={side !== null} tabs={side === "call" ? [{ id: "call", label: "Call", icon: "phone" }] : [{ id: "computer", label: "Computer", icon: "monitor" }]} active={side ?? "computer"} onClose={() => onSide(null)}>
+      <RightPanel open={side !== null} tabs={side === "call" ? [{ id: "call", label: "Call", icon: "phone" }] : side === "page" ? [{ id: "page", label: "Page", icon: "globe" }] : [{ id: "computer", label: "Computer", icon: "monitor" }]} active={side ?? "computer"} onClose={() => onSide(null)}>
         {sidePanel}
       </RightPanel>
     </div>

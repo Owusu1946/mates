@@ -1,15 +1,27 @@
-import type { ReactNode } from "react";
+import { use, type MouseEvent, type ReactNode } from "react";
 import { Tooltip } from "../components/ui/Tooltip.tsx";
 import type { Source } from "../data/sampleCrew.ts";
 import { Favicon } from "./Favicon.tsx";
+import { OpenPageContext } from "./openPage.ts";
+
+/** A click opens the page beside the chat; Ctrl or ⌘ (or a middle click) still opens your browser. */
+export function useOpenInPanel(href: string | undefined) {
+  const openPage = use(OpenPageContext);
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!openPage || !href || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openPage(href);
+  };
+}
 
 const shortDomain = (domain: string) => domain.replace(/^www\./, "");
 
 /**
  * A page a mate's reply cites, where it cites it: the site's icon and name in a small pill.
- * Hovering shows the page's title and date; clicking opens it in your browser.
+ * Hovering shows the page's title and date; clicking opens it beside the chat.
  */
 export function CitationChip({ source, href }: { source: Source; href: string }) {
+  const open = useOpenInPanel(href);
   return (
     <Tooltip
       side="top"
@@ -27,6 +39,7 @@ export function CitationChip({ source, href }: { source: Source; href: string })
         href={href}
         target="_blank"
         rel="noreferrer"
+        onClick={open}
         className="mx-0.5 inline-flex h-5 max-w-44 items-center gap-1 rounded-full bg-hover-fill px-1.5 align-[-0.25em] text-xs font-medium text-ink-soft no-underline transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
       >
         <Favicon domain={source.domain} src={source.favicon} size={12} />

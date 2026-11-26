@@ -6,7 +6,7 @@ import { MateAvatar } from "./MateAvatar.tsx";
 
 const STATUS_TEXT = { idle: null, listening: "Listening…", thinking: "Thinking…", working: "Working", happy: null, waiting: "Waiting on you" } as const;
 
-export type SidePanel = "call" | "computer" | null;
+export type SidePanel = "call" | "computer" | "page" | null;
 
 type ChatHeaderProps = {
   chat: Chat;
