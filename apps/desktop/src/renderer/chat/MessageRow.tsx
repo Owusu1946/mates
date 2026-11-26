@@ -3,9 +3,8 @@ import { AppLogo } from "../components/AppLogo.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Mate, Message } from "../data/sampleCrew.ts";
-import { ApprovalCard } from "./cards/ApprovalCard.tsx";
-import { BriefCard } from "./cards/BriefCard.tsx";
-import { RunCard } from "./cards/RunCard.tsx";
+import type { Card } from "../data/sampleCrew.ts";
+import { MessageCard } from "./cards/MessageCard.tsx";
 import { MateAvatar } from "./MateAvatar.tsx";
 import { MessageActions, type RowActions } from "./MessageActions.tsx";
 import { ReplyQuote } from "./ReplyQuote.tsx";
@@ -17,6 +16,8 @@ type MessageRowProps = {
   /** Name the mate above its words: in groups, when the speaker changes. */
   showAuthor: boolean;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
+  /** A card's new state, for cards that change (a plan running, a routine paused). */
+  onCard?: (messageId: string, card: Card) => void;
   /** Copy, reply, pin and the rest. Without it (previews, a streaming reply), the row has none. */
   actions?: RowActions;
   /** Who wrote a quoted message, for its face, name and colour. */
@@ -39,7 +40,7 @@ export function jumpToMessage(id: string) {
  * words sit plainly on the canvas. Under each, its actions. Memoised so a streaming reply
  * re-renders only its own row.
  */
-export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, actions, mateOf, onEdit }: MessageRowProps) {
+export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, onAnswer, onCard, actions, mateOf, onEdit }: MessageRowProps) {
   const [editing, setEditing] = useState<string | null>(null);
   const mine = message.author === "me";
   const rowActions = actions && {
@@ -161,9 +162,7 @@ export const MessageRow = memo(function MessageRow({ message, mate, showAuthor, 
               </div>
             )}
             {message.text && <p className="leading-relaxed wrap-anywhere whitespace-pre-wrap select-text">{message.text}</p>}
-            {message.card?.type === "brief" && <BriefCard card={message.card} />}
-            {message.card?.type === "approval" && <ApprovalCard card={message.card} onAnswer={(state) => onAnswer(message.id, state)} />}
-            {message.card?.type === "run" && <RunCard card={message.card} />}
+            {message.card && <MessageCard card={message.card} authorId={message.author} onAnswer={(state) => onAnswer(message.id, state)} onChange={(card) => onCard?.(message.id, card)} />}
             {(rowActions || message.pinned) && (
               <div className="-ms-1.5 -mt-1 flex items-center gap-1">
                 {message.pinned && !rowActions && <Icon name="pin" size={12} className="ms-1.5 text-brand" />}
@@ -188,6 +187,7 @@ function sameRow(before: MessageRowProps, after: MessageRowProps) {
     before.mate === after.mate &&
     before.showAuthor === after.showAuthor &&
     before.onAnswer === after.onAnswer &&
+    before.onCard === after.onCard &&
     before.mateOf === after.mateOf &&
     before.onEdit === after.onEdit
   );

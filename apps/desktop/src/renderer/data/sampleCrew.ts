@@ -26,7 +26,29 @@ export type Card =
   | { type: "brief"; title: string; rows: BriefRow[] }
   | { type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped" }
   /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
-  | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number };
+  | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number }
+  // The rest follow the API's WorkflowCard (apps/api/src/integrations.ts), trimmed to what they show.
+  /** The pages an answer drew on. */
+  | { type: "sources"; sources: Source[] }
+  /** A memory a mate saved, changed or forgot mid-chat. */
+  | { type: "memory"; text: string; action: "saved" | "updated" | "forgotten"; undone?: boolean }
+  /** What a mate found in an app, like the emails that need you. */
+  | { type: "results"; app: CardApp; title: string; items: ResultItem[] }
+  /** What a mate is about to do, for one OK, or has done. */
+  | { type: "plan"; title: string; state: "review" | "running" | "done" | "declined"; actions: PlanAction[] }
+  /** The lead's call after several mates answered the same question. */
+  | { type: "comparison"; suggestion: string; perMate: { mateId: string; recommendation: string; basis: string }[]; disagreements: string[] }
+  /** A routine set up in chat. */
+  | { type: "schedule"; title: string; when: string; next: string; status: "active" | "paused" | "cancelled" }
+  /** "Watch for X, then do Y". */
+  | { type: "watch"; title: string; condition: string; action: string; every: string | null; app: string | null; lastNote: string | null; lastChecked: string | null; status: "active" | "paused" | "fired" | "cancelled" }
+  /** An app a mate needs before it can carry on. */
+  | { type: "connect"; app: CardApp; reason: string; state: "needed" | "connecting" | "connected" };
+
+export type CardApp = { slug: string; name: string };
+export type Source = { id: string; url: string; title: string; domain: string; published?: string };
+export type ResultItem = { id: string; from: string; title: string; snippet: string; time: string; unread?: boolean };
+export type PlanAction = { id: string; app: CardApp; label: string; detail?: string; selected: boolean; status?: "done" | "skipped" };
 
 /** Something @-mentioned with a message, kept as it was named then. */
 export type MessageTag = { kind: "web" | "chief" | "mate" | "app"; id: string; label: string };
@@ -129,13 +151,73 @@ function messagesFor(you: string): Record<string, Message[]> {
         text: "",
         card: { type: "approval", title: "Pay GH¢295 to DStv?", detail: "Compact bouquet, smartcard 7023 ••• 118, for December. You'll approve it with your MoMo PIN.", meta: "MTN MoMo · 024 ••• 4417", allow: "Send the prompt", state: "open" },
       },
+      { id: "m5", author: "me", text: "Every Friday at 4, remind me to send the week's invoices." },
+      {
+        id: "m6",
+        author: LEAD_ID,
+        text: "Set. I'll remind you every Friday at 4pm, with the invoices you haven't sent.",
+        card: { type: "schedule", title: "Send the week's invoices", when: "Fridays at 4:00 pm", next: "Friday 4:00 pm", status: "active" },
+      },
+      { id: "m7", author: LEAD_ID, text: "", card: { type: "memory", text: "Sends invoices every Friday afternoon", action: "saved" } },
+      { id: "m8", author: "me", text: "Which emails need me?" },
+      {
+        id: "m9",
+        author: LEAD_ID,
+        text: "These three. The Kente Prints invoice is due Monday.",
+        card: {
+          type: "results",
+          app: { slug: "gmail", name: "Gmail" },
+          title: "3 need you",
+          items: [
+            { id: "g1", from: "Kente Prints", title: "Invoice #2291", snippet: "GH¢1,240 for the November labels, due Monday", time: "9:12", unread: true },
+            { id: "g2", from: "Kwesi Mensah", title: "Re: Thursday call", snippet: "Thursday works. Can we start at 2:30?", time: "8:40", unread: true },
+            { id: "g3", from: "ECG", title: "Your prepaid units are low", snippet: "About 18 units left at your usual use", time: "Yesterday" },
+          ],
+        },
+      },
+      { id: "m10", author: "me", text: "Move the gym to 6." },
+      {
+        id: "m11",
+        author: LEAD_ID,
+        text: "I need your calendar for that.",
+        card: { type: "connect", app: { slug: "googlecalendar", name: "Google Calendar" }, reason: "To move events and keep your days in step", state: "needed" },
+      },
     ],
     "chat-esi": [
       { id: "e1", author: "me", day: "Today", text: "Find me hostels near KNUST under GH¢4,000 a year." },
-      { id: "e2", author: "esi", text: "Found 3 that fit: Bomso Heights (GH¢3,600, 4 min walk), Ayeduase Lodge (GH¢3,200, shuttle) and Kotei Court (GH¢3,900, new)." },
+      {
+        id: "e2",
+        author: "esi",
+        text: "Found 3 that fit: Bomso Heights (GH¢3,600, 4 min walk), Ayeduase Lodge (GH¢3,200, shuttle) and Kotei Court (GH¢3,900, new).",
+        card: {
+          type: "sources",
+          sources: [
+            { id: "src1", url: "https://www.knust.edu.gh/students/accommodation", title: "Private hostels near campus: approved list", domain: "knust.edu.gh", published: "Aug 2026" },
+            { id: "src2", url: "https://meqasa.com", title: "Bomso Heights hostel, 2-in-a-room, GH¢3,600 a year", domain: "meqasa.com", published: "3 days ago" },
+            { id: "src3", url: "https://tonaton.com", title: "Ayeduase Lodge with free shuttle to campus", domain: "tonaton.com", published: "1 week ago" },
+            { id: "src4", url: "https://meqasa.com", title: "Kotei Court: new hostel, rooms from GH¢3,900", domain: "meqasa.com", published: "2 weeks ago" },
+          ],
+        },
+      },
     ],
     "chat-abena": [
       { id: "a1", author: "me", day: "Today", text: "Book a dentist for Thursday morning, near East Legon." },
+      {
+        id: "a3",
+        author: "abena",
+        text: "East Legon Dental has 10:30 on Thursday. Here's what I'll do. Untick anything you'd rather not.",
+        card: {
+          type: "plan",
+          title: "Dentist on Thursday",
+          state: "review",
+          actions: [
+            { id: "p1", app: { slug: "googlecalendar", name: "Google Calendar" }, label: "Check Thursday morning is free", selected: true },
+            { id: "p2", app: { slug: "eastlegondental", name: "East Legon Dental" }, label: "Book 10:30", detail: "check-up and clean", selected: true },
+            { id: "p3", app: { slug: "googlecalendar", name: "Google Calendar" }, label: "Add it to your calendar", selected: true },
+            { id: "p4", app: { slug: "gmail", name: "Gmail" }, label: "Tell Kwesi you'll join at 2:30", selected: false },
+          ],
+        },
+      },
       { id: "a2", author: "me", text: "Anywhere with parking is fine.", failed: true },
     ],
     "chat-yaw": [
@@ -147,7 +229,26 @@ function messagesFor(you: string): Record<string, Message[]> {
         card: { type: "run", runId: "run-dark", title: "Ship dark mode", project: "muse-clone", files: 2, pr: 142 },
       },
     ],
-    "chat-akua": [{ id: "k1", author: "akua", day: "Sunday", text: "Packaging came to GH¢1,840 this month. That leaves GH¢160 in the budget." }],
+    "chat-akua": [
+      { id: "k1", author: "akua", day: "Sunday", text: "Packaging came to GH¢1,840 this month. That leaves GH¢160 in the budget." },
+      { id: "k2", author: "me", text: "Tell me when a Bolt to the airport drops under GH¢60." },
+      {
+        id: "k3",
+        author: "akua",
+        text: "I'll keep an eye on it.",
+        card: {
+          type: "watch",
+          title: "Bolt to Kotoka under GH¢60",
+          condition: "A Bolt from East Legon to the airport costs less than GH¢60",
+          action: "Tell you, with the price and a link to book",
+          every: "every 2 hours",
+          app: null,
+          lastNote: "GH¢72, still above",
+          lastChecked: "1 h ago",
+          status: "active",
+        },
+      },
+    ],
     "group-shop": [
       { id: "s1", author: "me", day: "Tuesday", text: "Order the 2,000 boxes from Ofori again, or try the Kumasi supplier?" },
       { id: "s2", author: "akua", text: "Kumasi is GH¢3.60 a box plus about GH¢600 transport, so about GH¢400 cheaper for 2,000." },
@@ -157,7 +258,21 @@ function messagesFor(you: string): Record<string, Message[]> {
     "group-waakye": [
       { id: "w1", author: "me", day: "Today", text: "What would it take to start delivering waakye in East Legon?" },
       { id: "w2", author: "akua", text: "You'll need about GH¢2,750 to open and 38 orders a day to break even." },
-      { id: "w3", author: LEAD_ID, text: `I'd start with weekday lunch orders, ${you}. That keeps the menu small while you find out who orders again.` },
+      {
+        id: "w3",
+        author: LEAD_ID,
+        text: "",
+        card: {
+          type: "comparison",
+          suggestion: `Start with weekday lunch orders, ${you}. It keeps the menu small and the costs low while you find out who orders again.`,
+          perMate: [
+            { mateId: "akua", recommendation: "GH¢2,750 to open; break even at 38 orders a day.", basis: "Rent share, a cook, packaging and Bolt Food's 20% cut" },
+            { mateId: "esi", recommendation: "Lunch is the gap: two of the three nearby spots only open at night.", basis: "Reviews and opening hours within 2 km of A&C Mall" },
+            { mateId: "yaw", recommendation: "A WhatsApp order flow is enough to start; an app can wait.", basis: "Fastest to set up, and customers already use it" },
+          ],
+          disagreements: ["Akua would add breakfast from month two; Esi says lunch alone until orders repeat."],
+        },
+      },
     ],
   };
 }

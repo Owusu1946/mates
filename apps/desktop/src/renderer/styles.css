@@ -604,6 +604,36 @@ html[data-surface="summon"] body {
   animation-delay: 160ms;
 }
 
+/*
+ * "Memory updated": the sparkle eases in with the faintest turn and a light sweeps once across the
+ * words, then it rests. Reduce motion skips both.
+ */
+@keyframes memory-sparkle {
+  from {
+    opacity: 0;
+    scale: 0.4;
+    rotate: -30deg;
+  }
+}
+@utility memory-sparkle {
+  animation: memory-sparkle 520ms var(--ease-open, ease-out) both;
+}
+@keyframes memory-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@utility memory-sweep {
+  background: linear-gradient(90deg, currentColor 0%, currentColor 40%, var(--ink) 50%, currentColor 60%, currentColor 100%) 0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: memory-sweep 950ms ease-out 1 both;
+}
+
 /* The "thinking" line: a soft light passing over the text. */
 .shimmer {
   background: linear-gradient(90deg, var(--ink-soft) 0%, var(--ink) 50%, var(--ink-soft) 100%) 0 0 / 200% 100%;
