@@ -53,6 +53,6 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
     case "watch":
       return <WatchCard card={card} onChange={onChange} />;
     case "connect":
-      return <ConnectCard card={card} mateName={mates[authorId]?.name ?? "Your mate"} onChange={onChange} />;
+      return <ConnectCard card={card} mateName={mates[authorId]?.name ?? "Your mate"} onAction={onAction} status={status} onChange={onChange} />;
   }
 }

@@ -146,7 +146,10 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           onCard={(messageId, card) => dispatch({ type: "card", chatId: chat.id, messageId, card })}
           onCardAction={(message, index, action) => {
             const card = message.cards?.[index];
-            void cardActions.answer(message.id, message.sourceId ?? message.id, index, card && "resumeRunId" in card ? card.resumeRunId : undefined, action);
+            const resumeRunId = card && "resumeRunId" in card ? card.resumeRunId : undefined;
+            // A connection's run may need several apps: it carries on once they're all connected.
+            const apps = message.cards?.flatMap((other) => (other.type === "connect" && other.resumeRunId === resumeRunId ? [other.app.slug] : []));
+            void cardActions.answer({ rowId: message.id, replyId: message.sourceId ?? message.id, index, resumeRunId, ...(card?.type === "connect" ? { app: card.app.slug, apps } : {}) }, action);
           }}
           onAction={onAction}
           onEdit={editMessage}

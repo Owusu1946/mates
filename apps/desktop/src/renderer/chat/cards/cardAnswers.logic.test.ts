@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Card } from "../../data/sampleCrew.ts";
-import { awaitsAnswer, choiceFor, shownStatus } from "./cardAnswers.logic.ts";
+import { allConnected, awaitsAnswer, choiceFor, isConnectUrl, shownStatus } from "./cardAnswers.logic.ts";
 
 test("each answer is the choice the API reads", () => {
   assert.equal(choiceFor({ type: "approve" }).choice, "approve");
@@ -28,4 +28,18 @@ test("an answer in flight shows only while the card still waits", () => {
   assert.deepEqual(shownStatus(open, { pending: "Carrying on…" }), { pending: "Carrying on…" });
   assert.equal(shownStatus({ type: "choice", title: "", options: [], state: "done" }, { pending: "Carrying on…" }), undefined);
   assert.equal(shownStatus(open, undefined), undefined);
+});
+
+test("a reply that needs several apps carries on once the last is connected", () => {
+  assert.equal(allConnected(new Set(["gmail"]), ["gmail", "googlecalendar"]), false);
+  assert.equal(allConnected(new Set(["gmail", "googlecalendar"]), ["gmail", "googlecalendar"]), true);
+  assert.equal(allConnected(new Set(), []), true);
+});
+
+test("connect links come only from the sign-in service", () => {
+  assert.equal(isConnectUrl("https://connect.composio.dev/link/abc"), true);
+  assert.equal(isConnectUrl("https://connect.composio.ai/x"), true);
+  assert.equal(isConnectUrl("https://evil.example/connect.composio.dev/"), false);
+  assert.equal(isConnectUrl("http://connect.composio.dev/x"), false);
+  assert.equal(isConnectUrl(null), false);
 });

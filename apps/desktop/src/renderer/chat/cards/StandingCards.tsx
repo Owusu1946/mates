@@ -2,9 +2,10 @@ import { useEffect } from "react";
 import { AppLogo } from "../../components/AppLogo.tsx";
 import { Button } from "../../components/ui/Button.tsx";
 import { Icon } from "../../components/ui/Icon.tsx";
-import type { Card } from "../../data/sampleCrew.ts";
+import type { Card, CardStatus } from "../../data/sampleCrew.ts";
+import type { CardAction } from "./cardAnswers.logic.ts";
 import { cn } from "../../lib/utils.ts";
-import { CardGlyph, CardSurface, QuietAction } from "./CardParts.tsx";
+import { CardAnswerLine, CardGlyph, CardSurface, QuietAction } from "./CardParts.tsx";
 import { watchCadence } from "./cards.logic.ts";
 
 /** How long the sample "browser" takes to connect an app. */
@@ -100,13 +101,43 @@ export function WatchCard({ card, onChange }: { card: Extract<Card, { type: "wat
   );
 }
 
-/** An app a mate needs: connect it in your browser, and the mate carries on. */
-export function ConnectCard({ card, mateName, onChange }: { card: Extract<Card, { type: "connect" }>; mateName: string; onChange: (card: Card) => void }) {
+/**
+ * An app a mate needs: connect it in your browser, and the mate carries on. A real card signs in
+ * through the API and waits for the app (remote/cardActions.ts); a sample one pretends.
+ */
+export function ConnectCard({ card, mateName, onChange, onAction, status }: { card: Extract<Card, { type: "connect" }>; mateName: string; onChange: (card: Card) => void; onAction?: (action: CardAction) => void; status?: CardStatus }) {
+  const real = Boolean(onAction && card.resumeRunId);
   useEffect(() => {
-    if (card.state !== "connecting") return;
+    if (real || card.state !== "connecting") return;
     const timer = setTimeout(() => onChange({ ...card, state: "connected" }), SAMPLE_CONNECT_MS);
     return () => clearTimeout(timer);
-  }, [card, onChange]);
+  }, [card, onChange, real]);
+
+  if (real) {
+    const waiting = status && "pending" in status;
+    return (
+      <CardSurface>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <AppLogo name={card.app.name} slug={card.app.slug} size={32} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{card.state === "connected" ? `${card.app.name} is connected` : `Connect ${card.app.name}`}</p>
+            {card.state === "connected" ? <p className="truncate text-xs text-ink-soft">{mateName} is carrying on.</p> : status ? <CardAnswerLine status={status} /> : <p className="truncate text-xs text-ink-soft">{card.reason}</p>}
+          </div>
+          {card.state !== "connected" &&
+            (waiting ? (
+              <Button size="sm" variant="ghost" onClick={() => onAction!({ type: "cancelConnect" })}>
+                Cancel
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => onAction!({ type: "connect" })}>
+                {status ? "Try again" : "Connect"}
+              </Button>
+            ))}
+          {card.state === "connected" && <Icon name="check" size={16} className="shrink-0 animate-fade text-ok-ink" />}
+        </div>
+      </CardSurface>
+    );
+  }
 
   return (
     <CardSurface>

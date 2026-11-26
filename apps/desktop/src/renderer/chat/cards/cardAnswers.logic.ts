@@ -6,8 +6,8 @@ import type { Card, CardStatus } from "../../data/sampleCrew.ts";
  * decline for a plan.
  */
 
-/** What a card asks to do, from its buttons. */
-export type CardAction =
+/** An answer the reply carries on with. */
+export type ResumeAction =
   | { type: "approve" }
   | { type: "always" }
   | { type: "decline" }
@@ -15,10 +15,13 @@ export type CardAction =
   | { type: "plan"; actionIds: string[] }
   | { type: "planDecline" };
 
+/** What a card asks to do, from its buttons: an answer, or connecting the app it needs (and giving up on that). */
+export type CardAction = ResumeAction | { type: "connect" } | { type: "cancelConnect" };
+
 export type { CardStatus };
 
 /** The choice a run is resumed with, and what the card says while it goes. */
-export function choiceFor(action: CardAction): { choice: string; pending: string } {
+export function choiceFor(action: ResumeAction): { choice: string; pending: string } {
   switch (action.type) {
     case "approve":
       return { choice: "approve", pending: "Doing it now…" };
@@ -34,6 +37,15 @@ export function choiceFor(action: CardAction): { choice: string; pending: string
       return { choice: "decline", pending: "Leaving it…" };
   }
 }
+
+/** Connect links come only from the API's sign-in service, as on the phone (app-connection.tsx). */
+export const isConnectUrl = (url: unknown): url is string => typeof url === "string" && /^https:\/\/connect\.composio\.(dev|ai)\//.test(url);
+
+/**
+ * A reply that needs several apps carries on once the last of them is connected (the phone's
+ * connectedByRun): `connected` is what's connected for its run so far.
+ */
+export const allConnected = (connected: ReadonlySet<string>, needed: readonly string[]) => needed.every((app) => connected.has(app));
 
 /** Whether a card still waits for you: once the reply moves it on, an answer in flight is done. */
 export function awaitsAnswer(card: Card): boolean {
