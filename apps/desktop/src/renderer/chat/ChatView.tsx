@@ -10,6 +10,7 @@ import { pinnedOf, quoteOf } from "./messageActions.logic.ts";
 import { MessagesTimeline } from "./MessagesTimeline.tsx";
 import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
+import { useFeedback } from "../remote/feedback.ts";
 import { useRunWatch, useWatching } from "../remote/runWatch.ts";
 import { useChatActions } from "../remote/send.ts";
 import { useThread } from "../remote/thread.ts";
@@ -46,7 +47,13 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const actions = useChatActions(chat.id);
   useRunWatch(chat.id);
   useWatching(chat.id);
-  const messages = thread.rows.map((message) => (actions.failed.has(message.id) ? { ...message, failed: true, failedReason: actions.failed.get(message.id) } : message));
+  const feedback = useFeedback();
+  // What only this device knows about a row: a send that didn't go, and your thumbs on a reply.
+  const messages = thread.rows.map((message) => {
+    const rating = message.author !== "me" ? feedback.ratings[message.sourceId ?? message.id] : undefined;
+    const failed = actions.failed.get(message.id);
+    return failed || rating ? { ...message, ...(failed ? { failed: true, failedReason: failed } : {}), ...(rating ? { rating } : {}) } : message;
+  });
   // One reply at a time per chat, as the API allows.
   const busy = messages.some((message) => message.live);
   const replying = flow.replying[chat.id];
@@ -86,7 +93,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
       dispatch({ type: "reply", chatId: chat.id, quote: quoteOf(message) });
       focusComposer();
     } else if (action.type === "pin") dispatch({ type: "pin", ...target });
-    else if (action.type === "rate") dispatch({ type: "rate", ...target, rating: action.rating });
+    else if (action.type === "rate") void feedback.rate(message.sourceId ?? message.id, action.rating, action.reason);
     else if (action.type === "version") {
       const version = message.versionIds?.[action.index];
       if (version) thread.showVersion(version);

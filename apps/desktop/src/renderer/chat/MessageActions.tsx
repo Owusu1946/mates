@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon, type IconName } from "../components/ui/Icon.tsx";
+import { Menu, MenuItem } from "../components/ui/Menu.tsx";
+import { FEEDBACK_REASONS, type FeedbackReason } from "../remote/feedback.ts";
 import { Tooltip } from "../components/ui/Tooltip.tsx";
 import type { Message } from "../data/sampleCrew.ts";
 import { cn } from "../lib/utils.ts";
@@ -8,7 +10,8 @@ import { cn } from "../lib/utils.ts";
 export type MessageAction =
   | { type: "reply" }
   | { type: "pin" }
-  | { type: "rate"; rating: "up" | "down" }
+  /** Thumbs down says why (the phone's reasons); the same thumb again takes the rating back. */
+  | { type: "rate"; rating: "up" | "down"; reason?: FeedbackReason }
   | { type: "version"; index: number }
   | { type: "regenerate" }
   | { type: "edit" }
@@ -85,7 +88,25 @@ export function MessageActions({ message, actions, mine }: { message: Message; a
       {!mine && hasText && (
         <>
           <Action icon="thumbsUp" label="Good reply" active={message.rating === "up"} className={message.rating === "up" ? undefined : reveal} onClick={() => act({ type: "rate", rating: "up" })} />
-          <Action icon="thumbsDown" label="Bad reply" active={message.rating === "down"} className={message.rating === "down" ? undefined : reveal} onClick={() => act({ type: "rate", rating: "down" })} />
+          {message.rating === "down" ? (
+            <Action icon="thumbsDown" label="Bad reply" active onClick={() => act({ type: "rate", rating: "down" })} />
+          ) : (
+            <Menu
+              side="top"
+              trigger={
+                <Button size="icon-xs" variant="ghost-muted" aria-label="Bad reply" className={reveal}>
+                  <Icon name="thumbsDown" />
+                </Button>
+              }
+            >
+              <p className="px-2 pt-1 pb-1.5 text-2xs font-medium text-ink-soft">What went wrong?</p>
+              {FEEDBACK_REASONS.map((reason) => (
+                <MenuItem key={reason.value} onClick={() => act({ type: "rate", rating: "down", reason: reason.value })}>
+                  {reason.label}
+                </MenuItem>
+              ))}
+            </Menu>
+          )}
         </>
       )}
     </div>
