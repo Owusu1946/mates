@@ -50,6 +50,8 @@ const WATCH_STATUS: Record<Extract<Card, { type: "watch" }>["status"], { label: 
   paused: { label: "Paused", dot: "bg-ink-soft/50", text: "text-ink-soft" },
   fired: { label: "It happened", dot: "bg-brand", text: "text-ink" },
   cancelled: { label: "Stopped", dot: "bg-ink-soft/40", text: "text-ink-soft" },
+  expired: { label: "Ended", dot: "bg-ink-soft/40", text: "text-ink-soft" },
+  failed: { label: "Couldn't check", dot: "bg-danger", text: "text-danger-ink" },
 };
 
 export function WatchCard({ card, onChange }: { card: Extract<Card, { type: "watch" }>; onChange: (card: Card) => void }) {
