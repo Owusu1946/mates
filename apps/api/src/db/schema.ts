@@ -94,6 +94,8 @@ export const chats = pgTable(
       .default("legacy"),
     mateId: uuid("mate_id").references(() => mates.id, { onDelete: "cascade" }),
     leaderMateId: uuid("leader_mate_id").references(() => mates.id, { onDelete: "set null" }),
+    /** Refreshed only while a client is foregrounded on this chat. */
+    watchedAt: timestamp("watched_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .defaultNow()
       .notNull(),
@@ -207,6 +209,8 @@ export const delegations = pgTable("delegations", {
   executionGeneration: integer("execution_generation").notNull().default(0),
   resumeCheckpoint: boolean("resume_checkpoint").notNull().default(false),
   followupsQueuedAt: timestamp("followups_queued_at", { withTimezone: true }),
+  blockedSince: timestamp("blocked_since", { withTimezone: true }),
+  blockedReminderAt: timestamp("blocked_reminder_at", { withTimezone: true }),
   sequence: integer("sequence").notNull().default(0),
   content: jsonb("content").$type<Record<string, unknown>[]>().notNull().default([]),
   pendingTool: jsonb("pending_tool").$type<Record<string, unknown>>(),
@@ -315,6 +319,8 @@ export const watches = pgTable("watches", {
   condition: text("condition").notNull(),
   /** What to do when it happens: approved by the user when the watch was set up. */
   action: text("action").notNull(),
+  /** True only when the user explicitly asked for this watch to bypass quiet hours. */
+  urgent: boolean("urgent").notNull().default(false),
   /** The user's own words when they asked. */
   request: text("request").notNull().default(""),
   status: text("status").$type<WatchStatus>().notNull().default("active"),
@@ -526,6 +532,42 @@ export const mates = pgTable("mates", {
 }, (t) => [
   uniqueIndex("mates_user_name_idx").on(t.clerkUserId, sql`lower(${t.name})`),
   uniqueIndex("mates_user_default_idx").on(t.clerkUserId).where(sql`${t.isDefault}`),
+]);
+
+/** Per-mate controls for proactive notifications. The active timezone follows the user's devices. */
+export const mateNotificationSettings = pgTable("mate_notification_settings", {
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),
+  mode: text("mode").$type<"normal" | "urgent_only" | "off">().notNull().default("normal"),
+  quietStart: text("quiet_start").notNull().default("22:00"),
+  quietEnd: text("quiet_end").notNull().default("07:00"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.clerkUserId, t.mateId] }),
+  check("mate_notification_settings_mode_check", sql`${t.mode} IN ('normal', 'urgent_only', 'off')`),
+  check("mate_notification_settings_start_check", sql`${t.quietStart} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+  check("mate_notification_settings_end_check", sql`${t.quietEnd} ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'`),
+]);
+
+/** One durable record per proactive push, also used to reserve the daily budget atomically. */
+export const proactiveNotifications = pgTable("proactive_notifications", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  clerkUserId: text("clerk_user_id").notNull(),
+  mateId: uuid("mate_id").notNull().references(() => mates.id, { onDelete: "cascade" }),
+  sourceKey: text("source_key").notNull().unique(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+  urgent: boolean("urgent").notNull().default(false),
+  status: text("status").$type<"queued" | "quiet" | "brief" | "sending" | "sent" | "failed" | "uncertain" | "suppressed" | "included">().notNull().default("queued"),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).defaultNow().notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+}, (t) => [
+  index("proactive_notifications_due_idx").on(t.status, t.nextAttemptAt),
+  index("proactive_notifications_budget_idx").on(t.clerkUserId, t.mateId, t.sentAt),
+  check("proactive_notifications_status_check", sql`${t.status} IN ('queued', 'quiet', 'brief', 'sending', 'sent', 'failed', 'uncertain', 'suppressed', 'included')`),
 ]);
 
 export const groupMembers = pgTable("group_members", {

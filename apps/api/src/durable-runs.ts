@@ -18,6 +18,7 @@ import { pushToUser } from "./delivery.js";
 import type { agentExecution } from "./trigger/agent.js";
 import { assertUsage, UsageLimitError } from "./usage/gate.js";
 import { RunHandoffRequested, shouldHandoffBeforeTool } from "./run-handoff.js";
+import { returnTripSummary } from "./return-trip-summary.js";
 
 const activeExecutions = new Map<string, { executor: "api" | "worker"; cancel(): void }>();
 
@@ -205,7 +206,7 @@ export async function executeDelegation(
     const status = finalStatus === "cancelled" && userCancelled ? CANCELLED_STATUS : { type: finalStatus === "failed" ? "incomplete" : finalStatus ? "complete" : "running", ...(finalStatus ? { reason: finalStatus === "failed" ? "error" : "stop" } : {}) };
     const message = { id: run.assistantMessageId, role: "assistant", createdAt, content: structuredClone(content), metadata: { custom: { delegationId: id, resumed: !!request.resumeRunId } }, status };
     const statements = [
-      getDb().update(delegations).set({ content: structuredClone(content), sequence, updatedAt: new Date(), ...(finalStatus ? { status: finalStatus, error: failure } : {}) }).where(eq(delegations.id, id)),
+      getDb().update(delegations).set({ content: structuredClone(content), sequence, updatedAt: new Date(), ...(finalStatus ? { status: finalStatus, error: failure, ...(finalStatus === "waiting" ? { blockedSince: new Date() } : {}) } : {}) }).where(eq(delegations.id, id)),
       getDb().insert(runEvents).values({ delegationId: id, sequence, type, payload: { content: structuredClone(content), status: finalStatus ?? "running", error: failure } }),
     ] as const;
     if (run.chatId) {
@@ -729,8 +730,7 @@ export async function saveFinding(id: string) {
   if (!run || !terminalRun(run.status) || run.status === "cancelled") return;
   const request = run.request as { messages?: { content: string }[] };
   const title = request.messages?.at(-1)?.content.slice(0, 100) ?? "Mates result";
-  const text = run.content.filter(p => p.type === "text").map(p => String(p.text)).join("\n").slice(0, 500);
-  await getDb().insert(findings).values({ delegationId: id, clerkUserId: run.clerkUserId, title, summary: text || (run.status === "waiting" ? "Your attention is needed to continue." : run.error ?? "Your result is ready.") }).onConflictDoNothing();
+  await getDb().insert(findings).values({ delegationId: id, clerkUserId: run.clerkUserId, title, summary: returnTripSummary(run) }).onConflictDoNothing();
 }
 
 export async function recoverStalledRuns() {

@@ -60,6 +60,14 @@ const PATHS = {
   bell: "M6 16v-5a6 6 0 0 1 12 0v5l1.5 2h-15zM10 20.5a2 2 0 0 0 4 0",
   keyboard: "M3 6.5h18v11H3zM7 10h.01M11 10h.01M15 10h.01M8 14h8",
   info: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 11v5M12 8h.01",
+  reply: "M9.5 14.5 4.5 9.5l5-5M4.5 9.5H14a6 6 0 0 1 6 6v4",
+  pin: "M12 16.5V21M8.5 3.5h7l-1 5.5 3 3v2h-11v-2l3-3z",
+  retry: "M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4v4.5H15",
+  thumbsUp: "M7.5 10.5v9.5h-3v-9.5zM7.5 10.5l3.6-6.4a1.9 1.9 0 0 1 3.5 1.3l-.9 4.6h5.1a2 2 0 0 1 2 2.4l-1.3 6a2 2 0 0 1-2 1.6H7.5",
+  thumbsDown: "M16.5 13.5V4h3v9.5zM16.5 13.5l-3.6 6.4a1.9 1.9 0 0 1-3.5-1.3l.9-4.6H5.2a2 2 0 0 1-2-2.4l1.3-6a2 2 0 0 1 2-1.6h10",
+  chevronLeft: "M14.5 6l-6 6 6 6",
+  chevronRight: "M9.5 6l6 6-6 6",
+  alert: "M12 8.5v4.5M12 16.5h.01M10.3 4l-7.8 13.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z",
 } as const;
 
 export type IconName = keyof typeof PATHS | "apple" | "google";

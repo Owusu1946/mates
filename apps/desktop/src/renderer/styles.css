@@ -699,6 +699,18 @@ html[data-surface="summon"] body {
   animation: pin-hop 420ms var(--ease-open, ease-out) both;
 }
 
+/* Where a quote or a pin jumps to, flashed so the eye lands on it. */
+@keyframes message-flash {
+  from {
+    background-color: color-mix(in oklab, var(--color-brand) 14%, transparent);
+  }
+}
+@utility message-flash {
+  &[data-flash] {
+    animation: message-flash 1.2s ease-out;
+  }
+}
+
 /* The logo's three mates step out from the middle once, as the website's mark does. */
 @keyframes logo-gather {
   from {

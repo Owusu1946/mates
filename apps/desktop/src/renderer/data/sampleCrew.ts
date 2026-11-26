@@ -28,6 +28,12 @@ export type Card =
   /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
   | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number };
 
+/** Something @-mentioned with a message, kept as it was named then. */
+export type MessageTag = { kind: "web" | "chief" | "mate" | "app"; id: string; label: string };
+
+/** Enough of a message to show it quoted, even after it changes. */
+export type Quote = { id: string; author: string; text: string };
+
 export type Message = {
   id: string;
   /** "me", or the id of the mate who wrote it. */
@@ -36,6 +42,21 @@ export type Message = {
   card?: Card;
   /** Files you sent with it. */
   files?: SentFile[];
+  /** In a group, the message you were answering, as it read then. */
+  replyTo?: Quote;
+  /** Kept in the chat's pinned list. */
+  pinned?: boolean;
+  /** Your thumbs on a mate's reply. */
+  rating?: "up" | "down";
+  /** A mate's reply asked again: every version, with `text` the one showing (at `version`). */
+  versions?: string[];
+  version?: number;
+  /** Yours, when it didn't go: it can be sent again. */
+  failed?: boolean;
+  /** Yours, changed after sending. */
+  edited?: boolean;
+  /** What you @-mentioned with it: web search, Chief of Staff, mates, an app. */
+  tags?: MessageTag[];
   /** Shown as a divider above the message. */
   day?: string;
 };
@@ -113,7 +134,10 @@ function messagesFor(you: string): Record<string, Message[]> {
       { id: "e1", author: "me", day: "Today", text: "Find me hostels near KNUST under GH¢4,000 a year." },
       { id: "e2", author: "esi", text: "Found 3 that fit: Bomso Heights (GH¢3,600, 4 min walk), Ayeduase Lodge (GH¢3,200, shuttle) and Kotei Court (GH¢3,900, new)." },
     ],
-    "chat-abena": [{ id: "a1", author: "me", day: "Today", text: "Book a dentist for Thursday morning, near East Legon." }],
+    "chat-abena": [
+      { id: "a1", author: "me", day: "Today", text: "Book a dentist for Thursday morning, near East Legon." },
+      { id: "a2", author: "me", text: "Anywhere with parking is fine.", failed: true },
+    ],
     "chat-yaw": [
       { id: "y1", author: "me", day: "Monday", text: "Ship dark mode in muse-clone." },
       {
@@ -128,7 +152,7 @@ function messagesFor(you: string): Record<string, Message[]> {
       { id: "s1", author: "me", day: "Tuesday", text: "Order the 2,000 boxes from Ofori again, or try the Kumasi supplier?" },
       { id: "s2", author: "akua", text: "Kumasi is GH¢3.60 a box plus about GH¢600 transport, so about GH¢400 cheaper for 2,000." },
       { id: "s3", author: "esi", text: "Kumasi has 11 reviews and two mention late December deliveries. Ofori has been on time 6 times running." },
-      { id: "s4", author: LEAD_ID, text: `I'd split it: 1,500 from Ofori, 500 from Kumasi. Safe for December, and a real test of Kumasi. Want me to ask both, ${you}?` },
+      { id: "s4", author: LEAD_ID, text: `I'd split it: 1,500 from Ofori, 500 from Kumasi. Safe for December, and a real test of Kumasi. Want me to ask both, ${you}?`, pinned: true },
     ],
     "group-waakye": [
       { id: "w1", author: "me", day: "Today", text: "What would it take to start delivering waakye in East Legon?" },
