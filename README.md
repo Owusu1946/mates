@@ -7,7 +7,7 @@ This repository is a **pnpm + Turborepo monorepo** with everything in one place:
 | Path | What it is | Stack |
 | --- | --- | --- |
 | `apps/mobile` | The iOS/Android app | Expo SDK 57, Expo Router, assistant-ui, Clerk |
-| `apps/desktop` | The Windows/macOS/Linux app (early: a native shell for now). See [Desktop app](#desktop-app) | Electron 44, electron-vite, React 19 |
+| `apps/desktop` | The Windows/macOS/Linux app: sign in with your Mates account; the workspace is still sample data. See [Desktop app](#desktop-app) | Electron 44, electron-vite, React 19, Clerk |
 | `apps/api` | HTTP API and background worker | Hono, Drizzle ORM + Neon Postgres, Trigger.dev, OpenRouter |
 | `apps/web` | Landing page at agents.askorin.app | Astro with React islands |
 | `packages/api-contract` | Typed API contract shared by app and server | TypeScript |
@@ -46,6 +46,7 @@ Copy each example and fill it in. Use `copy` instead of `cp` in Windows Command 
 cp apps/api/.env.example    apps/api/.env
 cp apps/mobile/.env.example apps/mobile/.env
 cp apps/web/.env.example    apps/web/.env      # only if you work on the landing page
+cp apps/desktop/.env.example apps/desktop/.env # only if you work on the desktop app
 ```
 
 `.env` files are git-ignored. **Never commit them.** Ask the project owner for development keys rather than reusing production ones.
@@ -89,7 +90,7 @@ Run all commands from the **repository root**. `pnpm --filter <package>` targets
 
 ## Desktop app
 
-`apps/desktop` is the Mates app for Windows, macOS and Linux, built with Electron. Today it's a native shell: one window with the mascot and "Hello there." It doesn't sign in or talk to the API yet, so it needs no `.env`. The plan is in [docs/desktop/desktop-app.md](docs/desktop/desktop-app.md) and the stack in [docs/desktop/stack.md](docs/desktop/stack.md).
+`apps/desktop` is the Mates app for Windows, macOS and Linux, built with Electron. You sign in with the same Mates account as on the phone (email, Apple or Google), and a new account sets up its lead mate, about you and memories through the API. The chats, crew and projects after that are still sample data. It needs `apps/desktop/.env` and a few Clerk settings: see [Signing in](#signing-in). The plan is in [docs/desktop/desktop-app.md](docs/desktop/desktop-app.md) and the stack in [docs/desktop/stack.md](docs/desktop/stack.md).
 
 It's built to feel native on each system:
 
@@ -116,6 +117,30 @@ The first run downloads Electron's binary for your system (about 100 MB), so it 
 - **Windows:** Windows 10 or 11, x64 or arm64.
 - **macOS:** macOS 12 or newer, Apple silicon or Intel.
 - **Linux:** a desktop session (X11 or Wayland) on a 64-bit distribution. Ubuntu, Fedora and Debian desktop installs already have the libraries Electron needs. It won't open a window inside WSL or over plain SSH.
+
+### Signing in
+
+The desktop uses the phone's Clerk instance through `@clerk/electron` (beta, pinned). Set it up once per Clerk instance (development and production each need it):
+
+1. **`apps/desktop/.env`** (from `.env.example`). Only public values go here, since the bundle ships to everyone:
+   - `VITE_CLERK_PUBLISHABLE_KEY`: the same key as `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` on the phone.
+   - `VITE_CLERK_FRONTEND_API_HOST`: Clerk → **API keys** → *Frontend API URL*, without `https://` (e.g. `your-slug.clerk.accounts.dev` in development). Not the Account Portal URL. The CSP allows this host.
+   - `VITE_API_URL`: the API, as `EXPO_PUBLIC_API_URL` on the phone.
+2. **Native API on:** Clerk → **Developer → Native applications**. It's on when the page's danger zone offers *Disable*.
+3. **Apple and Google's way back:** on the same page, add the redirect URL `mates://app/` (with the slash).
+4. **Allowed origins.** There's no dashboard screen for this; it's one call with the instance's secret key, and it **replaces** the list, so read it first and keep what's there:
+
+   ```sh
+   curl -s https://api.clerk.com/v1/instance -H "Authorization: Bearer sk_..."
+   curl -X PATCH https://api.clerk.com/v1/instance -H "Authorization: Bearer sk_..." \
+     -H "Content-Type: application/json" \
+     -d '{"allowed_origins": ["mates://app", "http://localhost:5173"]}'
+   ```
+
+   Leave `http://localhost:5173` (the dev server) out of production. In PowerShell, write `curl.exe`: plain `curl` there is `Invoke-WebRequest`. Without this, sign-in fails with *"Setting both the 'Origin' and 'Authorization' headers is forbidden"*.
+5. **The API:** the installed app (`mates://app`) is always allowed. For the dev build, add `http://localhost:5173` to `ALLOWED_ORIGINS` on whichever API it points at.
+
+How it fits together: the installed app serves its pages from `mates://app/` rather than `file://`, because Clerk needs a stable origin and Apple and Google come back on that scheme. The session token is kept by the main process, encrypted with the system's keystore (DPAPI, Keychain, libsecret), so you stay signed in after a restart. A packaged macOS build must be signed for that, and Linux needs a keyring; without one you sign in again each launch. Apple and Google open in your normal browser. They work in the dev build on Windows, but on macOS and Linux only in an installed build. QR sign-in from the phone comes next.
 
 ### Check it
 
@@ -148,11 +173,13 @@ The builds aren't code-signed yet, so each system warns the first time you open 
 | Path | What it does |
 | --- | --- |
 | `src/main/index.ts` | Puts the app together; each module below owns one concern |
-| `src/main/app/` | App identity (Windows taskbar id), lifecycle (single instance, Dock, quit), web-link guards |
+| `src/main/app/` | App identity (Windows taskbar id), lifecycle (single instance, Dock, quit), web-link guards, the `mates://app` scheme |
 | `src/main/window/` | The window (per-system options, light/dark, remembered bounds) and the menus |
 | `*.logic.ts` | The pure part of a module, tested in `*.logic.test.ts` without Electron |
-| `src/preload/index.ts` | The only bridge to the page: the platform and window material, nothing else |
+| `src/preload/index.ts` | The only bridge to the page: the platform, the app's few controls, and Clerk's token and browser sign-in bridge |
 | `src/renderer/` | The React app |
+| `src/renderer/auth/` | The Clerk provider, sign-in and sign-up steps (as on the phone), and the lead-mate setup gate |
+| `src/renderer/lib/api.ts` | The typed API client (`hc<AppType>`), sending the session token |
 | `electron-builder.yml` | Installer settings for all three systems |
 
 ---
@@ -161,7 +188,7 @@ The builds aren't code-signed yet, so each system warns the first time you open 
 
 Each app has a commented `.env.example`. The rule that matters most:
 
-> **Server secrets live only in `apps/api`.** Anything prefixed `EXPO_PUBLIC_` (mobile) or `PUBLIC_` (web) is embedded in a bundle that anyone can download. Only publishable keys and URLs go there.
+> **Server secrets live only in `apps/api`.** Anything prefixed `EXPO_PUBLIC_` (mobile), `VITE_` (desktop) or `PUBLIC_` (web) is embedded in a bundle that anyone can download. Only publishable keys and URLs go there.
 
 ### `apps/api/.env`
 
@@ -169,7 +196,7 @@ Each app has a commented `.env.example`. The rule that matters most:
 | --- | --- | --- |
 | `DATABASE_URL`, `DIRECT_DATABASE_URL` | Yes | Neon → Connection details (pooled and direct) |
 | `CLERK_SECRET_KEY` | Yes | Clerk dashboard → API keys |
-| `PORT`, `ALLOWED_ORIGINS` | No | Defaults: `3000` and `http://localhost:8081` |
+| `PORT`, `ALLOWED_ORIGINS` | No | Defaults: `3000` and `http://localhost:8081`. The installed desktop app (`mates://app`) is always allowed; add `http://localhost:5173` for the desktop dev build |
 | `OPENROUTER_API_KEY` | For chat | openrouter.ai → Keys |
 | `OPENROUTER_PROVISIONING_KEY` | For code runs | openrouter.ai → Provisioning keys |
 | `OPENROUTER_*_MODEL`, `CODE_RUN_LIMIT_USD` | No | Overrides; defaults are in `src/models.ts` |
@@ -197,6 +224,16 @@ Features whose keys are missing switch themselves off. For example, without `DEE
 | `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk → API keys (`pk_…`) |
 | `EXPO_PUBLIC_SENTRY_DSN` | Optional error reporting |
 | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | For EAS source-map uploads only (CI secrets, not bundled) |
+
+### `apps/desktop/.env`
+
+| Variable | Notes |
+| --- | --- |
+| `VITE_CLERK_PUBLISHABLE_KEY` | The same Clerk key as the phone (`pk_…`) |
+| `VITE_CLERK_FRONTEND_API_HOST` | Clerk → API keys → Frontend API URL, without `https://` |
+| `VITE_API_URL` | The API base URL |
+
+See [Signing in](#signing-in) for the Clerk settings the desktop also needs.
 
 ### `apps/web/.env`
 
@@ -274,5 +311,7 @@ Commit the generated SQL together with the schema change. Never edit a migration
 - **Background runs never start.** Run the worker (`worker:dev` locally) and set `COOPER_BACKGROUND_ENABLED=true`.
 - **A feature says "isn't set up on this server".** Its API key is missing from `apps/api/.env`.
 - **The desktop app says "Electron failed to install correctly", or `pnpm dev:desktop` seems stuck on its first run.** Electron downloads its binary the first time it's used. Download it yourself with `pnpm --filter @muse-clone/desktop exec install-electron`. Behind a proxy or slow connection, set `ELECTRON_MIRROR` to a mirror first.
+- **Google or Apple sign-in ends in "Unable to find Electron app at …?__clerk_oauth_attempt=…" (Windows, dev build).** An old `mates://` registration is pointing at bare Electron. Quit Mates fully (tray → **Quit**) and start `pnpm dev:desktop` again: the dev build re-registers the scheme with the project folder. An installed build registers its own.
+- **The desktop app starts signed out after every launch.** The session couldn't be stored encrypted: on macOS the build isn't signed, and on Linux there's no keyring (GNOME Keyring or KWallet). Sign-in still works for that run.
 - **The desktop window doesn't follow a light/dark change on Linux.** A known Electron issue (electron/electron#48736): it reads the Linux colour scheme once at start. Restart the app; a fix is planned.
 - **The desktop app opens off screen after unplugging a monitor.** It shouldn't (saved positions are checked against the connected screens), but you can reset it by deleting `window-state.json` from the app's data folder: `%APPDATA%\Mates` on Windows, `~/Library/Application Support/Mates` on macOS, `~/.config/Mates` on Linux.
