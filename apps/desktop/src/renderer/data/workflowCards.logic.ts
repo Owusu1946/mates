@@ -30,7 +30,7 @@ type ApiCard = {
   finishedAt?: string;
   approval?: { category: string; targets: string[]; canAlways: boolean; choice?: "allow" | "always" | "decline"; reason?: string; more?: string[] };
   approvalFields?: { label: string; value: string }[];
-  options?: { id: string; label: string; detail?: string; logo?: string }[];
+  options?: { id: string; label: string; detail?: string; toolkit?: string }[];
   items?: { sourceId: string; title: string; subtitle?: string; preview?: string; url?: string }[];
   followUps?: { label: string; prompt: string }[];
   plan?: { summary: string; actions: { id: string; title: string; app?: string; details: { label: string; value: string }[]; status: "proposed" | "running" | "done" | "failed" | "skipped"; error?: string; undo?: { kind: "app" | "reminder"; id: string } }[] };
@@ -113,7 +113,7 @@ export function toCard(api: ApiCard, context: CardContext): Card | null {
       };
     }
     case "choice":
-      return { type: "choice", title: api.label, detail: api.detail, options: (api.options ?? []).map((option) => ({ id: option.id, label: option.label, detail: option.detail, logo: option.logo })), state: api.phase === "waiting" ? "open" : "done", resumeRunId: api.resumeRunId };
+      return { type: "choice", title: api.label, detail: api.detail, options: (api.options ?? []).map((option) => ({ id: option.id, label: option.label, detail: option.detail, app: option.toolkit })), state: api.phase === "waiting" ? "open" : "done", resumeRunId: api.resumeRunId };
     case "results":
       return {
         type: "results",

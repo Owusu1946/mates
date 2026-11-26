@@ -3,6 +3,7 @@ import type { Card, CardStatus } from "../../data/sampleCrew.ts";
 import type { CardAction } from "./cardAnswers.logic.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { BriefCard } from "./BriefCard.tsx";
+import { ChoiceCard } from "./ChoiceCard.tsx";
 import { CardMatesContext } from "./CardParts.tsx";
 import { MemoryLine, SourcesPill } from "./QuietCards.tsx";
 import { RunCard } from "./RunCard.tsx";
@@ -29,6 +30,8 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
   switch (card.type) {
     case "activity":
       return <WorkActivity card={card} />;
+    case "choice":
+      return <ChoiceCard card={card} onAction={onAction} status={status} />;
     case "brief":
       return <BriefCard card={card} />;
     case "approval":
@@ -42,7 +45,7 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
     case "results":
       return <ResultsCard card={card} />;
     case "plan":
-      return <PlanCard card={card} onChange={onChange} />;
+      return <PlanCard card={card} onChange={onChange} onAction={onAction} status={status} />;
     case "comparison":
       return <ComparisonCard card={card} />;
     case "schedule":

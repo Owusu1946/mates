@@ -35,7 +35,7 @@ export type Card =
   /** `always`: the API offers Always allow (never for money); `fields`/`targets`: what it will send, and to whom. */
   | ({ type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped"; canAlways?: boolean; fields?: BriefRow[]; targets?: string[] } & Resumable)
   /** Pick one: which account, which app. */
-  | ({ type: "choice"; title: string; detail?: string; options: { id: string; label: string; detail?: string; logo?: string }[]; state: "open" | "done" } & Resumable)
+  | ({ type: "choice"; title: string; detail?: string; options: { id: string; label: string; detail?: string; app?: string }[]; state: "open" | "done" } & Resumable)
   /** Everything else a mate shows (a deck, a computer task, a call): what it is and how it stands. */
   | { type: "summary"; icon: "monitor" | "globe" | "phone" | "file" | "users" | "brain" | "clock" | "info"; title: string; detail?: string; state: "running" | "done" | "waiting" | "error"; onPhone?: boolean }
   /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
