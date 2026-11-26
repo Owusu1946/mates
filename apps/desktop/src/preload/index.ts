@@ -1,4 +1,9 @@
+import { exposeClerkBridge } from "@clerk/electron/preload";
 import { contextBridge, ipcRenderer } from "electron";
+
+// Clerk's narrow bridge: the session token kept by the app (encrypted on disk), and Apple or
+// Google sign-in opened in the system browser. Only a window's main frame may use it.
+exposeClerkBridge();
 
 /** Listens to one message from the app; the returned function stops listening. */
 function subscribe(channel: string, listener: () => void) {

@@ -1,7 +1,7 @@
 import * as Electron from "electron";
 import { parseHandoff, summonBounds, summonHeight, summonOptions, summonShortcuts, type SummonHandoff } from "./SummonWindow.logic.ts";
 
-export type SummonSources = { preload: string; url: string | null; file: string };
+export type SummonSources = { preload: string; url: string };
 
 export type Summon = {
   toggle: () => void;
@@ -26,8 +26,7 @@ export function installSummon(
     window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     window.setAlwaysOnTop(true, "pop-up-menu");
   }
-  if (sources.url) void window.loadURL(`${sources.url}/summon.html`);
-  else void window.loadFile(sources.file);
+  void window.loadURL(`${sources.url}/summon.html`);
 
   let height = summonHeight(undefined);
   const fromBar = (event: Electron.IpcMainEvent) => event.sender === window.webContents;

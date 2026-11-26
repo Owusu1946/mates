@@ -1,3 +1,4 @@
+import { useUser } from "@clerk/electron/react";
 import { useState } from "react";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
@@ -6,12 +7,13 @@ import { Group, Row, SettingsPage } from "./SettingsParts.tsx";
 
 /** You: your name and email, the devices you're signed in on, signing out, and deleting your account. */
 export function AccountSettings({ you, onSignOut }: { you: string; onSignOut: () => void }) {
+  const { user } = useUser();
   const [devices, setDevices] = useState(DEVICES);
   const [deleting, setDeleting] = useState(false);
   return (
     <SettingsPage title="Account" description="Who you are on Mates, and where you're signed in.">
       <Group>
-        <Row label={you} hint="ama@mates.app">
+        <Row label={you} hint={user?.primaryEmailAddress?.emailAddress}>
           <span className="flex size-9 items-center justify-center rounded-full bg-brand text-sm font-semibold text-brand-ink">{you.charAt(0).toUpperCase()}</span>
         </Row>
       </Group>

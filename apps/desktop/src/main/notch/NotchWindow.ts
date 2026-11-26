@@ -2,7 +2,7 @@ import * as Electron from "electron";
 import { parseHandoff, type SummonHandoff } from "../summon/SummonWindow.logic.ts";
 import { detectNotch, drifted, notchCanvasBounds, notchOptions, rememberNotch, type Area, type Notch } from "./NotchWindow.logic.ts";
 
-export type NotchSources = { preload: string; url: string | null; file: string };
+export type NotchSources = { preload: string; url: string };
 
 export type NotchControl = {
   /** Opens or closes the notch when the pointer is on the notched screen; false when there's none there. */
@@ -48,8 +48,7 @@ export function installNotch(sources: NotchSources, { openInMates }: { openInMat
 
   const load = (target: Electron.BrowserWindow, notch: Notch) => {
     const query = { w: String(notch.width), h: String(notch.height) };
-    if (sources.url) void target.loadURL(`${sources.url}/notch.html?${new URLSearchParams(query)}`);
-    else void target.loadFile(sources.file, { query });
+    void target.loadURL(`${sources.url}/notch.html?${new URLSearchParams(query)}`);
   };
 
   const create = () => {

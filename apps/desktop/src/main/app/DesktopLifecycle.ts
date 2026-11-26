@@ -9,7 +9,8 @@ export type AppControls = {
  * One running copy, and each system's own habits for windows. With the tray and the hidden
  * summon bar, closing the main window leaves Mates running, so the bar still opens from any app;
  * Quit in the tray or the app menu ends it. `onReady` runs once Electron is ready and before the
- * first window, so guards, menus and the tray cover it.
+ * first window, so guards, menus and the tray cover it. Returns whether this is the copy that keeps
+ * running, so the caller can set up what has to exist before Electron is ready.
  */
 export function startLifecycle({
   onReady,
@@ -20,11 +21,11 @@ export function startLifecycle({
   openWindow: () => Electron.BrowserWindow;
   /** Settings → This computer: closing the window quits, instead of leaving Mates in the tray. */
   quitOnClose?: () => boolean;
-}) {
+}): boolean {
   if (!Electron.app.requestSingleInstanceLock()) {
     // Another copy runs; it brings its window forward (second-instance below).
     Electron.app.quit();
-    return;
+    return false;
   }
 
   let mainWindow: Electron.BrowserWindow | null = null;
@@ -60,4 +61,5 @@ export function startLifecycle({
     onReady({ showMain });
     open();
   });
+  return true;
 }

@@ -14,6 +14,12 @@ files:
 
 asar: true
 
+# mates:// opens the app: Apple and Google sign-in come back on mates://app/ (src/main/app/DesktopScheme.logic.ts).
+# Registers the scheme on macOS (Info.plist) and Linux (.desktop MimeType); Windows registers it at runtime.
+protocols:
+  - name: Mates
+    schemes: [mates]
+
 win:
   icon: build/icon.png
   target:

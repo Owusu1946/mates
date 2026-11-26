@@ -1,3 +1,10 @@
+/** apps/desktop/.env (see .env.example): public values only. */
+interface ImportMetaEnv {
+  readonly VITE_CLERK_PUBLISHABLE_KEY?: string;
+  readonly VITE_CLERK_FRONTEND_API_HOST?: string;
+  readonly VITE_API_URL?: string;
+}
+
 /** What the preload puts on window (src/preload/index.ts). */
 interface Window {
   mates: {
