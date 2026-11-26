@@ -14,19 +14,25 @@ import { PasswordScreen } from "./PasswordScreen.tsx";
 import { SignInScreen } from "./SignInScreen.tsx";
 import { SignUpScreen } from "./SignUpScreen.tsx";
 import { StepIndicator } from "./StepIndicator.tsx";
+import { messageOf, useSetupApi } from "./useSetupApi.ts";
 import { cn } from "../lib/utils.ts";
 
-export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: Leader; myName: string; profile: SampleProfile; codes: boolean };
+/** What setup made, for the crew the app opens with. */
+export type OnboardingResult = { leader: Leader; myName: string; profile: SampleProfile; codes: boolean };
 
 /**
- * Preview the sign-in and setup flows before opening the sample workspace.
+ * Getting in, and setting up. Signed out it starts at the choice of signing in or creating an
+ * account, and ends when Clerk's session turns active (the app then takes over). A new account
+ * comes back with start="leader": the lead mate, about you and memories, each saved to the API,
+ * then onFinish.
  */
-export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onFinish: (result: OnboardingResult) => void }) {
+export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onFinish?: (result: OnboardingResult) => void }) {
   const [flow, dispatch] = useReducer(flowReducer, { ...INITIAL_FLOW, screen: start });
   const [leader, setLeader] = useState<Leader | null>(null);
   const [about, setAbout] = useState({ name: "", bio: "", codes: false });
   const step = newcomerStep(flow.screen);
 
+  const setup = useSetupApi();
   const signIn = useEmailSignIn();
   const signUp = useEmailSignUp();
   const social = useSocialSignIn();
@@ -94,10 +100,16 @@ export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onF
       case "leader":
         return (
           <LeaderScreen
-            onDone={(created) => {
-              setLeader(created);
-              go("about");
-            }}
+            onDone={(created) =>
+              setup.saveLeader(created).then(
+                () => {
+                  setLeader(created);
+                  go("about");
+                  return null;
+                },
+                messageOf,
+              )
+            }
           />
         );
       case "about":
@@ -105,15 +117,21 @@ export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onF
           leader && (
             <AboutScreen
               leader={leader}
-              onDone={(name, bio, codes) => {
-                setAbout({ name, bio, codes });
-                go("import");
-              }}
+              onDone={(name, bio, codes) =>
+                setup.saveAbout(name, bio).then(
+                  () => {
+                    setAbout({ name, bio, codes });
+                    go("import");
+                    return null;
+                  },
+                  messageOf,
+                )
+              }
             />
           )
         );
       case "import":
-        return leader && <ImportScreen leader={leader} onDone={(memories) => onFinish({ kind: "joined", leader, myName: about.name, profile: { bio: about.bio, memories }, codes: about.codes })} />;
+        return leader && <ImportScreen leader={leader} api={setup} onDone={(memories) => onFinish?.({ leader, myName: about.name, profile: { bio: about.bio, memories }, codes: about.codes })} />;
     }
   }
 

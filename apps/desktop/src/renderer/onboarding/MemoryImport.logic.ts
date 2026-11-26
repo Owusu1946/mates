@@ -1,7 +1,7 @@
 /**
  * Bringing what another assistant knows, as on the phone (apps/mobile/src/memory/import-prompts.ts):
  * the person runs a prompt in the old assistant and pastes its answer back. The preview here is
- * local and line by line; the real one comes from the API (POST /v1/memories/import) later.
+ * only a local line count for the button; the API reads the answer (POST /v1/memories/import).
  */
 
 export type ImportSource = "chatgpt" | "claude" | "gemini" | "grok" | "other";

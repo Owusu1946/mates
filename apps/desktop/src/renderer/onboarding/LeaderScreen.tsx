@@ -15,7 +15,9 @@ export type Leader = { name: string; shape: ShapeName; color: MateColor };
  * Right after sign-up, as on the phone: name the lead mate (today's day name to start, a
  * shuffle for the other six, or your own), pick a shape and a colour, and watch it react.
  */
-export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => void }) {
+export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => Promise<string | null> }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const today = new Date().getDay();
   const [name, setName] = useState<string>(() => dayNameFor(new Date()));
   const [shape, setShape] = useState<ShapeName>("hexagon");
@@ -47,7 +49,14 @@ export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => void }) {
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (valid) onDone({ name: name.trim(), shape, color });
+            if (!valid || saving) return;
+            setSaving(true);
+            setError(null);
+            // Saved, the flow moves on; failed, the message shows here and Create tries again.
+            void onDone({ name: name.trim(), shape, color }).then((failed) => {
+              setError(failed);
+              setSaving(false);
+            });
           }}
         >
           <div className={cn("flex items-center rounded-xl border border-field-line bg-canvas pl-11 shadow-xs/5 transition-shadow focus-within:border-brand focus-within:ring-[3px] focus-within:ring-brand/20 dark:bg-field-line/30", hint.problem && "border-danger/60")}>
@@ -93,8 +102,13 @@ export function LeaderScreen({ onDone }: { onDone: (leader: Leader) => void }) {
             }}
           />
 
-          <Button type="submit" size="xl" className="w-full" disabled={!valid}>
-            Create
+          {error && (
+            <p role="alert" className="text-center text-sm text-danger-ink">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="xl" className="w-full" disabled={!valid || saving}>
+            {saving ? "Saving…" : error ? "Try again" : "Create"}
           </Button>
         </form>
       </OnboardingScreen.Content>

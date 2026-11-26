@@ -8,15 +8,18 @@ import { AssistantLogo } from "./AssistantLogo.tsx";
 import type { Leader } from "./LeaderScreen.tsx";
 import { MAX_IMPORT_CHARS, SOURCES, previewMemories, promptFor, sourceOf, type ImportSource } from "./MemoryImport.logic.ts";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
+import { messageOf, type ImportItem, type useSetupApi } from "./useSetupApi.ts";
+
+type ImportApi = Pick<ReturnType<typeof useSetupApi>, "previewImport" | "confirmImport">;
 
 /**
  * The last step: bring what ChatGPT, Claude, Gemini or Grok knows, so the new mate doesn't start
- * from zero. The sample workspace keeps the selected items for this session.
+ * from zero. The API reads the answer and saves what you tick (useSetupApi).
  */
-export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: (memories: string[]) => void }) {
+export function ImportScreen({ leader, api, onDone }: { leader: Leader; api: ImportApi; onDone: (memories: string[]) => void }) {
   const [source, setSource] = useState<ImportSource | null>(null);
 
-  if (source) return <ImportFlow leader={leader} source={source} onBack={() => setSource(null)} onDone={onDone} />;
+  if (source) return <ImportFlow leader={leader} source={source} api={api} onBack={() => setSource(null)} onDone={onDone} />;
 
   return (
     <OnboardingScreen.Root key="sources">
@@ -54,13 +57,47 @@ export function ImportScreen({ leader, onDone }: { leader: Leader; onDone: (memo
   );
 }
 
-function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Leader; source: ImportSource; onBack: () => void; onDone: (memories: string[]) => void }) {
+function ImportFlow({ leader, source: sourceId, api, onBack, onDone }: { leader: Leader; source: ImportSource; api: ImportApi; onBack: () => void; onDone: (memories: string[]) => void }) {
   const source = sourceOf(sourceId);
   const label = source.id === "other" ? "your assistant" : source.name;
   const [answer, setAnswer] = useState("");
   const [copied, setCopied] = useState(false);
-  const [items, setItems] = useState<{ text: string; on: boolean }[] | null>(null);
+  const [items, setItems] = useState<(ImportItem & { on: boolean })[] | null>(null);
   const [imported, setImported] = useState<string[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function attempt(action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+    } catch (cause) {
+      setError(messageOf(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // The API reads the answer; sensitive facts and ones that change a memory start unticked, as on the phone.
+  const review = () =>
+    attempt(async () => {
+      const found = await api.previewImport(source.id, answer.trim());
+      setItems(found.map((item) => ({ ...item, on: !item.sensitive && !item.conflict })));
+    });
+
+  const confirm = (chosen: ImportItem[]) =>
+    attempt(async () => {
+      await api.confirmImport(source.id, chosen);
+      setImported(chosen.map((item) => item.text));
+    });
+
+  const errorLine = error && (
+    <p role="alert" className="text-center text-sm text-danger-ink">
+      {error}
+    </p>
+  );
 
   async function copyAndOpen() {
     const prompt = promptFor(source);
@@ -83,7 +120,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
         <OnboardingScreen.Title>
           {imported.length} {imported.length === 1 ? "memory" : "memories"} from {label}
         </OnboardingScreen.Title>
-        <OnboardingScreen.Body>You can view them in Settings under About you during this session.</OnboardingScreen.Body>
+        <OnboardingScreen.Body>{leader.name} and the rest of your mates know them now, on every device.</OnboardingScreen.Body>
         <OnboardingScreen.Actions>
           <Button size="xl" className="w-full" onClick={() => onDone(imported)}>
             Continue
@@ -93,7 +130,7 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
     );
 
   if (items) {
-    const selected = items.filter((item) => item.on).map((item) => item.text);
+    const selected = items.filter((item) => item.on);
     return (
       <OnboardingScreen.Root key="review">
         <OnboardingScreen.Back onClick={() => setItems(null)} />
@@ -104,28 +141,35 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
         <OnboardingScreen.Content>
           <ul className="-mx-2 max-h-75 overflow-y-auto">
             {items.map((item, index) => (
-              <li key={item.text}>
+              <li key={item.key}>
                 <label className="flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-2 text-sm select-text hover:bg-hover-fill">
                   <input
                     type="checkbox"
                     className="mt-0.5 accent-brand"
                     checked={item.on}
+                    disabled={busy}
                     onChange={() => setItems(items.map((other, i) => (i === index ? { ...other, on: !other.on } : other)))}
                   />
-                  <span>{item.text}</span>
+                  <span>
+                    {item.text}
+                    {item.conflict && <span className="block text-xs text-ink-soft">Replaces “{item.conflict.text}”</span>}
+                  </span>
                 </label>
               </li>
             ))}
           </ul>
-          <Button size="xl" className="w-full" disabled={selected.length === 0} onClick={() => setImported(selected)}>
-            Import {selected.length}
+          {errorLine}
+          <Button size="xl" className="w-full" disabled={selected.length === 0 || busy} onClick={() => void confirm(selected)}>
+            {busy ? "Importing…" : `Import ${selected.length}`}
           </Button>
         </OnboardingScreen.Content>
       </OnboardingScreen.Root>
     );
   }
 
-  const preview = previewMemories(answer);
+  // The API reads at least 20 characters (memory-import.ts); the local count only hints at what's there.
+  const lines = previewMemories(answer).length;
+  const readable = answer.trim().length >= 20;
   return (
     <OnboardingScreen.Root key="paste">
       <OnboardingScreen.Back onClick={onBack} label="All assistants" />
@@ -149,8 +193,9 @@ function ImportFlow({ leader, source: sourceId, onBack, onDone }: { leader: Lead
             <TextArea label={`${label}'s answer`} rows={6} maxLength={MAX_IMPORT_CHARS} placeholder="Paste here" value={answer} onChange={(event) => setAnswer(event.target.value)} />
           </div>
         </div>
-        <Button size="xl" className="w-full" disabled={!preview.length} onClick={() => setItems(preview.map((text) => ({ text, on: true })))}>
-          Review {preview.length ? preview.length : ""} memories
+        {errorLine}
+        <Button size="xl" className="w-full" disabled={!readable || busy} onClick={() => void review()}>
+          {busy ? `Reading ${label}'s answer…` : `Review ${lines ? lines : ""} memories`}
         </Button>
       </OnboardingScreen.Content>
     </OnboardingScreen.Root>

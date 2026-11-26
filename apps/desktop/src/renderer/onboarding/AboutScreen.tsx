@@ -23,11 +23,24 @@ const PROMPTS = [
  * name is the one friends see (sign-up never asks for it). One question decides whether Mates
  * shows its coding tools from the start; a no still lets them appear once you start coding.
  */
-export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string, bio: string, codes: boolean) => void }) {
+export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myName: string, bio: string, codes: boolean) => Promise<string | null> }) {
   const [myName, setMyName] = useState("");
   const [bio, setBio] = useState("");
   const [codes, setCodes] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const ready = bio.trim().length >= 3;
+
+  /** Saves, then the flow moves on; a failure shows here, and pressing again retries. */
+  function save(text: string) {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    void onDone(myName.trim(), text, codes).then((failed) => {
+      setError(failed);
+      setSaving(false);
+    });
+  }
 
   function addLine(line: string) {
     setBio((text) => (!text.trim() ? line : /\n$/.test(text) ? text + line : `${text}\n${line}`).slice(0, MAX_BIO));
@@ -40,7 +53,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
       </OnboardingScreen.Hero>
       <OnboardingScreen.Title>Tell {leader.name} about yourself</OnboardingScreen.Title>
       <OnboardingScreen.Body>
-        Add a name and a short introduction for your sample workspace.
+        Your name is the one friends see. A short introduction helps {leader.name} from the first chat.
       </OnboardingScreen.Body>
       <OnboardingScreen.Content>
         <form
@@ -48,7 +61,7 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
-            if (ready) onDone(myName.trim(), bio.trim(), codes);
+            if (ready) save(bio.trim());
           }}
         >
           <TextField label="What should your mates call you?" placeholder="Your first name" maxLength={40} value={myName} onChange={(event) => setMyName(event.target.value)} />
@@ -88,13 +101,18 @@ export function AboutScreen({ leader, onDone }: { leader: Leader; onDone: (myNam
               ))}
             </div>
           </div>
-          <Button type="submit" size="xl" className="w-full" disabled={!ready}>
-            Continue
+          {error && (
+            <p role="alert" className="text-center text-sm text-danger-ink">
+              {error}
+            </p>
+          )}
+          <Button type="submit" size="xl" className="w-full" disabled={!ready || saving}>
+            {saving ? "Saving…" : error ? "Try again" : "Continue"}
           </Button>
         </form>
       </OnboardingScreen.Content>
       <OnboardingScreen.Footer className="mt-3">
-        <Button variant="ghost-muted" size="sm" onClick={() => onDone(myName.trim(), "", codes)}>
+        <Button variant="ghost-muted" size="sm" disabled={saving} onClick={() => save("")}>
           Skip for now
           <Icon name="arrowRight" />
         </Button>

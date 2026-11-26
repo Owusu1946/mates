@@ -15,7 +15,6 @@ import { TitleBar } from "./shell/TitleBar.tsx";
  * Only who you are is real so far: the crew, chats and projects are still the sample's.
  */
 function crewAfter(you: string, result: OnboardingResult): Crew {
-  if (result.kind === "signedIn") return crewFor(you);
   startCoding(preferenceFromOnboarding(result.codes));
   return { ...crewFor(result.myName.trim() || you, result.leader), profile: result.profile, hasProjects: false };
 }
@@ -39,7 +38,7 @@ function Session() {
     return (
       <>
         <TitleBar />
-        <Onboarding onFinish={() => undefined} />
+        <Onboarding />
       </>
     );
   return <SignedIn />;
