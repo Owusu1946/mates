@@ -496,6 +496,15 @@ importers:
         specifier: 7.1.0-beta.tsrs5
         version: 7.1.0-beta.tsrs5
 
+  packages/client-core:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.19.1
+        version: 24.19.1
+      tsrs:
+        specifier: 7.1.0-beta.tsrs5
+        version: 7.1.0-beta.tsrs5
+
   packages/decks:
     dependencies:
       zod:
