@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useState } from "react";
 import type { ReadError } from "../auth/clerkErrors.logic.ts";
-import { useEmailSignIn, usePasswordMinLength, type AuthStep } from "../auth/useEmailAuth.ts";
+import { useEmailSignIn, useEmailSignUp, usePasswordMinLength, useSocialSignIn, type AuthStep } from "../auth/useAuthSteps.ts";
 import type { SampleProfile } from "../data/sampleCrew.ts";
 import { useStableCallback } from "../hooks/useStableCallback.ts";
 import { AboutScreen } from "./AboutScreen.tsx";
@@ -28,6 +28,8 @@ export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onF
   const step = newcomerStep(flow.screen);
 
   const signIn = useEmailSignIn();
+  const signUp = useEmailSignUp();
+  const social = useSocialSignIn();
   const minLength = usePasswordMinLength();
 
   const go = (to: Screen, email?: string, provider?: SocialProvider) => dispatch({ type: "go", to, email, provider });
@@ -42,8 +44,7 @@ export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onF
     return null;
   };
   // Apple or Google already confirmed the email, so a new account skips the password and code.
-  const signedIn = useStableCallback(() => onFinish({ kind: "signedIn" }));
-  const joined = useStableCallback(() => go("leader"));
+  const startSocial = useStableCallback(social);
 
   // Escape steps back, like a sheet closing; the setup steps after sign-up have nowhere to go back to.
   useEffect(() => {
@@ -81,15 +82,15 @@ export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onF
       case "signInNewPassword":
         return <PasswordScreen mode="reset" email={flow.email} minLength={minLength} onBack={back} onSubmit={(password) => signIn.submitNewPassword(flow.email, password).then(follow)} />;
       case "signInSocial":
-        return <BrowserScreen provider={flow.provider ?? "google"} onBack={back} onDone={signedIn} />;
+        return <BrowserScreen provider={flow.provider ?? "google"} onBack={back} onStart={startSocial} />;
       case "signUp":
         return <SignUpScreen email={flow.email} onBack={back} onEmail={(email) => go("signUpPassword", email)} onSocial={(provider) => go("signUpSocial", undefined, provider)} onSignIn={() => go("signIn")} />;
       case "signUpPassword":
-        return <PasswordScreen mode="signUp" email={flow.email} minLength={minLength} onBack={back} onSubmit={async () => (go("signUpCode"), null)} />;
+        return <PasswordScreen mode="signUp" email={flow.email} minLength={minLength} onBack={back} onSubmit={(password) => signUp.withPassword(flow.email, password).then(follow)} />;
       case "signUpCode":
-        return <CodeScreen mode="signUp" email={flow.email} onBack={back} onVerify={async () => (go("leader"), null)} onResend={async () => null} />;
+        return <CodeScreen mode="signUp" email={flow.email} notice={flow.notice} onBack={back} onVerify={(code) => signUp.verifyCode(code).then(follow)} onResend={signUp.resendCode} />;
       case "signUpSocial":
-        return <BrowserScreen provider={flow.provider ?? "google"} onBack={back} onDone={joined} />;
+        return <BrowserScreen provider={flow.provider ?? "google"} onBack={back} onStart={startSocial} />;
       case "leader":
         return (
           <LeaderScreen

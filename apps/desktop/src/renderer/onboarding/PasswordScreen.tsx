@@ -53,7 +53,8 @@ export function PasswordScreen({ mode, email, notice, minLength = MIN_PASSWORD, 
     void run(() => onSubmit(password));
   }
 
-  const message = error && !errorFor(error, "password") ? error.message : null;
+  // Not about the password: the email (like "There's already an account with this email") or the screen.
+  const message = error && !errorFor(error, "password") ? error.fields.email ?? error.message : null;
   return (
     <OnboardingScreen.Root>
       <OnboardingScreen.Back onClick={onBack} />
@@ -92,6 +93,8 @@ export function PasswordScreen({ mode, email, notice, minLength = MIN_PASSWORD, 
               {message}
             </p>
           )}
+          {/* Where Clerk puts its bot check, when the instance asks for one on sign-up. */}
+          {mode === "signUp" && <div id="clerk-captcha" />}
           <Button type="submit" size="xl" className="w-full" disabled={busy}>
             {busy ? "One moment…" : SUBMIT[mode]}
           </Button>

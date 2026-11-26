@@ -1,5 +1,5 @@
-import { useClerk, useSignIn } from "@clerk/electron/react";
-import type { Screen } from "../onboarding/OnboardingFlow.logic.ts";
+import { useClerk, useSignIn, useSignUp } from "@clerk/electron/react";
+import type { Screen, SocialProvider } from "../onboarding/OnboardingFlow.logic.ts";
 import { plainError, readClerkError, type ReadError } from "./clerkErrors.logic.ts";
 import { signInNext } from "./signInNext.logic.ts";
 
@@ -104,6 +104,68 @@ export function useEmailSignIn() {
   }
 
   return { withPassword, sendCode, resendCode, verifyCode, resendDeviceCode, verifyDeviceCode, sendReset, resendReset, verifyReset, submitNewPassword };
+}
+
+/**
+ * Creating an account with email, as on the phone (apps/mobile/app/(public)/sign-up.tsx): the
+ * email and a password, then the code Clerk emails, then finalize. The new session is active, and
+ * the app's setup gate takes over with the lead mate.
+ */
+export function useEmailSignUp() {
+  const { signUp } = useSignUp();
+
+  async function finish(): Promise<AuthStep> {
+    const { error } = await signUp.finalize();
+    return error ? fail(error) : { kind: "done" };
+  }
+
+  async function withPassword(email: string, password: string): Promise<AuthStep> {
+    const { error } = await signUp.password({ emailAddress: email, password });
+    if (error) return fail(error);
+    if (signUp.status === "complete") return finish();
+    if (signUp.missingFields?.includes("password")) return { kind: "error", error: { message: "", fields: { password: "Choose a different password." }, codes: [] } };
+    const sent = await signUp.verifications.sendEmailCode();
+    return sent.error ? fail(sent.error) : go("signUpCode", "We emailed you a code.");
+  }
+
+  async function resendCode(): Promise<ReadError | null> {
+    const { error } = await signUp.verifications.sendEmailCode();
+    return error ? readClerkError(error) : null;
+  }
+
+  async function verifyCode(code: string): Promise<AuthStep> {
+    const { error } = await signUp.verifications.verifyEmailCode({ code });
+    if (error) return fail(error);
+    if (signUp.status === "complete") return finish();
+    return { kind: "error", error: plainError("Your email is verified, but your account still needs additional details. Please contact support to finish setup.") };
+  }
+
+  return { withPassword, resendCode, verifyCode };
+}
+
+const STRATEGY = { apple: "oauth_apple", google: "oauth_google" } as const;
+
+/**
+ * Apple or Google in the system browser. Clerk's Electron bridge opens the provider and waits for
+ * the mates://app/ link back (up to three minutes), then finishes the sign-in, or creates the
+ * account when there isn't one yet. Clerk's newer signIn.sso() doesn't use that bridge (it would
+ * navigate the window away), so this goes through the client's authenticateWithRedirect, which does.
+ */
+export function useSocialSignIn() {
+  const clerk = useClerk();
+  return async function withProvider(provider: SocialProvider): Promise<ReadError | null> {
+    const signIn = clerk.client?.signIn;
+    if (!signIn) return plainError("Mates is still starting. Try again in a moment.");
+    try {
+      // The bridge swaps both URLs for its own mates://app/ link.
+      await signIn.authenticateWithRedirect({ strategy: STRATEGY[provider], redirectUrl: "/", redirectUrlComplete: "/" });
+    } catch (error) {
+      return readClerkError(error, "We couldn’t connect just now. Try again, or continue with email.");
+    }
+    if (clerk.isSignedIn) return null;
+    if (clerk.client?.signUp.status === "missing_requirements") return plainError("Your account needs a few more details. Please create an account using email instead.");
+    return plainError("That didn’t finish signing you in. Try again, or continue with email.");
+  };
 }
 
 /**
