@@ -133,6 +133,9 @@ importers:
       '@expojet/api-contract':
         specifier: workspace:*
         version: link:../../packages/api-contract
+      '@muse-clone/client-core':
+        specifier: workspace:*
+        version: link:../../packages/client-core
       '@muse-clone/mascot':
         specifier: workspace:*
         version: link:../../packages/mascot
@@ -142,6 +145,15 @@ importers:
       '@tailwindcss/vite':
         specifier: ~4.3.5
         version: 4.3.5(vite@8.3.6(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@tanstack/query-async-storage-persister':
+        specifier: 5.104.1
+        version: 5.104.1
+      '@tanstack/react-query':
+        specifier: 5.104.1
+        version: 5.104.1(react@19.2.3)
+      '@tanstack/react-query-persist-client':
+        specifier: 5.104.1
+        version: 5.104.1(@tanstack/react-query@5.104.1(react@19.2.3))(react@19.2.3)
       '@types/node':
         specifier: ^24.19.1
         version: 24.19.1
@@ -184,6 +196,9 @@ importers:
       hono:
         specifier: ^4.13.13
         version: 4.13.13
+      idb-keyval:
+        specifier: 6.3.0
+        version: 6.3.0
       oxc-transform-react:
         specifier: ~0.156.0
         version: 0.156.0
@@ -460,7 +475,7 @@ importers:
         version: 7.1.4(@types/node@24.19.1)(@types/react-dom@19.3.0(@types/react@19.2.18))(@types/react@19.2.18)(babel-plugin-react-compiler@1.0.0)(esbuild@0.28.2)(jiti@2.7.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       '@astrojs/vercel':
         specifier: ^11.0.22
-        version: 11.0.22(@aws-sdk/credential-provider-web-identity@3.972.90)(astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.2.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(react@19.2.3)(rollup@4.64.3)(ws@8.22.1)
+        version: 11.0.22(@aws-sdk/credential-provider-web-identity@3.972.90)(astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(react@19.2.3)(rollup@4.64.3)(ws@8.22.1)
       '@muse-clone/decks':
         specifier: workspace:*
         version: link:../../packages/decks
@@ -472,7 +487,7 @@ importers:
         version: link:../../packages/pages
       astro:
         specifier: ^7.4.7
-        version: 7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.2.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+        version: 7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       livekit-client:
         specifier: ^2.23.0
         version: 2.23.0(@types/dom-mediacapture-record@1.0.22)
@@ -4249,8 +4264,20 @@ packages:
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
 
+  '@tanstack/query-async-storage-persister@5.104.1':
+    resolution: {integrity: sha512-wSs/HrangoSMVW3zLifawRT9lA+fbiilPQmaY+YhxBOM/VS9oqx+MQvROHpW+hKwDpdvFmhyBjWiyDhTHL1YXg==}
+
   '@tanstack/query-core@5.104.1':
     resolution: {integrity: sha512-TiRghcrGkUTE+M4JBxvpPSpBhxvIzQairw+cksrHYGr+2uwC77yW1SY9nYxnYRYOppvucf8rEg6b5byoz4rTpw==}
+
+  '@tanstack/query-persist-client-core@5.104.1':
+    resolution: {integrity: sha512-ONiadXqe56iNrw6RESqKILpTIVG9ZMI/DageTQnrBDt/nZ6WiP4G13iIiMwJEsiO12gQ3Gychx8tcFIPw4k25g==}
+
+  '@tanstack/react-query-persist-client@5.104.1':
+    resolution: {integrity: sha512-kU3YaqjkwEUzUUfPF0JVg56d6gJKWHaFVqOlQztwc4C2IT0P5sv/23orrSoQqjxKaUe6Ejw5IIQtA/G12uNmow==}
+    peerDependencies:
+      '@tanstack/react-query': ^5.104.1
+      react: ^18 || ^19
 
   '@tanstack/react-query@5.104.1':
     resolution: {integrity: sha512-Zz70EgjahNI7aCz8BZxM3vUGU44ycxEAzMuCUjLeA7SVhhOkg3ZgPjPJPvHjs6Rmky/dtmnu1WzjGHNHmhCoZQ==}
@@ -6800,6 +6827,9 @@ packages:
 
   idb-keyval@6.2.1:
     resolution: {integrity: sha512-8Sb3veuYCyrZL+VBt9LJfZjLUPWVvqn8tG28VqYNFCo43KHcKuq+b4EiXGeuaLAQWL2YmyDgMp2aSpH9JHsEQg==}
+
+  idb-keyval@6.3.0:
+    resolution: {integrity: sha512-um+2dgAWmYsu615EXpWVwSmapJhON0G43t3Ka/EVaohzPQXSMqKEqeDK/oIW3Ow+BXaF2PvSc+oBTFp793A5Ow==}
 
   ieee754@1.2.1:
     resolution: {integrity: sha512-dcyqhDvX1C46lXZcVqCpK+FtMRQVdIMN6/Df5js2zouUsqG7I6sFxitIC+7KYK29KdXOLHdu9zL4sFnoVQnqaA==}
@@ -10115,14 +10145,14 @@ snapshots:
       is-docker: 4.0.0
       package-manager-detector: 1.9.0
 
-  '@astrojs/vercel@11.0.22(@aws-sdk/credential-provider-web-identity@3.972.90)(astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.2.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(react@19.2.3)(rollup@4.64.3)(ws@8.22.1)':
+  '@astrojs/vercel@11.0.22(@aws-sdk/credential-provider-web-identity@3.972.90)(astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))(react@19.2.3)(rollup@4.64.3)(ws@8.22.1)':
     dependencies:
       '@astrojs/internal-helpers': 0.13.2
       '@vercel/analytics': 2.0.1(react@19.2.3)
       '@vercel/functions': 3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1)
       '@vercel/nft': 1.11.10(rollup@4.64.3)
       '@vercel/routing-utils': 6.6.1
-      astro: 7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.2.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      astro: 7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       rolldown: 1.2.16
       tinyglobby: 0.2.17
     transitivePeerDependencies:
@@ -14005,7 +14035,22 @@ snapshots:
       tailwindcss: 4.3.5
       vite: 8.3.6(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
+  '@tanstack/query-async-storage-persister@5.104.1':
+    dependencies:
+      '@tanstack/query-core': 5.104.1
+      '@tanstack/query-persist-client-core': 5.104.1
+
   '@tanstack/query-core@5.104.1': {}
+
+  '@tanstack/query-persist-client-core@5.104.1':
+    dependencies:
+      '@tanstack/query-core': 5.104.1
+
+  '@tanstack/react-query-persist-client@5.104.1(@tanstack/react-query@5.104.1(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      '@tanstack/query-persist-client-core': 5.104.1
+      '@tanstack/react-query': 5.104.1(react@19.2.3)
+      react: 19.2.3
 
   '@tanstack/react-query@5.104.1(react@19.2.3)':
     dependencies:
@@ -14649,7 +14694,7 @@ snapshots:
       nanoid: 6.0.2
       secure-json-parse: 4.1.0
 
-  astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.2.1)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
+  astro@7.4.7(@types/node@24.19.1)(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(esbuild@0.28.2)(idb-keyval@6.3.0)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       '@astrojs/compiler-rs': 0.5.2
       '@astrojs/internal-helpers': 0.13.1
@@ -14696,7 +14741,7 @@ snapshots:
       tinyps: 0.5.2
       ultrahtml: 1.7.0
       unifont: 1.0.3
-      unstorage: 1.17.6(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(idb-keyval@6.2.1)
+      unstorage: 1.17.6(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(idb-keyval@6.3.0)
       verkit: 0.5.0
       vite: 8.3.6(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       vitefu: 1.1.3(vite@8.3.6(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
@@ -16977,6 +17022,8 @@ snapshots:
       safer-buffer: 2.1.2
 
   idb-keyval@6.2.1: {}
+
+  idb-keyval@6.3.0: {}
 
   ieee754@1.2.1: {}
 
@@ -19943,7 +19990,7 @@ snapshots:
 
   unpipe@1.0.0: {}
 
-  unstorage@1.17.6(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(idb-keyval@6.2.1):
+  unstorage@1.17.6(@vercel/functions@3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1))(idb-keyval@6.3.0):
     dependencies:
       anymatch: 3.1.3
       chokidar: 5.0.0
@@ -19955,7 +20002,7 @@ snapshots:
       ufo: 1.6.4
     optionalDependencies:
       '@vercel/functions': 3.11.3(@aws-sdk/credential-provider-web-identity@3.972.90)(ws@8.22.1)
-      idb-keyval: 6.2.1
+      idb-keyval: 6.3.0
 
   unzipper@0.12.5:
     dependencies:
