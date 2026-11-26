@@ -19,8 +19,8 @@ export type OnboardingResult = { kind: "signedIn" } | { kind: "joined"; leader: 
 /**
  * Preview the sign-in and setup flows before opening the sample workspace.
  */
-export function Onboarding({ onFinish }: { onFinish: (result: OnboardingResult) => void }) {
-  const [flow, dispatch] = useReducer(flowReducer, INITIAL_FLOW);
+export function Onboarding({ start = "choose", onFinish }: { start?: Screen; onFinish: (result: OnboardingResult) => void }) {
+  const [flow, dispatch] = useReducer(flowReducer, { ...INITIAL_FLOW, screen: start });
   const [leader, setLeader] = useState<Leader | null>(null);
   const [about, setAbout] = useState({ name: "", bio: "", codes: false });
   const step = newcomerStep(flow.screen);
