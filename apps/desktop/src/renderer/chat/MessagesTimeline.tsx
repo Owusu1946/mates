@@ -52,7 +52,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const regenerable = regenerableId(messages);
   const latestReply = messages.findLast((message) => message.author !== "me")?.id;
   const busy = Boolean(reply) || messages.some((message) => message.live);
-  // Changes as a reply streams, so the view keeps up with it while you're at the bottom.
+  // What's at the end: changes with a new message or streaming words, not with older pages loading above.
   const tail = messages.at(-1);
   // Stable, so the memoised rows don't all re-render as a reply streams.
   const act = useStableCallback(onAction);
@@ -61,7 +61,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
-    <TimelineViewport scrollKey={chatId} contentKey={`${messages.length}:${streamed.length}:${reply?.phase}:${tail?.text.length ?? 0}:${tail?.live ? 1 : 0}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
+    <TimelineViewport scrollKey={chatId} contentKey={`${tail?.id ?? ""}:${tail?.text.length ?? 0}:${tail?.live ? 1 : 0}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
       <CardMatesContext value={mates}>
       <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
         {history?.hasMore && (
