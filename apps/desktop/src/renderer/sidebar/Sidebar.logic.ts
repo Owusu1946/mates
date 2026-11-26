@@ -1,5 +1,5 @@
 /**
- * What the sidebar shows and how the keyboard reaches it. Mates and groups get Ctrl/⌘ 1–9.
+ * What the sidebar shows and how the keyboard reaches it. Pinned chats, mates and groups get Ctrl/⌘ 1–9.
  */
 
 export type Selection = { kind: "chat" | "repo" | "run" | "place"; id: string };
@@ -10,9 +10,9 @@ export const JUMP_SLOTS = 9;
 
 export const sameSelection = (a: Selection, b: Selection) => a.kind === b.kind && a.id === b.id;
 
-/** The rows Ctrl/⌘ 1–9 jump to: mates first (the people you talk to most), then groups. */
-export function jumpTargets(mateChatIds: string[], groupIds: string[]): Selection[] {
-  return [...mateChatIds, ...groupIds].slice(0, JUMP_SLOTS).map((id) => ({ kind: "chat", id }));
+/** The rows Ctrl/⌘ 1–9 jump to: pinned chats first, in shelf order, then mates, then groups. */
+export function jumpTargets(mateChatIds: string[], groupIds: string[], pinnedIds: string[] = []): Selection[] {
+  return [...new Set([...pinnedIds, ...mateChatIds, ...groupIds])].slice(0, JUMP_SLOTS).map((id) => ({ kind: "chat", id }));
 }
 
 /** The number a row shows while Ctrl/⌘ is held, or null when it has none. */
