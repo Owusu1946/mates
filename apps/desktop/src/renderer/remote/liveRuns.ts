@@ -1,5 +1,7 @@
 import { applyRunEvent, applyRunSnapshot, readRunStreamEvents, retryDelay, settledContent, startProgress, type RunProgress } from "@muse-clone/client-core";
 import type { QueryClient } from "@tanstack/react-query";
+import { useSyncExternalStore } from "react";
+import { liveChatOf, type LiveChat } from "../data/liveChat.logic.ts";
 import { withReply } from "../data/threadEdit.logic.ts";
 import { apiFetch, ensureOk, type GetToken } from "../lib/api.ts";
 import { updateThread } from "./thread.ts";
@@ -45,6 +47,21 @@ const sleep = (ms: number, signal: AbortSignal) =>
     signal.addEventListener("abort", done, { once: true });
   });
 
+/** What each chat's mate is doing because of a reply in progress, for faces and sidebar lines. */
+let liveChats: Record<string, LiveChat> = {};
+const liveListeners = new Set<() => void>();
+function publish(chatId: string, value: LiveChat | null) {
+  const { [chatId]: _, ...rest } = liveChats;
+  liveChats = value ? { ...rest, [chatId]: value } : rest;
+  for (const listener of liveListeners) listener();
+}
+const subscribeLive = (listener: () => void) => {
+  liveListeners.add(listener);
+  return () => liveListeners.delete(listener);
+};
+/** Chats with a reply in progress (or waiting on you), by chat id. */
+export const useLiveChats = () => useSyncExternalStore(subscribeLive, () => liveChats);
+
 export const isFollowing = (runId: string) => following.has(runId);
 
 /** Stops following a run here (the run itself carries on unless it was cancelled). */
@@ -66,9 +83,12 @@ export function followRun(client: QueryClient, getToken: GetToken, target: RunTa
 
 async function run(client: QueryClient, getToken: GetToken, target: RunTarget, signal: AbortSignal) {
   let progress: RunProgress = startProgress();
+  const chatId = String(target.chatKey[2]);
+  publish(chatId, { phase: "thinking" });
   let stream = target.stream ?? null;
   let failures = 0;
-  const write = (live: boolean) =>
+  const write = (live: boolean) => {
+    publish(chatId, liveChatOf(progress.content, progress.status, progress.settled));
     updateThread(client, target.chatKey, (thread) =>
       withReply(thread, {
         id: target.replyId,
@@ -78,6 +98,7 @@ async function run(client: QueryClient, getToken: GetToken, target: RunTarget, s
         ...(live ? {} : { status: progress.status === "cancelled" ? { type: "incomplete", reason: "cancelled" } : progress.status === "failed" ? { type: "incomplete", reason: "error" } : { type: "complete", reason: "stop" } }),
       }),
     );
+  };
   const apply = (next: RunProgress) => {
     if (next === progress) return;
     progress = next;
@@ -104,6 +125,7 @@ async function run(client: QueryClient, getToken: GetToken, target: RunTarget, s
     if (!progress.settled) await sleep(retryDelay(failures), signal);
   }
 
+  if (signal.aborted || !progress.settled) publish(chatId, null);
   if (signal.aborted) return;
   if (!progress.settled) {
     // Not following any more: show what arrived as it stands; the next refresh brings the rest.
