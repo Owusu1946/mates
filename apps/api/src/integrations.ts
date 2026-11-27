@@ -40,7 +40,8 @@ export type WorkflowCard = {
     more?: string[];
   };
   /** Live progress for the "working" status line; collapses to "Worked for …" when done. */
-  activity?: { label: string; state: "running" | "done" }[];
+  /** `app`: the toolkit a step used (gmail, googlecalendar), so clients can show its logo. */
+  activity?: { label: string; state: "running" | "done"; app?: string }[];
   startedAt?: string;
   finishedAt?: string;
   memory?: { id: string; text: string; action: "saved" | "updated" | "forgotten" };
