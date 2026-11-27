@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { sceneOf } from "@muse-clone/decks";
 import { useState } from "react";

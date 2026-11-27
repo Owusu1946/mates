@@ -12,7 +12,7 @@ import { mentionChoices, type MentionPicks } from "./mentions.logic.ts";
 import { PinnedBar } from "./PinnedBar.tsx";
 import { stableRows } from "./stableRows.ts";
 import { ComposeContext } from "./cards/CardParts.tsx";
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { cardKey, useCardActions } from "../remote/cardActions.ts";
 import { useFeedback } from "../remote/feedback.ts";
 import { shownStatus } from "./cards/cardAnswers.logic.ts";

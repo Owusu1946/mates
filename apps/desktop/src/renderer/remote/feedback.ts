@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { useSyncExternalStore } from "react";
 import { apiFetch, ensureOk } from "../lib/api.ts";
 

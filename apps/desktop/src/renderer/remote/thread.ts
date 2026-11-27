@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { branchTo, cleanMessage, headOf, leafUnder, planMerge, rootPage, type StoredItem } from "@muse-clone/client-core";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useState } from "react";

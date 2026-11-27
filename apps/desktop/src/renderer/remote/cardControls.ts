@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { isConnectUrl } from "../chat/cards/cardAnswers.logic.ts";
