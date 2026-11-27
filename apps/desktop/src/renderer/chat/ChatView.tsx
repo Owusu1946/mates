@@ -21,7 +21,7 @@ import { useRunWatch, useWatching } from "../remote/runWatch.ts";
 import { useChatActions } from "../remote/send.ts";
 import { useThread } from "../remote/thread.ts";
 import { usableApps } from "../settings/apps.logic.ts";
-import { useApps } from "../settings/apps.ts";
+import { useAppList } from "../remote/apps.ts";
 
 type ChatViewProps = {
   chat: Chat;
@@ -78,7 +78,8 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const busy = messages.some((message) => message.live);
   const replying = flow.replying[chat.id];
   const nameOf = (author: string) => (author === "me" ? "You" : (mates[author]?.name ?? ""));
-  const apps = useApps();
+  // The @ menu offers the apps you've connected.
+  const apps = useAppList("", true).apps;
   const connected = usableApps(apps);
   // The draft goes to the API; the composer clears at once, and a send that fails stays in the chat to try again.
   const sendDraft = (text = flow.drafts[chat.id] ?? "") => {

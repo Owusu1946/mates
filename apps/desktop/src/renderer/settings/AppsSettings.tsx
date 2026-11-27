@@ -1,28 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppLogo } from "../components/AppLogo.tsx";
 import { Button } from "../components/ui/Button.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import { Menu, MenuItem } from "../components/ui/Menu.tsx";
 import { cn } from "../lib/utils.ts";
-import { appState, filterApps, STATE_LABEL, type AppConnection } from "./apps.logic.ts";
-import { cancelConnect, connectApp, disconnectApp, useApps } from "./apps.ts";
+import { useAppControls, useAppList, useConnecting } from "../remote/apps.ts";
+import { appState, STATE_LABEL, type AppConnection } from "./apps.logic.ts";
 import { SettingsPage } from "./SettingsParts.tsx";
 
-/** A page of apps at a time, as the API pages them. */
-const PAGE = 12;
+/** Typing settles this long before the search goes to the API. */
+const SEARCH_DELAY_MS = 250;
 
 /**
- * The apps your mates can use for you, as the phone's Settings → Apps: find one, connect it in
- * your browser, disconnect it. What needs you (a sign-in that expired) comes first.
+ * The apps your mates can use for you, as the phone's Settings → Apps: find one (searched by the
+ * API, across every app Composio has), connect it in your browser, disconnect it. What needs you
+ * (a sign-in that expired) comes first. A reply's Connect card is the same connection.
  */
 export function AppsSettings() {
-  const apps = useApps();
   const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
   const [connectedOnly, setConnectedOnly] = useState(false);
-  const [shown, setShown] = useState(PAGE);
-  const listed = filterApps(apps, search, connectedOnly);
-  const connectedCount = apps.filter((app) => app.connected).length;
-  const visible = listed.slice(0, shown);
+  useEffect(() => {
+    const timer = setTimeout(() => setQuery(search.trim()), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [search]);
+  const list = useAppList(query, connectedOnly);
+  const connectedList = useAppList("", true);
+  const connectedCount = connectedList.hasMore ? null : connectedList.apps.filter((app) => app.connected).length;
+  const controls = useAppControls();
+  const connecting = useConnecting();
 
   return (
     <SettingsPage title="Apps" description="Connect an app and your mates can use it for you. They only use one when you ask.">
@@ -32,15 +38,13 @@ export function AppsSettings() {
             <Icon name="search" size={15} className="text-ink-soft" />
             <input
               value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setShown(PAGE);
-              }}
+              onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => event.key === "Escape" && search && (event.stopPropagation(), setSearch(""))}
               placeholder="Find an app"
               aria-label="Find an app"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-ink-soft/80"
             />
+            {list.searching && <span className="size-3.5 animate-spin rounded-full border-[1.5px] border-ink-soft border-r-transparent" />}
             {search && (
               <button type="button" aria-label="Clear search" onClick={() => setSearch("")} className="text-ink-soft hover:text-ink">
                 <Icon name="x" size={14} />
@@ -54,26 +58,45 @@ export function AppsSettings() {
                 type="button"
                 role="radio"
                 aria-checked={connectedOnly === connected}
-                onClick={() => {
-                  setConnectedOnly(connected);
-                  setShown(PAGE);
-                }}
+                onClick={() => setConnectedOnly(connected)}
                 className={cn(
                   "flex items-center gap-1.5 rounded-md px-3 font-medium transition-[background-color,color,box-shadow] duration-150",
                   connectedOnly === connected ? "bg-raised text-ink shadow-xs" : "text-ink-soft hover:text-ink",
                 )}
               >
                 {connected ? "Connected" : "All apps"}
-                {connected && connectedCount > 0 && <span className="text-xs text-ink-soft tabular-nums">{connectedCount}</span>}
+                {connected && Boolean(connectedCount) && <span className="text-xs text-ink-soft tabular-nums">{connectedCount}</span>}
               </button>
             ))}
           </div>
         </div>
 
-        {visible.length > 0 ? (
+        {list.loading ? (
+          <ul aria-label="Loading apps" className="grid gap-2 sm:grid-cols-2">
+            {Array.from({ length: 6 }, (_, at) => (
+              <li key={at} className="h-16 animate-pulse rounded-xl border border-line bg-soft" />
+            ))}
+          </ul>
+        ) : list.error ? (
+          <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-line py-10 text-center">
+            <p className="text-sm font-medium">{list.error}</p>
+            <Button size="sm" variant="outline" onClick={list.retry}>
+              Try again
+            </Button>
+          </div>
+        ) : list.apps.length > 0 ? (
           <ul key={`${connectedOnly}`} className="motion-swap grid gap-2 sm:grid-cols-2">
-            {visible.map((app) => (
-              <AppTile key={app.slug} app={app} />
+            {list.apps.map((app) => (
+              <AppTile
+                key={app.slug}
+                app={app}
+                connecting={connecting.has(app.slug)}
+                disconnecting={controls.disconnecting.has(app.slug)}
+                error={controls.errors[app.slug]}
+                onConnect={() => void controls.connect(app.slug)}
+                onCancel={() => controls.cancel(app.slug)}
+                onDisconnect={() => void controls.disconnect(app.slug)}
+              />
             ))}
           </ul>
         ) : (
@@ -89,10 +112,9 @@ export function AppsSettings() {
           </div>
         )}
 
-        {listed.length > shown && (
-          <Button variant="ghost" size="sm" className="self-center" onClick={() => setShown(shown + PAGE)}>
-            Show more
-            <span className="text-ink-soft tabular-nums">{listed.length - shown}</span>
+        {list.hasMore && !list.loading && !list.error && (
+          <Button variant="ghost" size="sm" className="self-center" disabled={list.loadingMore} onClick={list.loadMore}>
+            {list.loadingMore ? "Loading…" : "Show more"}
           </Button>
         )}
       </div>
@@ -100,8 +122,18 @@ export function AppsSettings() {
   );
 }
 
-function AppTile({ app }: { app: AppConnection }) {
-  const state = appState(app);
+type TileProps = {
+  app: AppConnection;
+  connecting: boolean;
+  disconnecting: boolean;
+  error?: string;
+  onConnect: () => void;
+  onCancel: () => void;
+  onDisconnect: () => void;
+};
+
+function AppTile({ app, connecting, disconnecting, error, onConnect, onCancel, onDisconnect }: TileProps) {
+  const state = appState(app, connecting);
   const [confirming, setConfirming] = useState(false);
 
   if (confirming) {
@@ -118,8 +150,9 @@ function AppTile({ app }: { app: AppConnection }) {
           size="xs"
           variant="outline"
           className="text-danger-ink"
+          disabled={disconnecting}
           onClick={() => {
-            disconnectApp(app.slug);
+            onDisconnect();
             setConfirming(false);
           }}
         >
@@ -147,25 +180,26 @@ function AppTile({ app }: { app: AppConnection }) {
         >
           {state === "connected" && <span className="size-1.5 rounded-full bg-ok" />}
           {state === "connecting" && <span className="size-3 animate-spin rounded-full border-[1.5px] border-current border-r-transparent" />}
-          {STATE_LABEL[state]}
+          {disconnecting ? "Disconnecting…" : STATE_LABEL[state]}
         </p>
+        {error && <p className="truncate text-xs text-danger-ink" title={error}>{error}</p>}
       </div>
       {state === "available" && (
-        <Button size="xs" variant="outline" onClick={() => connectApp(app.slug)}>
+        <Button size="xs" variant="outline" onClick={onConnect}>
           Connect
         </Button>
       )}
       {state === "reconnect" && (
-        <Button size="xs" variant="outline" onClick={() => connectApp(app.slug)}>
+        <Button size="xs" variant="outline" onClick={onConnect}>
           Reconnect
         </Button>
       )}
       {state === "connecting" && (
-        <Button size="xs" variant="ghost" onClick={() => cancelConnect(app.slug)}>
+        <Button size="xs" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
       )}
-      {state === "connected" && (
+      {state === "connected" && !disconnecting && (
         <Menu
           align="end"
           trigger={

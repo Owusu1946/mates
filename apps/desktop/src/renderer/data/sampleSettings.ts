@@ -1,6 +1,6 @@
 /**
  * Permissions and devices for the sample workspace, until Settings reaches the API (action
- * grants, devices). Apps live in sampleApps.ts.
+ * grants, devices). Apps come from the API (remote/apps.ts).
  */
 
 /** Standing permissions you've given, as the phone lists them: "Send emails to Kwesi in Gmail". */
