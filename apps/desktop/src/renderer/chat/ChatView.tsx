@@ -125,7 +125,13 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
   const editMessage = (message: Message, text: string) => void actions.edit(sourceOf(message), text.trim());
   return (
     <div data-run-row className="flex h-full min-w-0 animate-fade">
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="chat-column relative flex min-w-0 flex-1 flex-col" data-has-pins={pinnedOf(messages).length > 0}>
+        <div className="chat-header-overlay pointer-events-none absolute inset-x-0 top-0 z-20">
+          <div aria-hidden="true" className="chat-header-blur pointer-events-none absolute inset-x-0 top-0 -bottom-4">
+            {[2, 4, 8, 16].map((blur, index) => (
+              <span key={blur} className="absolute inset-0" style={{ backdropFilter: `blur(${blur}px)`, maskImage: `linear-gradient(to bottom, black, transparent ${100 - index * 20}%)` }} />
+            ))}
+          </div>
         <ChatHeader
           chat={chat}
           lead={lead}
@@ -138,6 +144,7 @@ export function ChatView({ chat, mates, timelineMates, flow, dispatch, composerR
           onEdit={onEdit}
         />
         <PinnedBar pinned={pinnedOf(messages)} nameOf={nameOf} onUnpin={togglePin} />
+        </div>
         <ComposeContext value={(text) => {
           dispatch({ type: "draft", chatId: chat.id, text });
           focusComposer();

@@ -967,3 +967,26 @@ html[data-surface="notch"] body {
     transition: none;
   }
 }
+
+/* The timeline runs behind a transparent header; each layer fades its blur sooner. */
+.chat-column {
+  --chat-header-height: 52px;
+}
+.chat-column[data-has-pins="true"] {
+  --chat-header-height: 88px;
+}
+.chat-header-overlay > :not(.chat-header-blur) {
+  position: relative;
+  pointer-events: auto;
+}
+.chat-column [data-focus-area="timeline"] {
+  scroll-padding-top: calc(var(--chat-header-height) + 1rem);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .chat-header-overlay {
+    background: var(--canvas);
+  }
+  .chat-header-blur {
+    display: none;
+  }
+}
