@@ -37,8 +37,10 @@ type MessageRowProps = {
  */
 function cardsIn(message: Message, place: "before" | "after") {
   const cards = (message.cards ?? (message.card ? [message.card] : [])).map((card, index) => ({ card, index }));
-  if (place === "before") return cards.filter(({ card }) => card.type === "activity");
-  return [...cards.filter(({ card }) => card.type !== "activity" && card.type !== "sources"), ...cards.filter(({ card }) => card.type === "sources")];
+  // What the mate did on the way (its steps, who it checked with) sits above the answer.
+  const before = (card: Card) => card.type === "activity" || card.type === "consult";
+  if (place === "before") return cards.filter(({ card }) => before(card));
+  return [...cards.filter(({ card }) => !before(card) && card.type !== "sources"), ...cards.filter(({ card }) => card.type === "sources")];
 }
 
 /** Scrolls a message into view and flashes it, for quotes and pins. */
