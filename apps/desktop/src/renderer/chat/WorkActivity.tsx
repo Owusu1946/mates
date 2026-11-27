@@ -2,6 +2,7 @@ import { Collapsible } from "@base-ui/react/collapsible";
 import { createContext, use, useState } from "react";
 import { WorkLogButton, WorkLogList, WorkLogRow } from "../code/WorkLog.tsx";
 import { formatElapsed } from "../code/workGroup.logic.ts";
+import { AppLogo } from "../components/AppLogo.tsx";
 import { Icon } from "../components/ui/Icon.tsx";
 import type { Card } from "../data/sampleCrew.ts";
 import { tickTextContent } from "../lib/tickTextContent.ts";
@@ -32,7 +33,7 @@ export function WorkActivity({ card }: { card: Activity }) {
     return (
       <div className="flex min-h-6 min-w-0 animate-fade items-center gap-1.5 px-0.5 text-sm text-ink-soft" role="status">
         <span className="flex size-6 shrink-0 items-center justify-center">
-          <Icon name={activityIcon(label)} size={15} className="text-ink-soft" />
+          {current?.app ? <AppLogo name={current.app} slug={current.app} size={16} /> : <Icon name={activityIcon(label)} size={15} className="text-ink-soft" />}
         </span>
         <span ref={observeVisibleAnimation} className="min-w-0 truncate live-shine">
           {label}
@@ -67,7 +68,7 @@ export function WorkActivity({ card }: { card: Activity }) {
         <div className="ms-1 max-h-[min(18rem,50dvh)] overflow-y-auto border-s border-line ps-2">
           <WorkLogList>
             {card.steps.map((step, index) => (
-              <WorkLogRow key={index} icon={<Icon name={step.done ? "check" : activityIcon(step.label)} size={14} className="text-ink-soft opacity-80" />} label={step.label} />
+              <WorkLogRow key={index} icon={step.app ? <AppLogo name={step.app} slug={step.app} size={14} /> : <Icon name={step.done ? "check" : activityIcon(step.label)} size={14} className="text-ink-soft opacity-80" />} label={step.label} />
             ))}
           </WorkLogList>
         </div>
