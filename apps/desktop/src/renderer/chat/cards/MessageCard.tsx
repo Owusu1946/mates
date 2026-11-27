@@ -1,12 +1,17 @@
 import { use } from "react";
-import type { Card } from "../../data/sampleCrew.ts";
+import type { Card, CardStatus } from "../../data/sampleCrew.ts";
+import type { CardAction } from "./cardAnswers.logic.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 import { BriefCard } from "./BriefCard.tsx";
+import { ChoiceCard } from "./ChoiceCard.tsx";
+import { LiveMemoryLine, LiveScheduleCard, LiveWatchCard } from "./LiveCards.tsx";
+import { SummaryCard } from "./SummaryCard.tsx";
 import { CardMatesContext } from "./CardParts.tsx";
 import { MemoryLine, SourcesPill } from "./QuietCards.tsx";
 import { RunCard } from "./RunCard.tsx";
 import { ConnectCard, ScheduleCard, WatchCard } from "./StandingCards.tsx";
 import { ComparisonCard, PlanCard, ResultsCard } from "./WorkCards.tsx";
+import { WorkActivity } from "../WorkActivity.tsx";
 
 type MessageCardProps = {
   card: Card;
@@ -15,33 +20,43 @@ type MessageCardProps = {
   onAnswer: (state: "allowed" | "skipped") => void;
   /** A card that changes (a plan running, a routine paused) saves its new state here. */
   onChange: (card: Card) => void;
+  /** Answers it: the reply's run carries on with the answer (remote/cardActions.ts). */
+  onAction?: (action: CardAction) => void;
+  /** The answer in flight, or why it couldn't go. */
+  status?: CardStatus;
 };
 
 /** The card a message carries, whichever kind it is. */
-export function MessageCard({ card, authorId, onAnswer, onChange }: MessageCardProps) {
+export function MessageCard({ card, authorId, onAnswer, onChange, onAction, status }: MessageCardProps) {
   const mates = use(CardMatesContext);
   switch (card.type) {
+    case "activity":
+      return <WorkActivity card={card} />;
+    case "summary":
+      return <SummaryCard card={card} />;
+    case "choice":
+      return <ChoiceCard card={card} onAction={onAction} status={status} />;
     case "brief":
       return <BriefCard card={card} />;
     case "approval":
-      return <ApprovalCard card={card} onAnswer={onAnswer} />;
+      return <ApprovalCard card={card} onAnswer={onAnswer} onAction={onAction} status={status} />;
     case "run":
       return <RunCard card={card} />;
     case "sources":
       return <SourcesPill card={card} />;
     case "memory":
-      return <MemoryLine card={card} onChange={onChange} />;
+      return card.id ? <LiveMemoryLine card={card} /> : <MemoryLine card={card} onChange={onChange} canUndo={false} />;
     case "results":
       return <ResultsCard card={card} />;
     case "plan":
-      return <PlanCard card={card} onChange={onChange} />;
+      return <PlanCard card={card} onChange={onChange} onAction={onAction} status={status} />;
     case "comparison":
       return <ComparisonCard card={card} />;
     case "schedule":
-      return <ScheduleCard card={card} onChange={onChange} />;
+      return card.routineId ? <LiveScheduleCard card={card} /> : <ScheduleCard card={card} onChange={onChange} />;
     case "watch":
-      return <WatchCard card={card} onChange={onChange} />;
+      return card.watchId ? <LiveWatchCard card={card} /> : <WatchCard card={card} onChange={onChange} />;
     case "connect":
-      return <ConnectCard card={card} mateName={mates[authorId]?.name ?? "Your mate"} onChange={onChange} />;
+      return <ConnectCard card={card} mateName={mates[authorId]?.name ?? "Your mate"} onAction={onAction} status={status} />;
   }
 }

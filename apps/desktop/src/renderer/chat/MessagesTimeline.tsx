@@ -9,7 +9,9 @@ import type { MessageAction } from "./MessageActions.tsx";
 import { regenerableId } from "./messageActions.logic.ts";
 import { MessageRow } from "./MessageRow.tsx";
 import { TimelineViewport } from "./TimelineViewport.tsx";
+import type { CardAction } from "./cards/cardAnswers.logic.ts";
 import { useRevealedText } from "./useRevealedText.ts";
+import { QuietActivityContext } from "./WorkActivity.tsx";
 import { Button } from "../components/ui/Button.tsx";
 
 /** A reply being written: its words shown smoothly as they arrive (useRevealedText), no actions until it settles. */
@@ -40,13 +42,15 @@ type MessagesTimelineProps = {
   composer: ReactNode;
   onAnswer: (messageId: string, state: "allowed" | "skipped") => void;
   onCard: (messageId: string, card: Card) => void;
+  /** Answers one of a reply's cards. */
+  onCardAction?: (message: Message, index: number, action: CardAction) => void;
   onAction: (message: Message, action: MessageAction) => void;
   onEdit: (message: Message, text: string) => void;
   /** The chat's history: older messages left to load, and whether they're loading. */
   history?: { loading: boolean; error: string | null; hasMore: boolean; loadingEarlier: boolean; onLoadEarlier: () => void; onRetry: () => void };
 };
 
-export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onAction, onEdit, history }: MessagesTimelineProps) {
+export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet, activity, composer, onAnswer, onCard, onCardAction, onAction, onEdit, history }: MessagesTimelineProps) {
   const streamed = reply?.phase === "streaming" ? shownText(reply) : "";
   const lastAuthor = messages.at(-1)?.author;
   const regenerable = regenerableId(messages);
@@ -58,11 +62,13 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
   const act = useStableCallback(onAction);
   const edit = useStableCallback(onEdit);
   const changeCard = useStableCallback(onCard);
+  const answerCard = useStableCallback((message: Message, index: number, action: CardAction) => onCardAction?.(message, index, action));
   const mateOf = useStableCallback((author: string) => mates[author]);
 
   return (
     <TimelineViewport scrollKey={chatId} contentKey={`${tail?.id ?? ""}:${tail?.text.length ?? 0}:${tail?.live ? 1 : 0}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
       <CardMatesContext value={mates}>
+      <QuietActivityContext value={quiet}>
       <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
         {history?.hasMore && (
           <div className="flex justify-center py-1">
@@ -85,7 +91,8 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
           const asking = reply?.target === message.id;
           if (asking && reply.phase === "thinking" && mates[reply.mateId]) return <ActivityLine key={message.id} mate={mates[reply.mateId]!} />;
           // A reply being written: thinking until its words come, with what the mate is doing.
-          if (message.live && !message.text.trim() && mates[message.author])
+          // Thinking only until its first words or its progress arrive; then the row shows them.
+          if (message.live && !message.text.trim() && !message.cards?.length && mates[message.author])
             return (
               <div key={message.id} className="flex flex-col gap-2">
                 {!quiet && message.step && <ChatWorkActivity steps={[message.step]} />}
@@ -103,6 +110,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
               showAuthor={group && message.author !== "me" && (Boolean(message.day) || messages[index - 1]?.author !== message.author)}
               onAnswer={onAnswer}
               onCard={changeCard}
+              onCardAction={answerCard}
               actions={asking || message.live ? undefined : { onAction: act, replyable: group, regenerable: message.id === regenerable, latest: message.id === latestReply, busy }}
               mateOf={mateOf}
               onEdit={edit}
@@ -115,6 +123,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
           <MessageRow message={{ id: "live", author: reply.mateId, text: streamed }} mate={mates[reply.mateId]} showAuthor={group && lastAuthor !== reply.mateId} onAnswer={onAnswer} />
         )}
       </div>
+      </QuietActivityContext>
       </CardMatesContext>
     </TimelineViewport>
   );

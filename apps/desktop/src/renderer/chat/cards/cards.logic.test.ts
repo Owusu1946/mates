@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Card } from "../../data/sampleCrew.ts";
-import { advancePlan, memoryLabel, planSummary, sourcesPill, watchCadence } from "./cards.logic.ts";
+import { memoryLabel, planSummary, sourcesPill, watchCadence } from "./cards.logic.ts";
 
 const app = { slug: "gmail", name: "Gmail" };
 const plan: Extract<Card, { type: "plan" }> = {
@@ -15,25 +15,18 @@ const plan: Extract<Card, { type: "plan" }> = {
   ],
 };
 
-test("a plan says what's chosen, then runs only that, one step at a time", () => {
+test("a plan says what's chosen, how far it's got, and what it did", () => {
   assert.equal(planSummary(plan), "2 of 3 chosen");
   assert.equal(planSummary({ ...plan, actions: plan.actions.map((action) => ({ ...action, selected: true })) }), "3 things to do, with your OK");
-
-  let running: typeof plan = { ...plan, state: "running" };
-  assert.equal(planSummary(running), "Doing 1 of 2");
-  running = advancePlan(running);
-  assert.deepEqual(running.actions.map((action) => action.status), ["done", undefined, undefined]);
-  assert.equal(planSummary(running), "Doing 2 of 2");
-  running = advancePlan(advancePlan(running));
-  assert.equal(running.state, "done");
-  assert.deepEqual(running.actions.map((action) => action.status), ["done", "done", "skipped"]);
-  assert.equal(planSummary(running), "Did 2 things");
+  assert.equal(planSummary({ ...plan, state: "running" }), "Doing 1 of 2");
+  const ran: typeof plan = { ...plan, state: "done", actions: [{ ...plan.actions[0]!, status: "done" }, { ...plan.actions[1]!, status: "done" }, { ...plan.actions[2]!, status: "skipped" }] };
+  assert.equal(planSummary(ran), "Did 2 things");
   assert.equal(planSummary({ ...plan, state: "declined" }), "You said not now");
 });
 
-test("the sources pill shows up to three different sites", () => {
+test("the sources pill shows up to four different sites", () => {
   const source = (id: string, domain: string) => ({ id, url: `https://${domain}`, title: id, domain });
-  assert.deepEqual(sourcesPill([source("1", "a.com"), source("2", "a.com"), source("3", "b.com"), source("4", "c.com"), source("5", "d.com")]), { domains: ["a.com", "b.com", "c.com"], label: "5 sources" });
+  assert.deepEqual(sourcesPill([source("1", "a.com"), source("2", "a.com"), source("3", "b.com"), source("4", "c.com"), source("5", "d.com"), source("6", "e.com")]), { domains: ["a.com", "b.com", "c.com", "d.com"], label: "6 sources" });
   assert.equal(sourcesPill([source("1", "a.com")]).label, "1 source");
 });
 

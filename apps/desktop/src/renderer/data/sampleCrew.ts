@@ -22,33 +22,46 @@ export type Mate = {
 
 export type BriefRow = { label: string; text: string };
 
+/** How an answer to a card stands on this device: on its way, or it couldn't go (chat/cards/cardAnswers.logic.ts). */
+export type CardStatus = { pending: string } | { error: string };
+
+/** A card that can be answered: the run waiting for the answer (resumed with it, apps/api durable-runs). */
+type Resumable = { resumeRunId?: string };
+
 export type Card =
   | { type: "brief"; title: string; rows: BriefRow[] }
-  | { type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped" }
+  /** What a reply is doing, and did: its steps (searching the web, reading pages), and how long it took. */
+  | { type: "activity"; label: string; steps: { label: string; done: boolean }[]; startedAt?: string; finishedAt?: string; state: "running" | "done" | "stopped" | "error" }
+  /** `always`: the API offers Always allow (never for money); `fields`/`targets`: what it will send, and to whom. */
+  | ({ type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped"; canAlways?: boolean; fields?: BriefRow[]; targets?: string[] } & Resumable)
+  /** Pick one: which account, which app. */
+  | ({ type: "choice"; title: string; detail?: string; options: { id: string; label: string; detail?: string; app?: string }[]; state: "open" | "done" } & Resumable)
+  /** Everything else a mate shows (a deck, a computer task, a call): what it is and how it stands. */
+  | { type: "summary"; icon: "monitor" | "globe" | "phone" | "file" | "users" | "brain" | "clock" | "info"; title: string; detail?: string; state: "running" | "done" | "waiting" | "error"; onPhone?: boolean }
   /** Code a mate did for you, as a job like any other: what changed, and a way in to see the work. */
   | { type: "run"; runId: string; title: string; project: string; files: number; pr?: number }
   // The rest follow the API's WorkflowCard (apps/api/src/integrations.ts), trimmed to what they show.
   /** The pages an answer drew on. */
   | { type: "sources"; sources: Source[] }
   /** A memory a mate saved, changed or forgot mid-chat. */
-  | { type: "memory"; text: string; action: "saved" | "updated" | "forgotten"; undone?: boolean }
+  | { type: "memory"; id?: string; text: string; action: "saved" | "updated" | "forgotten"; undone?: boolean }
   /** What a mate found in an app, like the emails that need you. */
-  | { type: "results"; app: CardApp; title: string; items: ResultItem[] }
+  | { type: "results"; app: CardApp; title: string; items: ResultItem[]; followUps?: { label: string; prompt: string }[] }
   /** What a mate is about to do, for one OK, or has done. */
-  | { type: "plan"; title: string; state: "review" | "running" | "done" | "declined"; actions: PlanAction[] }
+  | ({ type: "plan"; title: string; state: "review" | "running" | "done" | "declined"; actions: PlanAction[] } & Resumable)
   /** The lead's call after several mates answered the same question. */
   | { type: "comparison"; suggestion: string; perMate: { mateId: string; recommendation: string; basis: string }[]; disagreements: string[] }
   /** A routine set up in chat. */
-  | { type: "schedule"; title: string; when: string; next: string; status: "active" | "paused" | "cancelled" }
+  | { type: "schedule"; routineId?: string; version?: number; title: string; when: string; next: string; status: "active" | "paused" | "cancelled" }
   /** "Watch for X, then do Y". */
-  | { type: "watch"; title: string; condition: string; action: string; every: string | null; app: string | null; lastNote: string | null; lastChecked: string | null; status: "active" | "paused" | "fired" | "cancelled" }
+  | { type: "watch"; watchId?: string; version?: number; title: string; condition: string; action: string; every: string | null; app: string | null; lastNote: string | null; lastChecked: string | null; status: "active" | "paused" | "fired" | "cancelled" | "expired" | "failed" }
   /** An app a mate needs before it can carry on. */
-  | { type: "connect"; app: CardApp; reason: string; state: "needed" | "connecting" | "connected" };
+  | ({ type: "connect"; app: CardApp; reason: string; state: "needed" | "connecting" | "connected" } & Resumable);
 
 export type CardApp = { slug: string; name: string };
-export type Source = { id: string; url: string; title: string; domain: string; published?: string };
-export type ResultItem = { id: string; from: string; title: string; snippet: string; time: string; unread?: boolean };
-export type PlanAction = { id: string; app: CardApp; label: string; detail?: string; selected: boolean; status?: "done" | "skipped" };
+export type Source = { id: string; url: string; title: string; domain: string; published?: string; favicon?: string };
+export type ResultItem = { id: string; from: string; title: string; snippet: string; time: string; unread?: boolean; url?: string };
+export type PlanAction = { id: string; app: CardApp; label: string; detail?: string; selected: boolean; status?: "done" | "skipped" | "running" | "failed"; error?: string; undo?: { kind: "app" | "reminder"; id: string } };
 
 /** Something @-mentioned with a message, kept as it was named then. */
 export type MessageTag = { kind: "web" | "chief" | "mate" | "app"; id: string; label: string };
@@ -62,6 +75,10 @@ export type Message = {
   author: string;
   text: string;
   card?: Card;
+  /** A mate's reply: its cards in order (what it's doing, what it needs, what it found). */
+  cards?: Card[];
+  /** Answers to its cards in flight here, by the card's place in the reply. */
+  cardStatuses?: Record<number, CardStatus>;
   /** Files you sent with it. */
   files?: SentFile[];
   /** In a group, the message you were answering, as it read then. */

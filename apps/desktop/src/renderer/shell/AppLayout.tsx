@@ -4,6 +4,8 @@ import type { ChatAction } from "../chat/chatFlow.logic.ts";
 import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { OpenRunContext } from "../chat/openRun.ts";
+import { OpenPageContext } from "../chat/openPage.ts";
+import { PagePanel } from "../chat/PagePanel.tsx";
 import { formatCallTime } from "../call/call.logic.ts";
 import { CallPanel } from "../call/CallPanel.tsx";
 import { useCall } from "../call/useCall.ts";
@@ -216,7 +218,19 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
   const openSide = (next: SidePanel, from: Chat) => {
     // Calling starts one with everyone in the chat, unless a call is already on.
     if (next === "call" && !inCall) callDispatch({ type: "start", chatId: from.id, memberIds: from.mateIds, at: Date.now() });
+    if (side === "page" && next !== "page") closePage();
     setSide(next);
+  };
+  // A web page beside the chat (a citation, a source), in the same panel as Call and Computer.
+  const [page, setPage] = useState<string | null>(null);
+  const openPage = (url: string) => {
+    setPage(url);
+    setSide("page");
+    window.mates.pages.open(url);
+  };
+  const closePage = () => {
+    window.mates.pages.close();
+    setPage(null);
   };
   // Hanging up leaves the summary in the chat the call started from.
   const endCall = () => {
@@ -229,6 +243,7 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
   };
   const closeSide = () => {
     if (call?.phase === "ended") callDispatch({ type: "close" });
+    if (side === "page") closePage();
     setSide(null);
   };
 
@@ -383,6 +398,7 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
         <main className="min-w-0 flex-1">
           {chat && (
             <OpenRunContext value={openRun}>
+            <OpenPageContext value={openPage}>
               <ChatView
                 key={chat.id}
                 chat={chat}
@@ -402,9 +418,12 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
                     <CallPanel call={call} mates={liveMates} you={you} dispatch={callDispatch} onEnd={endCall} onClose={closeSide} />
                   ) : side === "computer" ? (
                     <ComputerPanel state={computer} dispatch={computerDispatch} mates={liveMates} chatMate={liveMates[chat.leadId]!} />
+                  ) : side === "page" && page ? (
+                    <PagePanel url={page} />
                   ) : null
                 }
               />
+            </OpenPageContext>
             </OpenRunContext>
           )}
           {selection.kind === "place" && selection.id === "activity" && <ActivityPage mates={liveMates} onOpenChat={openChat} />}

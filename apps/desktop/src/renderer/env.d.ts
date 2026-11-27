@@ -25,6 +25,15 @@ interface Window {
       openInMates(handoff: { mateId: string; question: string; answer: string }): void;
       onToggle(listener: () => void): () => void;
     };
+    /** The page panel beside the chat: a web page in its own sandboxed view, laid over `place`. */
+    pages: {
+      open(url: string): void;
+      place(bounds: { x: number; y: number; width: number; height: number }, visible: boolean): void;
+      act(action: "back" | "forward" | "reload" | "stop"): void;
+      openExternal(): void;
+      close(): void;
+      onState(listener: (state: { url: string; title: string; loading: boolean; canGoBack: boolean; canGoForward: boolean; error?: string }) => void): () => void;
+    };
     /** Settings → This computer and Keyboard: open at login, closing, the summon shortcut, the notch. */
     setDesktopPrefs(prefs: { openAtLogin: boolean; keepRunning: boolean; summonShortcut: string; notch: boolean }): void;
     appInfo(): Promise<{ version: string; shortcut: string | null; shortcutChoices: string[] }>;

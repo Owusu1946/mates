@@ -2,6 +2,9 @@ import { visibleMentionText } from "@expojet/api-contract/chat-mentions";
 import { memo } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { Source } from "../data/sampleCrew.ts";
+import { citationFor, linkCitations } from "./citations.logic.ts";
+import { CitationChip, ExternalLink } from "./CitationChip.tsx";
 import { splitBlocks } from "./markdownBlocks.logic.ts";
 
 /**
@@ -10,7 +13,6 @@ import { splitBlocks } from "./markdownBlocks.logic.ts";
  */
 const COMPONENTS: Components = {
   p: ({ node: _, ...props }) => <p className="leading-relaxed" {...props} />,
-  a: ({ node: _, ...props }) => <a className="text-brand underline underline-offset-2 hover:opacity-80" target="_blank" rel="noreferrer" {...props} />,
   ul: ({ node: _, ...props }) => <ul className="list-disc space-y-1 ps-5" {...props} />,
   ol: ({ node: _, ...props }) => <ol className="list-decimal space-y-1 ps-5" {...props} />,
   li: ({ node: _, ...props }) => <li className="leading-relaxed ps-0.5" {...props} />,
@@ -30,22 +32,47 @@ const COMPONENTS: Components = {
   td: ({ node: _, ...props }) => <td className="border-b border-line/60 px-2 py-1.5 align-top" {...props} />,
 };
 
-/** One block, memoised on its text: while a reply streams, only the block being written renders again. */
-const Block = memo(function Block({ text }: { text: string }) {
+/** The elements for a reply's sources: a link to one of its pages draws as a citation, other web links with their icon. */
+const componentsBySources = new Map<string, Components>();
+function componentsFor(sources: readonly Source[]): Components {
+  const key = sources.map((source) => `${source.id}=${source.url}`).join("|");
+  let components = componentsBySources.get(key);
+  if (!components) {
+    if (componentsBySources.size > 200) componentsBySources.clear();
+    components = {
+      ...COMPONENTS,
+      a: ({ node: _, href, children }) => {
+        const source = citationFor(href, sources);
+        return source && href ? <CitationChip source={source} href={href} /> : <ExternalLink href={href}>{children}</ExternalLink>;
+      },
+    };
+    componentsBySources.set(key, components);
+  }
+  return components;
+}
+
+/** One block, memoised on its text and its reply's sources: while a reply streams, only the block being written renders again. */
+const Block = memo(function Block({ text, components }: { text: string; components: Components }) {
   return (
-    <Markdown remarkPlugins={[remarkGfm]} components={COMPONENTS}>
+    <Markdown remarkPlugins={[remarkGfm]} components={components}>
       {text}
     </Markdown>
   );
 });
 
-/** A mate's words as markdown: lists, emphasis, code, links and tables, with @-mentions shown as names. */
-export function MarkdownText({ text }: { text: string }) {
-  const blocks = splitBlocks(visibleMentionText(text));
+const NO_SOURCES: Source[] = [];
+
+/**
+ * A mate's words as markdown: lists, emphasis, code, links and tables, with @-mentions shown as
+ * names and its web citations as chips (citations.logic.ts): saved [s1] ids and live links alike.
+ */
+export function MarkdownText({ text, sources = NO_SOURCES }: { text: string; sources?: readonly Source[] }) {
+  const components = componentsFor(sources);
+  const blocks = splitBlocks(visibleMentionText(linkCitations(text, sources)));
   return (
     <div className="flex flex-col gap-3 wrap-anywhere select-text">
       {blocks.map((block, index) => (
-        <Block key={index} text={block} />
+        <Block key={index} text={block} components={components} />
       ))}
     </div>
   );

@@ -1,14 +1,11 @@
-import { useEffect } from "react";
 import { AppLogo } from "../../components/AppLogo.tsx";
 import { Button } from "../../components/ui/Button.tsx";
 import { Icon } from "../../components/ui/Icon.tsx";
-import type { Card } from "../../data/sampleCrew.ts";
+import type { Card, CardStatus } from "../../data/sampleCrew.ts";
+import type { CardAction } from "./cardAnswers.logic.ts";
 import { cn } from "../../lib/utils.ts";
-import { CardGlyph, CardSurface, QuietAction } from "./CardParts.tsx";
+import { CardAnswerLine, CardGlyph, CardSurface, QuietAction } from "./CardParts.tsx";
 import { watchCadence } from "./cards.logic.ts";
-
-/** How long the sample "browser" takes to connect an app. */
-const SAMPLE_CONNECT_MS = 1600;
 
 /**
  * Things a mate keeps doing after the chat moves on (a routine, a watch) and the one thing it
@@ -50,6 +47,8 @@ const WATCH_STATUS: Record<Extract<Card, { type: "watch" }>["status"], { label: 
   paused: { label: "Paused", dot: "bg-ink-soft/50", text: "text-ink-soft" },
   fired: { label: "It happened", dot: "bg-brand", text: "text-ink" },
   cancelled: { label: "Stopped", dot: "bg-ink-soft/40", text: "text-ink-soft" },
+  expired: { label: "Ended", dot: "bg-ink-soft/40", text: "text-ink-soft" },
+  failed: { label: "Couldn't check", dot: "bg-danger", text: "text-danger-ink" },
 };
 
 export function WatchCard({ card, onChange }: { card: Extract<Card, { type: "watch" }>; onChange: (card: Card) => void }) {
@@ -98,13 +97,38 @@ export function WatchCard({ card, onChange }: { card: Extract<Card, { type: "wat
   );
 }
 
-/** An app a mate needs: connect it in your browser, and the mate carries on. */
-export function ConnectCard({ card, mateName, onChange }: { card: Extract<Card, { type: "connect" }>; mateName: string; onChange: (card: Card) => void }) {
-  useEffect(() => {
-    if (card.state !== "connecting") return;
-    const timer = setTimeout(() => onChange({ ...card, state: "connected" }), SAMPLE_CONNECT_MS);
-    return () => clearTimeout(timer);
-  }, [card, onChange]);
+/**
+ * An app a mate needs: connect it in your browser, and the mate carries on. It signs in through the
+ * API and waits for the app (remote/cardActions.ts); a card with no run waiting just says how it stands.
+ */
+export function ConnectCard({ card, mateName, onAction, status }: { card: Extract<Card, { type: "connect" }>; mateName: string; onAction?: (action: CardAction) => void; status?: CardStatus }) {
+  const real = Boolean(onAction && card.resumeRunId);
+
+  if (real) {
+    const waiting = status && "pending" in status;
+    return (
+      <CardSurface>
+        <div className="flex items-center gap-3 px-4 py-3">
+          <AppLogo name={card.app.name} slug={card.app.slug} size={32} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-medium">{card.state === "connected" ? `${card.app.name} is connected` : `Connect ${card.app.name}`}</p>
+            {card.state === "connected" ? <p className="truncate text-xs text-ink-soft">{mateName} is carrying on.</p> : status ? <CardAnswerLine status={status} /> : <p className="truncate text-xs text-ink-soft">{card.reason}</p>}
+          </div>
+          {card.state !== "connected" &&
+            (waiting ? (
+              <Button size="sm" variant="ghost" onClick={() => onAction!({ type: "cancelConnect" })}>
+                Cancel
+              </Button>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => onAction!({ type: "connect" })}>
+                {status ? "Try again" : "Connect"}
+              </Button>
+            ))}
+          {card.state === "connected" && <Icon name="check" size={16} className="shrink-0 animate-fade text-ok-ink" />}
+        </div>
+      </CardSurface>
+    );
+  }
 
   return (
     <CardSurface>
@@ -117,16 +141,6 @@ export function ConnectCard({ card, mateName, onChange }: { card: Extract<Card, 
             {card.state === "needed" ? card.reason : card.state === "connecting" ? "Finish in your browser" : `${mateName} is carrying on.`}
           </p>
         </div>
-        {card.state === "needed" && (
-          <Button size="sm" variant="outline" onClick={() => onChange({ ...card, state: "connecting" })}>
-            Connect
-          </Button>
-        )}
-        {card.state === "connecting" && (
-          <Button size="sm" variant="ghost" onClick={() => onChange({ ...card, state: "needed" })}>
-            Cancel
-          </Button>
-        )}
         {card.state === "connected" && <Icon name="check" size={16} className="shrink-0 animate-fade text-ok-ink" />}
       </div>
     </CardSurface>

@@ -34,7 +34,8 @@ function contentSecurityPolicy(): Plugin {
         "default-src 'self'",
         `script-src 'self' ${clerk} ${challenges}`,
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: https://img.clerk.com",
+        // Site icons for web citations and sources come from the app itself (mates://app/favicon/…).
+        "img-src 'self' data: mates: https://img.clerk.com",
         "font-src 'self'",
         `connect-src 'self' ${clerk} ${api} https://*.protect.clerk.com https://clerk-telemetry.com`,
         "worker-src 'self' blob:",

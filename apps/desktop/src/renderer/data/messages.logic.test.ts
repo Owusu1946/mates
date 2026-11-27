@@ -101,3 +101,36 @@ test("a new row, a removed field or a reorder is a change", () => {
   assert.equal(swapped[0], two[1]);
   assert.equal(keepUnchanged([], two), two);
 });
+
+test("a reply's cards ride on its row, each group turn keeping its own, and a reply that's only cards still shows", () => {
+  const sources = card({ kind: "sources", phase: "done", label: "1 source", sources: [{ id: "s1", url: "https://a.gh", title: "A", domain: "a.gh", publishedAt: null }] });
+  const items: StoredItem[] = [
+    { message: message("u1", "user", [text("Kumasi or Accra?")]), parentId: null },
+    { message: message("a1", "assistant", [speaker("esi"), text("Accra."), sources, speaker("akua"), card({ kind: "approval", phase: "waiting", label: "Pay the deposit", approval: { category: "spend", targets: [], canAlways: false } })]), parentId: "u1" },
+  ];
+  const rows = toRows(items, "a1", options);
+  assert.deepEqual(rows[1]!.cards!.map((one) => one.type), ["sources"]);
+  assert.equal(rows[2]!.author, "akua");
+  assert.equal(rows[2]!.text, "");
+  assert.deepEqual(rows[2]!.cards!.map((one) => one.type), ["approval"]);
+});
+
+test("a stopped reply's running cards read as stopped", () => {
+  const items: StoredItem[] = [
+    { message: message("u1", "user", [text("Search")]), parentId: null },
+    { message: { ...message("a1", "assistant", [card({ kind: "step", phase: "running", label: "Searching", activity: [{ label: "Searching", state: "running" }] })]), status: { type: "incomplete", reason: "cancelled" } }, parentId: "u1" },
+  ];
+  const [, reply] = toRows(items, "a1", options);
+  const activity = reply!.cards![0]!;
+  assert.equal(activity.type === "activity" && activity.state, "stopped");
+});
+
+test("rows with the same cards are kept as the same rows", () => {
+  const items: StoredItem[] = [
+    { message: message("u1", "user", [text("Hi")]), parentId: null },
+    { message: message("a1", "assistant", [text("Done"), card({ kind: "memory", phase: "done", label: "Saved", memory: { id: "m1", text: "Likes waakye", action: "saved" } })]), parentId: "u1" },
+  ];
+  const first = toRows(items, "a1", options);
+  const again = keepUnchanged(first, toRows(items, "a1", options));
+  assert.equal(again, first);
+});

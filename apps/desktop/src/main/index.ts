@@ -14,6 +14,7 @@ import { installNotch } from "./notch/NotchWindow.ts";
 import { installHandoffs, installSummon } from "./summon/SummonWindow.ts";
 import { installApplicationMenu } from "./window/DesktopApplicationMenu.ts";
 import { createMainWindow, followAppearance } from "./window/DesktopWindow.ts";
+import { installPageView, isPageContents } from "./window/DesktopPageView.ts";
 
 /** Where the app is put together. Each module owns one concern; this only wires them in order. */
 
@@ -32,7 +33,8 @@ let prefs: ReturnType<typeof installDesktopPrefs> | null = null;
 const primary = startLifecycle({
   onReady: ({ showMain }) => {
     serveRenderer(rendererRoot);
-    installWebLinkGuards(url);
+    installWebLinkGuards(url, isPageContents);
+    installPageView();
     installApplicationMenu();
     followAppearance();
     const handoffs = installHandoffs();

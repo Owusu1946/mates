@@ -1,6 +1,7 @@
 import { Popover } from "@base-ui/react/popover";
 import { createContext, type ReactElement, type ReactNode } from "react";
-import type { Mate } from "../../data/sampleCrew.ts";
+import { Icon } from "../../components/ui/Icon.tsx";
+import type { CardStatus, Mate } from "../../data/sampleCrew.ts";
 import { cn } from "../../lib/utils.ts";
 
 /**
@@ -11,6 +12,9 @@ import { cn } from "../../lib/utils.ts";
 
 /** The chat's mates, for cards that show who said what. */
 export const CardMatesContext = createContext<Record<string, Mate>>({});
+
+/** Puts words in the chat's composer, for a card's follow-ups ("Reply to Ama"); none in previews. */
+export const ComposeContext = createContext<((text: string) => void) | null>(null);
 
 export function CardSurface({ children, className, tone }: { children: ReactNode; className?: string; tone?: "caution" }) {
   return <section className={cn("overflow-hidden rounded-xl border bg-raised transition-colors duration-200", tone === "caution" ? "border-caution/40" : "border-line", className)}>{children}</section>;
@@ -59,5 +63,23 @@ export function Sparkle({ className }: { className?: string }) {
     <svg viewBox="0 0 24 24" aria-hidden="true" className={cn("size-3.5", className)} fill="currentColor">
       <path d="M12 2.5c.5 4.6 2.4 6.9 7 9.5-4.6 2.6-6.5 4.9-7 9.5-.5-4.6-2.4-6.9-7-9.5 4.6-2.6 6.5-4.9 7-9.5z" />
     </svg>
+  );
+}
+
+/** How a card's answer stands: "Doing it now…" with a spinner while it goes, or why it couldn't. */
+export function CardAnswerLine({ status }: { status: CardStatus | undefined }) {
+  if (!status) return null;
+  if ("pending" in status)
+    return (
+      <p role="status" className="flex animate-fade items-center gap-2 text-sm text-ink-soft">
+        <span className="size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-current border-r-transparent" aria-hidden="true" />
+        {status.pending}
+      </p>
+    );
+  return (
+    <p role="alert" className="flex items-center gap-1.5 text-sm text-danger-ink">
+      <Icon name="alert" size={14} />
+      {status.error}
+    </p>
   );
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import * as NodePath from "node:path";
 import { test } from "node:test";
-import { APP_ORIGIN, rendererFile } from "./DesktopScheme.logic.ts";
+import { APP_ORIGIN, faviconSite, faviconSources, rendererFile } from "./DesktopScheme.logic.ts";
 import { isAppUrl } from "./DesktopWebLinks.logic.ts";
 
 const root = NodePath.resolve("/opt/Mates/resources/app.asar/dist/renderer");
@@ -32,4 +32,17 @@ test("installed, every page on mates://app is the app's, and nothing else is", (
   assert.equal(isAppUrl("mates://app/summon.html", APP_ORIGIN), true);
   assert.equal(isAppUrl("mates://app.evil.com/", APP_ORIGIN), false);
   assert.equal(isAppUrl("https://accounts.google.com/", APP_ORIGIN), false);
+});
+
+test("site icons are asked for by plain host name only", () => {
+  assert.equal(faviconSite("mates://app/favicon/qncnews.com"), "qncnews.com");
+  assert.equal(faviconSite("mates://app/favicon/News.Mint.GOV.gh"), "news.mint.gov.gh");
+  assert.equal(faviconSite("mates://app/favicon/localhost"), null);
+  assert.equal(faviconSite("mates://app/favicon/127.0.0.1"), null);
+  assert.equal(faviconSite("mates://app/favicon/a.com%2F..%2Fsecret"), null);
+  assert.equal(faviconSite("mates://app/favicon/"), null);
+  assert.equal(faviconSite("mates://app/favicon/%E0%A4%A"), null);
+  assert.equal(faviconSite("mates://app/index.html"), null);
+  assert.equal(faviconSite("https://app/favicon/x.com"), null);
+  assert.deepEqual(faviconSources("a.gh"), ["https://icons.duckduckgo.com/ip3/a.gh.ico", "https://a.gh/favicon.ico", "https://www.google.com/s2/favicons?domain=a.gh&sz=64"]);
 });

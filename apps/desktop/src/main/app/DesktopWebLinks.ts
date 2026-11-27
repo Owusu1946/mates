@@ -6,8 +6,10 @@ import { externalUrl, isAllowedPermission, isAppUrl } from "./DesktopWebLinks.lo
  * windows never open (https links go to the system browser), webviews can't attach, and every
  * permission is refused except the few the app's own pages need (DesktopWebLinks.logic.ts).
  */
-export function installWebLinkGuards(appEntry: string) {
+export function installWebLinkGuards(appEntry: string, exempt: (contents: Electron.WebContents) => boolean = () => false) {
   Electron.app.on("web-contents-created", (_event, contents) => {
+    // The page panel shows web pages on purpose and keeps its own rules (DesktopPageView.ts).
+    if (exempt(contents)) return;
     const block = (event: { preventDefault(): void }, url: string) => {
       if (!isAppUrl(url, appEntry)) event.preventDefault();
     };

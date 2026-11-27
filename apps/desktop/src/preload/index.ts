@@ -33,6 +33,19 @@ contextBridge.exposeInMainWorld("mates", {
     openInMates: (handoff: unknown) => ipcRenderer.send("mates:notch-open", handoff),
     onToggle: (listener: () => void) => subscribe("mates:notch-toggle", listener),
   },
+  /** The page panel: a web page beside the chat (main/window/DesktopPageView.ts). */
+  pages: {
+    open: (url: string) => ipcRenderer.send("mates:page-open", url),
+    place: (bounds: unknown, visible: boolean) => ipcRenderer.send("mates:page-bounds", bounds, visible),
+    act: (action: string) => ipcRenderer.send("mates:page-action", action),
+    openExternal: () => ipcRenderer.send("mates:page-external"),
+    close: () => ipcRenderer.send("mates:page-close"),
+    onState: (listener: (state: unknown) => void) => {
+      const handler = (_event: unknown, state: unknown) => listener(state);
+      ipcRenderer.on("mates:page-state", handler);
+      return () => ipcRenderer.off("mates:page-state", handler);
+    },
+  },
   setDesktopPrefs: (prefs: unknown) => ipcRenderer.send("mates:desktop-prefs", prefs),
   appInfo: () => ipcRenderer.invoke("mates:app-info"),
   takeHandoff: () => ipcRenderer.invoke("mates:take-handoff"),
