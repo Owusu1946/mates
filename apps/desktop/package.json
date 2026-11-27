@@ -21,6 +21,7 @@
     "@clerk/electron": "0.1.21",
     "@expojet/api-contract": "workspace:*",
     "@muse-clone/client-core": "workspace:*",
+    "@muse-clone/decks": "workspace:*",
     "@muse-clone/mascot": "workspace:*",
     "@pierre/diffs": "1.7.1",
     "@tailwindcss/vite": "~4.3.5",

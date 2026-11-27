@@ -1,5 +1,6 @@
 import { useAuth } from "@clerk/electron/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { sceneOf } from "@muse-clone/decks";
 import { useState } from "react";
 import type { DeckStatus } from "../data/sampleCrew.ts";
 import { apiFetch, ensureOk, read } from "../lib/api.ts";
@@ -12,10 +13,12 @@ import { apiFetch, ensureOk, read } from "../lib/api.ts";
 
 /** The deck as its card shows it (the response's `card.deck`: slide titles whatever their layout). */
 export type DeckView = { deckId: string; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string };
-type DeckBody = { card: { deck?: DeckView } };
-const deckOf = (body: DeckBody) => {
+/** The whole deck (theme, slides, sources), for drawing its slides (@muse-clone/decks sceneOf). */
+export type DeckContent = Parameters<typeof sceneOf>[0];
+type DeckBody = { deck: DeckContent; card: { deck?: DeckView } };
+const deckOf = (body: DeckBody): DeckView & { content: DeckContent } => {
   if (!body.card.deck) throw new Error("Couldn’t load the deck.");
-  return body.card.deck;
+  return { ...body.card.deck, content: body.deck };
 };
 
 /** Still being made or changed: keep asking. */
