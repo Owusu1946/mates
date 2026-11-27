@@ -80,7 +80,7 @@ export function Sidebar({
   const jump = (row: Selection) => (showJumpHints ? jumpNumber(jumpTargets, row) : null);
 
   return (
-    <nav data-focus-area="sidebar" aria-label="Crew" className="flex w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-rail">
+    <nav data-focus-area="sidebar" aria-label="Crew" className="flex h-full w-(--sidebar-width) shrink-0 flex-col border-r border-line bg-rail pt-13">
       <div className="sidebar-scroll flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2">
         <Menu
           open={newMenuOpen}

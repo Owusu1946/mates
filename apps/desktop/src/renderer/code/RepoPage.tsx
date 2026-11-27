@@ -23,7 +23,7 @@ export function RepoPage({ repo, runs, mateName, draft, onDraft, onStart, onOpen
   const [where, setWhere] = useState(repo.where);
   return (
     <div className="flex h-full animate-fade flex-col">
-      <header className="flex h-13 shrink-0 items-center gap-2.5 border-b border-line px-6">
+      <header className="workspace-page-header flex h-13 shrink-0 items-center gap-2.5 border-b border-line px-6">
         <Icon name="branch" size={18} className="text-ink-soft" />
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-sm font-semibold">{repo.name}</h2>

@@ -123,7 +123,7 @@ export function RoutinesPage({ mates }: { mates: Mate[] }) {
   return (
     <div className="flex h-full animate-fade">
       <aside className="flex w-80 shrink-0 flex-col border-r border-line">
-        <header className="flex h-13 shrink-0 items-center gap-3 border-b border-line px-4">
+        <header className="workspace-page-header flex h-13 shrink-0 items-center gap-3 border-b border-line px-4">
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-semibold">Routines</h2>
             <p className="text-2xs text-ink-soft">{routines.filter((candidate) => candidate.on).length} on</p>

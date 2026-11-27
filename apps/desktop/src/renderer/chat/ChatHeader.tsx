@@ -28,7 +28,7 @@ export function ChatHeader({ chat, lead, mates, side, inCall, computerBusy, onCa
   const status = STATUS_TEXT[lead.status] ?? lead.role;
   const subtitle = chat.kind === "group" ? mates.map((mate) => mate.name).join(", ") : chat.kind === "thread" ? `${lead.name} · ${status}` : status;
   return (
-    <header className="flex h-13 shrink-0 items-center gap-2.5 border-b border-line px-6">
+    <header className="workspace-page-header relative flex h-13 shrink-0 items-center gap-2.5 px-6">
       {chat.kind !== "group" ? (
         <MateAvatar mate={lead} size={32} />
       ) : (

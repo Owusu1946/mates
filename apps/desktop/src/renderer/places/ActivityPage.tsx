@@ -62,7 +62,7 @@ export function ActivityPage({ mates, onOpenChat }: { mates: Record<string, Mate
 
   return (
     <div className="flex h-full animate-fade flex-col">
-      <header className="flex h-13 shrink-0 items-center gap-3 border-b border-line px-6">
+      <header className="workspace-page-header flex h-13 shrink-0 items-center gap-3 border-b border-line px-6">
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold">What mates did</h2>
           <p className="text-2xs text-ink-soft">{needsYou ? `${needsYou} need${needsYou === 1 ? "s" : ""} your input` : "All caught up"}</p>

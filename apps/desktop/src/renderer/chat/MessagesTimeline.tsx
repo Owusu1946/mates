@@ -69,7 +69,7 @@ export function MessagesTimeline({ chatId, messages, reply, mates, group, quiet,
     <TimelineViewport scrollKey={chatId} contentKey={`${tail?.id ?? ""}:${tail?.text.length ?? 0}:${tail?.live ? 1 : 0}:${streamed.length}:${reply?.phase}`} followLatest={lastAuthor === "me"} composer={composer} onNearTop={history?.hasMore ? history.onLoadEarlier : undefined}>
       <CardMatesContext value={mates}>
       <QuietActivityContext value={quiet}>
-      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-6 pb-5">
+      <div className="mx-auto flex w-full max-w-(--chat-max-width) flex-col gap-4 px-6 pt-[calc(var(--chat-header-height,0px)+1.5rem)] pb-5">
         {history?.hasMore && (
           <div className="flex justify-center py-1">
             <Button variant="ghost-muted" size="xs" disabled={history.loadingEarlier} onClick={history.onLoadEarlier}>

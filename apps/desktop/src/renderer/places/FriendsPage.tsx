@@ -127,7 +127,7 @@ export function FriendsPage({ myEmail }: { myEmail: string }) {
   return (
     <div className="flex h-full animate-fade">
       <aside className="flex w-80 shrink-0 flex-col border-r border-line">
-        <header className="flex h-13 shrink-0 flex-col justify-center border-b border-line px-4">
+        <header className="workspace-page-header flex h-13 shrink-0 flex-col justify-center border-b border-line px-4">
           <h2 className="text-sm font-semibold">Friends</h2>
           <p className="text-2xs text-ink-soft">Your mates, working with your friends'</p>
         </header>
