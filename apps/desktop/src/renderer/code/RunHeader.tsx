@@ -23,7 +23,7 @@ const STATUS_TEXT: Record<RunStatus, string> = { working: "Working", waiting: "N
 /** The run's title, where it runs, and the Diff and Terminal switches. */
 export function RunHeader({ run, repoName, status, diffOpen, terminalOpen, onToggleDiff, onToggleTerminal, workbench }: RunHeaderProps) {
   return (
-    <header className="flex h-13 shrink-0 items-center gap-4 border-b border-line px-6">
+    <header className="workspace-page-header flex h-13 shrink-0 items-center gap-4 border-b border-line px-6">
       <div className="min-w-0 flex-1">
         <h2 className="truncate text-sm font-semibold">{run.title}</h2>
         <p className="flex min-w-0 items-center gap-1.5 text-2xs text-ink-soft">

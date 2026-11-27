@@ -8,7 +8,7 @@ const platform = window.mates.platform;
 export function TitleBar({ sidebarOpen = true, onToggleSidebar }: { sidebarOpen?: boolean; onToggleSidebar?: () => void }) {
   if (platform === "linux" && !onToggleSidebar) return null;
   return (
-    <header className={cn("flex h-(--title-bar) shrink-0 items-center gap-2 px-3", platform !== "linux" && "app-drag", platform === "darwin" && "traffic-lights-inset", platform === "win32" && "pr-[150px]")}>
+    <header className={cn("flex h-(--title-bar) shrink-0 items-center gap-2 px-3", onToggleSidebar && "workspace-controls absolute top-0 left-0 z-20", platform !== "linux" && "app-drag", platform === "darwin" && "traffic-lights-inset", platform === "win32" && !onToggleSidebar && "pr-[150px]")}>
       {onToggleSidebar && (
         <>
           <Button
@@ -20,7 +20,7 @@ export function TitleBar({ sidebarOpen = true, onToggleSidebar }: { sidebarOpen?
             aria-pressed={sidebarOpen}
             onClick={onToggleSidebar}
           />
-          <MatesWordmark compact />
+          {sidebarOpen && <MatesWordmark compact />}
         </>
       )}
       {platform === "win32" && !onToggleSidebar && <span className="text-xs text-ink-soft">Mates</span>}

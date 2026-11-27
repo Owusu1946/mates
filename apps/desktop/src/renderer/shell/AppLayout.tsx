@@ -355,7 +355,10 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
     onCycleFocus: (backwards) => {
       const current = document.activeElement?.closest<HTMLElement>("[data-focus-area]")?.dataset.focusArea as FocusArea | undefined;
       // Only the areas on screen take part: a run adds its open terminal and panel.
-      const shown = FOCUS_ORDER.filter((area) => document.querySelector(`[data-focus-area="${area}"]`));
+      const shown = FOCUS_ORDER.filter((area) => {
+        const element = document.querySelector(`[data-focus-area="${area}"]`);
+        return element && !element.closest("[inert]");
+      });
       const next = nextFocusArea(current ?? null, shown, backwards);
       if (next) focusArea(next);
     },
@@ -371,35 +374,37 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
 
   return (
     <TooltipProvider>
-      <TitleBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((open) => !open)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={paletteItems} />
-      <div className="flex min-h-0 flex-1">
-        {sidebarOpen && (
-          <Sidebar
-            you={you}
-            chats={chats}
-            mates={liveMates}
-            unread={unread}
-            runs={runRows}
-            showProjects={codingOn}
-            selection={selection}
-            jumpTargets={targets}
-            showJumpHints={showJumpHints}
-            onSelect={select}
-            newMenuOpen={newMenuOpen}
-            onNewMenuOpenChange={setNewMenuOpen}
-            onNewMate={() => setCreating("mate")}
-            onNewGroup={() => setCreating("group")}
-            placeBadges={{
-              activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
-              friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
-            }}
-            onOpenSettings={() => openSettings()}
-            onOpenUsage={() => openSettings("usage")}
-            onSignOut={onSignOut}
-          />
-        )}
-        <main className="min-w-0 flex-1">
+      <div className="workspace-shell relative flex min-h-0 flex-1" data-sidebar-open={sidebarOpen} data-platform={window.mates.platform}>
+        <TitleBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((open) => !open)} />
+        <div className="workspace-sidebar-slot relative shrink-0">
+          <div className="workspace-sidebar absolute inset-y-0 left-0 flex w-(--sidebar-width)" inert={!sidebarOpen}>
+            <Sidebar
+              you={you}
+              chats={chats}
+              mates={liveMates}
+              unread={unread}
+              runs={runRows}
+              showProjects={codingOn}
+              selection={selection}
+              jumpTargets={targets}
+              showJumpHints={showJumpHints}
+              onSelect={select}
+              newMenuOpen={newMenuOpen}
+              onNewMenuOpenChange={setNewMenuOpen}
+              onNewMate={() => setCreating("mate")}
+              onNewGroup={() => setCreating("group")}
+              placeBadges={{
+                activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
+                friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
+              }}
+              onOpenSettings={() => openSettings()}
+              onOpenUsage={() => openSettings("usage")}
+              onSignOut={onSignOut}
+            />
+          </div>
+        </div>
+        <main className="workspace-main min-w-0 flex-1">
           {chat && (
             <OpenRunContext value={openRun}>
             <OpenPageContext value={openPage}>

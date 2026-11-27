@@ -918,3 +918,52 @@ html[data-surface="notch"] body {
     left: 100%;
   }
 }
+
+/* Keep the sidebar's border and page header flush with the window's top edge. */
+.workspace-shell {
+  --workspace-panel-duration: 200ms;
+  --workspace-header-inset: 0px;
+}
+.workspace-controls {
+  height: 52px;
+}
+.workspace-sidebar-slot {
+  width: var(--sidebar-width);
+  overflow: clip;
+  transition: width var(--workspace-panel-duration) ease-out;
+}
+.workspace-sidebar {
+  transition: transform var(--workspace-panel-duration) ease-out;
+}
+.workspace-shell[data-sidebar-open="false"] {
+  --workspace-header-inset: 48px;
+}
+.workspace-shell[data-sidebar-open="false"] .workspace-sidebar-slot {
+  width: 0;
+}
+.workspace-shell[data-sidebar-open="false"] .workspace-sidebar {
+  transform: translateX(-100%);
+}
+.workspace-page-header {
+  padding-left: calc(1.5rem + var(--workspace-header-inset, 0px));
+  transition: padding-left var(--workspace-panel-duration, 200ms) ease-out;
+}
+.workspace-shell[data-platform="darwin"][data-sidebar-open="false"] {
+  --workspace-header-inset: 128px;
+}
+.workspace-shell[data-platform="win32"] .workspace-page-header {
+  padding-right: 150px;
+}
+.workspace-shell:not([data-platform="linux"]) .workspace-page-header {
+  -webkit-app-region: drag;
+}
+.workspace-page-header :is(button, a, input) {
+  -webkit-app-region: no-drag;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-sidebar-slot,
+  .workspace-sidebar,
+  .workspace-page-header {
+    transition: none;
+  }
+}
