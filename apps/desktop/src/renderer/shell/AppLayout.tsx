@@ -88,6 +88,7 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
   const [computer, computerDispatch] = useComputer();
   const [side, setSide] = useState<SidePanel>(null);
   const computerGoal = computer.power === "on" ? liveGoal(computer) : null;
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState("activity");
@@ -370,32 +371,34 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
 
   return (
     <TooltipProvider>
-      <TitleBar onSearch={() => setPaletteOpen(true)} />
+      <TitleBar sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((open) => !open)} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} items={paletteItems} />
       <div className="flex min-h-0 flex-1">
-        <Sidebar
-          you={you}
-          chats={chats}
-          mates={liveMates}
-          unread={unread}
-          runs={runRows}
-          showProjects={codingOn}
-          selection={selection}
-          jumpTargets={targets}
-          showJumpHints={showJumpHints}
-          onSelect={select}
-          newMenuOpen={newMenuOpen}
-          onNewMenuOpenChange={setNewMenuOpen}
-          onNewMate={() => setCreating("mate")}
-          onNewGroup={() => setCreating("group")}
-          placeBadges={{
-            activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
-            friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
-          }}
-          onOpenSettings={() => openSettings()}
-          onOpenUsage={() => openSettings("usage")}
-          onSignOut={onSignOut}
-        />
+        {sidebarOpen && (
+          <Sidebar
+            you={you}
+            chats={chats}
+            mates={liveMates}
+            unread={unread}
+            runs={runRows}
+            showProjects={codingOn}
+            selection={selection}
+            jumpTargets={targets}
+            showJumpHints={showJumpHints}
+            onSelect={select}
+            newMenuOpen={newMenuOpen}
+            onNewMenuOpenChange={setNewMenuOpen}
+            onNewMate={() => setCreating("mate")}
+            onNewGroup={() => setCreating("group")}
+            placeBadges={{
+              activity: ACTIVITY.filter((item) => item.status === "needsYou").length,
+              friends: FRIEND_REQUESTS.length + FRIENDS.filter((friend) => friend.notes.some((note) => note.kind === "waiting")).length,
+            }}
+            onOpenSettings={() => openSettings()}
+            onOpenUsage={() => openSettings("usage")}
+            onSignOut={onSignOut}
+          />
+        )}
         <main className="min-w-0 flex-1">
           {chat && (
             <OpenRunContext value={openRun}>
