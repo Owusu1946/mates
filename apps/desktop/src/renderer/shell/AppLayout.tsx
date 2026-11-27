@@ -5,6 +5,7 @@ import { ChatView } from "../chat/ChatView.tsx";
 import { MateAvatar } from "../chat/MateAvatar.tsx";
 import { OpenRunContext } from "../chat/openRun.ts";
 import { OpenPageContext } from "../chat/openPage.ts";
+import { OpenChatContext } from "../chat/openChat.ts";
 import { PagePanel } from "../chat/PagePanel.tsx";
 import { formatCallTime } from "../call/call.logic.ts";
 import { CallPanel } from "../call/CallPanel.tsx";
@@ -399,6 +400,7 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
           {chat && (
             <OpenRunContext value={openRun}>
             <OpenPageContext value={openPage}>
+            <OpenChatContext value={openChat}>
               <ChatView
                 key={chat.id}
                 chat={chat}
@@ -423,6 +425,7 @@ export function AppLayout({ you, email, crew, unread, onSeen, profile, hasProjec
                   ) : null
                 }
               />
+            </OpenChatContext>
             </OpenPageContext>
             </OpenRunContext>
           )}

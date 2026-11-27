@@ -28,10 +28,19 @@ export type CardStatus = { pending: string } | { error: string };
 /** A card that can be answered: the run waiting for the answer (resumed with it, apps/api durable-runs). */
 type Resumable = { resumeRunId?: string };
 
+/** A mate as a card names it, in its own look: it may not be in your crew list yet (a mate just made, a friend's). */
+export type CardMate = { id: string; name: string; gradient: [string, string, string]; shape?: string };
+export type HandoffStatus = "queued" | "working" | "review" | "changes" | "done" | "waiting" | "failed";
+export type DeckStatus = "queued" | "outlining" | "writing" | "ready" | "editing" | "failed" | "cancelled";
+
 export type Card =
   | { type: "brief"; title: string; rows: BriefRow[] }
   /** What a reply is doing, and did: its steps (searching the web, reading pages), and how long it took. */
-  | { type: "activity"; label: string; steps: { label: string; done: boolean }[]; startedAt?: string; finishedAt?: string; state: "running" | "done" | "stopped" | "error" }
+  | { type: "handoff"; from: CardMate; asked: boolean; round?: number; items: { mate: CardMate; task: string; status: HandoffStatus; step?: string }[] }
+  | { type: "deck"; deckId: string; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string }
+  | { type: "newMate"; mate: CardMate & { role: string; description: string; chatId: string } }
+  | { type: "consult"; mate: CardMate; question: string; found: number }
+  | { type: "activity"; label: string; steps: { label: string; done: boolean; app?: string }[]; startedAt?: string; finishedAt?: string; state: "running" | "done" | "stopped" | "error" }
   /** `always`: the API offers Always allow (never for money); `fields`/`targets`: what it will send, and to whom. */
   | ({ type: "approval"; title: string; detail: string; meta: string; allow: string; state: "open" | "allowed" | "skipped"; canAlways?: boolean; fields?: BriefRow[]; targets?: string[] } & Resumable)
   /** Pick one: which account, which app. */

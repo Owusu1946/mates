@@ -7,6 +7,7 @@ const PATHS = {
   arrowLeft: "M15 6l-6 6 6 6",
   arrowRight: "M9 6l6 6-6 6",
   arrowUp: "M12 19V5M6 11l6-6 6 6",
+  download: "M12 4v11M7 10l5 5 5-5M5 20h14",
   mail: "M3.5 6.5h17v11h-17zM3.5 7l8.5 6 8.5-6",
   shuffle: "M4 7h3.5c4 0 5 10 9 10H20M17 14l3 3-3 3M4 17h3.5c1.5 0 2.5-1.5 3.3-3.2M13.2 9.2C14 7.6 15 7 16.5 7H20M17 4l3 3-3 3",
   check: "M5 12.5l4.5 4.5L19 7.5",

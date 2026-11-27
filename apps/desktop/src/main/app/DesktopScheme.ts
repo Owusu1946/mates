@@ -1,8 +1,8 @@
 import * as Electron from "electron";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
-import { faviconResponse } from "./DesktopFavicons.ts";
-import { APP_SCHEME, faviconSite, rendererFile } from "./DesktopScheme.logic.ts";
+import { faviconResponse, logoResponse } from "./DesktopFavicons.ts";
+import { APP_SCHEME, faviconSite, logoSource, rendererFile } from "./DesktopScheme.logic.ts";
 
 /**
  * In development, mates:// links must start Electron *with this project*. Clerk's bridge registers
@@ -17,8 +17,8 @@ export function registerDevProtocolClient() {
 }
 
 /**
- * Serves the bundled pages on mates://app/ (DesktopScheme.logic.ts), and site icons on
- * mates://app/favicon/<site>. The scheme itself is registered as privileged by Clerk's bridge,
+ * Serves the bundled pages on mates://app/ (DesktopScheme.logic.ts), site icons on
+ * mates://app/favicon/<site> and app logos on mates://app/logo?src=<url>. The scheme itself is registered as privileged by Clerk's bridge,
  * before the app is ready; this runs once it is.
  */
 export function serveRenderer(root: string) {
@@ -26,6 +26,9 @@ export function serveRenderer(root: string) {
     // mates://app/favicon/<site>: a site's icon, fetched by the app (DesktopFavicons.ts).
     const site = faviconSite(request.url);
     if (site) return faviconResponse(site);
+    // mates://app/logo?src=<url>: an app's logo from Composio, fetched by the app.
+    const logo = logoSource(request.url);
+    if (logo) return logoResponse(logo);
     const file = rendererFile(request.url, root);
     if (!file) return new Response("Not found", { status: 404 });
     return Electron.net.fetch(NodeURL.pathToFileURL(file).href);

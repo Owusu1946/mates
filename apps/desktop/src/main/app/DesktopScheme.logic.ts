@@ -58,3 +58,31 @@ export function faviconSite(requestUrl: string): string | null {
  * then Google's, which answers every site (a plain globe when it has nothing better).
  */
 export const faviconSources = (site: string) => [`https://icons.duckduckgo.com/ip3/${site}.ico`, `https://${site}/favicon.ico`, `https://www.google.com/s2/favicons?domain=${site}&sz=64`];
+
+/** App logos are served on mates://app/logo?src=<url> (DesktopFavicons.ts), only from where Composio keeps them. */
+export const LOGO_PATH = "/logo";
+
+/** Hosts an app's logo may come from: Composio's own, and its open logo set on GitHub (via jsDelivr). */
+const LOGO_HOST = /(^|\.)composio\.dev$/;
+const LOGO_REPO = /^\/gh\/ComposioHQ\//;
+
+/** The logo a mates://app/logo request asks for, when it's an https address Composio keeps logos at; null otherwise. */
+export function logoSource(requestUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== `${APP_SCHEME}:` || url.host !== APP_HOST || url.pathname !== LOGO_PATH) return null;
+  const raw = url.searchParams.get("src");
+  if (!raw) return null;
+  try {
+    const logo = new URL(raw);
+    if (logo.protocol !== "https:" || logo.username || logo.password || logo.port) return null;
+    const allowed = LOGO_HOST.test(logo.hostname) || (logo.hostname === "cdn.jsdelivr.net" && LOGO_REPO.test(logo.pathname));
+    return allowed ? logo.href : null;
+  } catch {
+    return null;
+  }
+}

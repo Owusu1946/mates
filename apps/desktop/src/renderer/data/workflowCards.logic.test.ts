@@ -84,8 +84,46 @@ test("memories, routines, watches, comparisons and code map to their cards", () 
 test("kinds the desktop can't act on yet say what they are, and send you to the phone when they need you", () => {
   const computer = toCard(card("computer", { phase: "waiting", computer: { goal: "Buy the charger", status: "waiting", question: "Approve the GH¢180 payment?" } }), live);
   assert.deepEqual(computer, { type: "summary", icon: "monitor", title: "Buy the charger", detail: "Approve the GH¢180 payment?", state: "waiting", onPhone: true });
-  const deck = toCard(card("deck", { label: "Pitch deck ready" }), live);
-  assert.deepEqual(deck?.type === "summary" && [deck.icon, deck.onPhone], ["file", false]);
+  const page = toCard(card("page", { label: "Page ready" }), live);
+  assert.deepEqual(page?.type === "summary" && [page.icon, page.onPhone], ["file", false]);
+});
+
+const esi = { id: "m1", name: "Esi", color: "violet", shape: "star", gradient: ["#a", "#b", "#c"] };
+const kofi = { id: "m2", name: "Kofi", color: "green", gradient: ["#d", "#e", "#f"] };
+
+test("a handoff keeps each mate's look, task, status and step; stopped work didn't finish", () => {
+  const handoff = { from: kofi, round: 2, items: [{ mate: esi, task: "Draft the budget", status: "working", step: "Reading the sheet" }, { mate: kofi, task: "Review", status: "done" }] };
+  assert.deepEqual(toCard(card("handoff", { handoff }), live), {
+    type: "handoff",
+    from: { id: "m2", name: "Kofi", gradient: ["#d", "#e", "#f"] },
+    asked: false,
+    round: 2,
+    items: [
+      { mate: { id: "m1", name: "Esi", gradient: ["#a", "#b", "#c"], shape: "star" }, task: "Draft the budget", status: "working", step: "Reading the sheet" },
+      { mate: { id: "m2", name: "Kofi", gradient: ["#d", "#e", "#f"] }, task: "Review", status: "done" },
+    ],
+  });
+  const stopped = toCard(card("handoff", { phase: "running", handoff }), { stopped: true });
+  assert.deepEqual(stopped?.type === "handoff" && stopped.items.map((item) => item.status), ["failed", "done"]);
+});
+
+test("a deck shows its progress and slides; a stopped one reads stopped", () => {
+  const deck = { deckId: "d1", title: "Q3 pitch", status: "writing", built: 3, total: 8, version: 1, slides: [{ id: "a", layout: "title", title: "Q3" }] };
+  assert.deepEqual(toCard(card("deck", { deck }), live), { type: "deck", deckId: "d1", title: "Q3 pitch", status: "writing", built: 3, total: 8, slides: [{ id: "a", title: "Q3" }] });
+  const stopped = toCard(card("deck", { phase: "running", deck }), { stopped: true });
+  assert.equal(stopped?.type === "deck" && stopped.status, "cancelled");
+});
+
+test("a new mate brings its face, role and chat; a consult names who was asked", () => {
+  const made = toCard(card("mate", { mate: { ...esi, role: "CFO", roleDescription: "Keeps your money straight", chatId: "c9" } }), live);
+  assert.deepEqual(made, { type: "newMate", mate: { id: "m1", name: "Esi", gradient: ["#a", "#b", "#c"], shape: "star", role: "CFO", description: "Keeps your money straight", chatId: "c9" } });
+  const consult = toCard(card("consult", { consult: { mate: esi, question: "Budget?", found: 0 } }), live);
+  assert.deepEqual(consult?.type === "consult" && [consult.mate.name, consult.found], ["Esi", 0]);
+});
+
+test("a step done in an app carries the app, for its logo", () => {
+  const activity = toCard(card("step", { activity: [{ label: "Checking your inbox", state: "done", app: "gmail" }] }), live);
+  assert.deepEqual(activity?.type === "activity" && activity.steps, [{ label: "Checking your inbox", done: true, app: "gmail" }]);
 });
 
 test("a reply's cards come in order, skipping text and what shows nothing", () => {

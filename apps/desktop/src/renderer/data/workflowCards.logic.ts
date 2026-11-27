@@ -1,4 +1,4 @@
-import type { BriefRow, Card } from "./sampleCrew.ts";
+import type { BriefRow, Card, CardMate, DeckStatus, HandoffStatus } from "./sampleCrew.ts";
 
 /**
  * The cards in a mate's reply (the API's WorkflowCard, apps/api/src/integrations.ts) as the cards
@@ -15,6 +15,7 @@ import type { BriefRow, Card } from "./sampleCrew.ts";
  */
 
 type Mateish = { id: string; name: string };
+type ApiMate = Mateish & { gradient: [string, string, string]; shape?: string | null };
 type ApiCard = {
   kind: string;
   phase: "running" | "done" | "error" | "waiting";
@@ -25,7 +26,7 @@ type ApiCard = {
   name?: string;
   logo?: string;
   stage?: string;
-  activity?: { label: string; state: "running" | "done" }[];
+  activity?: { label: string; state: "running" | "done"; app?: string }[];
   startedAt?: string;
   finishedAt?: string;
   approval?: { category: string; targets: string[]; canAlways: boolean; choice?: "allow" | "always" | "decline"; reason?: string; more?: string[] };
@@ -43,14 +44,14 @@ type ApiCard = {
   watch?: { watchId: string; version: number; title: string; condition: string; action: string; status: "active" | "paused" | "fired" | "expired" | "cancelled" | "failed"; every: string | null; app: string | null; lastNote: string | null; lastCheckedAt: string | null };
   comparison?: { perMate: { mate: Mateish & { role?: string }; recommendation: string; basis: string }[]; disagreements: string[]; suggestion: string };
   code?: { runId: string; repo: string; status: string; pr?: { number: number; title: string; files?: number } };
-  handoff?: { from: Mateish; items: { mate: Mateish; task: string }[]; asked?: boolean };
+  handoff?: { from: ApiMate; round?: number; asked?: boolean; items: { mate: ApiMate; task: string; status: HandoffStatus; step?: string }[] };
   team?: { name: string; members: Mateish[] };
-  mate?: Mateish & { role: string };
+  mate?: ApiMate & { role: string; roleDescription: string; chatId: string };
   note?: { title: string; author: string };
-  consult?: { mate: Mateish; found: number };
+  consult?: { mate: ApiMate; question: string; found: number };
   computer?: { goal: string; status: string; waitingFor?: string; question?: string; summary?: string };
   call?: { durationSec: number; summary: string };
-  deck?: { title: string; status: string };
+  deck?: { deckId: string; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string };
   page?: { title: string; status: string };
   prep?: { title: string };
   friendRequest?: { friendName: string; text: string; status: string };
@@ -84,6 +85,8 @@ const app = (card: ApiCard) => ({ slug: card.toolkit ?? "", name: card.name ?? c
 const isPlaceholder = (card: ApiCard) => card.kind === "step" && card.phase === "running" && !card.activity?.length && !card.stage && !card.logo;
 
 /** One API card as the desktop's, or null when it shows nothing. */
+const cardMate = (mate: ApiMate): CardMate => ({ id: mate.id, name: mate.name, gradient: mate.gradient, ...(mate.shape ? { shape: mate.shape } : {}) });
+
 export function toCard(api: ApiCard, context: CardContext): Card | null {
   const stopped = context.stopped && api.phase === "running";
   const phase = stopped ? "error" : api.phase;
@@ -95,7 +98,7 @@ export function toCard(api: ApiCard, context: CardContext): Card | null {
     case "step": {
       if (isPlaceholder(api) && !stopped) return null;
       if (!api.activity?.length) return phase === "error" ? { type: "summary", icon: "info", title: label, detail: api.detail, state: "error" } : null;
-      return { type: "activity", label, steps: api.activity.map((step) => ({ label: step.label, done: step.state === "done" })), startedAt: api.startedAt, finishedAt: api.finishedAt, state: stopped ? "stopped" : phase === "error" ? "error" : phase === "running" ? "running" : "done" };
+      return { type: "activity", label, steps: api.activity.map((step) => ({ label: step.label, done: step.state === "done", ...(step.app ? { app: step.app } : {}) })), startedAt: api.startedAt, finishedAt: api.finishedAt, state: stopped ? "stopped" : phase === "error" ? "error" : phase === "running" ? "running" : "done" };
     }
     case "approval": {
       const choice = api.approval?.choice;
@@ -153,15 +156,19 @@ export function toCard(api: ApiCard, context: CardContext): Card | null {
     case "code":
       return api.code ? { type: "run", runId: api.code.runId, title: api.code.pr?.title ?? api.label, project: api.code.repo, files: api.code.pr?.files ?? 0, ...(api.code.pr ? { pr: api.code.pr.number } : {}) } : null;
     case "handoff":
-      return { type: "summary", icon: "users", title: api.label, detail: api.handoff?.items.map((item) => `${item.mate.name}: ${item.task}`).join(" · "), state: phase };
+      return api.handoff
+        ? { type: "handoff", from: cardMate(api.handoff.from), asked: api.handoff.asked === true, ...(api.handoff.round ? { round: api.handoff.round } : {}), items: api.handoff.items.map((item) => ({ mate: cardMate(item.mate), task: item.task, status: stopped && (item.status === "working" || item.status === "queued") ? "failed" : item.status, ...(item.step ? { step: item.step } : {}) })) }
+        : null;
+    case "deck":
+      return api.deck ? { type: "deck", deckId: api.deck.deckId, title: api.deck.title, status: stopped && api.deck.status !== "ready" ? "cancelled" : api.deck.status, built: api.deck.built, total: api.deck.total, slides: api.deck.slides.map((slide) => ({ id: slide.id, title: slide.title })), ...(api.deck.error ? { error: api.deck.error } : {}) } : null;
     case "team":
       return { type: "summary", icon: "users", title: api.team?.name ?? api.label, detail: api.team?.members.map((member) => member.name).join(", "), state: phase };
     case "mate":
-      return { type: "summary", icon: "users", title: api.mate ? `${api.mate.name} joined your crew` : api.label, detail: api.mate?.role, state: phase };
+      return api.mate ? { type: "newMate", mate: { ...cardMate(api.mate), role: api.mate.role, description: api.mate.roleDescription, chatId: api.mate.chatId } } : null;
     case "note":
       return { type: "summary", icon: "file", title: api.note?.title ?? api.label, detail: api.note ? `Note by ${api.note.author}` : api.detail, state: phase };
     case "consult":
-      return { type: "summary", icon: "brain", title: api.label, detail: api.detail, state: phase };
+      return api.consult ? { type: "consult", mate: cardMate(api.consult.mate), question: api.consult.question, found: api.consult.found } : null;
     case "call":
       return { type: "summary", icon: "phone", title: api.label, detail: api.call?.summary ?? api.detail, state: phase };
     case "computer":

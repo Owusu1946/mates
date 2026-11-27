@@ -41,7 +41,7 @@ import { gradientOf, type PersonaMate } from "./mates.js";
 import { checkWithMate, checkWithMateTool, memoryCard, memoryContext, memoryTool, runMemoryTool } from "./memory.js";
 import { RunHandoffRequested } from "./run-handoff.js";
 import { recallContext, recallTool, runRecall } from "./recall.js";
-import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, type Plan } from "./plans.js";
+import { doneCard, executePlan, extractLinks, planCard, planHash, planInstructions, toolkitOf, type Plan } from "./plans.js";
 import { playbookContext } from "./playbooks.js";
 import { embedOne } from "./embeddings.js";
 import type { UsageSource } from "./db/schema.js";
@@ -557,11 +557,11 @@ export async function createAgentResponse(
       // One status line while working ("Checking your calendar…"), "Worked for 12s" after.
       const activitySteps: NonNullable<WorkflowCard["activity"]> = [];
       const startedAt = new Date().toISOString();
-      const activity = (label: string) => {
+      const activity = (label: string, app?: string) => {
         const last = activitySteps.at(-1);
         if (last?.label === label && last.state === "running") return;
         if (last) last.state = "done";
-        activitySteps.push({ label, state: "running" });
+        activitySteps.push({ label, state: "running", ...(app ? { app } : {}) });
         card(progressId, { kind: "step", phase: "running", label, activity: activitySteps.map((s) => ({ ...s })), startedAt });
       };
       const finishActivity = () => {
@@ -1388,8 +1388,10 @@ export async function createAgentResponse(
                 }
               }
               // One line per tool, saying what it is doing with what it was given ("Writing the heading …").
-              if (batch.length) for (const tool of batch) activity(describeStep(tool.tool_slug ?? "", tool.arguments ?? {}));
-              else activity(describeStep(call.function.name, args));
+              // Composio's own meta tools (COMPOSIO_*) aren't an app of yours: no logo.
+              const appOf = (slug: string) => (slug && !slug.startsWith("COMPOSIO_") ? toolkitOf(slug) : undefined);
+              if (batch.length) for (const tool of batch) activity(describeStep(tool.tool_slug ?? "", tool.arguments ?? {}), appOf(tool.tool_slug ?? ""));
+              else activity(describeStep(call.function.name, args), appOf(call.function.name));
               try {
                 const output = await getComposio().provider.executeToolCall(
                   session,

@@ -2,8 +2,8 @@ import * as Electron from "electron";
 import { faviconSources } from "./DesktopScheme.logic.ts";
 
 /**
- * Site icons for web citations and sources, fetched by the app (mates://app/favicon/<site>) rather
- * than by the page. The page loads them from the app's own origin, so its CSP stays closed to the
+ * Site icons for web citations and sources (mates://app/favicon/<site>) and app logos
+ * (mates://app/logo?src=<url>), fetched by the app rather than by the page. The page loads them from the app's own origin, so its CSP stays closed to the
  * web, and the app can try more than one place: DuckDuckGo's icon (as the phone shows), the site's
  * own, then Google's. Answers are kept for the session, so each site is asked once.
  */
@@ -49,5 +49,36 @@ function iconFor(site: string): Promise<Icon> {
 export async function faviconResponse(site: string): Promise<Response> {
   const icon = await iconFor(site);
   if (!icon) return new Response("No icon", { status: 404 });
+  return new Response(icon.body, { headers: { "content-type": icon.type, "cache-control": "max-age=86400" } });
+}
+
+const logos = new Map<string, Promise<Icon>>();
+
+async function fetchLogo(url: string): Promise<Icon> {
+  try {
+    const response = await Electron.net.fetch(url, { signal: AbortSignal.timeout(SOURCE_TIMEOUT_MS) });
+    const type = response.headers.get("content-type") ?? "";
+    if (!response.ok || !type.startsWith("image/")) return null;
+    const body = await response.arrayBuffer();
+    return body.byteLength > 0 && body.byteLength <= MAX_BYTES ? { body, type } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The response for mates://app/logo?src=<url>: an app's logo from where Composio keeps it
+ * (DesktopScheme.logic.ts logoSource), kept for the session, or 404 so the page shows its tile.
+ */
+export async function logoResponse(url: string): Promise<Response> {
+  let logo = logos.get(url);
+  if (!logo) {
+    if (logos.size >= CACHE_LIMIT) logos.delete(logos.keys().next().value!);
+    logo = fetchLogo(url);
+    logos.set(url, logo);
+  }
+  const icon = await logo;
+  if (!icon) return new Response("No logo", { status: 404 });
+  // SVG logos draw as images only: no scripts run in an <img>.
   return new Response(icon.body, { headers: { "content-type": icon.type, "cache-control": "max-age=86400" } });
 }

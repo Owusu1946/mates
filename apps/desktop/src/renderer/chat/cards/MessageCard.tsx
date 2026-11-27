@@ -12,6 +12,8 @@ import { RunCard } from "./RunCard.tsx";
 import { ConnectCard, ScheduleCard, WatchCard } from "./StandingCards.tsx";
 import { ComparisonCard, PlanCard, ResultsCard } from "./WorkCards.tsx";
 import { WorkActivity } from "../WorkActivity.tsx";
+import { ConsultLine, HandoffCard, NewMateCard } from "./CrewCards.tsx";
+import { DeckCard } from "./DeckCard.tsx";
 
 type MessageCardProps = {
   card: Card;
@@ -34,6 +36,14 @@ export function MessageCard({ card, authorId, onAnswer, onChange, onAction, stat
       return <WorkActivity card={card} />;
     case "summary":
       return <SummaryCard card={card} />;
+    case "handoff":
+      return <HandoffCard card={card} />;
+    case "newMate":
+      return <NewMateCard card={card} />;
+    case "consult":
+      return <ConsultLine card={card} />;
+    case "deck":
+      return <DeckCard card={card} />;
     case "choice":
       return <ChoiceCard card={card} onAction={onAction} status={status} />;
     case "brief":

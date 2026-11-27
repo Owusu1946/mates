@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import * as NodePath from "node:path";
 import { test } from "node:test";
-import { APP_ORIGIN, faviconSite, faviconSources, rendererFile } from "./DesktopScheme.logic.ts";
+import { APP_ORIGIN, faviconSite, faviconSources, logoSource, rendererFile } from "./DesktopScheme.logic.ts";
 import { isAppUrl } from "./DesktopWebLinks.logic.ts";
 
 const root = NodePath.resolve("/opt/Mates/resources/app.asar/dist/renderer");
@@ -45,4 +45,17 @@ test("site icons are asked for by plain host name only", () => {
   assert.equal(faviconSite("mates://app/index.html"), null);
   assert.equal(faviconSite("https://app/favicon/x.com"), null);
   assert.deepEqual(faviconSources("a.gh"), ["https://icons.duckduckgo.com/ip3/a.gh.ico", "https://a.gh/favicon.ico", "https://www.google.com/s2/favicons?domain=a.gh&sz=64"]);
+});
+
+test("app logos come only from where Composio keeps them", () => {
+  const ask = (src: string) => logoSource(`mates://app/logo?src=${encodeURIComponent(src)}`);
+  assert.equal(ask("https://logos.composio.dev/api/gmail"), "https://logos.composio.dev/api/gmail");
+  assert.equal(ask("https://cdn.jsdelivr.net/gh/ComposioHQ/open-logos@master/gmail.svg"), "https://cdn.jsdelivr.net/gh/ComposioHQ/open-logos@master/gmail.svg");
+  assert.equal(ask("https://cdn.jsdelivr.net/npm/evil/logo.svg"), null);
+  assert.equal(ask("https://evilcomposio.dev/x.png"), null);
+  assert.equal(ask("http://logos.composio.dev/api/gmail"), null);
+  assert.equal(ask("https://logos.composio.dev:8443/x"), null);
+  assert.equal(ask("file:///etc/passwd"), null);
+  assert.equal(logoSource("mates://app/logo"), null);
+  assert.equal(logoSource("mates://app/favicon/gmail.com"), null);
 });
