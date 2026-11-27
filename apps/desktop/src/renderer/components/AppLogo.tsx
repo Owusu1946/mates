@@ -27,12 +27,13 @@ export function AppLogo({ name, slug, logo, size = 32, className }: { name: stri
       <img
         src={src}
         alt=""
-        style={box}
+        // Padding from the logo's own size: a percentage would be of the row it sits in.
+        style={{ ...box, padding: Math.round(size * 0.14) }}
         onError={() => {
           failed.add(src);
           setBroken(true);
         }}
-        className={cn("shrink-0 rounded-[28%] bg-white object-contain p-[12%] ring-1 ring-line", className)}
+        className={cn("shrink-0 rounded-[28%] bg-white object-contain ring-1 ring-line", className)}
       />
     );
   const [light, mid, deep] = tintOf(slug);
