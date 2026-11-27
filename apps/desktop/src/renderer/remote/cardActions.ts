@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { useQueryClient } from "@tanstack/react-query";
 import { useSyncExternalStore } from "react";
 import { allConnected, choiceFor, type CardAction, type CardStatus } from "../chat/cards/cardAnswers.logic.ts";

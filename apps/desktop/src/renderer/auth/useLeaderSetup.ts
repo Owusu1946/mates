@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "./account.ts";
 import { useEffect, useState } from "react";
 import { read, useApi } from "../lib/api.ts";
 

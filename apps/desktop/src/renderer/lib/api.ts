@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import type { AppType } from "@expojet/api-contract";
 import { hc } from "hono/client";
 

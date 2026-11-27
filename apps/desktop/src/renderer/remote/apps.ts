@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { keepPreviousData, useInfiniteQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useState, useSyncExternalStore } from "react";
 import { apiFetch, ensureOk, read, type GetToken } from "../lib/api.ts";

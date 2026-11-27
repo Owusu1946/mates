@@ -1,4 +1,4 @@
-import { useAuth } from "@clerk/electron/react";
+import { useAuth } from "../auth/account.ts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Mate } from "../data/sampleCrew.ts";
 import { roleInput, toCrew, type ApiChatsBody, type ApiMate, type ApiMatesBody, type Crew } from "../data/toDesktop.logic.ts";
