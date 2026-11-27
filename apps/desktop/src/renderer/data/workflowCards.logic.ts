@@ -51,7 +51,7 @@ type ApiCard = {
   consult?: { mate: ApiMate; question: string; found: number };
   computer?: { goal: string; status: string; waitingFor?: string; question?: string; summary?: string };
   call?: { durationSec: number; summary: string };
-  deck?: { title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string };
+  deck?: { deckId: string; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string };
   page?: { title: string; status: string };
   prep?: { title: string };
   friendRequest?: { friendName: string; text: string; status: string };
@@ -160,7 +160,7 @@ export function toCard(api: ApiCard, context: CardContext): Card | null {
         ? { type: "handoff", from: cardMate(api.handoff.from), asked: api.handoff.asked === true, ...(api.handoff.round ? { round: api.handoff.round } : {}), items: api.handoff.items.map((item) => ({ mate: cardMate(item.mate), task: item.task, status: stopped && (item.status === "working" || item.status === "queued") ? "failed" : item.status, ...(item.step ? { step: item.step } : {}) })) }
         : null;
     case "deck":
-      return api.deck ? { type: "deck", title: api.deck.title, status: stopped && api.deck.status !== "ready" ? "cancelled" : api.deck.status, built: api.deck.built, total: api.deck.total, slides: api.deck.slides.map((slide) => ({ id: slide.id, title: slide.title })), ...(api.deck.error ? { error: api.deck.error } : {}) } : null;
+      return api.deck ? { type: "deck", deckId: api.deck.deckId, title: api.deck.title, status: stopped && api.deck.status !== "ready" ? "cancelled" : api.deck.status, built: api.deck.built, total: api.deck.total, slides: api.deck.slides.map((slide) => ({ id: slide.id, title: slide.title })), ...(api.deck.error ? { error: api.deck.error } : {}) } : null;
     case "team":
       return { type: "summary", icon: "users", title: api.team?.name ?? api.label, detail: api.team?.members.map((member) => member.name).join(", "), state: phase };
     case "mate":

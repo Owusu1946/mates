@@ -109,7 +109,7 @@ test("a handoff keeps each mate's look, task, status and step; stopped work didn
 
 test("a deck shows its progress and slides; a stopped one reads stopped", () => {
   const deck = { deckId: "d1", title: "Q3 pitch", status: "writing", built: 3, total: 8, version: 1, slides: [{ id: "a", layout: "title", title: "Q3" }] };
-  assert.deepEqual(toCard(card("deck", { deck }), live), { type: "deck", title: "Q3 pitch", status: "writing", built: 3, total: 8, slides: [{ id: "a", title: "Q3" }] });
+  assert.deepEqual(toCard(card("deck", { deck }), live), { type: "deck", deckId: "d1", title: "Q3 pitch", status: "writing", built: 3, total: 8, slides: [{ id: "a", title: "Q3" }] });
   const stopped = toCard(card("deck", { phase: "running", deck }), { stopped: true });
   assert.equal(stopped?.type === "deck" && stopped.status, "cancelled");
 });

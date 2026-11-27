@@ -37,7 +37,7 @@ export type Card =
   | { type: "brief"; title: string; rows: BriefRow[] }
   /** What a reply is doing, and did: its steps (searching the web, reading pages), and how long it took. */
   | { type: "handoff"; from: CardMate; asked: boolean; round?: number; items: { mate: CardMate; task: string; status: HandoffStatus; step?: string }[] }
-  | { type: "deck"; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string }
+  | { type: "deck"; deckId: string; title: string; status: DeckStatus; built: number; total: number; slides: { id: string; title: string }[]; error?: string }
   | { type: "newMate"; mate: CardMate & { role: string; description: string; chatId: string } }
   | { type: "consult"; mate: CardMate; question: string; found: number }
   | { type: "activity"; label: string; steps: { label: string; done: boolean; app?: string }[]; startedAt?: string; finishedAt?: string; state: "running" | "done" | "stopped" | "error" }

@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Icon } from "../../components/ui/Icon.tsx";
+import { Button } from "../../components/ui/Button.tsx";
 import type { Card } from "../../data/sampleCrew.ts";
+import { deckBusy, useDeck, useDeckControls } from "../../remote/decks.ts";
 
 /** What the deck is doing while it's made (the phone's decks/deck-card.tsx wording). */
 const STATUS: Record<string, string> = { queued: "Getting started", outlining: "Planning the story", writing: "Writing slides", editing: "Updating slides" };
@@ -8,11 +10,16 @@ const STATUS: Record<string, string> = { queued: "Getting started", outlining: "
 /**
  * A deck in the chat, as on the phone: a slide-shaped cover with its title, and while it's made,
  * what it's doing with a bar for slides written. Ready: how many slides, opening onto their titles.
- * Presenting and sharing stay on the phone for now. Only the bar's width changes as slides land.
+ * The reply's card is written once, so the live deck comes from the API while it's made
+ * (remote/decks.ts). Stop while it's made; save it as PowerPoint when it's ready. Only the bar's
+ * width changes as slides land.
  */
-export function DeckCard({ card }: { card: Extract<Card, { type: "deck" }> }) {
+export function DeckCard({ card: written }: { card: Extract<Card, { type: "deck" }> }) {
   const [open, setOpen] = useState(false);
-  const making = !["ready", "failed", "cancelled"].includes(card.status);
+  const live = useDeck(written.deckId).data;
+  const card = live ? { ...written, ...live } : written;
+  const controls = useDeckControls(written.deckId);
+  const making = deckBusy(card.status);
   const meta =
     card.status === "ready"
       ? `Presentation · ${card.built} slide${card.built === 1 ? "" : "s"}`
@@ -34,13 +41,24 @@ export function DeckCard({ card }: { card: Extract<Card, { type: "deck" }> }) {
       </div>
       <div className="mt-1.5 flex items-center gap-2 px-0.5 text-xs">
         <span className={card.status === "failed" ? "text-danger-ink" : "text-ink-soft"}>{meta}</span>
+        {making && (
+          <Button size="xs" variant="ghost" className="ms-auto" disabled={controls.busy === "stop"} onClick={() => void controls.stop()}>
+            Stop
+          </Button>
+        )}
+        {card.status === "ready" && (
+          <Button size="xs" variant="ghost" icon="download" className="ms-auto" disabled={controls.busy === "save"} onClick={() => void controls.save(card.title)}>
+            {controls.busy === "save" ? "Preparing…" : "PowerPoint"}
+          </Button>
+        )}
         {card.status === "ready" && card.slides.length > 0 && (
-          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="ms-auto flex items-center gap-0.5 text-ink-soft hover:text-ink">
+          <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex items-center gap-0.5 text-ink-soft hover:text-ink">
             {open ? "Hide slides" : "Slides"}
             <Icon name="chevronDown" size={13} className={open ? "rotate-180" : undefined} />
           </button>
         )}
       </div>
+      {controls.error && <p className="mt-1 px-0.5 text-xs text-danger-ink">{controls.error}</p>}
       {open && (
         <ol className="mt-1 flex animate-fade flex-col gap-0.5 px-0.5 text-xs text-ink-soft">
           {card.slides.map((slide, index) => (
