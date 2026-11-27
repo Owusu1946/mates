@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { previewLine, roleInput, roleLabel, timeLabel, toCrew, type ApiChat, type ApiMate, type ApiMatesBody } from "./toDesktop.logic.ts";
+import { plainText, previewLine, roleInput, roleLabel, timeLabel, toCrew, type ApiChat, type ApiMate, type ApiMatesBody } from "./toDesktop.logic.ts";
 import { isUnread, markSeen, parseSeen } from "./unread.logic.ts";
 
 const roles = [
@@ -82,4 +82,15 @@ test("seen times survive bad storage and only move forward", () => {
   const seen = { since: 1, chats: { a: 10 } };
   assert.equal(markSeen(seen, "a", 5), seen);
   assert.deepEqual(markSeen(seen, "a", 20).chats, { a: 20 });
+});
+
+test("previews read markdown as plain text, as the chat shows it", () => {
+  assert.equal(plainText("## Latest Ghana news — 26 Nov\n\n**Cedi** steadies"), "Latest Ghana news — 26 Nov Cedi steadies");
+  assert.equal(plainText("- Read the [report](https://x.gh) and `npm test`\n- *Then* reply"), "Read the report and npm test Then reply");
+  assert.equal(plainText("> Quoted\n1. First\n2) Second"), "Quoted First Second");
+  assert.equal(plainText("| City | Cost |\n| --- | --- |\n| Kumasi | GH¢400 |"), "City Cost Kumasi GH¢400");
+  assert.equal(plainText("```ts\nconst a = 1;\n```"), "const a = 1;");
+  // Underscores and stars inside words or sums stay as written.
+  assert.equal(plainText("snake_case_name costs 2 * 3 * 4"), "snake_case_name costs 2 * 3 * 4");
+  assert.equal(previewLine({ from: "Akua", text: "## Plan\n**Kumasi** wins", at: "" }, "group"), "Akua: Plan Kumasi wins");
 });

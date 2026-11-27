@@ -61,8 +61,28 @@ export function toMate(mate: ApiMate, roles: ApiRolePreset[]): Mate {
 /** The line under a chat's name: who said it in a group, "You:" when it was you. */
 export function previewLine(preview: ApiPreview | null, kind: Chat["kind"]): string {
   if (!preview) return "";
-  if (preview.from === "you") return `You: ${preview.text}`;
-  return kind === "group" ? `${preview.from}: ${preview.text}` : preview.text;
+  const text = plainText(preview.text);
+  if (preview.from === "you") return `You: ${text}`;
+  return kind === "group" ? `${preview.from}: ${text}` : text;
+}
+
+/**
+ * A reply's markdown read as one plain line, for previews: what it says without the symbols that
+ * format it (headings, emphasis, code, links, lists, quotes, tables), as the chat itself shows it.
+ */
+export function plainText(markdown: string): string {
+  return markdown
+    .replace(/```[^\n]*\n?/g, " ")
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/^\s{0,3}(#{1,6}|>+|[-*+]|\d+[.)])\s+/gm, "")
+    .replace(/^\s*\|?(\s*:?-{3,}:?\s*\|?)+\s*$/gm, " ")
+    .replace(/\|/g, " ")
+    .replace(/(\*\*|__|~~)(.+?)\1/g, "$2")
+    .replace(/(^|[^\w*])[*_](\S(?:.*?\S)?)[*_](?=[^\w*]|$)/g, "$1$2")
+    .replace(/`([^`]*)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** When a chat last moved, as the sidebar shows it: the time today, the day this week, else the date. */
